@@ -688,6 +688,122 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(data_new.qpos[:4], data.qpos)
     np.testing.assert_array_equal(data_new.qvel[:3], data.qvel)
 
+  def test_recompile_retry_preserves_state_layout(self):
+    spec = mujoco.MjSpec.from_string("""
+      <mujoco>
+        <worldbody>
+          <body name="a"><joint name="ja"/><geom size=".1"/></body>
+          <body name="b"><joint name="jb"/><geom size=".1"/></body>
+        </worldbody>
+        <actuator>
+          <general name="aa" joint="ja" dyntype="filter"/>
+          <general name="ab" joint="jb" dyntype="filter"/>
+        </actuator>
+      </mujoco>
+    """)
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    data.qpos[:] = [0.11, 0.22]
+    data.qvel[:] = [1.1, 2.2]
+    data.act[:] = [3.3, 4.4]
+    data.ctrl[:] = [5.5, 6.6]
+    data.qfrc_applied[:] = [7.7, 8.8]
+    data.qacc_warmstart[:] = [9.9, 10.1]
+    data.xfrc_applied[2] = np.arange(6) + 11
+
+    # Keep the model/data sizes unchanged, while moving b into a's old slots.
+    spec.delete(spec.body('a'))
+    body = spec.worldbody.add_body(name='c')
+    body.add_joint(name='jc')
+    geom = body.add_geom(size=[0.1, 0, 0], density=0)
+    spec.add_actuator(
+        name='ac', target='jc', trntype=mujoco.mjtTrn.mjTRN_JOINT,
+        dyntype=mujoco.mjtDyn.mjDYN_FILTER,
+    )
+    for _ in range(2):
+      with self.assertRaisesRegex(ValueError, 'mass and inertia'):
+        spec.recompile(model, data)
+      np.testing.assert_array_equal(data.qpos, [0.11, 0.22])
+
+    # The still-valid input can continue to change after the failed attempt.
+    data.qpos[1] = 0.33
+    geom.density = 1000
+    new_model, new_data = spec.recompile(model, data)
+    self.assertEqual(new_model.nq, model.nq)
+    self.assertIs(new_data.model, new_model)
+    np.testing.assert_array_equal(new_data.qpos, [0.33, 0])
+    np.testing.assert_array_equal(new_data.qvel, [2.2, 0])
+    np.testing.assert_array_equal(new_data.act, [4.4, 0])
+    np.testing.assert_array_equal(new_data.ctrl, [6.6, 0])
+    np.testing.assert_array_equal(new_data.qfrc_applied, [8.8, 0])
+    np.testing.assert_array_equal(new_data.qacc_warmstart, [10.1, 0])
+    np.testing.assert_array_equal(new_data.xfrc_applied[1], np.arange(6) + 11)
+    np.testing.assert_array_equal(new_data.xfrc_applied[2], np.zeros(6))
+
+  def test_recompile_retry_after_reverting_joint_type(self):
+    for copy_spec in (False, True):
+      with self.subTest(copy_spec=copy_spec):
+        spec = mujoco.MjSpec.from_string("""
+          <mujoco><worldbody><body>
+            <joint name="j"/><geom name="g" size=".1"/>
+          </body></worldbody></mujoco>
+        """)
+        model = spec.compile()
+        data = mujoco.MjData(model)
+        data.qpos[0] = 0.25
+        data.qvel[0] = 1.5
+        spec.joint('j').type = mujoco.mjtJoint.mjJNT_SLIDE
+        spec.geom('g').density = 0
+        with self.assertRaisesRegex(ValueError, 'mass and inertia'):
+          spec.recompile(model, data)
+        if copy_spec:
+          spec = spec.copy()
+        spec.joint('j').type = mujoco.mjtJoint.mjJNT_HINGE
+        spec.geom('g').density = 1000
+        _, new_data = spec.recompile(model, data)
+        np.testing.assert_array_equal(new_data.qpos, data.qpos)
+        np.testing.assert_array_equal(new_data.qvel, data.qvel)
+
+  def test_recompile_retry_after_correcting_subtree(self):
+    for keyframe in (False, True):
+      for attach in (False, True):
+        for copy_spec in (False, True):
+          with self.subTest(keyframe=keyframe, attach=attach, copy_spec=copy_spec):
+            key = '<keyframe><key qpos=".4 .8"/></keyframe>' if keyframe else ''
+            spec = mujoco.MjSpec.from_string(f"""
+              <mujoco><worldbody>
+                <body name="a"><joint name="ja"/><geom size=".1"/></body>
+                <body name="b"><joint name="jb"/><geom size=".1"/></body>
+              </worldbody>{key}</mujoco>
+            """)
+            model = spec.compile()
+            data = mujoco.MjData(model)
+            data.qpos[:] = [0.11, 0.22]
+            data.qvel[:] = [1.1, 2.2]
+            spec.delete(spec.body('a'))
+            invalid = spec.worldbody.add_body(name='c')
+            invalid.add_joint()
+            invalid.add_geom(size=[0.1, 0, 0], density=0)
+            with self.assertRaisesRegex(ValueError, 'mass and inertia'):
+              spec.recompile(model, data)
+            if copy_spec:
+              spec = spec.copy()
+            spec.delete(spec.body('c'))
+            if attach:
+              child = mujoco.MjSpec()
+              body = child.worldbody.add_body(name='d')
+            else:
+              body = spec.worldbody.add_body(name='d')
+            body.add_joint()
+            body.add_geom(size=[0.1, 0, 0])
+            if attach:
+              spec.attach(child, prefix='d_', frame=spec.worldbody.add_frame())
+            new_model, new_data = spec.recompile(model, data)
+            np.testing.assert_array_equal(new_data.qpos, [0.22, 0])
+            np.testing.assert_array_equal(new_data.qvel, [2.2, 0])
+            if keyframe:
+              np.testing.assert_array_equal(new_model.key_qpos, [[0.8, 0]])
+
   def test_uncompiled_spec_can_be_written(self):
     spec = mujoco.MjSpec()
     spec.to_xml()
