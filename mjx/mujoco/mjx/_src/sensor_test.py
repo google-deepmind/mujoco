@@ -83,6 +83,43 @@ class SensorTest(parameterized.TestCase):
 
     _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
 
+  @parameterized.parameters(
+      ('', 'limited="true" range="-1 1"', ''),
+      ('', 'frictionloss="0.1"', ''),
+      ('', '', '<equality><connect body1="b0" anchor="0 0 0"/></equality>'),
+      ('<flag contact="disable"/>', 'limited="true" range="-1 1"', ''),
+  )
+  def test_touch_sensor_no_contacts(self, option, joint_attr, equality):
+    """Tests touch/contact sensors with constraints but no contacts."""
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <option>{option}</option>
+        <worldbody>
+          <body name="b0" pos="0 0 1">
+            <joint type="hinge" axis="0 1 0" {joint_attr}/>
+            <geom name="g0" size="0.1" contype="0" conaffinity="0"/>
+            <site name="site0" size="0.2"/>
+          </body>
+        </worldbody>
+        {equality}
+        <sensor>
+          <touch site="site0"/>
+          <contact geom1="g0" data="found force torque" num="2"/>
+          <contact geom1="g0" data="found force" num="1" reduce="maxforce"/>
+          <framepos objtype="site" objname="site0"/>
+        </sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    d.qpos = [0.3]
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+    mujoco.mj_forward(m, d)
+
+    self.assertEqual(d.ncon, 0)
+    self.assertGreater(np.abs(d.sensordata).max(), 0.0)
+    dx = jax.jit(mjx.forward)(mx, dx)
+    _assert_eq(dx.sensordata, d.sensordata, 'sensordata')
+
   def test_touch_sensor_nested_vmap(self):
     """Tests touch sensors compose under nested vmap."""
     m = test_util.load_test_file('sensor/sensor.xml')

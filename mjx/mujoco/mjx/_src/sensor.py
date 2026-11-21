@@ -677,9 +677,12 @@ def sensor_acc(m: Model, d: Data) -> Data:
       force, condim_id = support.contact_force_dim(m, d, dim)
       contact_force.append(force)
       condim_ids.append(condim_id)
-    contact_force = jp.concatenate(contact_force)[
-        np.argsort(np.concatenate(condim_ids))
-    ]
+    if contact_force:
+      contact_force = jp.concatenate(contact_force)[
+          np.argsort(np.concatenate(condim_ids))
+      ]
+    else:  # the model has no contacts
+      contact_force = jp.zeros((0, 6))
 
   sensors, adrs = [], []
 
