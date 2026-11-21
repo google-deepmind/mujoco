@@ -99,7 +99,8 @@ MJ_DEFINE_SHUFFLE_WRAPPERS()
   #endif
 #endif
 
-#undef THIRD_PARTY_MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
+// Undefine include guard before re-including engine_simd.h.
+#undef MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
 #undef v4_shuffle
 #undef mjVECTORIZE
 #undef mjUSEAVX
@@ -109,7 +110,7 @@ namespace simd_scalar {
 #define mjSCALAR
 #include "src/engine/engine_simd.h"
 MJ_DEFINE_SHUFFLE_WRAPPERS()
-#undef THIRD_PARTY_MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
+#undef MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
 #undef v4_shuffle
 #undef mjSCALAR
 }  // namespace simd_scalar
@@ -121,7 +122,7 @@ namespace simd_vecext {
   #define mjVECTORIZE
   #include "src/engine/engine_simd.h"
 MJ_DEFINE_SHUFFLE_WRAPPERS()
-  #undef THIRD_PARTY_MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
+  #undef MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
   #undef v4_shuffle
   #undef mjVECTORIZE
 }  // namespace simd_vecext
@@ -133,7 +134,7 @@ namespace simd_avx {
   #define mjUSEAVX
   #include "src/engine/engine_simd.h"
 MJ_DEFINE_SHUFFLE_WRAPPERS()
-  #undef THIRD_PARTY_MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
+  #undef MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
   #undef v4_shuffle
   #undef mjUSEAVX
 }  // namespace simd_avx
@@ -147,7 +148,7 @@ namespace simd_scalar_fma_on {
 #ifndef mjUSEFMA
   #error "mjUSEFMA must remain defined when forced on without mjNOFMA"
 #endif
-#undef THIRD_PARTY_MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
+#undef MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
 #undef v4_shuffle
 #undef mjSCALAR
 #undef mjUSEFMA
@@ -158,7 +159,7 @@ namespace simd_vecext_fma_on {
   #define mjVECTORIZE
   #define mjUSEFMA
   #include "src/engine/engine_simd.h"
-  #undef THIRD_PARTY_MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
+  #undef MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
   #undef v4_shuffle
   #undef mjVECTORIZE
   #undef mjUSEFMA
@@ -170,7 +171,7 @@ namespace simd_avx_fma_on {
   #define mjUSEAVX
   #define mjUSEFMA
   #include "src/engine/engine_simd.h"
-  #undef THIRD_PARTY_MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
+  #undef MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
   #undef v4_shuffle
   #undef mjUSEAVX
   #undef mjUSEFMA
@@ -186,7 +187,7 @@ namespace simd_fma_optout {
 #ifdef mjUSEFMA
   #error "mjNOFMA must override mjENABLEFMA"
 #endif
-#undef THIRD_PARTY_MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
+#undef MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_
 #undef v4_shuffle
 #undef mjSCALAR
 #undef mjENABLEFMA
