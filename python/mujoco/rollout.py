@@ -188,8 +188,10 @@ class Rollout:
     elif not isinstance(model, list):
       model = [model]  # Use a length 1 list to simplify code below
 
-    if not isinstance(data, list):
+    if isinstance(data, mujoco.MjData):
       data = [data]  # Use a length 1 list to simplify code below  # pyrefly: ignore[bad-assignment]
+    else:
+      data = list(data)  # Sequence: accept tuples and other sequences
 
     # infer nstep, check for incompatibilities
     nstep = _infer_dimension(
@@ -322,8 +324,10 @@ def rollout(
   Raises:
     ValueError: bad shapes or sizes.
   """  # fmt: skip
-  if not isinstance(data, list):
+  if isinstance(data, mujoco.MjData):
     data = [data]  # Use a length 1 list to simplify code below  # pyrefly: ignore[bad-assignment]
+  else:
+    data = list(data)  # Sequence: accept tuples and other sequences
 
   nthread = len(data) if len(data) > 1 else 0  # pyrefly: ignore[bad-argument-type]
 
