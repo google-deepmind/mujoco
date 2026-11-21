@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from codegen import code_builder
 from introspect import ast_nodes
+from introspect import functions as introspect_functions
 
 from wasm.codegen.generators import common
 from wasm.codegen.generators import enums
@@ -78,6 +79,41 @@ class FunctionUtilsTest(absltest.TestCase):
         [],
         "doc",
     )
+
+  def test_fixed_array_checks_precede_native_call(self):
+    func = ast_nodes.FunctionDecl(
+        name="fixed_arrays",
+        return_type=ast_nodes.ValueType("void"),
+        parameters=(
+            ast_nodes.FunctionParameterDecl(
+                name="result",
+                type=ast_nodes.ArrayType(ast_nodes.ValueType("mjtNum"), (3,)),
+                nullable=True,
+            ),
+            ast_nodes.FunctionParameterDecl(
+                name="matrix",
+                type=ast_nodes.ArrayType(
+                    ast_nodes.ValueType("mjtNum", is_const=True), (3, 3)
+                ),
+            ),
+        ),
+        doc="Test fixed array extents.",
+    )
+    result = functions.generate_function_wrapper(func)
+    self.assertIn("UNPACK_NULLABLE_VALUE(mjtNum, result);", result)
+    self.assertIn("CHECK_SIZE(result, 3);", result)
+    self.assertIn("CHECK_SIZE(matrix, 9);", result)
+    self.assertLess(
+        result.index("CHECK_SIZE(matrix, 9);"),
+        result.index("fixed_arrays(result_.data(), matrix_.data());"),
+    )
+
+  def test_fixed_array_preserves_explicit_size_check(self):
+    func = introspect_functions.FUNCTIONS["mju_decodePyramid"]
+    result = functions.generate_function_wrapper(func)
+    self.assertNotIn("CHECK_SIZE(force, 6);", result)
+    self.assertEqual(result.count("CHECK_SIZE(force,"), 1)
+    self.assertIn("CHECK_SIZE(force, mu_.size() + 1);", result)
 
   def test_param_is_primitive_value(self):
     param_prim_val = ast_nodes.FunctionParameterDecl(
