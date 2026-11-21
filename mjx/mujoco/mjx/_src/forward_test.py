@@ -290,6 +290,41 @@ class ForwardTest(parameterized.TestCase):
     self.assertGreater(abs(float(dx.qacc[0] - dx.qacc_warmstart[0])), 1e-3)
     self.assertLess(float(dx.act[0]), 0.0)
 
+  @parameterized.product(
+      ctrl=(-2.0, 0.5, 2.0),
+      ctrllimited=(False, True),
+      clampctrl=(False, True),
+  )
+  def test_implicit_control_clamp(self, ctrl, ctrllimited, clampctrl):
+    """Implicit actuator derivatives use the same control as actuation."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option integrator="implicitfast" timestep=".1" gravity="0 0 0"/>
+        <worldbody>
+          <body>
+            <joint name="slide" type="slide"/>
+            <geom size=".1" mass="1"/>
+          </body>
+        </worldbody>
+        <actuator>
+          <general joint="slide" gaintype="affine" gainprm="0 0 -2"
+                   ctrllimited="true" ctrlrange="-1 1"/>
+        </actuator>
+      </mujoco>
+    """)
+    m.actuator_ctrllimited[0] = ctrllimited
+    if not clampctrl:
+      m.opt.disableflags |= mjx.DisableBit.CLAMPCTRL
+    d = mujoco.MjData(m)
+    d.qvel[:] = 1.0
+    d.ctrl[:] = ctrl
+
+    dx = jax.jit(mjx.step)(mjx.put_model(m), mjx.put_data(m, d))
+    mujoco.mj_step(m, d)
+
+    for attr in ('actuator_force', 'qvel', 'qpos'):
+      _assert_attr_eq(d, dx, attr)
+
   def test_eulerdamp(self):
     m = test_util.load_test_file('pendula.xml')
     self.assertTrue((m.dof_damping > 0).any())

@@ -48,7 +48,15 @@ def deriv_smooth_vel(m: Model, d: Data) -> Optional[jax.Array]:
     bias_vel = m.actuator_biasprm[:, 2] * affine_bias
     affine_gain = m.actuator_gaintype == GainType.AFFINE
     gain_vel = m.actuator_gainprm[:, 2] * affine_gain
-    ctrl = d.ctrl.at[m.actuator_dyntype != DynType.NONE].set(d.act)
+    ctrl = d.ctrl
+    if not m.opt.disableflags & DisableBit.CLAMPCTRL:
+      ctrlrange = jp.where(
+          m.actuator_ctrllimited[:, None],
+          m.actuator_ctrlrange,
+          jp.array([-jp.inf, jp.inf]),
+      )
+      ctrl = jp.clip(ctrl, ctrlrange[:, 0], ctrlrange[:, 1])
+    ctrl = ctrl.at[m.actuator_dyntype != DynType.NONE].set(d.act)
     vel = bias_vel + gain_vel * ctrl
     qderiv = d._impl.actuator_moment.T @ jax.vmap(jp.multiply)(
         d._impl.actuator_moment, vel
