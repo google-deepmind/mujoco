@@ -473,8 +473,9 @@ static void mjc_prism_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3])
     }
   }
 
-  // copy best point
+  // copy best point and its index for EPA's repeated-support check
   mji_copy3(res, prism[ibest]);
+  obj->vertindex = ibest;
 }
 
 
