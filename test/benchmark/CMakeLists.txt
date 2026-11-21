@@ -56,6 +56,12 @@ mujoco_test(
 )
 
 mujoco_test(
+  engine_sleep_benchmark_test
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark
+)
+
+mujoco_test(
   factorI_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
