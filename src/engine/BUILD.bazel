@@ -58,7 +58,10 @@ _C_CONLYOPTS = [
     "-Wunused",
     "-Wvla",
     "-Wimplicit-fallthrough",
-]
+] + select({
+    "@platforms//os:windows": [],
+    "//conditions:default": ["-fno-math-errno"],
+})
 
 cc_library(
     name = "engine",
