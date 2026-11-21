@@ -169,6 +169,7 @@ void AccumulateFiles(std::unordered_set<string>& files,
   optional<FilePath> asset_dir;
   optional<FilePath> mesh_dir;
   optional<FilePath> texture_dir;
+  bool              strip_path = false;
   std::set<string>   model_files;
   std::set<string>   texture_files;
   std::set<string>   mesh_files;
@@ -176,8 +177,9 @@ void AccumulateFiles(std::unordered_set<string>& files,
 
   auto accumulate_files = [&](const std::set<string>& candidate_files, optional<FilePath> prefix) {
     for (const auto& file : candidate_files) {
+      FilePath filename(strip_path ? mjuu_strippath(file) : file);
       FilePath file_with_prefix =
-          !prefix.has_value() ? FilePath(file) : prefix.value() + FilePath(file);
+          !prefix.has_value() ? filename : prefix.value() + filename;
       if (file_with_prefix.IsAbs()) {
         files.insert(file_with_prefix.Str());
       } else {
@@ -259,6 +261,8 @@ void AccumulateFiles(std::unordered_set<string>& files,
       if (file_attr.has_value()) { model_files.insert(file_attr->Str()); }
       continue;
     } else if (!std::strcmp(elem->Value(), "compiler")) {
+      auto strippath_str = mjXUtil::ReadAttrStr(elem, "strippath", false);
+      if (strippath_str.has_value()) strip_path = strippath_str.value() == "true";
       auto assetdir_str = mjXUtil::ReadAttrStr(elem, "assetdir", false);
       if (assetdir_str.has_value()) asset_dir = FilePath(assetdir_str.value());
       auto meshdir_str = mjXUtil::ReadAttrStr(elem, "meshdir", false);

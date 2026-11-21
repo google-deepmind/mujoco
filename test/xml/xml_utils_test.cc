@@ -188,6 +188,94 @@ TEST_F(MujocoTest, GetXMLDependenciesExpandsIncludesIntoTheModel) {
   memxml::g_files = nullptr;
 }
 
+// strippath applies to asset filenames before the compiler directory is added.
+TEST_F(MujocoTest, GetXMLDependenciesStripPath) {
+  struct Case {
+    const char* compiler;
+    const char* file;
+    const char* resolved;
+  };
+  const Case cases[] = {
+      {R"(strippath="true")", "old/path/mesh.obj", "mesh.obj"},
+      {R"(strippath="true")", "/old/path/mesh.obj", "mesh.obj"},
+      {R"(strippath="true")", R"(C:\old\path\mesh.obj)", "mesh.obj"},
+      {R"(strippath="false")", "old/path/mesh.obj", "old/path/mesh.obj"},
+      {"", "old/path/mesh.obj", "old/path/mesh.obj"},
+  };
+  mjpResourceProvider provider = {
+      .prefix = "strpxml",
+      .open = memxml::Open,
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  for (const auto& [compiler, file, resolved] : cases) {
+    SCOPED_TRACE(compiler);
+    SCOPED_TRACE(file);
+    const std::string mesh_path = std::string("strpxml:/meshes/") + resolved;
+    const std::map<std::string, std::string> files = {
+        {"strpxml:/scene.xml",
+         std::string(R"(<mujoco><compiler meshdir="meshes" )") + compiler +
+             R"(/><asset><mesh name="mesh" file=")" + file + R"("/></asset>
+             <worldbody><geom type="mesh" mesh="mesh"/></worldbody></mujoco>)"},
+        {mesh_path, "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n"
+                    "f 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n"},
+    };
+    memxml::g_files = &files;
+
+    // Compile using only the expected asset path, then require discovery to
+    // return that same path so the browser can prefetch it.
+    char error[1024];
+    mjModel* model = mj_loadXML("strpxml:/scene.xml", nullptr, error, sizeof(error));
+    EXPECT_NE(model, nullptr) << error;
+    if (model) {
+      EXPECT_EQ(model->nmesh, 1);
+      mj_deleteModel(model);
+    }
+    mjStringVec dependencies;
+    mju_getXMLDependencies("strpxml:/scene.xml", &dependencies);
+    EXPECT_THAT(dependencies, testing::UnorderedElementsAre(
+                                  "strpxml:/scene.xml", mesh_path));
+    memxml::g_files = nullptr;
+  }
+}
+
+// Includes share the parent's strippath, while model assets have their own
+// compiler settings. Neither include nor model filenames are stripped.
+TEST_F(MujocoTest, GetXMLDependenciesStripPathScope) {
+  const std::map<std::string, std::string> files = {
+      {"strpscope:/scene.xml", R"(
+        <mujoco>
+          <compiler strippath="true" texturedir="textures"/>
+          <include file="parts/child.xml"/>
+          <asset><model name="sub" file="models/sub.xml"/></asset>
+        </mujoco>)"},
+      {"strpscope:/parts/child.xml", R"(
+        <mujoco><asset>
+          <texture name="texture" type="2d" file="old/texture.png"/>
+        </asset></mujoco>)"},
+      {"strpscope:/models/sub.xml", R"(
+        <mujoco><asset><mesh name="mesh" file="old/mesh.obj"/></asset></mujoco>)"},
+  };
+  memxml::g_files = &files;
+  mjpResourceProvider provider = {
+      .prefix = "strpscope",
+      .open = memxml::Open,
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  mjStringVec dependencies;
+  mju_getXMLDependencies("strpscope:/scene.xml", &dependencies);
+  EXPECT_THAT(dependencies, testing::UnorderedElementsAre(
+      "strpscope:/scene.xml", "strpscope:/parts/child.xml",
+      "strpscope:/textures/texture.png", "strpscope:/models/sub.xml",
+      "strpscope:/models/old/mesh.obj"));
+  memxml::g_files = nullptr;
+}
+
 TEST_F(MujocoTest, GetXMLDependenciesHandlesCyclicIncludes) {
   const std::map<std::string, std::string> files = {
       {"cycxml:/a.xml",
