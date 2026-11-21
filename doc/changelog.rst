@@ -57,6 +57,12 @@ Plugins
   :ref:`mj_loadPluginLibrary` before parsing a model, so that URDF and MJCF files can reference ROS package assets
   unchanged. Contribution by :github:user:`noah-wardlow`.
 
+OpenUSD
+^^^^^^^
+- The native C++ :doc:`OpenUSD exporter <OpenUSD/exporting>` and ``LayerSink`` now author ``xformOp:translate``
+  (``double3``) and ``xformOp:orient`` (``quatd``) instead of ``xformOp:transform`` (``matrix4d``), avoiding shear
+  artifacts when USD or external renderers interpolate between time samples.
+
 Version 4.0.1 (November 11, 2026)
 ---------------------------------
 

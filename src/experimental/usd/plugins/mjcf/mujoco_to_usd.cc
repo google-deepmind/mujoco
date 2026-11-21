@@ -30,6 +30,7 @@
 #include "mjcf/utils.h"
 #include <pxr/base/arch/attributes.h>
 #include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/quatd.h>
 #include <pxr/base/gf/quatf.h>
 #include <pxr/base/gf/rotation.h>
 #include <pxr/base/gf/vec2f.h>
@@ -92,7 +93,8 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((keyframe, "Keyframe"))
                          ((surface, "PreviewSurface"))
                          ((world, "World"))
-                         ((xformOpTransform, "xformOp:transform"))
+                         ((xformOpTranslate, "xformOp:translate"))
+                         ((xformOpOrient, "xformOp:orient"))
                          ((xformOpScale, "xformOp:scale"))
                          (st)
                          ((primvarsSt, "primvars:st"))
@@ -332,12 +334,29 @@ class ModelWriter {
     SetAttributeDefault(layer_, scale_attr_spec, scale);
   }
 
-  void WriteTransformXformOp(const pxr::SdfPrimSpecHandle prim_spec,
-                             const pxr::GfMatrix4d &transform) {
-    auto transform_op_spec =
-        CreateAttributeSpec(layer_, prim_spec, kTokens->xformOpTransform,
-                            pxr::SdfValueTypeNames->Matrix4d);
-    SetAttributeDefault(layer_, transform_op_spec, transform);
+  void WriteTranslateOrientXformOps(const pxr::SdfPrimSpecHandle prim_spec,
+                                    const pxr::GfVec3d &translate,
+                                    const pxr::GfQuatd &orient) {
+    auto translate_op_spec =
+        CreateAttributeSpec(layer_, prim_spec, kTokens->xformOpTranslate,
+                            pxr::SdfValueTypeNames->Double3);
+    SetAttributeDefault(layer_, translate_op_spec, translate);
+
+    auto orient_op_spec =
+        CreateAttributeSpec(layer_, prim_spec, kTokens->xformOpOrient,
+                            pxr::SdfValueTypeNames->Quatd);
+    SetAttributeDefault(layer_, orient_op_spec, orient.GetNormalized());
+
+    PrependToXformOpOrder(
+        prim_spec, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTranslate,
+                                              kTokens->xformOpOrient});
+  }
+
+  void WriteTranslateOrientXformOps(const pxr::SdfPrimSpecHandle prim_spec,
+                                    const mjtNum *pos, const mjtNum *quat) {
+    WriteTranslateOrientXformOps(
+        prim_spec, pxr::GfVec3d(pos[0], pos[1], pos[2]),
+        pxr::GfQuatd(quat[0], quat[1], quat[2], quat[3]));
   }
 
   void WriteXformOpOrder(const pxr::SdfPrimSpecHandle prim_spec,
@@ -1664,12 +1683,8 @@ class ModelWriter {
     WriteColorAndOpacityAttributes(site_spec, site);
 
     int site_id = mjs_getId(site->element);
-    auto transform = MujocoPosQuatToTransform(&model_->site_pos[3 * site_id],
-                                              &model_->site_quat[4 * site_id]);
-    WriteTransformXformOp(site_spec, transform);
-
-    PrependToXformOpOrder(
-        site_spec, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
+    WriteTranslateOrientXformOps(site_spec, &model_->site_pos[3 * site_id],
+                                 &model_->site_quat[4 * site_id]);
 
     site_paths_[site_id] = site_spec->GetPath();
   }
@@ -1862,12 +1877,8 @@ class ModelWriter {
     // Inherit from class.
     AddPrimInherit(layer_, geom_spec, geom_class_path);
 
-    auto transform = MujocoPosQuatToTransform(&model_->geom_pos[3 * geom_id],
-                                              &model_->geom_quat[4 * geom_id]);
-    WriteTransformXformOp(geom_spec, transform);
-
-    PrependToXformOpOrder(
-        geom_spec, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
+    WriteTranslateOrientXformOps(geom_spec, &model_->geom_pos[3 * geom_id],
+                                 &model_->geom_quat[4 * geom_id]);
   }
 
   void WriteSites(mjsBody *body) {
@@ -2199,11 +2210,8 @@ class ModelWriter {
         CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Camera);
 
     int cam_id = mjs_getId(spec_cam->element);
-    auto transform = MujocoPosQuatToTransform(&model_->cam_pos[3 * cam_id],
-                                              &model_->cam_quat[4 * cam_id]);
-    WriteTransformXformOp(camera_spec, transform);
-    WriteXformOpOrder(camera_spec,
-                      pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
+    WriteTranslateOrientXformOps(camera_spec, &model_->cam_pos[3 * cam_id],
+                                 &model_->cam_quat[4 * cam_id]);
 
     // If the camera intrinsics are specified, then it is important that we
     // reproduce the code in mujoco/src/engine/engine_vis_visualize.c
@@ -2262,19 +2270,14 @@ class ModelWriter {
     pxr::GfVec3d dir(model_->light_dir[3 * light_id],
                      model_->light_dir[3 * light_id + 1],
                      model_->light_dir[3 * light_id + 2]);
-    pxr::GfRotation rotation;
-    rotation.SetIdentity();
+    pxr::GfQuatd orient = pxr::GfQuatd::GetIdentity();
     if (dir.GetLengthSq() > 1e-12) {
-      rotation = pxr::GfRotation(pxr::GfVec3d(0, 0, -1), dir);
+      orient = pxr::GfRotation(pxr::GfVec3d(0, 0, -1), dir).GetQuat();
     }
     pxr::GfVec3d translation(model_->light_pos[3 * light_id],
                              model_->light_pos[3 * light_id + 1],
                              model_->light_pos[3 * light_id + 2]);
-    pxr::GfMatrix4d transform;
-    transform.SetTransform(rotation, translation);
-    WriteTransformXformOp(light_spec, transform);
-    WriteXformOpOrder(light_spec,
-                      pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
+    WriteTranslateOrientXformOps(light_spec, translation, orient);
   }
 
   void WriteLights(mjsBody *body) {
@@ -2370,21 +2373,11 @@ class ModelWriter {
       CreateClassSpec(layer_, class_path_, body_class_name);
     }
 
-    // Create XformOp attribute for body transform.
-
-    auto xform_op_spec =
-        CreateAttributeSpec(layer_, body_spec, kTokens->xformOpTransform,
-                            pxr::SdfValueTypeNames->Matrix4d);
+    // Create XformOp attributes for body transform.
     // mjModel will have all frames already accounted for so no need to worry
     // about them here.
-    auto body_xform = MujocoPosQuatToTransform(&model_->body_pos[body_id * 3],
-                                               &model_->body_quat[body_id * 4]);
-    SetAttributeDefault(layer_, xform_op_spec, body_xform);
-
-    // Create XformOpOrder attribute for body transform order.
-    // For us this is simply the transform we authored above.
-    WriteXformOpOrder(body_spec,
-                      pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
+    WriteTranslateOrientXformOps(body_spec, &model_->body_pos[body_id * 3],
+                                 &model_->body_quat[body_id * 4]);
 
     pxr::VtDictionary customData;
     customData[kTokens->body_name] = raw_body_name;

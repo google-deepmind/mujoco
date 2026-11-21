@@ -31,6 +31,7 @@
 #include "test/experimental/usd/test_utils.h"
 #include "test/fixture.h"
 #include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/quatd.h>
 #include <pxr/base/gf/quatf.h>
 #include <pxr/base/gf/rotation.h>
 #include <pxr/base/gf/vec2f.h>
@@ -50,6 +51,7 @@
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/sdf/primSpec.h>
 #include <pxr/usd/sdf/schema.h>
+#include <pxr/usd/sdf/types.h>
 #include <pxr/usd/usd/common.h>
 #include <pxr/usd/usd/modelAPI.h>
 #include <pxr/usd/usd/prim.h>
@@ -2415,21 +2417,28 @@ TEST_F(MjcfSdfFileFormatPluginTest, LightDirectionAndTransform) {
       {"/light_test/light_pos_z", {-1, -2, -3}, {0, 0, 1}},
   };
 
+  pxr::UsdGeomXformCache xform_cache;
   for (const auto& expected : kExpected) {
     SCOPED_TRACE(expected.prim_path);
-    EXPECT_PRIM_VALID(stage, expected.prim_path);
-    auto attr = stage->GetAttributeAtPath(
-        pxr::SdfPath(expected.prim_path)
-            .AppendProperty(pxr::TfToken("xformOp:transform")));
-    ASSERT_TRUE(attr.IsValid());
-    pxr::GfMatrix4d xf;
-    ASSERT_TRUE(attr.Get(&xf));
+    pxr::UsdPrim prim = stage->GetPrimAtPath(pxr::SdfPath(expected.prim_path));
+    ASSERT_TRUE(prim.IsValid());
+    EXPECT_FALSE(prim.HasAttribute(pxr::TfToken("xformOp:transform")));
 
-    pxr::GfVec3d trans = xf.ExtractTranslation();
+    auto translate_attr = prim.GetAttribute(pxr::TfToken("xformOp:translate"));
+    ASSERT_TRUE(translate_attr.IsValid());
+    pxr::GfVec3d trans;
+    ASSERT_TRUE(translate_attr.Get(&trans));
     EXPECT_NEAR(trans[0], expected.pos[0], 1e-5);
     EXPECT_NEAR(trans[1], expected.pos[1], 1e-5);
     EXPECT_NEAR(trans[2], expected.pos[2], 1e-5);
 
+    auto orient_attr = prim.GetAttribute(pxr::TfToken("xformOp:orient"));
+    ASSERT_TRUE(orient_attr.IsValid());
+    pxr::GfQuatd orient;
+    ASSERT_TRUE(orient_attr.Get(&orient));
+    EXPECT_NEAR(orient.GetLength(), 1.0, 1e-6);
+
+    pxr::GfMatrix4d xf = xform_cache.GetLocalToWorldTransform(prim);
     pxr::GfVec3d world_dir = xf.TransformDir(pxr::GfVec3d(0, 0, -1));
     EXPECT_NEAR(world_dir[0], expected.dir[0], 1e-5);
     EXPECT_NEAR(world_dir[1], expected.dir[1], 1e-5);
@@ -2459,8 +2468,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, BoxAndEllipsoidPreserveScaleXformOpOrder) {
   auto stage = OpenStage(kXml);
   ASSERT_THAT(stage, testing::NotNull());
 
-  const pxr::VtTokenArray kExpectedOpOrder(
-      {pxr::TfToken("xformOp:transform"), pxr::TfToken("xformOp:scale")});
+  const pxr::VtTokenArray kExpectedOpOrder({pxr::TfToken("xformOp:translate"),
+                                            pxr::TfToken("xformOp:orient"),
+                                            pxr::TfToken("xformOp:scale")});
 
   struct ScaledPrimExpectation {
     const char* prim_path;
@@ -2489,6 +2499,76 @@ TEST_F(MjcfSdfFileFormatPluginTest, BoxAndEllipsoidPreserveScaleXformOpOrder) {
     EXPECT_NEAR(pt[1], expected.world_corner[1], 1e-5);
     EXPECT_NEAR(pt[2], expected.world_corner[2], 1e-5);
   }
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, PrimsAuthorTranslateAndOrientOps) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="pose_ops_test">
+      <compiler angle="degree"/>
+      <worldbody>
+        <body name="body_a" pos="1 2 3" euler="0 0 90">
+          <geom name="sphere_geom" type="sphere" pos="0.5 0 0" euler="90 0 0"
+                size="0.2"/>
+          <site name="sphere_site" type="sphere" pos="0 0.5 0" euler="0 90 0"
+                size="0.1"/>
+          <camera name="cam" pos="0 0 1" euler="0 0 180"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+
+  auto stage = OpenStage(kXml);
+  ASSERT_THAT(stage, testing::NotNull());
+
+  const pxr::VtTokenArray kExpectedOpOrder(
+      {pxr::TfToken("xformOp:translate"), pxr::TfToken("xformOp:orient")});
+
+  for (const char* path_str :
+       {"/pose_ops_test/body_a", "/pose_ops_test/body_a/sphere_geom",
+        "/pose_ops_test/body_a/sphere_site", "/pose_ops_test/body_a/cam"}) {
+    SCOPED_TRACE(path_str);
+    pxr::SdfPath prim_path(path_str);
+    pxr::UsdPrim prim = stage->GetPrimAtPath(prim_path);
+    ASSERT_TRUE(prim.IsValid());
+    EXPECT_FALSE(prim.HasAttribute(pxr::TfToken("xformOp:transform")));
+    ExpectAttributeEqual(
+        stage, prim_path.AppendProperty(pxr::UsdGeomTokens->xformOpOrder),
+        kExpectedOpOrder);
+
+    auto translate_attr = prim.GetAttribute(pxr::TfToken("xformOp:translate"));
+    ASSERT_TRUE(translate_attr.IsValid());
+    EXPECT_EQ(translate_attr.GetTypeName(), pxr::SdfValueTypeNames->Double3);
+
+    auto orient_attr = prim.GetAttribute(pxr::TfToken("xformOp:orient"));
+    ASSERT_TRUE(orient_attr.IsValid());
+    EXPECT_EQ(orient_attr.GetTypeName(), pxr::SdfValueTypeNames->Quatd);
+    pxr::GfQuatd orient;
+    ASSERT_TRUE(orient_attr.Get(&orient));
+    EXPECT_NEAR(orient.GetLength(), 1.0, 1e-6);
+  }
+
+  pxr::UsdGeomXformCache xform_cache;
+  pxr::GfMatrix4d geom_world_xf = xform_cache.GetLocalToWorldTransform(
+      stage->GetPrimAtPath(pxr::SdfPath("/pose_ops_test/body_a/sphere_geom")));
+  // body_a is at (1, 2, 3) rotated +90 deg around Z, so local (0.5, 0, 0) maps
+  // to world (1, 2.5, 3).
+  pxr::GfVec3d geom_world_pos = geom_world_xf.ExtractTranslation();
+  EXPECT_NEAR(geom_world_pos[0], 1.0, 1e-5);
+  EXPECT_NEAR(geom_world_pos[1], 2.5, 1e-5);
+  EXPECT_NEAR(geom_world_pos[2], 3.0, 1e-5);
+
+  pxr::GfMatrix4d cam_world_xf = xform_cache.GetLocalToWorldTransform(
+      stage->GetPrimAtPath(pxr::SdfPath("/pose_ops_test/body_a/cam")));
+  // cam is at local (0, 0, 1) rotated +180 deg around Z under body_a (+90 deg
+  // around Z), so world pos is (1, 2, 4) and local +X maps to world (0, -1, 0).
+  pxr::GfVec3d cam_world_pos = cam_world_xf.ExtractTranslation();
+  EXPECT_NEAR(cam_world_pos[0], 1.0, 1e-5);
+  EXPECT_NEAR(cam_world_pos[1], 2.0, 1e-5);
+  EXPECT_NEAR(cam_world_pos[2], 4.0, 1e-5);
+  pxr::GfVec3d cam_world_x = cam_world_xf.TransformDir(pxr::GfVec3d(1, 0, 0));
+  EXPECT_NEAR(cam_world_x[0], 0.0, 1e-5);
+  EXPECT_NEAR(cam_world_x[1], -1.0, 1e-5);
+  EXPECT_NEAR(cam_world_x[2], 0.0, 1e-5);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, CreateRelationshipSpecDuplicate) {

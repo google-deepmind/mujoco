@@ -23,7 +23,10 @@ from pxr import Sdf
 from pxr import UsdPhysics
 
 
-_LAYER_SINK_TRANSFORM_ATTR = "xformOp:transform:mujoco"
+_LAYER_SINK_XFORM_ATTRS = (
+    "xformOp:translate:mujoco",
+    "xformOp:orient:mujoco",
+)
 
 
 class MujocoUsdLayerSinkTest(parameterized.TestCase):
@@ -62,11 +65,12 @@ class MujocoUsdLayerSinkTest(parameterized.TestCase):
 
     for prim in test_data.stage.Traverse():
       if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-        attr_path = prim.GetPath().AppendProperty(_LAYER_SINK_TRANSFORM_ATTR)
-        attr_spec = physics_layer.GetPropertyAtPath(attr_path)
-        self.assertIsNotNone(attr_spec)
-        n_samples = physics_layer.GetNumTimeSamplesForPath(attr_path)
-        self.assertEqual(n_samples, n_steps)
+        for attr_name in _LAYER_SINK_XFORM_ATTRS:
+          attr_path = prim.GetPath().AppendProperty(attr_name)
+          attr_spec = physics_layer.GetPropertyAtPath(attr_path)
+          self.assertIsNotNone(attr_spec)
+          n_samples = physics_layer.GetNumTimeSamplesForPath(attr_path)
+          self.assertEqual(n_samples, n_steps)
 
 
 if __name__ == "__main__":
