@@ -38,6 +38,18 @@ namespace Mujoco {
       Assert.That(_element.GetFloatAttribute("attrib", 7.0f), Is.EqualTo(7.0f));
     }
 
+    [TestCase("", true)]
+    [TestCase("<compiler/>", true)]
+    [TestCase("<compiler autolimits='true'/>", true)]
+    [TestCase("<compiler autolimits='false'/>", false)]
+    public void CompilerAutolimitsControlsAutomaticLimits(string compiler, bool expected) {
+      var doc = new XmlDocument();
+      doc.LoadXml($"<mujoco>{compiler}<worldbody><joint range='0 1'/></worldbody></mujoco>");
+      var joint = doc.DocumentElement["worldbody"]["joint"];
+      Assert.That(joint.GetAutolimitsEnabled(), Is.EqualTo(expected));
+      Assert.That(joint.GetLimitedAttribute("limited", rangeDefined: true), Is.EqualTo(expected));
+    }
+
     [TestCase("5.1", 5.1f)]
     [TestCase("-4.83", -4.83f)]
     public void ParsingFloatAttribute(string input, float expected) {
