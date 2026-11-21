@@ -1022,7 +1022,7 @@ def tendon(m: Model, d: Data) -> Data:
 
   # compute geom wrap length and connect points (if wrap occurs)
   v_wrap = jax.vmap(
-      support.wrap, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None)
+      support.wrap, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, None, None, None)
   )
   lengths_inside, pnt0_inside, pnt1_inside = v_wrap(
       site_pnt0[wrap_inside_id],
@@ -1036,7 +1036,6 @@ def tendon(m: Model, d: Data) -> Data:
       True,
       m._impl.wrap_inside_maxiter,
       m._impl.wrap_inside_tolerance,
-      m._impl.wrap_inside_z_init,
   )
 
   lengths_outside, pnt0_outside, pnt1_outside = v_wrap(
@@ -1051,7 +1050,6 @@ def tendon(m: Model, d: Data) -> Data:
       False,
       m._impl.wrap_inside_maxiter,
       m._impl.wrap_inside_tolerance,
-      m._impl.wrap_inside_z_init,
   )
 
   wrap_id = np.argsort(np.concatenate([wrap_inside_id, wrap_outside_id]))
