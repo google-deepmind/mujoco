@@ -179,6 +179,39 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     np.testing.assert_array_equal(state, py_state)
     np.testing.assert_array_equal(sensordata, py_sensordata)
 
+  @parameterized.parameters(1, 2)
+  def test_data_accepts_a_sequence(self, num_workers):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    data = [mujoco.MjData(model) for _ in range(num_workers)]
+    initial_state = randn(4, nstate)
+
+    state_list, sensordata_list = rollout.rollout(
+        model, data, initial_state, nstep=2
+    )
+    state_tuple, sensordata_tuple = rollout.rollout(
+        model, tuple(data), initial_state, nstep=2
+    )
+    np.testing.assert_array_equal(state_list, state_tuple)
+    np.testing.assert_array_equal(sensordata_list, sensordata_tuple)
+
+    try:
+      state_persistent, sensordata_persistent = rollout.rollout(
+          model, tuple(data), initial_state, nstep=2, persistent_pool=True
+      )
+    finally:
+      rollout.shutdown_persistent_pool()
+    np.testing.assert_array_equal(state_list, state_persistent)
+    np.testing.assert_array_equal(sensordata_list, sensordata_persistent)
+
+    nthread = num_workers if num_workers > 1 else 0
+    with rollout.Rollout(nthread=nthread) as rollout_:
+      state_obj, sensordata_obj = rollout_.rollout(
+          model, tuple(data), initial_state, nstep=2
+      )
+    np.testing.assert_array_equal(state_list, state_obj)
+    np.testing.assert_array_equal(sensordata_list, sensordata_obj)
+
   @parameterized.parameters(ALL_MODELS.keys())
   def test_one_rollout(self, model_name):
     nstep = 3  # number of timesteps
