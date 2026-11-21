@@ -524,6 +524,7 @@ def rungekutta4(m: Model, d: Data) -> Data:
       act=d0.act,
       time=d0.time,
       actuator_length=d0.actuator_length,
+      sensordata=d0.sensordata,  # MuJoCo keeps the sensors of the first stage
   )
   return _advance(m, d, act_dot, qacc, qvel).replace(
       qacc=qacc, qacc_warmstart=d1.qacc

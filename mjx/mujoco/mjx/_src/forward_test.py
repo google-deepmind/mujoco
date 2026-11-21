@@ -249,6 +249,35 @@ class ForwardTest(parameterized.TestCase):
     )
     _assert_attr_eq(d, dx, 'qvel')
 
+  def test_rk4_sensordata(self):
+    """RK4 keeps the sensors of the first stage, like MuJoCo."""
+    m = mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <option integrator="RK4" timestep="0.01"/>
+          <worldbody>
+            <body pos="0 0 1">
+              <joint name="j0" type="hinge" axis="0 1 0" limited="true"
+                     range="-2 2"/>
+              <geom size="0.1" pos="0.3 0 0" contype="0" conaffinity="0"/>
+              <site name="s0" pos="0.3 0 0"/>
+            </body>
+          </worldbody>
+          <sensor>
+            <jointpos joint="j0"/>
+            <jointvel joint="j0"/>
+            <accelerometer site="s0"/>
+          </sensor>
+        </mujoco>
+        """)
+    d = mujoco.MjData(m)
+    d.qvel[0] = 3.0
+
+    dx = jax.jit(mjx.step)(mjx.put_model(m), mjx.put_data(m, d))
+    mujoco.mj_step(m, d)
+
+    self.assertGreater(np.abs(d.sensordata).max(), 1.0)
+    _assert_attr_eq(d, dx, 'sensordata')
+
   def test_rk4_qacc_and_actuator_state(self):
     """RK4 stores effective qacc, stage-3 warmstart, and wraps act at stage-0 length."""
     m = mujoco.MjModel.from_xml_string("""
