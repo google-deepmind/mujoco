@@ -2635,18 +2635,17 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
     nface2 = simplexDim(triface2i, triface2);
   }
 
-  // A cylinder side and a parallel convex edge share a contact segment. Recover
-  // its endpoints directly when the support simplex identifies both edges.
+  // A cylinder side and a parallel convex edge share a contact segment. The
+  // cylinder support simplex can collapse to a vertex on some platforms, so
+  // detect the side from the radial witness rather than its simplex dimension.
   if (obj1->geom_type == mjGEOM_CYLINDER &&
-      (obj2->geom_type == mjGEOM_BOX || obj2->geom_type == mjGEOM_MESH) &&
-      nface1 == 2) {
+      (obj2->geom_type == mjGEOM_BOX || obj2->geom_type == mjGEOM_MESH)) {
     if (parallelCylinderEdgeContacts(obj1, triface2, x1, x2, x1, x2, dist,
                                     nconmax, nface2)) {
       return 2;
     }
   } else if (obj2->geom_type == mjGEOM_CYLINDER &&
-             (obj1->geom_type == mjGEOM_BOX || obj1->geom_type == mjGEOM_MESH) &&
-             nface2 == 2) {
+             (obj1->geom_type == mjGEOM_BOX || obj1->geom_type == mjGEOM_MESH)) {
     if (parallelCylinderEdgeContacts(obj2, triface1, x2, x1, x2, x1, dist,
                                     nconmax, nface1)) {
       return 2;
