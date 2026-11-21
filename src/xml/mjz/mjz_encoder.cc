@@ -395,19 +395,27 @@ mjtSize MjzEncode(const mjSpec*  spec,
                   entry.disk_path.string().c_str(),
                   entry.source_dir.string().c_str(),
                   error);
-      continue;
+      mz_zip_writer_end(&zip);
+      return -1;
     }
 
     const void* buf    = nullptr;
     int         nbytes = mju_readResource(res, &buf);
-    if (nbytes > 0 && buf) {
-      if (!mz_zip_writer_add_mem(&zip,
-                                 archive_entry.c_str(),
-                                 buf,
-                                 nbytes,
-                                 MZ_DEFAULT_COMPRESSION)) {
-        mju_warning("MJZ encoder: failed to write '%s' to archive", archive_entry.c_str());
-      }
+    if (nbytes < 0 || (nbytes > 0 && !buf)) {
+      mju_warning("MJZ encoder: failed to read resource '%s'", entry.disk_path.string().c_str());
+      mju_closeResource(res);
+      mz_zip_writer_end(&zip);
+      return -1;
+    }
+    if (!mz_zip_writer_add_mem(&zip,
+                               archive_entry.c_str(),
+                               buf,
+                               nbytes,
+                               MZ_DEFAULT_COMPRESSION)) {
+      mju_warning("MJZ encoder: failed to write '%s' to archive", archive_entry.c_str());
+      mju_closeResource(res);
+      mz_zip_writer_end(&zip);
+      return -1;
     }
     mju_closeResource(res);
   }
