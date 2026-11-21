@@ -44,6 +44,39 @@ inline std::string FormatFileFilter(std::string_view filter, char separator) {
   return result;
 }
 
+// A default dialog path split into the folder to open and the file name to
+// prefill. Either part may be empty.
+struct DialogDefaultPath {
+  std::string folder;
+  std::string file_name;
+};
+
+// Splits a default dialog path at its last '/' or '\' separator. If
+// `native_separator` is not zero, every separator in the folder is replaced
+// by it, so that a path built with mixed separators (e.g. "C:\dir/file.xml")
+// can be passed to platform APIs that only accept one kind.
+inline DialogDefaultPath SplitDialogDefaultPath(std::string_view path,
+                                                char native_separator = 0) {
+  DialogDefaultPath result;
+  const size_t pos = path.find_last_of("/\\");
+  if (pos == std::string_view::npos) {
+    result.file_name = std::string(path);
+    return result;
+  }
+  // keep the separator of a root folder ("/" or "C:\"), drop any other
+  const bool is_root = pos == 0 || (pos == 2 && path[1] == ':');
+  result.folder = std::string(path.substr(0, is_root ? pos + 1 : pos));
+  result.file_name = std::string(path.substr(pos + 1));
+  if (native_separator) {
+    for (char& c : result.folder) {
+      if (c == '/' || c == '\\') {
+        c = native_separator;
+      }
+    }
+  }
+  return result;
+}
+
 // Result returned by various file dialog functions.
 struct DialogResult {
   // The status of the dialog.
