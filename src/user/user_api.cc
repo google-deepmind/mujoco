@@ -123,10 +123,7 @@ mjSpec* mj_parse(
     };
 
     if (resource == nullptr) {
-      if (error) {
-        strncpy(error, "could not allocate memory", error_sz);
-        error[error_sz - 1] = '\0';
-      }
+      if (error) { mju_strncpy(error, "could not allocate memory", error_sz); }
       return nullptr;
     }
 
@@ -142,10 +139,7 @@ mjSpec* mj_parse(
     };
 
     if (resource->name == nullptr) {
-      if (error) {
-        strncpy(error, "could not allocate memory", error_sz);
-        error[error_sz - 1] = '\0';
-      }
+      if (error) { mju_strncpy(error, "could not allocate memory", error_sz); }
       return nullptr;
     }
     memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
@@ -154,8 +148,7 @@ mjSpec* mj_parse(
   mjSpec* spec = mju_decodeResource(resource, content_type, vfs, error, error_sz);
   if (spec == nullptr) {
     if (error && error_sz > 0 && !error[0]) {
-      strncpy(error, "could not decode content", error_sz);
-      error[error_sz - 1] = '\0';
+      mju_strncpy(error, "could not decode content", error_sz);
     }
   }
   return spec;
@@ -197,8 +190,7 @@ static mjtSize encode_xml(
   } else {
     if (!m) {
       if (error) {
-        strncpy(error, "model is required for XML encoding when spec is null", error_sz);
-        error[error_sz - 1] = '\0';
+        mju_strncpy(error, "model is required for XML encoding when spec is null", error_sz);
       }
       return -1;
     }
@@ -216,10 +208,7 @@ static mjtSize encode_xml(
 // Returns file size in bytes on success, -1 on failure.
 static mjtSize encode_mjb(const mjModel* m, const char* filename, char* error, int error_sz) {
   if (!m) {
-    if (error) {
-      strncpy(error, "model is required for MJB encoding", error_sz);
-      error[error_sz - 1] = '\0';
-    }
+    if (error) { mju_strncpy(error, "model is required for MJB encoding", error_sz); }
     return -1;
   }
   mj_saveModel(m, filename, nullptr, 0);
@@ -231,10 +220,7 @@ static mjtSize encode_mjb(const mjModel* m, const char* filename, char* error, i
 // Returns file size in bytes on success, -1 on failure.
 static mjtSize encode_txt(const mjModel* m, const char* filename, char* error, int error_sz) {
   if (!m) {
-    if (error) {
-      strncpy(error, "model is required for TXT encoding", error_sz);
-      error[error_sz - 1] = '\0';
-    }
+    if (error) { mju_strncpy(error, "model is required for TXT encoding", error_sz); }
     return -1;
   }
   mj_printModel(m, filename);
@@ -271,10 +257,7 @@ mjtSize mj_encode(const mjSpec*  s,
 
   const mjpEncoder* encoder = mjp_findEncoder(filename, content_type);
   if (!encoder) {
-    if (error) {
-      strncpy(error, "no encoder found", error_sz);
-      error[error_sz - 1] = '\0';
-    }
+    if (error) { mju_strncpy(error, "no encoder found", error_sz); }
     return -1;
   }
 
@@ -284,10 +267,7 @@ mjtSize mj_encode(const mjSpec*  s,
 
   const mjtSize nbytes = encoder->encode(s, m, vfs, &resource);
   if (nbytes < 0 || !resource.data) {
-    if (error) {
-      strncpy(error, "encoder failed", error_sz);
-      error[error_sz - 1] = '\0';
-    }
+    if (error) { mju_strncpy(error, "encoder failed", error_sz); }
     return -1;
   }
 
@@ -295,10 +275,7 @@ mjtSize mj_encode(const mjSpec*  s,
   encoder->close_resource(&resource);
 
   if (written != nbytes) {
-    if (error && error[0] == '\0') {
-      strncpy(error, "write failed", error_sz);
-      error[error_sz - 1] = '\0';
-    }
+    if (error && error_sz > 0 && error[0] == '\0') { mju_strncpy(error, "write failed", error_sz); }
     return -1;
   }
 
