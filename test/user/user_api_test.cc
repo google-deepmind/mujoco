@@ -3256,10 +3256,7 @@ TEST_F(MujocoTest, AttachCollidingNamedDefault) {
   mjModel* m_attached = mj_compile(parent, 0);
   ASSERT_THAT(m_attached, NotNull()) << mjs_getError(parent);
 
-  // the parent's geom must keep the parent class value (0.25) and the child's
-  // geom its own class value (0.5): if the child's colliding class overwrote
-  // the parent's entry in the default map, the parent's geom silently
-  // changes size
+  // each geom keeps the size of its own class
   int parent_geom = mj_name2id(m_attached, mjOBJ_GEOM, "parent_geom");
   int child_geom = mj_name2id(m_attached, mjOBJ_GEOM, "child_geom");
   ASSERT_GE(parent_geom, 0);
