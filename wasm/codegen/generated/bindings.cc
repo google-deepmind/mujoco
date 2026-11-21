@@ -50,6 +50,9 @@
 namespace mujoco::wasm {
 
 
+static mjfLogHandler previous_log_handler;
+
+
 void ThrowMujocoErrorToJS(const mjLogMessage* msg) {
   if (msg->level == mjLOG_ERROR) {
     std::string message = msg->subject;
@@ -60,10 +63,13 @@ void ThrowMujocoErrorToJS(const mjLogMessage* msg) {
     // object instance and then throw the object as an exception using the
     // val::throw_() helper function.
     val(val::global("Error").new_(val("MuJoCo Error: " + message))).throw_();
+  } else {
+    // Preserve non-error logging, including its filtering and output settings.
+    previous_log_handler(msg);
   }
 }
 __attribute__((constructor)) void InitMuJoCoErrorHandler() {
-  mju_setLogHandler(ThrowMujocoErrorToJS);
+  previous_log_handler = mju_setLogHandler(ThrowMujocoErrorToJS);
 }
 
 // Generates a descriptive error message for when a key lookup fails.
