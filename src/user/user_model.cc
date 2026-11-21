@@ -823,22 +823,8 @@ mjCModel& mjCModel::operator-=(const mjCFrame& frame) {
 
 // add default tree to this model
 mjCModel& mjCModel::operator+=(mjCDef& subtree) {
-  // when attaching with empty prefix and suffix, keep parent 'main' and attach child sub-classes
-  if (!defaults_.empty() && subtree.name == "main") {
-    for (mjCDef* def : subtree.child) {
-      def->parent  = nullptr;
-      *this       += *def;
-    }
-    subtree.child.clear();
-    delete &subtree;
-    return *this;
-  }
-
-  // a default class with this name already exists in the model (e.g. parent and child both
-  // define a class with the same name and the spec was attached without a prefix or suffix):
-  // keep the existing class and attach the incoming default's sub-classes instead of inserting
-  // a second default with the same name, which would be written as a duplicate
-  // <default class="..."> that fails to reload with "repeated default class name"
+  // when attaching with empty prefix and suffix, keep the parent's class of the same name ('main',
+  // or a class both define) and attach the child's sub-classes
   if (FindDefault(subtree.name)) {
     for (mjCDef* def : subtree.child) {
       def->parent  = nullptr;
