@@ -1102,13 +1102,13 @@ int mjXUtil::MapValues(
 
   while (strm >> key) {
     if (found_keys.count(key)) {
-      throw mjXError(elem, "duplicate keyword: '%s'");
+      throw mjXError(elem, "duplicate keyword: '%s'", key.c_str());
       return 0;
     }
 
     int value = FindKey(map, mapSz, key);
     if (value == -1) {
-      throw mjXError(elem, "invalid keyword: '%s'");
+      throw mjXError(elem, "invalid keyword: '%s'", key.c_str());
       return 0;
     }
 
