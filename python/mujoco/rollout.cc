@@ -297,8 +297,8 @@ class Rollout {
       throw py::value_error("chunk_size must be a positive integer");
     }
 
-    // check that some steps need to be taken, return if not
-    if (nstep < 1) {
+    // no trajectories or steps: do not access the first model of an empty batch
+    if (nbatch < 1 || nstep < 1) {
       return;
     }
 

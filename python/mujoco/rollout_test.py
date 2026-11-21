@@ -748,6 +748,31 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     ):
       rollout.rollout(model, data, initial_state, control)
 
+  @parameterized.product(nthread=(1, 2), nstep=(0, 3), skip_checks=(False, True))
+  def test_empty_batch(self, nthread, nstep, skip_checks):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    data = [mujoco.MjData(model) for _ in range(nthread)]
+    nsensordata = model.nsensordata
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    initial_state = zeros(0, nstate)
+    kwargs = {}
+    if skip_checks:
+      model = []
+      kwargs = dict(
+          state=empty(0, nstep, nstate),
+          sensordata=empty(0, nstep, nsensordata),
+      )
+    state, sensordata = rollout.rollout(
+        model,
+        data,
+        initial_state,
+        nstep=nstep,
+        skip_checks=skip_checks,
+        **kwargs,
+    )
+    self.assertEqual(state.shape, (0, nstep, nstate))
+    self.assertEqual(sensordata.shape, (0, nstep, data[0].sensordata.size))
+
   def test_nstep_zero_and_negative(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
