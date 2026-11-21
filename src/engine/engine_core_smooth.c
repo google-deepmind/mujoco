@@ -367,8 +367,9 @@ void mj_camlight(const mjModel* m, mjData* d) {
     int id = m->cam_bodyid[i];
     int id1 = m->cam_targetbodyid[i];
 
-    // skip camera if both body and target body are asleep or static
-    if (sleep_filter && d->body_awake[id] != mjS_AWAKE) {
+    // COM-dependent modes can move even when body and target body are static
+    if (sleep_filter && m->cam_mode[i] != mjCAMLIGHT_TRACKCOM &&
+        m->cam_mode[i] != mjCAMLIGHT_TARGETBODYCOM && d->body_awake[id] != mjS_AWAKE) {
       if (id1 < 0 || d->body_awake[id1] != mjS_AWAKE) {
         continue;
       }
@@ -438,8 +439,9 @@ void mj_camlight(const mjModel* m, mjData* d) {
     int id = m->light_bodyid[i];
     int id1 = m->light_targetbodyid[i];
 
-    // skip light if both body and target body are asleep or static
-    if (sleep_filter && d->body_awake[id] != mjS_AWAKE) {
+    // COM-dependent modes can move even when body and target body are static
+    if (sleep_filter && m->light_mode[i] != mjCAMLIGHT_TRACKCOM &&
+        m->light_mode[i] != mjCAMLIGHT_TARGETBODYCOM && d->body_awake[id] != mjS_AWAKE) {
       if (id1 < 0 || d->body_awake[id1] != mjS_AWAKE) {
         continue;
       }

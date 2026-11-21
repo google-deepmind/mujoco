@@ -2085,6 +2085,93 @@ TEST_F(CoreSmoothTest, FactorI) {
   mj_deleteModel(model);
 }
 
+// Static body origins can have moving subtree CoMs. Sleep must not freeze cameras
+// or lights that track those CoMs, including when only the target CoM moves.
+TEST_F(CoreSmoothTest, CamlightComModesWithSleep) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0">
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <camera name="track_world" mode="trackcom" pos="1 2 3"/>
+      <camera name="target_world" mode="targetbodycom" target="target" pos="3 2 4"/>
+      <light mode="trackcom" pos="1 2 3"/>
+      <light mode="targetbodycom" target="target" pos="3 2 4"/>
+      <body name="tracked" pos="1 0 0">
+        <camera name="track_static" mode="trackcom" pos="1 2 3"/>
+        <camera mode="targetbodycom" target="target" pos="3 2 4"/>
+        <light mode="trackcom" pos="1 2 3"/>
+        <light mode="targetbodycom" target="target" pos="3 2 4"/>
+        <body>
+          <joint type="slide" axis="1 0 0"/>
+          <geom size="0.1" mass="2"/>
+          <camera name="target_moving" mode="targetbodycom" target="target" pos="3 2 4"/>
+          <light mode="targetbodycom" target="target" pos="3 2 4"/>
+        </body>
+      </body>
+      <body name="target" pos="-1 0 0">
+        <body>
+          <joint type="slide" axis="0 1 0"/>
+          <geom size="0.1" mass="3"/>
+        </body>
+      </body>
+    </worldbody>
+    <sensor>
+      <framepos objtype="camera" objname="track_world"/>
+      <framezaxis objtype="camera" objname="track_world"/>
+      <framepos objtype="camera" objname="target_world"/>
+      <framezaxis objtype="camera" objname="target_world"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjModelPtr reference_model(mj_copyModel(nullptr, model.get()));
+  reference_model->opt.enableflags &= ~mjENBL_SLEEP;
+  MjDataPtr data = MakeData(model);
+  MjDataPtr reference = MakeData(reference_model);
+  int tracked = mj_name2id(model.get(), mjOBJ_BODY, "tracked");
+  int target = mj_name2id(model.get(), mjOBJ_BODY, "target");
+  int track_world = mj_name2id(model.get(), mjOBJ_CAMERA, "track_world");
+  int track_static = mj_name2id(model.get(), mjOBJ_CAMERA, "track_static");
+  int target_moving = mj_name2id(model.get(), mjOBJ_CAMERA, "target_moving");
+
+  for (int sample = 1; sample <= 2; sample++) {
+    SCOPED_TRACE(sample);
+    data->qpos[0] = reference->qpos[0] = .4*sample;
+    data->qpos[1] = reference->qpos[1] = .6*sample;
+    mj_forward(model.get(), data.get());
+    mj_forward(reference_model.get(), reference.get());
+    ASSERT_EQ(data->body_awake[0], mjS_STATIC);
+    ASSERT_EQ(data->body_awake[tracked], mjS_STATIC);
+    ASSERT_EQ(data->body_awake[target], mjS_STATIC);
+
+    EXPECT_THAT(AsVector(data->cam_xpos, 3*model->ncam),
+                Pointwise(MjNear(1e-12, 1e-5), AsVector(reference->cam_xpos, 3*model->ncam)));
+    EXPECT_THAT(AsVector(data->cam_xmat, 9*model->ncam),
+                Pointwise(MjNear(1e-12, 1e-5), AsVector(reference->cam_xmat, 9*model->ncam)));
+    EXPECT_THAT(AsVector(data->light_xpos, 3*model->nlight),
+                Pointwise(MjNear(1e-12, 1e-5), AsVector(reference->light_xpos, 3*model->nlight)));
+    EXPECT_THAT(AsVector(data->light_xdir, 3*model->nlight),
+                Pointwise(MjNear(1e-12, 1e-5), AsVector(reference->light_xdir, 3*model->nlight)));
+    EXPECT_THAT(AsVector(data->sensordata, model->nsensordata),
+                Pointwise(MjNear(1e-12, 1e-5),
+                          AsVector(reference->sensordata, model->nsensordata)));
+
+    // Check translations independently of the sleep-disabled reference. The
+    // moving targetbodycom camera must still follow its attachment body.
+    EXPECT_THAT(AsVector(data->cam_xpos+3*track_world, 3),
+                Pointwise(MjNear(1e-12, 1e-5),
+                          vector<mjtNum>{mjtNum(1 + .16*sample), mjtNum(2 + .36*sample), 3}));
+    EXPECT_THAT(AsVector(data->cam_xpos+3*track_static, 3),
+                Pointwise(MjNear(1e-12, 1e-5), vector<mjtNum>{mjtNum(2 + .4*sample), 2, 3}));
+    EXPECT_THAT(AsVector(data->cam_xpos+3*target_moving, 3),
+                Pointwise(MjNear(1e-12, 1e-5), vector<mjtNum>{mjtNum(4 + .4*sample), 2, 4}));
+  }
+}
+
 TEST_F(CoreSmoothTest, SubtreeVelSleepingChildAngularMomentum) {
   static constexpr char xml[] = R"(
   <mujoco>
