@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from codegen import code_builder
 from introspect import ast_nodes
+from introspect import functions as introspect_functions
 
 from wasm.codegen.generators import common
 from wasm.codegen.generators import enums
@@ -184,6 +185,27 @@ class FunctionUtilsTest(absltest.TestCase):
     )
     result = functions.get_params_string_maybe_with_conversion((param,))
     self.assertEqual(result, "s.get()")
+
+  def test_nullable_struct_parameters(self):
+    func = introspect_functions.FUNCTIONS["mjs_addGeom"]
+    body, defaults = func.parameters
+    self.assertEqual(functions.get_param_string(body), "MjsBody& body")
+    self.assertEqual(functions.get_param_string(defaults), "const MjsDefault* def")
+    self.assertEqual(
+        functions.get_params_string_maybe_with_conversion(func.parameters),
+        "body.get(), def ? def->get() : nullptr",
+    )
+    bindings = functions.generate([func])[1][1][0]
+    self.assertEqual(
+        bindings,
+        'function("mjs_addGeom", &mjs_addGeom_wrapper,'
+        ' emscripten::allow_raw_pointers());',
+    )
+
+    # Nullable numeric arrays do not need the struct-pointer binding policy.
+    func = introspect_functions.FUNCTIONS["mj_applyFT"]
+    bindings = functions.generate([func])[1][1][0]
+    self.assertEqual(bindings, 'function("mj_applyFT", &mj_applyFT_wrapper);')
 
   def test_get_compatible_return_code(self):
     func = ast_nodes.FunctionDecl(
