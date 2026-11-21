@@ -179,6 +179,57 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     np.testing.assert_array_equal(state, py_state)
     np.testing.assert_array_equal(sensordata, py_sensordata)
 
+  @parameterized.parameters((1, 1), (1, 3), (4, 1), (4, 3))
+  def test_tiling_reuses_matching_inputs(self, nbatch, nstep):
+    array = randn(nbatch, nstep, 2)
+    self.assertIs(rollout._tile_if_required(array, nbatch, nstep), array)
+
+  @parameterized.parameters((1, 1), (1, 3), (4, 1), (4, 3))
+  def test_tiling_expands_singletons(self, nbatch, nstep):
+    array = randn(1, 1, 2)
+    result = rollout._tile_if_required(array, nbatch, nstep)
+    np.testing.assert_array_equal(result, np.tile(array, (nbatch, nstep, 1)))
+
+  @parameterized.product(
+      name=('initial_state', 'initial_warmstart', 'control'),
+      output_name=('state', 'sensordata'),
+  )
+  def test_inputs_overlapping_output(self, name, output_name):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    data = mujoco.MjData(model)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    nbatch, nstep = 2, 3
+    dim = nstate if output_name == 'state' else model.nsensordata
+    storage = randn(nbatch * nstep * dim + 1)
+    output = storage[1:].reshape(nbatch, nstep, dim)
+    inputs = dict(
+        initial_state=randn(nbatch, nstate),
+        initial_warmstart=randn(nbatch, model.nv),
+        control=randn(nbatch, nstep, model.nu),
+    )
+    shape = inputs[name].shape
+    inputs[name] = storage[: np.prod(shape)].reshape(shape)
+    expected = rollout.rollout(
+        model, data, **{key: value.copy() for key, value in inputs.items()}
+    )
+    actual = rollout.rollout(model, data, **{output_name: output}, **inputs)
+    for value, expected_value in zip(actual, expected):
+      np.testing.assert_array_equal(value, expected_value)
+
+  def test_control_backed_by_data(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    data = mujoco.MjData(model)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    initial_state = zeros(nstate)
+    data.qfrc_applied[:] = 1
+    expected = rollout.rollout(
+        model, data, initial_state, data.qfrc_applied.copy()
+    )
+    data.qfrc_applied[:] = 1
+    actual = rollout.rollout(model, data, initial_state, data.qfrc_applied)
+    for value, expected_value in zip(actual, expected):
+      np.testing.assert_array_equal(value, expected_value)
+
   @parameterized.parameters(ALL_MODELS.keys())
   def test_one_rollout(self, model_name):
     nstep = 3  # number of timesteps
