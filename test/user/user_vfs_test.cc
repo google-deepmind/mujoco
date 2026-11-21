@@ -83,6 +83,38 @@ struct TestProvider : public mjpResourceProvider {
   }
 };
 
+TEST_F(UserVfsTest, AddMissingFileDoesNotCreateBuffer) {
+  const std::string dir = GetTestDataFilePath("user/testdata/");
+  constexpr char filename[] = "missing_vfs_input_file.dat";
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  EXPECT_EQ(mj_addFileVFS(&vfs, dir.c_str(), filename), -1);
+  EXPECT_FALSE(mj_containsFileVFS(&vfs, dir.c_str(), filename));
+  EXPECT_FALSE(HasFile(&vfs, filename));
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, AddEmptyFile) {
+  const std::string dir = testing::TempDir();
+  constexpr char filename[] = "mujoco_vfs_empty_file.dat";
+  const std::string path = dir + filename;
+  std::FILE* file = std::fopen(path.c_str(), "wb");
+  ASSERT_THAT(file, NotNull());
+  ASSERT_EQ(std::fclose(file), 0);
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  EXPECT_EQ(mj_addFileVFS(&vfs, dir.c_str(), filename), 0);
+  EXPECT_TRUE(mj_containsFileVFS(&vfs, dir.c_str(), filename));
+  mjResource* resource = mju_openResource("", filename, &vfs, nullptr, 0);
+  ASSERT_THAT(resource, NotNull());
+  const void* buffer = nullptr;
+  EXPECT_EQ(mju_readResource(resource, &buffer), 0);
+  mju_closeResource(resource);
+  mj_deleteVFS(&vfs);
+  EXPECT_EQ(std::remove(path.c_str()), 0);
+}
+
 TEST_F(UserVfsTest, AddFile) {
   constexpr char path[] = "engine/testdata/actuation/";
   const std::string dir = GetTestDataFilePath(path);
