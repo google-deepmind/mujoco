@@ -1746,6 +1746,114 @@ TEST_F(SensorTest, RFCamera) {
   mj_deleteModel(model);
 }
 
+// camera rangefinder and camprojection of one camera agree with each other:
+// the point hit by the ray of pixel (row, col) projects to its center
+TEST_F(SensorTest, CameraSensorsAgree) {
+  const char* cameras[] = {
+    R"(fovy="90" resolution="4 4")",
+    R"(fovy="60" resolution="6 4")",
+    R"(sensorsize="2 2" focal="1 1" resolution="4 4")",
+    R"(sensorsize="2 2" focal="1 1" principal="0.25 -0.5" resolution="4 4")",
+    R"(sensorsize="3 2" focalpixel="3 3" principalpixel="1 0.5"
+       resolution="6 4")",
+    R"(projection="orthographic" fovy="2" resolution="4 4")",
+    R"(projection="orthographic" fovy="2" resolution="6 4")",
+  };
+  for (const char* camera : cameras) {
+    string xml = R"(
+    <mujoco>
+      <worldbody>
+        <geom type="box" size="50 50 0.01" pos="0 0 -1.01"/>
+        <body name="probe" mocap="true">
+          <site name="probe"/>
+        </body>
+        <body euler="5 -10 15">
+          <camera name="camera" )" + string(camera) + R"(/>
+        </body>
+      </worldbody>
+      <sensor>
+        <rangefinder camera="camera" data="point"/>
+        <camprojection site="probe" camera="camera"/>
+      </sensor>
+    </mujoco>
+    )";
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    mj_forward(model.get(), data.get());
+
+    int width = model->cam_resolution[0];
+    int height = model->cam_resolution[1];
+    vector<mjtNum> points(data->sensordata,
+                          data->sensordata + 3 * width * height);
+    int adr = model->sensor_adr[1];
+    for (int row = 0; row < height; row++) {
+      for (int col = 0; col < width; col++) {
+        mju_copy3(data->mocap_pos, points.data() + 3 * (row * width + col));
+        mj_forward(model.get(), data.get());
+        EXPECT_NEAR(data->sensordata[adr], col + 0.5, MjTol(1e-8, 1e-3))
+            << camera << " pixel (" << row << ", " << col << ")";
+        EXPECT_NEAR(data->sensordata[adr + 1], row + 0.5, MjTol(1e-8, 1e-3))
+            << camera << " pixel (" << row << ", " << col << ")";
+      }
+    }
+  }
+}
+
+// camera sensors put the principal point where the renderer does
+TEST_F(SensorTest, CameraSensorsPrincipalPoint) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="50 50 0.01" pos="0 0 -1.01"/>
+      <site name="axis" pos="0 0 -1"/>
+      <body>
+        <camera name="fovy" fovy="90" resolution="4 4"/>
+        <camera name="intrinsic" sensorsize="2 2" focal="1 1" resolution="4 4"/>
+        <camera name="principal" sensorsize="2 2" focal="1 1"
+                principal="0.25 0.25" resolution="4 4"/>
+        <camera name="ortho" projection="orthographic" fovy="2"
+                resolution="8 4"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <rangefinder camera="fovy" data="point"/>
+      <rangefinder camera="intrinsic" data="point"/>
+      <camprojection site="axis" camera="principal"/>
+      <rangefinder camera="ortho" data="origin"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  mjtNum tol = MjTol(1e-10, 1e-5);
+
+  // same optics with principal="0 0": same depth image as the fovy camera
+  mjtNum* fovy = data->sensordata + model->sensor_adr[0];
+  mjtNum* intrinsic = data->sensordata + model->sensor_adr[1];
+  for (int i = 0; i < 3 * 16; i++) {
+    EXPECT_NEAR(intrinsic[i], fovy[i], tol) << i;
+  }
+  EXPECT_NEAR(fovy[0], -0.75, tol);  // top-left pixel sees the top-left
+  EXPECT_NEAR(fovy[1], 0.75, tol);
+
+  // principal="0.25 0.25" moves the optical axis to pixel (1.5, 1.5), as the
+  // renderer's frustum (W/2 - 0.25*W/2, H/2 - 0.25*H/2)
+  mjtNum* axis = data->sensordata + model->sensor_adr[2];
+  EXPECT_NEAR(axis[0], 1.5, tol);
+  EXPECT_NEAR(axis[1], 1.5, tol);
+
+  // orthographic 8x4, fovy=2: square pixels, x spans [-2, 2] as rendered
+  mjtNum* origin = data->sensordata + model->sensor_adr[3];
+  EXPECT_NEAR(origin[0], -1.75, tol);
+  EXPECT_NEAR(origin[3 * 7], 1.75, tol);
+  EXPECT_NEAR(origin[1], 0.75, tol);
+}
+
 // ------------------------------- sensor delays -------------------------------
 
 TEST_F(SensorTest, SensorDelay) {
