@@ -908,6 +908,43 @@ class MuJoCoRolloutTest(parameterized.TestCase):
           model, data, initial_state, control, control_spec=bad_spec
       )
 
+  @parameterized.product(
+      nthread=(1, 2),
+      control_spec=(mujoco.mjtState.mjSTATE_CTRL, mujoco.mjtState.mjSTATE_USER),
+      xml=(TEST_XML, TEST_XML_MOCAP),
+  )
+  def test_no_control_is_stateless(self, nthread, control_spec, xml):
+    model = mujoco.MjModel.from_xml_string(xml)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    data = [mujoco.MjData(model) for _ in range(nthread)]
+    initial_state = randn(4, nstate)
+    expected = rollout.rollout(
+        model, data, initial_state, nstep=3, control_spec=control_spec
+    )
+    for d in data:
+      d.ctrl[:] = randn(model.nu)
+      d.qfrc_applied[:] = randn(model.nv)
+      d.xfrc_applied[:] = randn(model.nbody, 6)
+      d.mocap_pos[:] = randn(model.nmocap, 3)
+      d.mocap_quat[:] = randn(model.nmocap, 4)
+    actual = rollout.rollout(
+        model, data, initial_state, nstep=3, control_spec=control_spec
+    )
+    for want, got in zip(expected, actual):
+      np.testing.assert_array_equal(want, got)
+
+  @parameterized.parameters(False, True)
+  def test_unspecified_userdata_is_reset(self, provide_control):
+    model = mujoco.MjModel.from_xml_string(
+        TEST_XML.replace('<worldbody>', '<size nuserdata="2"/><worldbody>')
+    )
+    data = mujoco.MjData(model)
+    data.userdata[:] = [1, 2]
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    control = zeros(model.nu) if provide_control else None
+    rollout.rollout(model, data, zeros(nstate), control)
+    np.testing.assert_array_equal(data.userdata, zeros(model.nuserdata))
+
   def test_stateless(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
