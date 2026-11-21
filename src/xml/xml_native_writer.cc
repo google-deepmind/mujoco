@@ -414,7 +414,7 @@ void mjXWriter::WriteSpecInertial(XMLElement* elem, const mjCBody* body) {
 
   if (given.explicitinertial || mjuu_defined(given.ipos[0])) {
     XMLElement* inertial = InsertEnd(elem, "inertial");
-    WriteAttr(inertial, "pos", 3, given.ipos);
+    WriteAttr(inertial, "pos", 3, mjuu_defined(given.ipos[0]) ? given.ipos : unitq + 1);
     if (!mjuu_defined(given.fullinertia[0])) {
       WriteSpecPose(inertial, body, nullptr, given.iquat, given.ialt);
       WriteAttr(inertial, "mass", 1, &given.mass);
