@@ -189,6 +189,10 @@ using mjVisualScale = decltype(::mjVisual::scale);
       int start = model_->numeric_adr[id_];                                                      \
       int count = model_->numeric_size[id_];                                                     \
       return val(typed_memory_view(count, model_->numeric_data + start));                        \
+    } else if constexpr (std::string_view(#dim0) == "nJten") {                                     \
+      int adr = model_->ten_J_rowadr[id_];                                                         \
+      int count = adr < 0 ? 0 : model_->ten_J_rownnz[id_];                                         \
+      return val(typed_memory_view(count, model_->ten_J_colind + (adr < 0 ? 0 : adr)));            \
     } else if constexpr (std::string_view(#dim0) == "ntupledata") {                              \
       int start = model_->tuple_adr[id_];                                                        \
       int count = model_->tuple_size[id_];                                                       \
@@ -239,6 +243,11 @@ using mjVisualScale = decltype(::mjVisual::scale);
       int count = model_->numeric_size[id_];                                                     \
       val(typed_memory_view(count, model_->numeric_data + start))                                \
           .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nJten") {                                     \
+      int adr = model_->ten_J_rowadr[id_];                                                         \
+      int count = adr < 0 ? 0 : model_->ten_J_rownnz[id_];                                         \
+      val(typed_memory_view(count, model_->ten_J_colind + (adr < 0 ? 0 : adr)))                    \
+          .call<void>("set", value);                                                               \
     } else if constexpr (std::string_view(#dim0) == "ntupledata") {                              \
       int start = model_->tuple_adr[id_];                                                        \
       int count = model_->tuple_size[id_];                                                       \
