@@ -1329,6 +1329,10 @@ std::unique_ptr<MjModel> from_xml_string_wrapper_1(const std::string& xml) {
 
 std::unique_ptr<MjModel> from_xml_string_wrapper_2(const std::string& xml, const MjVFS& vfs) {
   std::string filename = "model.xml";
+  // Preserve caller-owned assets, including files referenced by XML includes.
+  while (mj_containsBufferVFS(vfs.get(), filename.c_str())) {
+    filename.insert(filename.size() - 4, "_");
+  }
   int add_result = mj_addBufferVFS(vfs.get(), filename.c_str(), xml.c_str(), xml.length());
   if (add_result != 0) {
     mju_error("Could not add XML string to VFS: %d", add_result);
