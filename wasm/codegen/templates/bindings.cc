@@ -233,36 +233,11 @@ MjvScene::~MjvScene() {
 mjvScene* MjvScene::get() const { return ptr_; }
 void MjvScene::set(mjvScene* ptr) { ptr_ = ptr; }
 
-// Taken from the python mujoco bindings code for MjvScene Wrapper
+// Use the face capacities allocated by mjv_makeScene.
 int MjvScene::GetSumFlexFaces() const {
   int nflexface = 0;
-  int flexfacenum = 0;
-  for (int f = 0; f < model->nflex; f++) {
-    if (model->flex_dim[f] == 0) {
-      // 1D : 0
-      flexfacenum = 0;
-    } else if (model->flex_dim[f] == 2) {
-      // 2D: 2*fragments + 2*elements
-      flexfacenum = 2 * model->flex_shellnum[f] + 2 * model->flex_elemnum[f];
-    } else {
-      // 3D: max(fragments, 4*maxlayer)
-      // find number of elements in biggest layer
-      int maxlayer = 0, layer = 0, nlayer = 1;
-      while (nlayer) {
-        nlayer = 0;
-        for (int e = 0; e < model->flex_elemnum[f]; e++) {
-          if (model->flex_elemlayer[model->flex_elemadr[f] + e] == layer) {
-            nlayer++;
-          }
-        }
-        maxlayer = mjMAX(maxlayer, nlayer);
-        layer++;
-      }
-      flexfacenum = mjMAX(model->flex_shellnum[f], 4 * maxlayer);
-    }
-
-    // accumulate over flexes
-    nflexface += flexfacenum;
+  for (int f = 0; f < ptr_->nflex; f++) {
+    nflexface += ptr_->flexfacenum[f];
   }
   return nflexface;
 }
