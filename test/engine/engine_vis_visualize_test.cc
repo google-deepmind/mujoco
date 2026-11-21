@@ -987,7 +987,6 @@ TEST_F(MjvSceneTest, CameraOrthographicGovernedByCameraNotModel) {
   mjv_defaultFreeCamera(model.get(), &cam_default);
   EXPECT_EQ(cam_default.orthographic, 1);
 
-  const float expected_ortho_half_height = model->vis.global.fovy / 2;
   const float znear = model->vis.map.znear * model->stat.extent;
   const float expected_persp_half_height =
       znear * mju_tan(model->vis.global.fovy * mjPI / 360.0);
@@ -999,6 +998,8 @@ TEST_F(MjvSceneTest, CameraOrthographicGovernedByCameraNotModel) {
     float zver[2] = {0, 0};
     mjv_cameraFrustum(zver, nullptr, nullptr, model.get(), &cam);
     if (expect_ortho) {
+      const float expected_ortho_half_height =
+          cam.distance * mju_tan(model->vis.global.fovy * mjPI / 360.0);
       EXPECT_FLOAT_EQ(zver[0], expected_ortho_half_height);
     } else {
       EXPECT_NEAR(zver[0], expected_persp_half_height, 1e-6);
@@ -1064,8 +1065,12 @@ TEST_F(MjvSceneTest, CameraOrthographicGovernedByCameraNotModel) {
                 MjTol(1e-12, 1e-5));
   }
 
-  // Orthographic and perspective move amounts must differ
-  EXPECT_GT(mju_dist3(cam_ortho_m0.lookat, cam_persp_m0.lookat), 1e-3);
+  // Orthographic and perspective free cameras match in view height at lookat,
+  // so planar moves by the same screen fraction match too.
+  for (int j = 0; j < 3; ++j) {
+    EXPECT_NEAR(cam_ortho_m0.lookat[j], cam_persp_m0.lookat[j],
+                MjTol(1e-6, 1e-4));
+  }
 
   FreeSceneObjects();
 }

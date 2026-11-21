@@ -258,6 +258,9 @@ class Simulate {
   double ctrl_noise_std  = 0.0;
   double ctrl_noise_rate = 0.0;
 
+  // field of view shown in the UI: degrees if perspective, view height if orthographic
+  float fov_ = 45.0f;
+
   // watch
   char field[mjMAXUITEXT] = "qpos";
   int  index              = 0;

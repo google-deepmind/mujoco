@@ -355,11 +355,12 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy, mj
     convert2D(vec, action, reldx, reldy, forward);
 
     // compute scaling: rendered lookat displacement = mouse displacement
-    mju_sub3(dif, cam->lookat, headpos);
-    scl = cameraFrustumHeight(m, cam) * mju_dot3(dif, forward);
-
-    // multiply by mystery coefficient TODO: b/346130949
-    if (cam->orthographic) scl *= 0.15;
+    if (cam->orthographic) {
+      scl = cameraFrustumHeight(m, cam);
+    } else {
+      mju_sub3(dif, cam->lookat, headpos);
+      scl = cameraFrustumHeight(m, cam) * mju_dot3(dif, forward);
+    }
 
     // move lookat point in opposite direction
     mju_addToScl3(cam->lookat, vec, -scl);
@@ -652,11 +653,12 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   mjv_cameraInModel(headpos, forward, NULL, scn);
 
   // compute scaling: rendered pert->refselpos displacement = mouse displacement
-  mju_sub3(dif, pert->refselpos, headpos);
-  pert->scale = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
-
-  // multiply by mystery coefficient TODO: b/346130949
-  if (scn->camera[0].orthographic) pert->scale *= 0.15;
+  if (scn->camera[0].orthographic) {
+    pert->scale = mjv_frustumHeight(scn);
+  } else {
+    mju_sub3(dif, pert->refselpos, headpos);
+    pert->scale = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
+  }
 
   mj_freeStack(d);
 }
@@ -851,18 +853,33 @@ mjvGLCamera mjv_camera2GLCamera(const mjModel* model, const mjData* data,
       mjERROR("fixed camera id is outside valid range");
     }
     gl_camera.orthographic = model->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
+  } else if (mjv_camera->type == mjCAMERA_TRACKING) {
+    const int bid = mjv_camera->trackbodyid;
+    if (bid < 0 || bid >= model->nbody) {
+      mjERROR("track body id is outside valid range");
+    }
   }
 
   mjtNum headpos[3], forward[3], up[3];
   mjv_cameraFrame(headpos, forward, up, NULL, data, mjv_camera);
+
+  float zver[2], zhor[2], zclip[2];
+  mjv_cameraFrustum(zver, zhor, zclip, model, mjv_camera);
+
+  // move the eye of an orthographic free or tracking camera behind the model
+  if (gl_camera.orthographic &&
+      (mjv_camera->type == mjCAMERA_FREE || mjv_camera->type == mjCAMERA_TRACKING)) {
+    const mjtNum* lookat = (mjv_camera->type == mjCAMERA_TRACKING)
+                           ? data->subtree_com + 3*mjv_camera->trackbodyid
+                           : mjv_camera->lookat;
+    mjv_orthographicEye(headpos, zclip, model, lookat, forward);
+  }
+
   for (int i = 0; i < 3; i++) {
     gl_camera.pos[i] = (float)(headpos[i]);
     gl_camera.forward[i] = (float)forward[i];
     gl_camera.up[i] = (float)up[i];
   }
-
-  float zver[2], zhor[2], zclip[2];
-  mjv_cameraFrustum(zver, zhor, zclip, model, mjv_camera);
   gl_camera.frustum_top = zver[0];
   gl_camera.frustum_bottom = -zver[1];
   gl_camera.frustum_center = (zhor[1] - zhor[0]) / 2;

@@ -160,6 +160,22 @@ TEST_F(CameraControlTest, RightDragScalesVerticalPlanarPanInPortrait) {
   ExpectSameCamera(camera_, expected_landscape);
 }
 
+TEST_F(CameraControlTest, RightDragMovesByTheOrthographicViewHeight) {
+  camera_.orthographic = 1;
+  CameraInput input = Drag(0, kDy);
+  input.right_button = kButtonPressed;
+  input.shift = true;
+  const mjvCamera before = camera_;
+  // The view is as tall as the perspective view at the lookat point.
+  const mjtNum view_height = 2 * camera_.distance * mju_tan(model_->vis.global.fovy * mjPI / 360.0);
+
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_,
+                                  /*fly_camera=*/false, input));
+  mjtNum moved[3];
+  mju_sub3(moved, camera_.lookat, before.lookat);
+  EXPECT_NEAR(mju_norm3(moved), kDy * view_height, 1e-5 * view_height);
+}
+
 TEST_F(CameraControlTest, CtrlDragMovesNothing) {
   CameraInput input = Drag(kDx, kDy);
   input.left_button = kButtonPressed;

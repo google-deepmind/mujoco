@@ -1668,7 +1668,24 @@ void VisualizationGui(mjModel* model, mjvOption* vis_options, mjvCamera* camera,
     if (ImGui_SwitchToggle("Orthographic", &camera->orthographic)) {
       vis.global.orthographic = camera->orthographic;
     }
-    ImGui_Input("FOV", &vis.global.fovy, {.format = "%0.2f"});
+    if (camera->orthographic) {
+      // In orthographic mode, FOV is the vertical view height (distance
+      // between the top and bottom frustum planes, matching the perspective
+      // view height at the lookat point). Editing it updates camera->distance
+      // so vis.global.fovy stays in degrees when toggling back to perspective.
+      const double half_tan = mju_tan(vis.global.fovy * mjPI / 360.0);
+      double height = 2.0 * camera->distance * half_tan;
+      const double min_height = 2.0 * 0.01 * stat.extent * half_tan;
+      const double max_height = 2.0 * 100.0 * stat.extent * half_tan;
+      if (ImGui_Input("FOV", &height, {.min = min_height, .max = max_height, .format = "%0.2f"}) &&
+          half_tan > mjMINVAL) {
+        camera->distance = height / (2.0 * half_tan);
+      }
+      ImGui::SetItemTooltip("%s", "Vertical view height in length units");
+    } else {
+      ImGui_Input("FOV", &vis.global.fovy, {.format = "%0.2f"});
+      ImGui::SetItemTooltip("%s", "Vertical field of view in degrees");
+    }
     ImGui_InputN("Center", stat.center, 3, {.format = "%0.2f"});
     ImGui_Input("Azimuth", &vis.global.azimuth, {.format = "%0.2f"});
     ImGui_Input("Elevation", &vis.global.elevation, {.format = "%0.2f"});

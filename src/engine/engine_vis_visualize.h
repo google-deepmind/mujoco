@@ -67,6 +67,10 @@ MJAPI void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], m
 MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjModel* m,
                              const mjvCamera* cam);
 
+// moves the eye of an orthographic free or tracking camera behind the model, extends zfar to match
+void mjv_orthographicEye(mjtNum headpos[3], float zclip[2], const mjModel* m,
+                         const mjtNum lookat[3], const mjtNum forward[3]);
+
 // determines if tendon should be rendered as a catenary curve and, if so, computes its length
 MJAPI int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length);
 

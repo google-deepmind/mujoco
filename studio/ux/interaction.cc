@@ -45,14 +45,20 @@ mjrCamera ViewCamera(const mjModel* m, const mjData* d, const mjvCamera* camera,
   return gl_camera;
 }
 
-static mjtNum CalculateMovementScale(const mjModel* m, const mjvCamera* cam) {
+// Returns the height of the visible area, in world units, at the given depth
+// along the camera's forward axis.
+static mjtNum FrustumHeightAtDepth(const mjModel* m, const mjvCamera* cam, mjtNum depth) {
   float zclip[2] = {0, 0}, zver[2] = {0, 0};
   mjv_cameraFrustum(zver, nullptr, zclip, m, cam);
-  if (cam->orthographic) {
-    // TODO(b/346130949): multiply by mystery coefficient
-    return (zver[1] + zver[0]) * 0.15;
+  bool orthographic = cam->orthographic;
+  if (cam->type == mjCAMERA_FIXED && cam->fixedcamid >= 0 && cam->fixedcamid < m->ncam) {
+    orthographic = m->cam_projection[cam->fixedcamid] == mjPROJ_ORTHOGRAPHIC;
+  }
+  if (orthographic) {
+    // The orthographic frustum is already in world units at any depth.
+    return zver[1] + zver[0];
   } else if (zclip[0] >= mjMINVAL) {
-    return (zver[1] + zver[0]) / zclip[0];
+    return (zver[1] + zver[0]) / zclip[0] * depth;
   } else {
     mjERROR("mjvScene frustum_near too small");
     return 0;
@@ -138,7 +144,7 @@ void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPer
   // compute scaling: rendered pert->refselpos displacement = mouse displacement
   mjtNum dif[3];
   mju_sub3(dif, pert->refselpos, headpos);
-  pert->scale = CalculateMovementScale(m, cam) * mju_dot3(dif, forward);
+  pert->scale = FrustumHeightAtDepth(m, cam, mju_dot3(dif, forward));
   pert->active = active;
 }
 

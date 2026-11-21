@@ -9677,19 +9677,24 @@ is effectively a miscellaneous subsection.
 .. _visual-global-orthographic:
 
 :at:`orthographic`: :at-val:`[false, true], "false"`
-   Whether the free camera uses a perspective projection (the default) or an orthographic projection. Setting this
-   attribute changes the semantic of the :ref:`global/fovy<visual-global-fovy>` attribute, see below.
+   Whether the free camera defaults to a perspective projection (the default) or an orthographic projection. The eye
+   of an orthographic free or tracking camera is placed behind the model, using :ref:`statistic/center
+   <statistic-center>` and :ref:`statistic/extent<statistic-extent>`, so that zooming in does not clip it. Objects that
+   move far from both the model center and the lookat point can still end up behind the eye and be clipped.
 
 .. _visual-global-fovy:
 
 :at:`fovy`: :at-val:`real, "45"`
-   This attribute specifies the vertical field of view of the free camera, i.e., the camera that is always available in
-   the visualizer even if no cameras are explicitly defined in the model. If the camera uses a perspective projection,
-   the field-of-view is expressed in degrees, regardless of the global :ref:`compiler/angle <compiler-angle>` setting.
-   If the camera uses an orthographic projection, the field-of-view is expressed in units of length; note that in this
-   case the default of 45 is too large for most scenes and should likely be reduced. In either case, the horizontal
-   field of view is computed automatically given the window size and the vertical field of view. The same convention
-   applies to the :ref:`camera/fovy <body-camera-fovy>` attribute.
+   This attribute specifies the vertical field of view of the free camera (and tracking camera), i.e., the camera that
+   is always available in the visualizer even if no cameras are explicitly defined in the model. In perspective
+   projection it is the vertical opening angle in degrees (regardless of the global :ref:`compiler/angle
+   <compiler-angle>` setting). In orthographic projection the vertical view height (the distance between the top and
+   bottom frustum planes, in units of length) is computed from :at:`fovy` and the camera's distance to the lookat point
+   so it matches the perspective view height at the lookat point; in the visualizer UI, the field of view control
+   displays and edits this distance in units of length. In either projection, the horizontal field of view is computed
+   automatically from the viewport aspect ratio and the vertical field of view. For modeled cameras defined in the
+   model, see :ref:`camera/fovy <body-camera-fovy>` (where orthographic :at:`fovy` is specified directly in units of
+   length).
 
 .. _visual-global-ipd:
 

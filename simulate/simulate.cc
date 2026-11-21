@@ -1011,10 +1011,21 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m) {
   }
 }
 
+// field of view value shown in the UI: view height if orthographic, degrees if perspective
+static float DisplayedFov(const mjVisual* vis, const mjvCamera& cam) {
+  if (cam.orthographic) {
+    // orthographic: vertical view height in length units
+    return static_cast<float>(2.0 * cam.distance * mju_tan(vis->global.fovy * mjPI / 360.0));
+  }
+  // perspective: vertical field of view angle in degrees
+  return vis->global.fovy;
+}
+
 // make visualization section of UI
 void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m) {
   mjStatistic* stat = sim->is_passive_ ? &sim->m_passive_->stat : &sim->m_->stat;
   mjVisual*    vis  = sim->is_passive_ ? &sim->m_passive_->vis : &sim->m_->vis;
+  sim->fov_         = DisplayedFov(vis, sim->cam);
 
   // clang-format off
   mjuiDef defVisualization[] = {
@@ -1026,7 +1037,7 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m) {
     {mjITEM_EDITFLOAT, "Specular",        2, &(vis->headlight.specular),   "3"},
     {mjITEM_SEPARATOR, "Free Camera", 1},
     {mjITEM_RADIO,     "Orthographic",    2, &sim->cam.orthographic,       "No\nYes"},
-    {mjITEM_EDITFLOAT, "Field of view",   2, &(vis->global.fovy),          "1"},
+    {mjITEM_EDITFLOAT, "Field of view",   2, &sim->fov_,                   "1"},
     {mjITEM_EDITNUM,   "Center",          2, &(stat->center),              "3"},
     {mjITEM_EDITFLOAT, "Azimuth",         2, &(vis->global.azimuth),       "1"},
     {mjITEM_EDITFLOAT, "Elevation",       2, &(vis->global.elevation),     "1"},
@@ -1812,12 +1823,30 @@ void UiEvent(mjuiState* state) {
 
     // visualization section
     else if (it && it->sectionid == SECT_VISUALIZATION) {
+      mjModel* m = sim->is_passive_ ? sim->m_passive_ : sim->m_;
       if (!mju::strcmp_arr(it->name, "Align")) {
         sim->pending_.align = true;
       } else if (!mju::strcmp_arr(it->name, "Orthographic")) {
-        mjVisual* vis = sim->is_passive_ ? (sim->m_passive_ ? &sim->m_passive_->vis : nullptr)
-                                         : (sim->m_ ? &sim->m_->vis : nullptr);
-        if (vis) { vis->global.orthographic = sim->cam.orthographic; }
+        if (m) {
+          m->vis.global.orthographic            = sim->cam.orthographic;
+          sim->fov_                             = DisplayedFov(&m->vis, sim->cam);
+          sim->pending_.ui_update_visualization = true;
+        }
+      } else if (!mju::strcmp_arr(it->name, "Field of view")) {
+        if (m) {
+          if (sim->cam.orthographic) {
+            const mjtNum half_tan = mju_tan(m->vis.global.fovy * mjPI / 360.0);
+            if (half_tan > mjMINVAL) {
+              sim->cam.distance = mju_clip(sim->fov_ / (2.0 * half_tan),
+                                           0.01 * m->stat.extent,
+                                           100.0 * m->stat.extent);
+            }
+            sim->fov_                             = DisplayedFov(&m->vis, sim->cam);
+            sim->pending_.ui_update_visualization = true;
+          } else {
+            m->vis.global.fovy = sim->fov_;
+          }
+        }
       }
     }
 
@@ -2769,6 +2798,17 @@ void Simulate::Render() {
       mjui0_update_section(this, SECT_PHYSICS);
     }
     pending_.ui_update_physics = false;
+  }
+
+  if (this->ui0_enable && this->ui0.sect[SECT_VISUALIZATION].state) {
+    mjModel* m = is_passive_ ? m_passive_ : m_;
+    if (m && this->ui0.editsect != SECT_VISUALIZATION) {
+      const float displayed_fov = DisplayedFov(&m->vis, cam);
+      if (displayed_fov != fov_) {
+        fov_                             = displayed_fov;
+        pending_.ui_update_visualization = true;
+      }
+    }
   }
 
   if (pending_.ui_update_visualization) {

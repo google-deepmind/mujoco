@@ -571,7 +571,14 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
   const float znear = m->vis.map.znear * m->stat.extent;
 
   if (orthographic) {
-    if (zver) zver[0] = zver[1] = fovy / 2;
+    if (zver) {
+      if (cam->type == mjCAMERA_FIXED) {
+        zver[0] = zver[1] = fovy / 2;
+      } else {
+        // match the height of the perspective view at the lookat point
+        zver[0] = zver[1] = cam->distance * mju_tan(fovy * mjPI/360.0);
+      }
+    }
     if (zhor) zhor[0] = zhor[1] = 0.0f;
   } else if (intrinsic) {
     getFrustum(zver, zhor, znear, intrinsic, sensorsize);
@@ -584,6 +591,23 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
     zclip[0] = znear;
     zclip[1] = m->vis.map.zfar * m->stat.extent;
   }
+}
+
+
+// moves the eye of an orthographic free or tracking camera behind the model, extends zfar to match
+void mjv_orthographicEye(mjtNum headpos[3], float zclip[2], const mjModel* m,
+                         const mjtNum lookat[3], const mjtNum forward[3]) {
+  // put the eye one extent behind the model's bounding sphere, wherever the lookat point is, so
+  // that zooming in does not clip the model at the near plane; the sphere comes from the model
+  // statistics, so geometry that moves far from both its center and the lookat point can still end
+  // up behind the eye
+  mjtNum offset[3];
+  mju_sub3(offset, lookat, m->stat.center);
+  mjtNum eye_distance = mju_norm3(offset) + 2.0*m->stat.extent;
+  mju_addScl3(headpos, lookat, forward, -eye_distance);
+
+  // keep the far side of the model in front of the far plane
+  zclip[1] = mjMAX(zclip[1], (float)(2.0*eye_distance));
 }
 
 
@@ -3345,6 +3369,11 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
 
   default:
     mjERROR("unknown camera type");
+  }
+
+  // move the eye of an orthographic free or tracking camera behind the model
+  if (orthographic && (cam->type == mjCAMERA_FREE || cam->type == mjCAMERA_TRACKING)) {
+    mjv_orthographicEye(headpos, zclip, m, cam->lookat, forward);
   }
 
   // compute GL cameras

@@ -15,12 +15,188 @@
 #include "studio/ux/interaction.h"
 
 #include <array>
+#include <memory>
 
 #include "testing/base/public/gunit.h"
 #include <mujoco/mujoco.h>
 
 namespace mujoco::studio {
 namespace {
+
+using ModelPtr = std::unique_ptr<mjModel, decltype(&mj_deleteModel)>;
+using DataPtr = std::unique_ptr<mjData, decltype(&mj_deleteData)>;
+
+struct TestScene {
+  ModelPtr model{nullptr, mj_deleteModel};
+  DataPtr data{nullptr, mj_deleteData};
+};
+
+// Returns a null model and data, and fails the test, if `xml` does not compile.
+TestScene MakeTestScene(const char* xml) {
+  char error[1000] = "";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error, sizeof(error));
+  if (!spec) {
+    ADD_FAILURE() << error;
+    return {};
+  }
+  mjModel* m = mj_compile(spec, nullptr);
+  if (!m) {
+    ADD_FAILURE() << mjs_getError(spec);
+    mj_deleteSpec(spec);
+    return {};
+  }
+  mj_deleteSpec(spec);
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+  return {ModelPtr(m, mj_deleteModel), DataPtr(d, mj_deleteData)};
+}
+
+// Returns the height of the visible area at the lookat point.
+mjtNum ViewHeightAtLookat(const mjModel* m, const mjvCamera* cam) {
+  float zver[2] = {0, 0}, zclip[2] = {0, 0};
+  mjv_cameraFrustum(zver, nullptr, zclip, m, cam);
+  if (cam->orthographic) {
+    return zver[0] + zver[1];
+  }
+  return (zver[0] + zver[1]) * cam->distance / zclip[0];
+}
+
+constexpr char kOrthographicTestXml[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="box" pos="0.5 -0.3 0.2">
+      <freejoint/>
+      <geom type="box" size="0.5 0.5 0.5"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+TEST(InteractionTest, OrthographicViewHeightFollowsDistance) {
+  auto [m, d] = MakeTestScene(kOrthographicTestXml);
+  ASSERT_NE(m, nullptr);
+
+  mjvCamera cam;
+  mjv_defaultFreeCamera(m.get(), &cam);
+  cam.distance = 3.0;
+  const mjtNum perspective_height = ViewHeightAtLookat(m.get(), &cam);
+
+  // Toggling orthographic preserves the view size at the lookat point.
+  cam.orthographic = 1;
+  EXPECT_NEAR(ViewHeightAtLookat(m.get(), &cam), perspective_height, 1e-5);
+
+  // Zooming scales the orthographic view.
+  cam.distance = 0.8 * 3.0;
+  EXPECT_NEAR(ViewHeightAtLookat(m.get(), &cam), 0.8 * perspective_height, 1e-5);
+
+  // The render camera agrees with the frustum.
+  const mjvGLCamera gl_camera = mjv_camera2GLCamera(m.get(), d.get(), &cam);
+  EXPECT_TRUE(gl_camera.orthographic);
+  EXPECT_NEAR(gl_camera.frustum_top - gl_camera.frustum_bottom, 0.8 * perspective_height, 1e-5);
+}
+
+TEST(InteractionTest, OrthographicEyeIsBehindModelWhenZoomedIn) {
+  auto [m, d] = MakeTestScene(kOrthographicTestXml);
+  ASSERT_NE(m, nullptr);
+
+  mjvCamera cam;
+  mjv_defaultFreeCamera(m.get(), &cam);
+  cam.orthographic = 1;
+  cam.distance = 0.01 * m->stat.extent;  // Unadjusted eye would be in the box.
+
+  const mjvGLCamera gl_camera = mjv_camera2GLCamera(m.get(), d.get(), &cam);
+  mjtNum eye[3], forward[3], to_center[3];
+  mju_f2n(eye, gl_camera.pos, 3);
+  mju_f2n(forward, gl_camera.forward, 3);
+  mju_sub3(to_center, m->stat.center, eye);
+  // The whole model is in front of the near plane and behind the far plane.
+  EXPECT_GT(mju_dot3(to_center, forward) - m->stat.extent, gl_camera.frustum_near);
+  EXPECT_LT(mju_dot3(to_center, forward) + m->stat.extent, gl_camera.frustum_far);
+}
+
+TEST(InteractionTest, OrthographicPickHitsFrontFaceWhenZoomedIn) {
+  auto [m, d] = MakeTestScene(kOrthographicTestXml);
+  ASSERT_NE(m, nullptr);
+  const int box_id = mj_name2id(m.get(), mjOBJ_BODY, "box");
+  ASSERT_GT(box_id, 0);
+
+  // Look along +x at the center of the box, zoomed in so far that an
+  // unadjusted eye would be inside the box.
+  mjvCamera cam;
+  mjv_defaultFreeCamera(m.get(), &cam);
+  cam.orthographic = 1;
+  cam.azimuth = 0;
+  cam.elevation = 0;
+  mju_copy3(cam.lookat, d->xpos + 3 * box_id);
+  cam.distance = 0.01 * m->stat.extent;
+
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+  const PickResult picked = Pick(m.get(), d.get(), &cam, 0.5f, 0.5f,
+                                 /*aspect_ratio=*/1.5f, &opt);
+  EXPECT_EQ(picked.body, box_id);
+  EXPECT_NEAR(picked.point[0], d->xpos[3 * box_id] - 0.5, 1e-5);
+}
+
+TEST(InteractionTest, OrthographicPlanarMoveAndPerturbUseViewHeight) {
+  auto [m, d] = MakeTestScene(kOrthographicTestXml);
+  ASSERT_NE(m, nullptr);
+
+  mjvCamera cam;
+  mjv_defaultFreeCamera(m.get(), &cam);
+  cam.orthographic = 1;
+  cam.azimuth = 90.0;
+  cam.elevation = -90.0 + 1e-3;  // Looking straight down.
+  cam.distance = 2.0;
+  const mjtNum view_height = ViewHeightAtLookat(m.get(), &cam);
+
+  // Moving the mouse by the full window height moves the lookat point by the
+  // full view height.
+  mjtNum lookat_before[3];
+  mju_copy3(lookat_before, cam.lookat);
+  MoveCamera(m.get(), d.get(), &cam, CameraMotion::PLANAR_MOVE_H, 0, 1.0);
+  mjtNum moved[3];
+  mju_sub3(moved, cam.lookat, lookat_before);
+  EXPECT_NEAR(mju_norm3(moved), view_height, 1e-3 * view_height);
+
+  mjvPerturb pert;
+  mjv_defaultPerturb(&pert);
+  pert.select = mj_name2id(m.get(), mjOBJ_BODY, "box");
+  ASSERT_GT(pert.select, 0);
+  InitPerturb(m.get(), d.get(), &cam, &pert, mjPERT_TRANSLATE);
+  EXPECT_NEAR(pert.scale, view_height, 1e-6);
+}
+
+TEST(InteractionTest, OrthographicTrackingCameraLooksAtBodyNotStaleLookat) {
+  auto [m, d] = MakeTestScene(kOrthographicTestXml);
+  ASSERT_NE(m, nullptr);
+  const int box_id = mj_name2id(m.get(), mjOBJ_BODY, "box");
+  ASSERT_GT(box_id, 0);
+
+  // A tracking camera whose lookat was not updated since the body moved.
+  mjvCamera cam;
+  mjv_defaultFreeCamera(m.get(), &cam);
+  cam.type = mjCAMERA_TRACKING;
+  cam.trackbodyid = box_id;
+  cam.orthographic = 1;
+  cam.lookat[0] = cam.lookat[1] = cam.lookat[2] = 10;
+
+  // The body's center of mass is on the render camera's axis.
+  const mjvGLCamera gl_camera = mjv_camera2GLCamera(m.get(), d.get(), &cam);
+  mjtNum eye[3], forward[3], to_body[3], off_axis[3];
+  mju_f2n(eye, gl_camera.pos, 3);
+  mju_f2n(forward, gl_camera.forward, 3);
+  mju_sub3(to_body, d->subtree_com + 3 * box_id, eye);
+  mju_cross(off_axis, to_body, forward);
+  EXPECT_NEAR(mju_norm3(off_axis), 0, 1e-5);
+
+  // Picking at the center of the view hits the body.
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+  const PickResult picked = Pick(m.get(), d.get(), &cam, 0.5f, 0.5f,
+                                 /*aspect_ratio=*/1.5f, &opt);
+  EXPECT_EQ(picked.body, box_id);
+}
 
 TEST(InteractionTest, PickSkinDoesNotCrashOnUninflatedSkin) {
   static constexpr char xml[] = R"(
@@ -121,12 +297,13 @@ TEST(InteractionTest, ViewCameraReinterpretsFovyAlongShorterAxisForFreeAndTracki
   EXPECT_FLOAT_EQ(tracking_portrait.frustum_bottom, base.frustum_bottom / kPortraitAspect);
 
   // Orthographic free camera also expands vertically in portrait.
-  model->vis.global.fovy = 4.0f;
   mjvCamera ortho_free = cam;
   ortho_free.orthographic = 1;
+  const mjrCamera ortho_base = mjv_camera2GLCamera(model, data, &ortho_free);
+  ASSERT_GT(ortho_base.frustum_top, 0.0f);
   const mjrCamera ortho_gl = ViewCamera(model, data, &ortho_free, 0.5f);
-  EXPECT_FLOAT_EQ(ortho_gl.frustum_top, 4.0f);
-  EXPECT_FLOAT_EQ(ortho_gl.frustum_bottom, -4.0f);
+  EXPECT_FLOAT_EQ(ortho_gl.frustum_top, ortho_base.frustum_top / 0.5f);
+  EXPECT_FLOAT_EQ(ortho_gl.frustum_bottom, ortho_base.frustum_bottom / 0.5f);
 
   // Fixed model cameras (fovy-only, orthographic, and intrinsic-calibrated)
   // are all left untouched in portrait so they match offscreen rendering.
@@ -225,8 +402,8 @@ TEST(InteractionTest, PickWithViewCameraMatchesPortraitFovWhileMjvOverloadStaysS
   EXPECT_EQ(Pick(m, d, tracking_view, 0.95f, 0.5f, 0.5f, &opt).body, right_body);
   EXPECT_EQ(Pick(m, d, tracking_view, 0.5f, 0.1f, 0.5f, &opt).body, top_body);
 
-  // Orthographic free camera with ViewCamera also expands in portrait.
-  m->vis.global.fovy = 4.0f;
+  // Orthographic free camera with ViewCamera also expands in portrait. Its
+  // view is as tall as the perspective view at the lookat point (z = 0).
   mjvCamera ortho_free = cam;
   ortho_free.orthographic = 1;
   const mjrCamera ortho_view = ViewCamera(m, d, &ortho_free, 0.5f);

@@ -38,6 +38,20 @@ Rendering
      ``reflectance="1"`` is a pure mirror regardless of its base color. Previously, reflections were added on top of the
      fully lit diffuse surface, washing out reflections on bright materials.
 
+   - Orthographic free and tracking cameras now derive their vertical view height from the camera distance and
+     :ref:`global/fovy<visual-global-fovy>` (matching the perspective view height at the lookat point) and place the eye
+     behind the model's bounding sphere so zooming scales the view without near-plane clipping. Previously,
+     ``global/fovy`` was used directly as a fixed view height in length units (45 by default), so zooming had no visible
+     effect and toggling orthographic made the view jump. Fixed orthographic cameras
+     (:ref:`camera/fovy<body-camera-fovy>`) are unchanged. In Studio and :ref:`simulate<saSimulate>`, the Free Camera
+     field-of-view control shows the vertical view height in length units while in orthographic mode, and editing it
+     changes the camera distance rather than ``global/fovy``. For these cameras :ref:`mjv_cameraFrustum` now returns a
+     vertical extent that depends on ``mjvCamera.distance``.
+
+     **Migration:** Models that set ``global/fovy`` to a length for an orthographic free camera now render zoomed in.
+     Set ``global/fovy`` back to an angle in degrees (the default is 45); the view height then follows the camera
+     distance.
+
 - Added :ref:`mjGEOM_DISC<mjtGeom>` rendering-only geom type for flat double-sided discs and annuli
   (``size = [r_out, r_in, 0]``).
 - Fixed Filament planar reflections leaking geometry behind or crossing the mirror plane by clipping the reflection

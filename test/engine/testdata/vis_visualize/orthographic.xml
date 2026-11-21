@@ -2,8 +2,8 @@
 
 <mujoco>
   <visual>
-    <!-- free camera is orthorgaphic with a 5m vertical field-of-view -->
-    <global orthographic="true" fovy="5"/>
+    <!-- free camera is orthographic; its view height follows the camera distance and fovy (45 degrees) -->
+    <global orthographic="true"/>
     <scale camera="0.5"/>
   </visual>
 
