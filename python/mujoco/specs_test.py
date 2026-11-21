@@ -2405,6 +2405,35 @@ class SpecsTest(absltest.TestCase):
         string_spec.compile()
         self.assertEqual(spec.to_xml(), string_spec.to_xml())
 
+  def test_to_zip_includes_files_of_attached_specs(self):
+    """Tests that to_zip packs the files of attached specs."""
+    tetrahedron = (
+        "v 0 0 0\nv {s} 0 0\nv 0 {s} 0\nv 0 0 {s}\n"
+        "f 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n"
+    )
+    parent = mujoco.MjSpec()
+    for name, size in (("left", 0.1), ("right", 0.3)):
+      folder = self.create_tempdir(name)
+      folder.create_file("meshes/bone.obj", content=tetrahedron.format(s=size))
+      xml = folder.create_file("arm.xml", content="""
+        <mujoco>
+          <compiler meshdir="meshes"/>
+          <asset><mesh name="bone" file="bone.obj"/></asset>
+          <worldbody><body><geom type="mesh" mesh="bone"/></body></worldbody>
+        </mujoco>
+      """)
+      child = mujoco.MjSpec.from_file(xml.full_path)
+      parent.attach(
+          child, prefix=f"{name}-", frame=parent.worldbody.add_frame()
+      )
+    model = parent.compile()
+
+    filename = os.path.join(self.create_tempdir().full_path, "model.zip")
+    parent.to_zip(filename)
+    reloaded = mujoco.MjSpec.from_zip(filename).compile()
+
+    np.testing.assert_array_equal(reloaded.mesh_vert, model.mesh_vert)
+
   def test_rangefinder_sensor(self):
     """Test rangefinder sensor with mjSpec, iterative model building."""
     # Raydata field enum values for dataspec bitfield

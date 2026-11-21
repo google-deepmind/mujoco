@@ -845,8 +845,9 @@ Parent:
 Serialization
 ^^^^^^^^^^^^^
 The ``MjSpec`` object can be serialized with all of its assets using the function ``spec.to_zip(file)``, where ``file``
-can be either a path to a file or a file object. In order to load the spec from a zip file, use ``spec =
-MjSpec.from_zip(file)``, where ``file`` is a path to a zip file or a zip file object.
+can be either a path to a file or a file object. It writes the archive as ``spec.encode('model.mjz')`` does, so the files
+of attached specs are included. In order to load the spec from a zip file, use ``spec = MjSpec.from_zip(file)``, where
+``file`` is a path to a zip file or a zip file object.
 
 Mesh creation
 ^^^^^^^^^^^^^
