@@ -3197,9 +3197,9 @@ void mju_decodePyramid_wrapper(const val& force, const NumberArray& pyramid, con
   UNPACK_VALUE(mjtNum, force);
   UNPACK_ARRAY(mjtNum, pyramid);
   UNPACK_ARRAY(mjtNum, mu);
-  CHECK_SIZE(pyramid, 2 * mu_.size());
+  CHECK_SIZE(pyramid, mu_.size() ? 2 * mu_.size() : 1);
   CHECK_SIZE(force, mu_.size() + 1);
-  int dim = mu_.size();
+  int dim = force_.size();
   mju_decodePyramid(force_.data(), pyramid_.data(), mu_.data(), dim);
 }
 
@@ -3264,9 +3264,9 @@ void mju_encodePyramid_wrapper(const val& pyramid, const NumberArray& force, con
   UNPACK_VALUE(mjtNum, pyramid);
   UNPACK_ARRAY(mjtNum, force);
   UNPACK_ARRAY(mjtNum, mu);
-  CHECK_SIZE(pyramid, 2 * mu_.size());
+  CHECK_SIZE(pyramid, mu_.size() ? 2 * mu_.size() : 1);
   CHECK_SIZE(force, mu_.size() + 1);
-  int dim = mu_.size();
+  int dim = force_.size();
   mju_encodePyramid(pyramid_.data(), force_.data(), mu_.data(), dim);
 }
 
