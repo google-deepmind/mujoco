@@ -63,7 +63,7 @@
 
   <visual>
     <quality shadowsize="4096" offsamples="8"/>
-    <map znear="0.1" force="0.05"/>
+    <map znear="0.1" zfar="30" force="0.05"/>
   </visual>
 
   <statistic extent="4"/>
