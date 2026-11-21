@@ -40,6 +40,7 @@
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
 #include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
+#include "collision_filtering.h"
 #include "kinematic_tree.h"
 #include "material_parsing.h"
 #include "newton_tokens.h"
@@ -70,7 +71,6 @@
 #include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/usd/usdGeom/xformCache.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
-#include <pxr/usd/usdPhysics/filteredPairsAPI.h>
 #include <pxr/usd/usdPhysics/fixedJoint.h>
 #include <pxr/usd/usdPhysics/joint.h>
 #include <pxr/usd/usdPhysics/massAPI.h>
@@ -2703,35 +2703,8 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
   }
 }
 
-void ParseUsdFilteredPairsAPI(mjSpec* spec, const pxr::UsdPrim& prim) {
-  pxr::SdfPathVector filtered_bodies;
-  pxr::UsdPhysicsFilteredPairsAPI(prim).GetFilteredPairsRel().GetTargets(
-      &filtered_bodies);
-  for (const auto& filtered_body : filtered_bodies) {
-    mjsExclude* exclude = mjs_addExclude(spec);
-    mjs_setString(exclude->bodyname1, prim.GetPath().GetAsString().c_str());
-    mjs_setString(exclude->bodyname2, filtered_body.GetAsString().c_str());
-  }
-}
-
-void ParseNewtonArticulationRootAPI(mjSpec* spec, const pxr::UsdPrim& prim) {
-  auto add_mobility_attr =
-      prim.GetAttribute(NewtonTokens->newtonJointsAddMobility);
-  if (add_mobility_attr && add_mobility_attr.HasAuthoredValue()) {
-    bool add_mobility;
-    add_mobility_attr.Get(&add_mobility);
-    if (!add_mobility) {
-      mju_warning(
-          "Prim '%s' has newton:jointsAddMobility set to false, but MuJoCo "
-          "only supports reduced-coordinate formulations where joints add "
-          "mobility. Joints will be treated as adding mobility.",
-          prim.GetPath().GetText());
-    }
-  }
-}
-
 mjsBody* ParseUsdPhysicsRigidbody(
-    mjSpec* spec, const pxr::UsdPhysicsRigidBodyAPI& rigidbody_api,
+    const pxr::UsdPhysicsRigidBodyAPI& rigidbody_api,
     const pxr::UsdPrim& parent_prim, mjsBody* parent,
     pxr::UsdGeomXformCache& xform_cache) {
   pxr::UsdPrim prim = rigidbody_api.GetPrim();
@@ -2743,15 +2716,7 @@ mjsBody* ParseUsdPhysicsRigidbody(
     ParseUsdPhysicsMassAPIForBody(body, pxr::UsdPhysicsMassAPI(prim));
   }
 
-  if (prim.HasAPI(NewtonTokens->NewtonArticulationRootAPI)) {
-    ParseNewtonArticulationRootAPI(spec, prim);
-  }
-
   SetUsdPrimPathUserValue(body->element, prim.GetPath());
-
-  if (prim.HasAPI<pxr::UsdPhysicsFilteredPairsAPI>()) {
-    ParseUsdFilteredPairsAPI(spec, prim);
-  }
 
   return body;
 }
@@ -2821,7 +2786,7 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
                                    : stage->GetPrimAtPath(parent_body_path);
 
     current_mj_body = ParseUsdPhysicsRigidbody(
-        spec, pxr::UsdPhysicsRigidBodyAPI::Get(stage, current_node->body_path),
+        pxr::UsdPhysicsRigidBodyAPI::Get(stage, current_node->body_path),
         parent_prim_for_xform, parent_mj_body, caches.xform_cache);
   } else {
     current_mj_body = mjs_findBody(spec, "world");
@@ -2939,6 +2904,7 @@ mjSpec* ParseStage(const pxr::UsdStageRefPtr stage) {
   // Then populate the kinematic tree.
   PopulateSpecFromTree(stage, spec, /*parent_mj_body=*/nullptr,
                        /*parent_node=*/nullptr, root.get(), caches);
+  ParseCollisionFiltering(stage, spec, *root);
 
   return spec;
 }

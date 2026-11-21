@@ -77,6 +77,12 @@ OpenUSD
   (``double3``) and ``xformOp:orient`` (``quatd``) instead of ``xformOp:transform`` (``matrix4d``), avoiding shear
   artifacts when USD or external renderers interpolate between time samples.
 
+Bug fixes
+^^^^^^^^^
+- The USD decoder now resolves ``PhysicsFilteredPairsAPI`` relationships on bodies, colliders and articulation
+  roots, and honors ``newton:selfCollisionEnabled``. Collider pairs that cannot be represented by a body exclusion
+  produce a warning and are skipped, preserving unrelated contacts (:issue:`3917`).
+
 Version 4.0.1 (November 11, 2026)
 ---------------------------------
 
