@@ -37,6 +37,7 @@
 #include <sstream>
 #include <string>  // NOLINT
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include <mujoco/mjmodel.h>
@@ -176,7 +177,9 @@ using mjVisualScale = decltype(::mjVisual::scale);
       if (std::string_view(#dim1) == "1" && num == 1) {                                          \
         return val(model_->prefix##var[adr]);                                                    \
       }                                                                                          \
-      return val(typed_memory_view(num * (dim1), model_->prefix##var + adr * (dim1)));           \
+      using ViewType = std::conditional_t<std::is_same_v<type, mjtBool>, uint8_t, type>;        \
+      return val(typed_memory_view(num * (dim1),                                                \
+          reinterpret_cast<ViewType*>(model_->prefix##var + adr * (dim1))));                   \
     } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
       int start = model_->hfield_adr[id_];                                                       \
       int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
@@ -221,7 +224,9 @@ using mjVisualScale = decltype(::mjVisual::scale);
       if (std::string_view(#dim1) == "1" && num == 1) {                                          \
         model_->prefix##var[adr] = value.as<type>();                                             \
       } else {                                                                                   \
-        val(typed_memory_view(num * (dim1), model_->prefix##var + adr * (dim1)))                 \
+        using ViewType = std::conditional_t<std::is_same_v<type, mjtBool>, uint8_t, type>;      \
+        val(typed_memory_view(num * (dim1),                                                    \
+            reinterpret_cast<ViewType*>(model_->prefix##var + adr * (dim1))))                 \
             .call<void>("set", value);                                                           \
       }                                                                                          \
     } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
