@@ -8770,6 +8770,37 @@ TEST_F(MujocoTest, CompilationWarningsClearedOnRecompile) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, MjEncodeFileWriteErrors) {
+  mjSpec* spec = mj_makeSpec();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull());
+
+  // neither native writer creates a missing parent directory
+  std::filesystem::path missing = std::filesystem::path(testing::TempDir()) /
+                                  "MjEncodeFileWriteErrors";
+  ASSERT_FALSE(std::filesystem::exists(missing));
+  mock_warning_handler.ExpectWarnings("Could not");
+  for (const char* name : {"test.mjb", "test.txt"}) {
+    std::string filename = (missing / name).string();
+    SCOPED_TRACE(filename);
+    char error[256] = {};
+    mjtSize written = 0;
+    EXPECT_NO_THROW(written = mj_encode(nullptr, model, filename.c_str(), nullptr,
+                                        nullptr, error, sizeof(error)));
+    EXPECT_EQ(written, -1);
+    EXPECT_THAT(error, HasSubstr("could not determine encoded file size"));
+    EXPECT_FALSE(std::filesystem::exists(filename));
+
+    // the diagnostic buffer is optional
+    EXPECT_NO_THROW(written = mj_encode(nullptr, model, filename.c_str(), nullptr,
+                                        nullptr, nullptr, 0));
+    EXPECT_EQ(written, -1);
+  }
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, MjEncodeNativeFormats) {
   // simple test spec
   mjSpec* spec = mj_makeSpec();

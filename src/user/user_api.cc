@@ -29,6 +29,7 @@
 #include <new>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -160,6 +161,22 @@ mjSpec* mj_parse(
   return spec;
 }
 
+
+// get encoded file size without throwing filesystem errors across the C API
+static mjtSize encoded_file_size(const char* filename, char* error, int error_sz) {
+  std::error_code ec;
+  auto size = std::filesystem::file_size(filename, ec);
+  if (ec) {
+    if (error && error_sz > 0) {
+      std::snprintf(error, error_sz, "could not determine encoded file size: %s",
+                    ec.message().c_str());
+    }
+    return -1;
+  }
+  return static_cast<mjtSize>(size);
+}
+
+
 // Encode spec or model as MJCF XML.
 //
 // If a spec is provided, it is saved directly to XML. This preserves the original
@@ -189,7 +206,7 @@ static mjtSize encode_xml(
     // MJB, this will return fail and we return -1.
     if (!mj_saveLastXML(filename, m, error, error_sz)) { return -1; }
   }
-  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+  return encoded_file_size(filename, error, error_sz);
 }
 
 // Encode model as MJB (MuJoCo binary format).
@@ -204,7 +221,7 @@ static mjtSize encode_mjb(const mjModel* m, const char* filename, char* error, i
     return -1;
   }
   mj_saveModel(m, filename, nullptr, 0);
-  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+  return encoded_file_size(filename, error, error_sz);
 }
 
 // Encode model as human-readable TXT (via mj_printModel).
@@ -219,7 +236,7 @@ static mjtSize encode_txt(const mjModel* m, const char* filename, char* error, i
     return -1;
   }
   mj_printModel(m, filename);
-  return static_cast<mjtSize>(std::filesystem::file_size(filename));
+  return encoded_file_size(filename, error, error_sz);
 }
 
 // encode spec/model to file
