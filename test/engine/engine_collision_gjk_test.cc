@@ -2542,6 +2542,44 @@ TEST_F(MjGjkTest, GeomDistanceBelowTolerance) {
   EXPECT_NEAR(fromto[5], 0.1000005, MjTol(1e-6, 1e-5));
 }
 
+TEST_F(MjGjkTest, AlignedMeshBoxesTouching) {
+  // In single precision the plates overlap by a few nanometers from rounding,
+  // which puts the origin within rounding of a face of the EPA polytope.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate"
+            vertex="-0.105 -0.148 -0.004  -0.105 -0.148 0.004
+                    -0.105  0.148 -0.004  -0.105  0.148 0.004
+                     0.105 -0.148 -0.004   0.105 -0.148 0.004
+                     0.105  0.148 -0.004   0.105  0.148 0.004"/>
+    </asset>
+    <worldbody>
+      <body pos="0 0 0.052">
+        <geom type="mesh" mesh="plate"/>
+      </body>
+      <body pos="0 0 0.060">
+        <freejoint/>
+        <geom type="mesh" mesh="plate"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum dist = mj_geomDistance(model.get(), data.get(), 0, 1, 1.0, nullptr);
+  EXPECT_NEAR(dist, 0, MjTol(1e-9, 1e-6));
+
+  ASSERT_EQ(data->ncon, 4);
+  for (int i = 0; i < data->ncon; i++) {
+    EXPECT_NEAR(data->contact[i].dist, 0, MjTol(1e-9, 1e-6));
+    EXPECT_THAT(data->contact[i].frame[0], MjNear(0, 1e-9, 1e-6));
+    EXPECT_THAT(data->contact[i].frame[1], MjNear(0, 1e-9, 1e-6));
+  }
+}
+
 TEST_F(MjGjkTest, MultiCCDEdgeClipEmpty) {
   static constexpr char xml[] = R"(
   <mujoco>
