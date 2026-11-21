@@ -375,6 +375,50 @@ TEST_F(XMLWriterTest, KeepsTotalMass) {
   mj_deleteSpec(spec);
 }
 
+// a default class which sets both mass and density to zero keeps both when the
+// model is saved: the class has no size of its own, so its mass must not be
+// judged redundant against the mass its (zero) volume would imply
+TEST_F(XMLWriterTest, KeepsZeroMassDensityDefaultClass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="collision">
+        <geom type="box" mass="0" density="0"/>
+      </default>
+    </default>
+    <worldbody>
+      <body name="b">
+        <geom class="collision" size="0.1 0.1 0.1"/>
+        <geom type="sphere" size="0.05" mass="1.666555"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  FullFloatPrecision increase_precision;
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_NEAR(model->body_mass[1], 1.666555, 1e-6);
+
+  // saving the spec, or the model after loading the file
+  MjModelPtr loaded = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(loaded.get(), NotNull()) << error.data();
+  for (const std::string& saved :
+       {SaveAndReadXml(spec), SaveAndReadXml(loaded.get())}) {
+    EXPECT_THAT(saved, HasSubstr("<geom type=\"box\" mass=\"0\" density=\"0\"/>"));
+    MjModelPtr reloaded =
+        LoadModelFromString(saved.c_str(), error.data(), error.size());
+    ASSERT_THAT(reloaded.get(), NotNull()) << error.data();
+    EXPECT_NEAR(reloaded->body_mass[1], 1.666555, 1e-6);
+  }
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 // a body of an attached model is compiled with the settings of that model; the
 // saved file has those of the model it is attached to, and gives the body its
 // compiled inertia where it would not infer that inertia alike
