@@ -3482,4 +3482,58 @@ TEST_F(MjGjkTest, CylinderOnBoxAtRest) {
   EXPECT_NEAR(data->qacc[0], 0.0, MjTol(1e-12, 1e-5));
 }
 
+TEST_F(MjGjkTest, CylinderParallelBoxAndMeshEdgeContacts) {
+  constexpr char kBoxXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"><flag multiccd="enable"/></option>
+    <worldbody>
+      <geom type="cylinder" size="0.03 0.04" pos="0 0 -0.045" zaxis="0 1 0"/>
+      <body pos="-0.06 0 0">
+        <freejoint/>
+        <geom type="box" size="0.05 0.03 0.02"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  constexpr char kMeshXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"><flag multiccd="enable"/></option>
+    <asset>
+      <mesh name="box"
+            vertex="-0.05 -0.03 -0.02  -0.05 -0.03 0.02
+                    -0.05 0.03 -0.02  -0.05 0.03 0.02
+                     0.05 -0.03 -0.02  0.05 -0.03 0.02
+                     0.05 0.03 -0.02   0.05 0.03 0.02"/>
+    </asset>
+    <worldbody>
+      <geom type="cylinder" size="0.03 0.04" pos="0 0 -0.045" zaxis="0 1 0"/>
+      <body pos="-0.06 0 0">
+        <freejoint/>
+        <geom type="mesh" mesh="box"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  for (const char* xml : {kBoxXml, kMeshXml}) {
+    MjModelPtr model = LoadModelFromString(xml);
+    MjDataPtr data = MakeData(model);
+    for (mjtNum x : {-0.06, -0.065}) {
+      data->qpos[0] = x;
+      mj_forward(model.get(), data.get());
+
+      ASSERT_EQ(data->ncon, 2) << "x=" << x;
+      const mjContact& a = data->contact[0];
+      const mjContact& b = data->contact[1];
+      EXPECT_NEAR(mju_abs(a.pos[1]), 0.03, kTolerance);
+      EXPECT_NEAR(mju_abs(b.pos[1]), 0.03, kTolerance);
+      EXPECT_NEAR(mju_abs(a.pos[1] - b.pos[1]), 0.06, kTolerance);
+      EXPECT_NEAR(a.dist, b.dist, kTolerance);
+      EXPECT_LT(a.dist, 0);
+      EXPECT_NEAR(a.frame[0], b.frame[0], kTolerance);
+      EXPECT_NEAR(a.frame[2], b.frame[2], kTolerance);
+      EXPECT_LT(a.frame[0], 0);
+      EXPECT_GT(a.frame[2], 0);
+    }
+  }
+}
+
 }  // namespace mujoco

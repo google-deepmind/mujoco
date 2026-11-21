@@ -2519,6 +2519,67 @@ static inline int geomEdgeNormals(mjtNum* res, mjtNum* endverts, int dim, mjCCDO
 }
 
 
+// Recover the contact line when a convex edge is parallel to the side of a cylinder.
+// The GJK witnesses define the normal and depth; both points can slide along
+// the cylinder axis without changing either.
+static int parallelCylinderEdgeContacts(const mjCCDObj* cylinder, const mjtNum* edge_vertices,
+                                       const mjtNum* cylinder_witness, const mjtNum* edge_witness,
+                                       mjtNum* x_cylinder, mjtNum* x_edge, mjtNum* dist,
+                                       int nconmax, int edge_dim) {
+  if (nconmax < 2 || edge_dim != 2) {
+    return 0;
+  }
+
+  mjtNum axis[3] = {cylinder->mat[2], cylinder->mat[5], cylinder->mat[8]};
+  mjtNum edge[3], separation[3], radial[3], edge_offset[3];
+  sub3(edge, edge_vertices + 3, edge_vertices);
+  sub3(separation, edge_witness, cylinder_witness);
+  mjtNum edge_length = norm3(edge);
+  mjtNum distance = norm3(separation);
+  if (edge_length < mjMINVAL || distance < mjMINVAL ||
+      mju_abs(dot3(edge, axis)) < (1 - 1e-6) * edge_length ||
+      mju_abs(dot3(separation, axis)) > 1e-4 * distance) {
+    return 0;
+  }
+
+  sub3(radial, cylinder_witness, cylinder->pos);
+  addScl3(radial, radial, axis, -dot3(radial, axis));
+  sub3(edge_offset, edge_witness, edge_vertices);
+  addScl3(edge_offset, edge_offset, axis, -dot3(edge_offset, axis));
+  if (mju_abs(norm3(radial) - cylinder->size[0]) > 1e-3 * cylinder->size[0] ||
+      norm3(edge_offset) > 1e-4 * edge_length) {
+    return 0;
+  }
+
+  mjtNum edge_start[3], edge_end[3], witness_c[3], witness_b[3];
+  sub3(edge_start, edge_vertices, cylinder->pos);
+  sub3(edge_end, edge_vertices + 3, cylinder->pos);
+  mjtNum t0 = dot3(edge_start, axis);
+  mjtNum t1 = dot3(edge_end, axis);
+  mjtNum lo = mjMAX(-cylinder->size[1], mjMIN(t0, t1));
+  mjtNum hi = mjMIN(cylinder->size[1], mjMAX(t0, t1));
+  if (hi - lo <= mjMINVAL) {
+    return 0;
+  }
+
+  copy3(witness_c, cylinder_witness);
+  copy3(witness_b, edge_witness);
+  mjtNum rel_c[3], rel_b[3];
+  sub3(rel_c, witness_c, cylinder->pos);
+  sub3(rel_b, witness_b, cylinder->pos);
+  mjtNum cyl_t = dot3(rel_c, axis);
+  mjtNum edge_t = dot3(rel_b, axis);
+  addScl3(x_cylinder, witness_c, axis, lo - cyl_t);
+  addScl3(x_edge, witness_b, axis, lo - edge_t);
+  addScl3(x_cylinder + 3, witness_c, axis, hi - cyl_t);
+  addScl3(x_edge + 3, witness_b, axis, hi - edge_t);
+  if (dist) {
+    dist[1] = dist[0];
+  }
+  return 2;
+}
+
+
 // compute multiple contacts from GJK/EPA support vertices, assuming 1 initial contact in x1, x2
 // return number of contacts
 int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjtNum* dist,
@@ -2572,6 +2633,24 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
     copy3(triface2 + 3, obj2->suppvert + 3*s2_1);
     copy3(triface2 + 6, obj2->suppvert + 3*s2_2);
     nface2 = simplexDim(triface2i, triface2);
+  }
+
+  // A cylinder side and a parallel convex edge share a contact segment. Recover
+  // its endpoints directly when the support simplex identifies both edges.
+  if (obj1->geom_type == mjGEOM_CYLINDER &&
+      (obj2->geom_type == mjGEOM_BOX || obj2->geom_type == mjGEOM_MESH) &&
+      nface1 == 2) {
+    if (parallelCylinderEdgeContacts(obj1, triface2, x1, x2, x1, x2, dist,
+                                    nconmax, nface2)) {
+      return 2;
+    }
+  } else if (obj2->geom_type == mjGEOM_CYLINDER &&
+             (obj1->geom_type == mjGEOM_BOX || obj1->geom_type == mjGEOM_MESH) &&
+             nface2 == 2) {
+    if (parallelCylinderEdgeContacts(obj2, triface1, x2, x1, x2, x1, dist,
+                                    nconmax, nface1)) {
+      return 2;
+    }
   }
 
   uint8_t* ptr = buffer;
