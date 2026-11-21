@@ -59,6 +59,15 @@ using tinyxml2::XMLDocument;
 using tinyxml2::XMLElement;
 using tinyxml2::XMLText;
 
+
+// default class of an element, or the global default if the class is not in the model; the
+// element can name a class that was renamed or deleted after it was assigned
+mjCDef* ClassDefault(const mjCModel* model, const string& classname) {
+  auto it = model->def_map.find(classname);
+  if (it != model->def_map.end() && it->second) { return it->second; }
+  return model->Default();
+}
+
 }  // namespace
 
 
@@ -2412,7 +2421,7 @@ void mjXWriter::Asset(XMLElement* root) {
     mjCTexture* texture = (mjCTexture*)model->GetObject(mjOBJ_TEXTURE, i);
 
     elem = InsertEnd(section, "texture");
-    OneTexture(elem, texture, model->def_map[texture->classname]);
+    OneTexture(elem, texture, ClassDefault(model, texture->classname));
   }
 
   // write materials
@@ -2421,7 +2430,7 @@ void mjXWriter::Asset(XMLElement* root) {
     mjCMaterial* material = (mjCMaterial*)model->GetObject(mjOBJ_MATERIAL, i);
 
     elem = InsertEnd(section, "material");
-    OneMaterial(elem, material, model->def_map[material->classname]);
+    OneMaterial(elem, material, ClassDefault(model, material->classname));
   }
 
   // write meshes
@@ -2429,7 +2438,7 @@ void mjXWriter::Asset(XMLElement* root) {
     // create element and write
     mjCMesh* mesh = meshes[i];
     elem          = InsertEnd(section, "mesh");
-    OneMesh(elem, mesh, model->def_map[mesh->classname]);
+    OneMesh(elem, mesh, ClassDefault(model, mesh->classname));
     const mjsPlugin& plugin = authored_ ? mesh->spec.plugin : mesh->Plugin();
     if (plugin.active) { OnePlugin(InsertEnd(elem, "plugin"), &plugin); }
   }
@@ -2674,7 +2683,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
       mjCJoint* joint = body->joints[njoint];
       if (joint->frame != frame) { continue; }
       XMLElement* joint_elem = InsertEnd(elem, "joint");
-      OneJoint(joint_elem, joint, model->def_map[joint->classname], active);
+      OneJoint(joint_elem, joint, ClassDefault(model, joint->classname), active);
       if (authored_) { FreeJoint(joint_elem, joint); }
     }
   };
@@ -2682,28 +2691,28 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     for (; ngeom < stop; ngeom++) {
       mjCGeom* geom = body->geoms[ngeom];
       if (geom->frame != frame) { continue; }
-      OneGeom(InsertEnd(elem, "geom"), geom, model->def_map[geom->classname], active);
+      OneGeom(InsertEnd(elem, "geom"), geom, ClassDefault(model, geom->classname), active);
     }
   };
   auto sites = [&](size_t stop) {
     for (; nsite < stop; nsite++) {
       mjCSite* site = body->sites[nsite];
       if (site->frame != frame) { continue; }
-      OneSite(InsertEnd(elem, "site"), site, model->def_map[site->classname], active);
+      OneSite(InsertEnd(elem, "site"), site, ClassDefault(model, site->classname), active);
     }
   };
   auto cameras = [&](size_t stop) {
     for (; ncamera < stop; ncamera++) {
       mjCCamera* camera = body->cameras[ncamera];
       if (camera->frame != frame) { continue; }
-      OneCamera(InsertEnd(elem, "camera"), camera, model->def_map[camera->classname], active);
+      OneCamera(InsertEnd(elem, "camera"), camera, ClassDefault(model, camera->classname), active);
     }
   };
   auto lights = [&](size_t stop) {
     for (; nlight < stop; nlight++) {
       mjCLight* light = body->lights[nlight];
       if (light->frame != frame) { continue; }
-      OneLight(InsertEnd(elem, "light"), light, model->def_map[light->classname], active);
+      OneLight(InsertEnd(elem, "light"), light, ClassDefault(model, light->classname), active);
     }
   };
   auto bodies = [&](size_t stop) {
@@ -2781,7 +2790,7 @@ void mjXWriter::Contact(XMLElement* root) {
     mjCPair* pair = (mjCPair*)model->GetObject(mjOBJ_PAIR, i);
 
     elem = InsertEnd(section, "pair");
-    OnePair(elem, pair, model->def_map[pair->classname]);
+    OnePair(elem, pair, ClassDefault(model, pair->classname));
   }
 
   // write all exclude pairs
@@ -2814,7 +2823,7 @@ void mjXWriter::Equality(XMLElement* root) {
     XMLElement*  elem     = InsertEnd(
         section,
         FindValue(equality_map, equality_sz, Values<mjsEquality>(equality)->type).c_str());
-    OneEquality(elem, equality, model->def_map[equality->classname]);
+    OneEquality(elem, equality, ClassDefault(model, equality->classname));
   }
 }
 
@@ -2868,7 +2877,7 @@ void mjXWriter::Tendon(XMLElement* root) {
       continue;
     }
     XMLElement* elem = InsertEnd(section, tendon->Type() == mjTENDON_FIXED ? "fixed" : "spatial");
-    OneTendon(elem, tendon, model->def_map[tendon->classname]);
+    OneTendon(elem, tendon, ClassDefault(model, tendon->classname));
 
     // write wraps
     XMLElement* wrapelem;
@@ -2920,7 +2929,7 @@ void mjXWriter::Actuator(XMLElement* root) {
   // write all actuators
   for (int i = 0; i < num; i++) {
     mjCActuator* actuator = (mjCActuator*)model->GetObject(mjOBJ_ACTUATOR, i);
-    OneActuator(section, actuator, model->def_map[actuator->classname]);
+    OneActuator(section, actuator, ClassDefault(model, actuator->classname));
   }
 }
 
