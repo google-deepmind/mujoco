@@ -39,7 +39,7 @@ bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "pybind11_bazel", version = "3.0.3")
 bazel_dep(name = "qhull", version = "8.0.2.bcr.1")
 bazel_dep(name = "rules_cc", version = "0.2.22")
-bazel_dep(name = "rules_python", version = "2.4.5")
+bazel_dep(name = "rules_python", version = "2.5.0-rc4")
 
 bazel_dep(name = "rules_shell", version = "0.6.1", dev_dependency = True)
 
