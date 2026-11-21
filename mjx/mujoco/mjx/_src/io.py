@@ -706,6 +706,14 @@ def _make_data_jax(
 
   float_ = jp.zeros(1, float).dtype
   int_ = np.int32
+  # let jax pick the int precision for the tendon wrap indices, for
+  # interop with jax_enable_x64 (mirrors _make_data_contact_jax):
+  # jitted MJX functions emit these fields with the canonical JAX int
+  # dtype, so allocating them as int32 would make make_data output
+  # unusable by an AOT-compiled step under x64. solver_niter stays
+  # int32 on purpose: jitted solvers produce it from weakly-typed
+  # Python ints, so it is int32 even under x64.
+  int_canonical = jp.zeros(1, int).dtype
   contact = _make_data_contact_jax(dim, efc_address)
 
   if m.opt.cone == types.ConeType.ELLIPTIC and np.any(contact.dim == 1):
@@ -716,10 +724,10 @@ def _make_data_jax(
   zero_impl_fields = {
       'solver_niter': (int_,),
       'cinert': (m.nbody, 10, float_),
-      'ten_wrapadr': (m.ntendon, np.int32),
-      'ten_wrapnum': (m.ntendon, np.int32),
+      'ten_wrapadr': (m.ntendon, int_canonical),
+      'ten_wrapnum': (m.ntendon, int_canonical),
       'ten_J': (m.ntendon, m.nv, float_),
-      'wrap_obj': (m.nwrap, 2, np.int32),
+      'wrap_obj': (m.nwrap, 2, int_canonical),
       'wrap_xpos': (m.nwrap, 6, float_),
       'actuator_moment': (m.nu, m.nv, float_),
       'crb': (m.nbody, 10, float_),
@@ -982,6 +990,15 @@ def _put_contact(
   fields['dim'] = dim
   fields['efc_address'] = efc_address
 
+  # let jax pick contact.geom int precision, for interop with
+  # jax_enable_x64 (mirrors _make_data_contact_jax): the raw MjData
+  # arrays are int32, while jitted MJX functions emit the canonical
+  # int dtype, so passing the int32 arrays through would make put_data
+  # output unusable by an AOT-compiled step under x64.
+  int_ = jp.zeros(1, int).dtype
+  for fname in ('geom1', 'geom2', 'geom'):
+    fields[fname] = fields[fname].astype(int_)
+
   return types.Contact(**fields), contact_map
 
 
@@ -1056,6 +1073,16 @@ def _put_data_jax(
   impl_fields['ten_J'] = ten_J
 
   contact, contact_map = _put_contact(d.contact, dim, efc_address)
+
+  # let jax pick the int precision for the tendon wrap indices, for
+  # interop with jax_enable_x64 (mirrors _make_data_jax): the raw
+  # MjData arrays are int32, while jitted MJX functions emit these
+  # fields with the canonical JAX int dtype, so passing the int32
+  # arrays through would make put_data output unusable by an
+  # AOT-compiled step under x64.
+  int_ = jp.zeros(1, int).dtype
+  for fname in ('ten_wrapadr', 'ten_wrapnum', 'wrap_obj'):
+    impl_fields[fname] = impl_fields[fname].astype(int_)
 
   # pad efc fields: MuJoCo efc arrays are sparse for inactive constraints.
   # efc_J is also optionally column-sparse (typically for large nv).  MJX is
