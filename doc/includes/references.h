@@ -1717,6 +1717,7 @@ typedef struct mjrfAmbientOcclusionOpts_ {
   int upsampling;                 // upsampling quality [mjrQuality]
   float radius;                   // radius in meters [0, ~10]; defaults to 1.0
   mjtBool bent_normals;           // enables bent normals
+  float bilateral_threshold;      // depth difference the blur treats as an edge; defaults to 0.05
 } mjrfAmbientOcclusionOpts;
 typedef struct mjrfRenderOpts_ {
   mjrfAmbientOcclusionOpts ambient_occlusion;
