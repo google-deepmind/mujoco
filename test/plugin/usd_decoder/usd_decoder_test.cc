@@ -827,6 +827,58 @@ class UsdPreservationSemanticsTest : public MujocoTest {
   std::string directory_;
 };
 
+TEST_F(UsdPreservationSemanticsTest, SceneTimestepFallbackAndPrecedence) {
+  struct Case {
+    int schemas;      // 0: none, 1: Newton, 2: MJC, 3: both
+    int frequency;    // -1: unauthored
+    double timestep;  // 0: unauthored
+    double expected;
+  };
+  const Case cases[] = {
+      {0, -1, 0, 0.002}, {1, -1, 0, 0.001},     {2, -1, 0, 0.001},
+      {3, -1, 0, 0.001}, {3, 1000, 0, 0.001},   {3, 500, 0, 0.002},
+      {3, 0, 0, 0.002},  {3, -1, 0.004, 0.004},
+  };
+  int index = 0;
+  for (const auto& param : cases) {
+    SCOPED_TRACE(index);
+    auto stage = pxr::UsdStage::CreateInMemory();
+    ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+
+def PhysicsScene "scene" {}
+
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+}
+)"));
+    auto scene = stage->GetPrimAtPath(pxr::SdfPath("/scene"));
+    if (param.schemas & 1) {
+      ASSERT_TRUE(scene.ApplyAPI(pxr::TfToken("NewtonSceneAPI")));
+    }
+    if (param.schemas & 2) {
+      ASSERT_TRUE(scene.ApplyAPI(pxr::TfToken("MjcSceneAPI")));
+    }
+    if (param.frequency >= 0) {
+      ASSERT_TRUE(scene.GetAttribute(pxr::TfToken("newton:timeStepsPerSecond"))
+                      .Set(param.frequency));
+    }
+    if (param.timestep > 0) {
+      ASSERT_TRUE(scene.GetAttribute(pxr::TfToken("mjc:option:timestep"))
+                      .Set(param.timestep));
+      mock_warning_handler.ExpectWarnings("deprecated mjc:option:timestep");
+    }
+    auto spec = Parse(stage, "timestep_" + std::to_string(index++) + ".usda");
+    ASSERT_NE(spec, nullptr);
+    EXPECT_NEAR(spec->option.timestep, param.expected, MjTol(1e-12, 2e-9));
+    MjModelPtr model(mj_compile(spec.get(), nullptr));
+    ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+    EXPECT_NEAR(model->opt.timestep, param.expected, MjTol(1e-12, 2e-9));
+  }
+}
+
 TEST_F(UsdPreservationSemanticsTest, SiteGprimNotDecodedAsGeom) {
   auto stage = pxr::UsdStage::CreateInMemory();
   ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
