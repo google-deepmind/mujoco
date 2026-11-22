@@ -50,8 +50,8 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/../cmake")
 
 if(SAMPLE_STANDALONE)
   include(SampleOptions)
-else()
-  enforce_mujoco_macosx_min_version()
+elseif(APPLE)
+  add_compile_options(${MUJOCO_MACOS_COMPILE_OPTIONS})
 endif()
 include(SampleDependencies)
 
@@ -75,18 +75,24 @@ endif()
 add_executable(compile compile.cc)
 target_compile_options(compile PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(compile Threads::Threads)
-target_link_options(compile PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+target_link_options(
+  compile PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS} ${MUJOCO_MACOS_LINK_OPTIONS}
+)
 
 # Build sample binaries
 add_executable(dependencies dependencies.cc)
 target_compile_options(dependencies PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(dependencies Threads::Threads)
-target_link_options(dependencies PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+target_link_options(
+  dependencies PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS} ${MUJOCO_MACOS_LINK_OPTIONS}
+)
 
 add_executable(testspeed testspeed.cc)
 target_compile_options(testspeed PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(testspeed Threads::Threads)
-target_link_options(testspeed PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+target_link_options(
+  testspeed PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS} ${MUJOCO_MACOS_LINK_OPTIONS}
+)
 
 target_link_libraries(compile mujoco::mujoco)
 target_link_libraries(dependencies mujoco::mujoco)
@@ -102,7 +108,9 @@ target_link_libraries(
   glfw
   Threads::Threads
 )
-target_link_options(basic PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+target_link_options(
+  basic PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS} ${MUJOCO_MACOS_LINK_OPTIONS}
+)
 
 if(MUJOCO_USE_FILAMENT AND NOT SAMPLE_STANDALONE)
   add_executable(render render.cc)
@@ -118,6 +126,10 @@ if(MUJOCO_USE_FILAMENT AND NOT SAMPLE_STANDALONE)
     Threads::Threads
   )
   target_link_options(render PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+  if(APPLE AND DEFINED MUJOCO_MACOSX_VERSION_MIN)
+    # Omit -Wl,-no_weak_imports: Filament uses guarded @available(...) checks.
+    target_link_options(render PRIVATE -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN})
+  endif()
 
   # Deploy Filament assets (compiled shaders, IBL) next to the binary so the
   # Filament backend can load them at runtime.

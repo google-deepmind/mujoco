@@ -26,7 +26,6 @@ set(MUJOCO_STUDIO_PLATFORM_TARGET_NAME mujoco_studio_platform)
 
 add_library(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} STATIC)
 target_compile_options(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-target_link_options(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
     PRIVATE
@@ -160,7 +159,11 @@ function(configure_studio_target TARGET_NAME)
             ${PROJECT_SOURCE_DIR}/src
     )
     target_compile_options(${TARGET_NAME} PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-    target_link_options(${TARGET_NAME} PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+    if(APPLE AND DEFINED MUJOCO_MACOSX_VERSION_MIN)
+        # Omit -Wl,-no_weak_imports: Filament and SDL2 use guarded @available(...)
+        # checks that emit weak references (__availability_version_check, _dispatch_once_f).
+        target_link_options(${TARGET_NAME} PRIVATE -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN})
+    endif()
 
     if (WIN32)
         target_compile_definitions(${TARGET_NAME}

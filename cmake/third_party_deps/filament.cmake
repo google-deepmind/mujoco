@@ -25,6 +25,7 @@ set(BUILD_SHARED_LIBS OFF)
 
 # Filament's ShaderMinifier.cpp uses strlen without including <cstring>, and
 # PostProcessManager.h uses std::optional without including <optional>.
+set(CMAKE_ASM_FLAGS_OLD "${CMAKE_ASM_FLAGS}")
 set(CMAKE_C_FLAGS_OLD "${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS_OLD "${CMAKE_CXX_FLAGS}")
 set(CMAKE_OBJC_FLAGS_OLD "${CMAKE_OBJC_FLAGS}")
@@ -38,6 +39,7 @@ endif()
 # Filament generates deprecated warnings on macOS and must match MuJoCo's deployment target.
 if(APPLE)
     if(DEFINED MUJOCO_MACOSX_VERSION_MIN)
+        set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
         set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
@@ -91,6 +93,7 @@ unset(MUJOCO_CMAKE_DISABLE_FIND_PACKAGE_ABSL_WAS_DEFINED)
 unset(MUJOCO_CMAKE_DISABLE_FIND_PACKAGE_ABSL_OLD)
 
 set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_OLD})
+set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS_OLD}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_OLD}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_OLD}")
 set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS_OLD}")
