@@ -103,10 +103,10 @@ CombineData& GetCombineData() {
 
     cd.nv = m->nv;
     mj_markStack(d);
-    mjtNum* H = mj_stackAllocNum(d, m->nv*m->nv);
+    mjtNum* H = mj_stackAllocNum(d, m->nv * m->nv);
     int* rownnz = mj_stackAllocInt(d, m->nv);
     int* rowadr = mj_stackAllocInt(d, m->nv);
-    int* colind = mj_stackAllocInt(d, m->nv*m->nv);
+    int* colind = mj_stackAllocInt(d, m->nv * m->nv);
     int* diagind = mj_stackAllocInt(d, m->nv);
 
     mjtNum* D = mj_stackAllocNum(d, d->nefc);
@@ -118,30 +118,27 @@ CombineData& GetCombineData() {
       }
     }
 
-    int* JT_rownnz   = mj_stackAllocInt(d, m->nv);
-    int* JT_rowadr   = mj_stackAllocInt(d, m->nv);
+    int* JT_rownnz = mj_stackAllocInt(d, m->nv);
+    int* JT_rowadr = mj_stackAllocInt(d, m->nv);
     int* JT_rowsuper = mj_stackAllocInt(d, m->nv);
-    int* JT_colind   = mj_stackAllocInt(d, d->nJ);
-    mjtNum* JT       = mj_stackAllocNum(d, d->nJ);
-    mju_transposeSparse(JT, d->efc_J, d->nefc, m->nv,
-                        JT_rownnz, JT_rowadr, JT_colind, JT_rowsuper,
-                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+    int* JT_colind = mj_stackAllocInt(d, d->nJ);
+    mjtNum* JT = mj_stackAllocNum(d, d->nJ);
+    mju_transposeSparse(JT, d->efc_J, d->nefc, m->nv, JT_rownnz, JT_rowadr,
+                        JT_colind, JT_rowsuper, d->efc_J_rownnz,
+                        d->efc_J_rowadr, d->efc_J_colind);
 
     // compute H = J'*D*J, uncompressed layout
     mju_sqrMatTDUncompressedInit(rowadr, m->nv);
-    mju_sqrMatTDSparse(H, d->efc_J, JT, D, d->nefc, m->nv,
-                       rownnz, rowadr, colind,
-                       d->efc_J_rownnz, d->efc_J_rowadr,
-                       d->efc_J_colind, d->efc_J_rowsuper,
-                       JT_rownnz, JT_rowadr,
-                       JT_colind, JT_rowsuper, d,
-                       diagind);
+    mju_sqrMatTDSparse(H, d->efc_J, JT, D, d->nefc, m->nv, rownnz, rowadr,
+                       colind, d->efc_J_rownnz, d->efc_J_rowadr,
+                       d->efc_J_colind, d->efc_J_rowsuper, JT_rownnz, JT_rowadr,
+                       JT_colind, JT_rowsuper, d, diagind);
 
     // compute H = M + J'*D*J
     mj_addM(m, d, H, rownnz, rowadr, colind);
 
     // copy to persistent storage
-    int nH = rowadr[m->nv-1] + m->nv;  // uncompressed: rowadr[r] = r*nv
+    int nH = rowadr[m->nv - 1] + m->nv;  // uncompressed: rowadr[r] = r*nv
     cd.H.assign(H, H + nH);
     cd.rownnz.assign(rownnz, rownnz + m->nv);
     cd.rowadr.assign(rowadr, rowadr + m->nv);
@@ -207,8 +204,8 @@ TransposeData& GetTransposeData() {
 // transpose sparse matrix (uncompressed)
 void ABSL_ATTRIBUTE_NOINLINE transposeSparse_baseline(
     mjtNum* res, const mjtNum* mat, int nr, int nc, int* res_rownnz,
-    int* res_rowadr, int* res_colind, int* res_rowsuper,
-    const int* rownnz, const int* rowadr, const int* colind) {
+    int* res_rowadr, int* res_colind, int* res_rowsuper, const int* rownnz,
+    const int* rowadr, const int* colind) {
   memset(res_rownnz, 0, nc * sizeof(int));
   for (int rt = 0; rt < nc; rt++) {
     res_rowadr[rt] = rt * nr;
@@ -226,9 +223,7 @@ void ABSL_ATTRIBUTE_NOINLINE transposeSparse_baseline(
                      /*minval=*/-1);
 }
 
-int compare_baseline(const int* vec1,
-                     const int* vec2,
-                     int n) {
+int compare_baseline(const int* vec1, const int* vec2, int n) {
   int i = 0;
 
   for (; i < n; i++) {
@@ -240,29 +235,23 @@ int compare_baseline(const int* vec1,
   return 1;
 }
 
-void addToSclScl(mjtNum* res,
-                 const mjtNum* vec,
-                 mjtNum scl1,
-                 mjtNum scl2,
+void addToSclScl(mjtNum* res, const mjtNum* vec, mjtNum scl1, mjtNum scl2,
                  int n) {
   int i = 0;
 
   for (; i < n; i++) {
-    res[i] = res[i]*scl1 + vec[i]*scl2;
+    res[i] = res[i] * scl1 + vec[i] * scl2;
   }
 }
 
-int compare_memcmp(const int* vec1,
-                const int* vec2,
-                int n) {
-  return !memcmp(vec1, vec2, n*sizeof(int));
+int compare_memcmp(const int* vec1, const int* vec2, int n) {
+  return !memcmp(vec1, vec2, n * sizeof(int));
 }
 
 int ABSL_ATTRIBUTE_NOINLINE combineSparse_baseline(mjtNum* dst,
-                                                   const mjtNum* src,
-                                                   mjtNum a, mjtNum b,
-                                                   int dst_nnz, int src_nnz,
-                                                   int* dst_ind,
+                                                   const mjtNum* src, mjtNum a,
+                                                   mjtNum b, int dst_nnz,
+                                                   int src_nnz, int* dst_ind,
                                                    const int* src_ind) {
   // check for identical pattern
   if (compare_baseline(dst_ind, src_ind, dst_nnz)) {
@@ -274,11 +263,9 @@ int ABSL_ATTRIBUTE_NOINLINE combineSparse_baseline(mjtNum* dst,
   }
 }
 
-int ABSL_ATTRIBUTE_NOINLINE combineSparse_new(mjtNum* dst,
-                                              const mjtNum* src,
-                                              mjtNum a, mjtNum b,
-                                              int dst_nnz, int src_nnz,
-                                              int* dst_ind,
+int ABSL_ATTRIBUTE_NOINLINE combineSparse_new(mjtNum* dst, const mjtNum* src,
+                                              mjtNum a, mjtNum b, int dst_nnz,
+                                              int src_nnz, int* dst_ind,
                                               const int* src_ind) {
   // check for identical pattern
   if (compare_memcmp(dst_ind, src_ind, dst_nnz)) {
@@ -291,8 +278,7 @@ int ABSL_ATTRIBUTE_NOINLINE combineSparse_new(mjtNum* dst,
 }
 
 mjtNum ABSL_ATTRIBUTE_NOINLINE dotSparse_1(const mjtNum* vec1,
-                                           const mjtNum* vec2,
-                                           const int nnz1,
+                                           const mjtNum* vec2, const int nnz1,
                                            const int* ind1) {
   int i = 0;
   mjtNum res = 0;
@@ -306,8 +292,7 @@ mjtNum ABSL_ATTRIBUTE_NOINLINE dotSparse_1(const mjtNum* vec1,
 }
 
 mjtNum ABSL_ATTRIBUTE_NOINLINE dotSparse_8(const mjtNum* vec1,
-                                           const mjtNum* vec2,
-                                           const int nnz1,
+                                           const mjtNum* vec2, const int nnz1,
                                            const int* ind1) {
   int i = 0;
   mjtNum res = 0;
@@ -323,73 +308,67 @@ mjtNum ABSL_ATTRIBUTE_NOINLINE dotSparse_8(const mjtNum* vec1,
   mjtNum res6 = 0;
   mjtNum res7 = 0;
 
-  for (; i <= n_8; i+=8) {
-    res0 += vec1[i+0] * vec2[ind1[i+0]];
-    res1 += vec1[i+1] * vec2[ind1[i+1]];
-    res2 += vec1[i+2] * vec2[ind1[i+2]];
-    res3 += vec1[i+3] * vec2[ind1[i+3]];
-    res4 += vec1[i+4] * vec2[ind1[i+4]];
-    res5 += vec1[i+5] * vec2[ind1[i+5]];
-    res6 += vec1[i+6] * vec2[ind1[i+6]];
-    res7 += vec1[i+7] * vec2[ind1[i+7]];
+  for (; i <= n_8; i += 8) {
+    res0 += vec1[i + 0] * vec2[ind1[i + 0]];
+    res1 += vec1[i + 1] * vec2[ind1[i + 1]];
+    res2 += vec1[i + 2] * vec2[ind1[i + 2]];
+    res3 += vec1[i + 3] * vec2[ind1[i + 3]];
+    res4 += vec1[i + 4] * vec2[ind1[i + 4]];
+    res5 += vec1[i + 5] * vec2[ind1[i + 5]];
+    res6 += vec1[i + 6] * vec2[ind1[i + 6]];
+    res7 += vec1[i + 7] * vec2[ind1[i + 7]];
   }
   res = ((res0 + res2) + (res1 + res3)) + ((res4 + res6) + (res5 + res7));
 
   // process remaining
   int n_i = nnz1 - i;
   if (n_i == 7) {
-    res += vec1[i+0]*vec2[ind1[i+0]] + vec1[i+1]*vec2[ind1[i+1]] +
-           vec1[i+2]*vec2[ind1[i+2]] + vec1[i+3]*vec2[ind1[i+3]] +
-           vec1[i+4]*vec2[ind1[i+4]] + vec1[i+5]*vec2[ind1[i+5]] +
-           vec1[i+6]*vec2[ind1[i+6]];
+    res += vec1[i + 0] * vec2[ind1[i + 0]] + vec1[i + 1] * vec2[ind1[i + 1]] +
+           vec1[i + 2] * vec2[ind1[i + 2]] + vec1[i + 3] * vec2[ind1[i + 3]] +
+           vec1[i + 4] * vec2[ind1[i + 4]] + vec1[i + 5] * vec2[ind1[i + 5]] +
+           vec1[i + 6] * vec2[ind1[i + 6]];
   } else if (n_i == 6) {
-    res += vec1[i+0]*vec2[ind1[i+0]] + vec1[i+1]*vec2[ind1[i+1]] +
-           vec1[i+2]*vec2[ind1[i+2]] + vec1[i+3]*vec2[ind1[i+3]] +
-           vec1[i+4]*vec2[ind1[i+4]] + vec1[i+5]*vec2[ind1[i+5]];
+    res += vec1[i + 0] * vec2[ind1[i + 0]] + vec1[i + 1] * vec2[ind1[i + 1]] +
+           vec1[i + 2] * vec2[ind1[i + 2]] + vec1[i + 3] * vec2[ind1[i + 3]] +
+           vec1[i + 4] * vec2[ind1[i + 4]] + vec1[i + 5] * vec2[ind1[i + 5]];
   } else if (n_i == 5) {
-    res += vec1[i+0]*vec2[ind1[i+0]] + vec1[i+1]*vec2[ind1[i+1]] +
-           vec1[i+2]*vec2[ind1[i+2]] + vec1[i+3]*vec2[ind1[i+3]] +
-           vec1[i+4]*vec2[ind1[i+4]];
+    res += vec1[i + 0] * vec2[ind1[i + 0]] + vec1[i + 1] * vec2[ind1[i + 1]] +
+           vec1[i + 2] * vec2[ind1[i + 2]] + vec1[i + 3] * vec2[ind1[i + 3]] +
+           vec1[i + 4] * vec2[ind1[i + 4]];
   } else if (n_i == 4) {
-    res += vec1[i+0]*vec2[ind1[i+0]] + vec1[i+1]*vec2[ind1[i+1]] +
-           vec1[i+2]*vec2[ind1[i+2]] + vec1[i+1]*vec2[ind1[i+3]];
+    res += vec1[i + 0] * vec2[ind1[i + 0]] + vec1[i + 1] * vec2[ind1[i + 1]] +
+           vec1[i + 2] * vec2[ind1[i + 2]] + vec1[i + 1] * vec2[ind1[i + 3]];
   } else if (n_i == 3) {
-    res += vec1[i+0]*vec2[ind1[i+0]] + vec1[i+1]*vec2[ind1[i+1]] +
-           vec1[i+2]*vec2[ind1[i+2]];
+    res += vec1[i + 0] * vec2[ind1[i + 0]] + vec1[i + 1] * vec2[ind1[i + 1]] +
+           vec1[i + 2] * vec2[ind1[i + 2]];
   } else if (n_i == 2) {
-    res += vec1[i+0]*vec2[ind1[i+0]] + vec1[i+1]*vec2[ind1[i+1]];
+    res += vec1[i + 0] * vec2[ind1[i + 0]] + vec1[i + 1] * vec2[ind1[i + 1]];
   } else if (n_i == 1) {
-    res += vec1[i+0]*vec2[ind1[i+0]];
+    res += vec1[i + 0] * vec2[ind1[i + 0]];
   }
 
   return res;
 }
 
-void ABSL_ATTRIBUTE_NOINLINE mulMatVecSparse_1(mjtNum* res,
-                                               const mjtNum* mat,
-                                               const mjtNum* vec,
-                                               int nr,
+void ABSL_ATTRIBUTE_NOINLINE mulMatVecSparse_1(mjtNum* res, const mjtNum* mat,
+                                               const mjtNum* vec, int nr,
                                                const int* rownnz,
                                                const int* rowadr,
                                                const int* colind,
                                                const int* rowsuper) {
-  for (int r=0; r < nr; r++) {
-    res[r] = dotSparse_1(
-      mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
+  for (int r = 0; r < nr; r++) {
+    res[r] = dotSparse_1(mat + rowadr[r], vec, rownnz[r], colind + rowadr[r]);
   }
 }
 
-void ABSL_ATTRIBUTE_NOINLINE mulMatVecSparse_8(mjtNum* res,
-                                               const mjtNum* mat,
-                                               const mjtNum* vec,
-                                               int nr,
+void ABSL_ATTRIBUTE_NOINLINE mulMatVecSparse_8(mjtNum* res, const mjtNum* mat,
+                                               const mjtNum* vec, int nr,
                                                const int* rownnz,
                                                const int* rowadr,
                                                const int* colind,
                                                const int* rowsuper) {
-  for (int r=0; r < nr; r++) {
-    res[r] = dotSparse_8(
-      mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
+  for (int r = 0; r < nr; r++) {
+    res[r] = dotSparse_8(mat + rowadr[r], vec, rownnz[r], colind + rowadr[r]);
   }
 }
 
@@ -421,22 +400,19 @@ static void BM_MatVecSparse(benchmark::State& state, int unroll) {
   state.SetItemsProcessed(state.iterations());
 }
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_MatVecSparse_8(
-  benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_MatVecSparse_8(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_MatVecSparse(state, 8);
 }
 BENCHMARK(BM_MatVecSparse_8);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_MatVecSparse_4(
-  benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_MatVecSparse_4(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_MatVecSparse(state, 4);
 }
 BENCHMARK(BM_MatVecSparse_4);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_MatVecSparse_1(
-  benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_MatVecSparse_1(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_MatVecSparse(state, 1);
 }
@@ -453,16 +429,16 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
 
   // time benchmark
   for (auto s : state) {
-    for (int r = data.nv-1; r >= 0; r--) {
-      for (int i = 0; i < rownnz[r]-1; i++) {
+    for (int r = data.nv - 1; r >= 0; r--) {
+      for (int i = 0; i < rownnz[r] - 1; i++) {
         int adr = rowadr[r];
-        int c = colind[adr+i];
+        int c = colind[adr + i];
         // true arguments should be i+1 and colind+rowadr[r]
         // but instead we repeat rownnz[c] and colind+rowadr[c]
         // in order to trigger all if's in combineSparse
-         func(H.data()+rowadr[c], H.data()+rowadr[r], 1, -H[adr+i],
-              rownnz[c], rownnz[c],
-              colind.data()+rowadr[c], colind.data()+rowadr[c]);
+        func(H.data() + rowadr[c], H.data() + rowadr[r], 1, -H[adr + i],
+             rownnz[c], rownnz[c], colind.data() + rowadr[c],
+             colind.data() + rowadr[c]);
       }
     }
   }
@@ -470,25 +446,19 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   state.SetItemsProcessed(state.iterations());
 }
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_combineSparse_new(
-  benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_combineSparse_new(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_combineSparse(state, &combineSparse_new);
 }
 BENCHMARK(BM_combineSparse_new);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_combineSparse_old(
-  benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_combineSparse_old(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_combineSparse(state, &combineSparse_baseline);
 }
 BENCHMARK(BM_combineSparse_old);
 
-enum class Supernode {
-  None,
-  PostProcess,
-  Inline
-};
+enum class Supernode { None, PostProcess, Inline };
 
 template <Size S>
 static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func,
@@ -506,19 +476,18 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func,
   for (auto s : state) {
     int* rowsuper =
         (super == Supernode::Inline) ? res_rowsuper.data() : nullptr;
-    func(res.data(), data.efc_J.data(), data.nefc, data.nv,
-         res_rownnz.data(), res_rowadr.data(), res_colind.data(), rowsuper,
+    func(res.data(), data.efc_J.data(), data.nefc, data.nv, res_rownnz.data(),
+         res_rowadr.data(), res_colind.data(), rowsuper,
          data.efc_J_rownnz.data(), data.efc_J_rowadr.data(),
          data.efc_J_colind.data());
     if (super == Supernode::PostProcess) {
-      mju_superSparse(data.nv, res_rowsuper.data(),
-                      res_rownnz.data(), res_rowadr.data(), res_colind.data());
+      mju_superSparse(data.nv, res_rowsuper.data(), res_rownnz.data(),
+                      res_rowadr.data(), res_colind.data());
     }
   }
 
   state.SetItemsProcessed(state.iterations());
 }
-
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
 BM_transposeSparse_2H100_old(benchmark::State& state) {
