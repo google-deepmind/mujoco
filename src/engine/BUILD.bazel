@@ -262,6 +262,7 @@ cc_library(
         ":engine_core",
         ":engine_core_util",
         ":engine_derivative",
+        ":engine_inline",
         ":engine_macro",
         ":engine_memory",
         ":engine_util_blas",

@@ -26,6 +26,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_metric.h"
@@ -37,6 +38,26 @@
 
 
 //---------------------------------- utility functions ---------------------------------------------
+
+// zero 2D vector
+static inline void zero2(mjtNum* restrict res) {
+  res[0] = 0;
+  res[1] = 0;
+}
+
+
+// copy 2D vector
+static inline void copy2(mjtNum* restrict res, const mjtNum* vec) {
+  res[0] = vec[0];
+  res[1] = vec[1];
+}
+
+
+// 2D vector dot-product
+static inline mjtNum dot2(const mjtNum vec1[2], const mjtNum vec2[2]) {
+  return vec1[0]*vec2[0] + vec1[1]*vec2[1];
+}
+
 
 // save solver statistics
 static void saveStats(const mjModel* m, mjData* d, int island, int iter,
@@ -224,6 +245,19 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
   if (dim == 1) {
     mjtNum delta = force[0] - oldforce[0];
     change = 0.5*delta*delta*A[0] + delta*res[0];
+  } else if (dim == 2) {
+    mjtNum delta[2] = {force[0] - oldforce[0], force[1] - oldforce[1]};
+    mjtNum vmv = 0;
+    vmv += delta[0] * dot2(A, delta);
+    vmv += delta[1] * dot2(A+2, delta);
+    change = 0.5*vmv + dot2(delta, res);
+  } else if (dim == 3) {
+    mjtNum delta[3] = {force[0] - oldforce[0], force[1] - oldforce[1], force[2] - oldforce[2]};
+    mjtNum vmv = 0;
+    vmv += delta[0] * mju_dot3(A, delta);
+    vmv += delta[1] * mju_dot3(A+3, delta);
+    vmv += delta[2] * mju_dot3(A+6, delta);
+    change = 0.5*vmv + mju_dot3(delta, res);
   } else {
     mjtNum delta[6];
     mju_sub(delta, force, oldforce, dim);
@@ -232,7 +266,15 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
 
   // positive change: restore force
   if (change > 1e-10) {
-    mju_copy(force, oldforce, dim);
+    if (dim == 1) {
+      force[0] = oldforce[0];
+    } else if (dim == 2) {
+      copy2(force, oldforce);
+    } else if (dim == 3) {
+      mji_copy3(force, oldforce);
+    } else {
+      mju_copy(force, oldforce, dim);
+    }
     change = 0;
   }
 
@@ -325,7 +367,14 @@ static int dualState(const mjData* d, int* state,
 
       // N = normal, T = norm of tangent vector
       mjtNum N = f[0];
-      mjtNum T = mju_norm(f+1, dim-1);
+      mjtNum T;
+      if (dim == 3) {
+        T = mju_sqrt(dot2(f+1, f+1));
+      } else if (dim == 4) {
+        T = mju_norm3(f+1);
+      } else {
+        T = mju_norm(f+1, dim-1);
+      }
 
       // top zone
       if (mu*N >= T) {
@@ -422,7 +471,11 @@ static void solveQCQP(mjtNum* force, int i, int dim,
   }
 
   // assign
-  mju_copy(force+i+1, v, dim-1);
+  if (dim == 3) {
+    copy2(force+i+1, v);
+  } else {
+    mju_copy(force+i+1, v, dim-1);
+  }
 }
 
 
@@ -595,7 +648,13 @@ static void solPGS(const mjModel* m, mjData* d, int island,
 
       // save old force
       mjtNum oldforce[6];
-      mju_copy(oldforce, force+i, dim);
+      if (dim == 1) {
+        oldforce[0] = force[i];
+      } else if (dim == 3) {
+        mji_copy3(oldforce, force+i);
+      } else {
+        mju_copy(oldforce, force+i, dim);
+      }
 
       // allocate AR submatrix, required later for costChage
       mjtNum Athis[36];
@@ -640,24 +699,31 @@ static void solPGS(const mjModel* m, mjData* d, int island,
           }
 
           // clear friction (just in case)
-          mju_zero(force+i+1, dim-1);
+          if (dim == 3) {
+            zero2(force+i+1);
+          } else {
+            mju_zero(force+i+1, dim-1);
+          }
         }
 
         // ray update
         else {
-          // v = ray
-          mjtNum v[6];
-          mju_copy(v, force+i, dim);
-
-          // denom = v' * AR(this,this) * v
-          mjtNum v1[6];
-          mju_mulMatVec(v1, Athis, v, dim, dim);
-          mjtNum denom = mju_dot(v, v1, dim);
+          // v = ray, denom = v' * AR(this,this) * v
+          mjtNum v[6], v1[6], denom;
+          if (dim == 3) {
+            mji_copy3(v, force+i);
+            mji_mulMatVec3(v1, Athis, v);
+            denom = mju_dot3(v, v1);
+          } else {
+            mju_copy(v, force+i, dim);
+            mju_mulMatVec(v1, Athis, v, dim, dim);
+            denom = mju_dot(v, v1, dim);
+          }
 
           // avoid division by 0
           if (denom >= mjMINVAL) {
             // x = v' * res / denom
-            mjtNum x = -mju_dot(v, res, dim) / denom;
+            mjtNum x = (dim == 3 ? -mju_dot3(v, res) : -mju_dot(v, res, dim)) / denom;
 
             // make sure normal is non-negative
             if (force[i]+x*v[0] < 0) {
@@ -675,16 +741,31 @@ static void solPGS(const mjModel* m, mjData* d, int island,
 
         // Ac = AR-submatrix; bc = b-subvector + Ac,rest * f_rest
         mjtNum bc[5], Ac[25];
-        mju_copy(bc, res+1, dim-1);
-        for (int j=0; j < dim-1; j++) {
-          mju_copy(Ac+j*(dim-1), Athis+(j+1)*dim+1, dim-1);
-          bc[j] -= mju_dot(Ac+j*(dim-1), oldforce+1, dim-1);
-          bc[j] += Athis[(j+1)*dim]*(force[i]-oldforce[0]);
+        if (dim == 3) {
+          mjtNum df0 = force[i] - oldforce[0];
+          Ac[0] = Athis[4];
+          Ac[1] = Athis[5];
+          Ac[2] = Athis[7];
+          Ac[3] = Athis[8];
+          bc[0] = (res[1] - dot2(Ac, oldforce+1)) + Athis[3]*df0;
+          bc[1] = (res[2] - dot2(Ac+2, oldforce+1)) + Athis[6]*df0;
+        } else {
+          mju_copy(bc, res+1, dim-1);
+          for (int j=0; j < dim-1; j++) {
+            mju_copy(Ac+j*(dim-1), Athis+(j+1)*dim+1, dim-1);
+            bc[j] -= (dim == 4) ? mju_dot3(Ac+j*3, oldforce+1)
+                                : mju_dot(Ac+j*(dim-1), oldforce+1, dim-1);
+            bc[j] += Athis[(j+1)*dim]*(force[i]-oldforce[0]);
+          }
         }
 
         // guard for f_normal==0
         if (force[i] < mjMINVAL) {
-          mju_zero(force+i+1, dim-1);
+          if (dim == 3) {
+            zero2(force+i+1);
+          } else {
+            mju_zero(force+i+1, dim-1);
+          }
         }
 
         // QCQP
@@ -854,16 +935,14 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
         for (int j=i; j < i+2*(dim-1); j+=2) {
           // compute residual, save old
           residual(m, d, res, j, 2, 1);
-          mju_copy(oldforce, force+j, 2);
+          copy2(oldforce, force+j);
 
           // Ac = AR-submatirx
           extractBlock(m, d, Ac, j, 2, 1);
 
           // bc = b-subvector + Ac,rest * f_rest
-          mju_copy(bc, res, 2);
-          for (int k=0; k < 2; k++) {
-            bc[k] -= mju_dot(Ac+k*2, oldforce, 2);
-          }
+          bc[0] = res[0] - dot2(Ac, oldforce);
+          bc[1] = res[1] - dot2(Ac+2, oldforce);
 
           // f0 = mid+y, f1 = mid-y
           mid = 0.5*(force[j]+force[j+1]);
@@ -913,20 +992,34 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
 
         // compute residual, save old
         residual(m, d, res, i+1, dim-1, 1);
-        mju_copy(oldforce, force+i+1, dim-1);
+        if (dim == 3) {
+          copy2(oldforce, force+i+1);
+        } else {
+          mju_copy(oldforce, force+i+1, dim-1);
+        }
 
         // Ac = AR-submatrix
         extractBlock(m, d, Ac, i+1, dim-1, 1);
 
         // bc = b-subvector + Ac,rest * f_rest
-        mju_copy(bc, res, dim-1);
-        for (int j=0; j < dim-1; j++) {
-          bc[j] -= mju_dot(Ac+j*(dim-1), oldforce, dim-1);
+        if (dim == 3) {
+          bc[0] = res[0] - dot2(Ac, oldforce);
+          bc[1] = res[1] - dot2(Ac+2, oldforce);
+        } else {
+          mju_copy(bc, res, dim-1);
+          for (int j=0; j < dim-1; j++) {
+            bc[j] -= (dim == 4) ? mju_dot3(Ac+j*3, oldforce)
+                                : mju_dot(Ac+j*(dim-1), oldforce, dim-1);
+          }
         }
 
         // guard for f_normal==0
         if (force[i] < mjMINVAL) {
-          mju_zero(force+i+1, dim-1);
+          if (dim == 3) {
+            zero2(force+i+1);
+          } else {
+            mju_zero(force+i+1, dim-1);
+          }
         }
 
         // QCQP
