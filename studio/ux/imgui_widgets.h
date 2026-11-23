@@ -813,9 +813,6 @@ inline bool BeginBoxSection(const char* id, ImGuiTableFlags extra_flags = 0) {
 
 inline void EndBoxSection() { ImGui::EndTable(); }
 
-// Saves the given contents to the clipboard if the clipboard is available.
-void MaybeSaveToClipboard(const std::string& contents);
-
 // Returns the expected width of a UI label based on MuJoCo visualization flags.
 float GetExpectedLabelWidth();
 

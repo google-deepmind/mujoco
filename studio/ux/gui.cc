@@ -36,6 +36,7 @@
 #include "studio/sim/sim_history.h"
 #include "studio/sim/sim_profiler.h"
 #include "studio/sim/step_control.h"
+#include "studio/ux/clipboard.h"
 #include "studio/ux/gui_helpers.h"
 #include "studio/ux/imgui_widgets.h"
 #include "studio/ux/interaction.h"

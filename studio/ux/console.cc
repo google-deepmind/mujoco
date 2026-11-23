@@ -31,6 +31,7 @@
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "studio/ux/clipboard.h"
 #include "studio/ux/imgui_widgets.h"
 
 namespace mujoco::studio {

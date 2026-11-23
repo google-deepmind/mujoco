@@ -47,6 +47,8 @@ target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
         sim/step_control.h
         ux/camera_control.cc
         ux/camera_control.h
+        ux/clipboard.cc
+        ux/clipboard.h
         ux/console.cc
         ux/console.h
         ux/enum_utils.h

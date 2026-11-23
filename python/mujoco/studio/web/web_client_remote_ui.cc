@@ -29,7 +29,7 @@
 #include <vector>
 
 #include <imgui.h>
-#include "studio/ux/imgui_widgets.h"
+#include "studio/ux/clipboard.h"
 #include "logging.h"
 #include "ui_codec.h"
 #include "web_client_websocket.h"

@@ -56,6 +56,7 @@
 #include "studio/sim/model_holder.h"
 #include "studio/sim/step_control.h"
 #include "studio/ux/camera_control.h"
+#include "studio/ux/clipboard.h"
 #include "studio/ux/console.h"
 #include "studio/ux/file_dialog.h"
 #include "studio/ux/gui.h"
