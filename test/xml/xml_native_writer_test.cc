@@ -1020,6 +1020,65 @@ TEST_F(XMLWriterTest, WritesDefaults) {
   EXPECT_THAT(saved_xml, HasSubstr("<geom density=\"100\"/>"));
 }
 
+// a class which gives its geoms a mass keeps doing so in the saved file, also
+// when that mass is zero and its density is zero too, and child classes compare
+// their mass against their parent
+TEST_F(XMLWriterTest, WritesMassOfDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="massless">
+        <geom mass="0" density="0"/>
+      </default>
+      <default class="heavy">
+        <geom type="box" mass="5"/>
+        <default class="heavy_red">
+          <geom rgba="1 0 0 1"/>
+        </default>
+        <default class="heavier">
+          <geom mass="10"/>
+        </default>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size=".1"/>
+        <geom class="massless" size=".2"/>
+      </body>
+      <body pos="2 0 0">
+        <freejoint/>
+        <geom class="heavy" size=".5 .5 .5"/>
+        <geom class="heavy" size=".5 .5 .5" pos="0 0 1" mass="1000"/>
+      </body>
+      <body pos="4 0 0">
+        <freejoint/>
+        <geom class="heavy_red" size=".5 .5 .5"/>
+      </body>
+      <body pos="6 0 0">
+        <freejoint/>
+        <geom class="heavier" size=".5 .5 .5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr(R"(<geom mass="0" density="0"/>)"));
+  EXPECT_THAT(saved_xml, HasSubstr(R"(<geom type="box" mass="5"/>)"));
+  EXPECT_THAT(saved_xml, HasSubstr(R"(<geom rgba="1 0 0 1"/>)"));
+  EXPECT_THAT(saved_xml, HasSubstr(R"(<geom mass="10"/>)"));
+
+  MjModelPtr reloaded = LoadModelFromString(saved_xml.c_str());
+  ASSERT_THAT(reloaded.get(), NotNull()) << saved_xml;
+  for (int i = 0; i < model->nbody; i++) {
+    EXPECT_NEAR(reloaded->body_mass[i], model->body_mass[i], MjTol(1e-12, 1e-5))
+        << "body " << i << "\n"
+        << saved_xml;
+  }
+}
+
 TEST_F(XMLWriterTest, WritesActuatorDefaults) {
   static constexpr char xml[] = R"(
   <mujoco>
