@@ -1,5 +1,5 @@
 include LICENSE *.md
-recursive-include mujoco *.h *.cc *.cc.inc *.cpp *.inl *.html *.mm CMakeLists.txt *.cmake
+recursive-include mujoco *.h *.cc *.cc.inc *.html *.mm CMakeLists.txt *.cmake
 recursive-include mujoco/doc *.rst *.md
 recursive-include mujoco/mjpython mjpython.* Info.plist
 prune mujoco/simulate/build*
@@ -13,5 +13,3 @@ prune mujoco/sample/studio
 prune mujoco/studio
 prune mujoco/studio_wasm
 prune mujoco/usd/MjcPhysics
-exclude mujoco/render_filament.cc mujoco/render_filament.h
-exclude mujoco/usd/*.cc mujoco/usd/*.cpp mujoco/usd/*.h mujoco/usd/CMakeLists.txt mujoco/usd/MANIFEST.in mujoco/usd/pyproject.toml mujoco/usd/setup.py mujoco/usd/make_sdist.sh mujoco/usd/_usd_init.py mujoco/usd/layer_sink_test.py mujoco/usd/test_utils.py mujoco/usd/writer_test.py

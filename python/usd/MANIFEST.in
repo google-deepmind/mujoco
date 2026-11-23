@@ -1,2 +1,2 @@
 include LICENSE *.md
-recursive-include mujoco *.py *.h *.cc *.cc.inc *.cpp *.inl *.cmake CMakeLists.txt
+recursive-include mujoco *.py *.h *.cc *.cpp *.cmake CMakeLists.txt

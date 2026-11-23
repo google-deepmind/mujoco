@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-project(mujoco_python)
 cmake_minimum_required(VERSION 3.15)
+project(mujoco_python)
 
 option(MUJOCO_PYTHON_BUILD_CORE "Build core MuJoCo Python extensions." ON)
 option(MUJOCO_PYTHON_BUILD_STUDIO "Build Studio and Filament Python extensions." OFF)
