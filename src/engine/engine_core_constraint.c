@@ -1467,35 +1467,41 @@ static int noDofs(const mjModel* m, const int* body, int n) {
 }
 
 
+// return 1 and populate bid[2] if contact has a single non-interpolated, non-twist body per side
+static inline int contactSingleBody(const mjModel* m, const mjContact* con, int bid[2]) {
+  for (int side=0; side < 2; side++) {
+    if (con->geom[side] >= 0) {
+      bid[side] = m->geom_bodyid[con->geom[side]];
+    } else if (con->vert[side] >= 0 && m->flex_interp[con->flex[side]] == 0 &&
+               !mj_rodHasTwist(m, con->flex[side])) {
+      bid[side] = m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
+    } else {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+
 // compute Jacobian for contact, return number of DOFs affected
 int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
                        mjtNum* jacdifp, mjtNum* jacdifr,
                        mjtNum* jac1p, mjtNum* jac2p,
                        mjtNum* jac1r, mjtNum* jac2r, int* chain) {
   // special case: single body on each side
-  if ((con->geom[0] >= 0 || (con->vert[0] >= 0 && m->flex_interp[con->flex[0]] == 0 &&
-                             !mj_rodHasTwist(m, con->flex[0]))) &&
-      (con->geom[1] >= 0 || (con->vert[1] >= 0 && m->flex_interp[con->flex[1]] == 0 &&
-                             !mj_rodHasTwist(m, con->flex[1])))) {
-    // get bodies
-    int bid[2];
-    for (int side=0; side < 2; side++) {
-      bid[side] = (con->geom[side] >= 0) ?
-                  m->geom_bodyid[con->geom[side]] :
-                  m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
-    }
-
+  int body[2];
+  if (contactSingleBody(m, con, body)) {
     // no relative dofs: return 0
-    if (noDofs(m, bid, 2)) {
+    if (noDofs(m, body, 2)) {
       return 0;
     }
 
     // compute Jacobian differences, skipping common DOFs
     if (dim > 3) {
-      return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
+      return mj_jacDifPair(m, d, chain, body[0], body[1], con->pos, con->pos,
                            jac1p, jac2p, jacdifp, jac1r, jac2r, jacdifr, mj_isSparse(m), 1);
     } else {
-      return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
+      return mj_jacDifPair(m, d, chain, body[0], body[1], con->pos, con->pos,
                            jac1p, jac2p, jacdifp, NULL, NULL, NULL, mj_isSparse(m), 1);
     }
   }
@@ -1529,29 +1535,140 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
 }
 
 
+// dense single-body-per-side contact instantiation: fuse Jacobian walk, frame rotation, and cone
+static void instantiateContactDense(const mjModel* m, mjData* d, const mjContact* con,
+                                    int conid, const int bid[2], int ispyramid) {
+  int nv = m->nv, dim = con->dim, nefc = d->nefc;
+  int b1 = m->body_weldid[bid[0]];
+  int b2 = m->body_weldid[bid[1]];
+  int da1 = m->body_dofnum[b1] ? m->body_dofadr[b1] + m->body_dofnum[b1] - 1 : -1;
+  int da2 = m->body_dofnum[b2] ? m->body_dofadr[b2] + m->body_dofnum[b2] - 1 : -1;
+
+  mjtNum offset1[3], offset2[3];
+  if (da1 >= 0) {
+    mji_sub3(offset1, con->pos, d->subtree_com + 3*m->body_rootid[bid[0]]);
+  }
+  if (da2 >= 0) {
+    mji_sub3(offset2, con->pos, d->subtree_com + 3*m->body_rootid[bid[1]]);
+  }
+
+  int nrows, type;
+  if (dim == 1) {
+    nrows = 1;
+    type = mjCNSTR_CONTACT_FRICTIONLESS;
+  } else if (ispyramid) {
+    nrows = 2*(dim - 1);
+    type = mjCNSTR_CONTACT_PYRAMIDAL;
+  } else {
+    nrows = dim;
+    type = mjCNSTR_CONTACT_ELLIPTIC;
+  }
+
+  // zero output rows once; only affected non-common ancestor DOFs are written
+  mjtNum* J = d->efc_J + nefc*nv;
+  mju_zero(J, nrows*nv);
+
+  const mjtNum* F = con->frame;
+  const int* dof_parentid = m->dof_parentid;
+  const mjtNum* cdof_all = d->cdof;
+  while (da1 >= 0 || da2 >= 0) {
+    // common ancestor: body 1 and body 2 share subtree_com so jac2 - jac1 == 0
+    if (da1 == da2) {
+      break;
+    }
+
+    int dof;
+    mjtNum jp[3], jr[3];
+    if (da2 > da1) {
+      dof = da2;
+      da2 = dof_parentid[da2];
+      const mjtNum* cdof = cdof_all + 6*dof;
+      mjtNum tmp[3];
+      mji_cross(tmp, cdof, offset2);
+      mji_add3(jp, cdof + 3, tmp);
+      if (dim > 3) {
+        mji_copy3(jr, cdof);
+      }
+    } else {
+      dof = da1;
+      da1 = dof_parentid[da1];
+      const mjtNum* cdof = cdof_all + 6*dof;
+      mjtNum tmp[3];
+      mji_cross(jp, cdof, offset1);
+      mji_add3(tmp, cdof + 3, jp);
+      mji_scl3(jp, tmp, -1);
+      if (dim > 3) {
+        mji_scl3(jr, cdof, -1);
+      }
+    }
+
+    // rotate into contact frame and write directly into d->efc_J
+    if (dim == 1) {
+      J[dof] = mju_dot3(F, jp);
+    } else {
+      mjtNum j[3];
+      mji_mulMatVec3(j, F, jp);
+      if (ispyramid) {
+        mjtNum mu0 = con->friction[0], mu1 = con->friction[1];
+        J[0*nv + dof] = j[0] + j[1]*mu0;
+        J[1*nv + dof] = j[0] + j[1]*(-mu0);
+        J[2*nv + dof] = j[0] + j[2]*mu1;
+        J[3*nv + dof] = j[0] + j[2]*(-mu1);
+        if (dim > 3) {
+          for (int k=3; k < dim; k++) {
+            mjtNum jk = mju_dot3(F + 3*(k-3), jr);
+            mjtNum muk = con->friction[k-1];
+            J[(2*k-2)*nv + dof] = j[0] + jk*muk;
+            J[(2*k-1)*nv + dof] = j[0] + jk*(-muk);
+          }
+        }
+      } else {
+        J[0*nv + dof] = j[0];
+        J[1*nv + dof] = j[1];
+        J[2*nv + dof] = j[2];
+        if (dim > 3) {
+          for (int r=3; r < dim; r++) {
+            J[r*nv + dof] = mju_dot3(F + 3*(r-3), jr);
+          }
+        }
+      }
+    }
+  }
+
+  // set constraint metadata
+  if (type == mjCNSTR_CONTACT_ELLIPTIC) {
+    d->efc_pos[nefc] = con->dist;
+    d->efc_margin[nefc] = con->includemargin;
+    for (int r=1; r < nrows; r++) {
+      d->efc_pos[nefc+r] = 0;
+      d->efc_margin[nefc+r] = 0;
+    }
+  } else {
+    for (int r=0; r < nrows; r++) {
+      d->efc_pos[nefc+r] = con->dist;
+      d->efc_margin[nefc+r] = con->includemargin;
+    }
+  }
+  for (int r=0; r < nrows; r++) {
+    d->efc_frictionloss[nefc+r] = 0;
+    d->efc_type[nefc+r] = type;
+    d->efc_id[nefc+r] = conid;
+  }
+  d->nefc += nrows;
+}
+
+
 // frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d) {
   int ispyramid = mj_isPyramidal(m), issparse = mj_isSparse(m), ncon = d->ncon;
   int dim, NV, nv = m->nv, *chain = NULL;
   mjContact* con;
-  mjtNum cpos[6], cmargin[6], *jac, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
+  mjtNum cpos[6], cmargin[6];
+  mjtNum *jac = NULL, *jacdifp = NULL, *jacdifr = NULL;
+  mjtNum *jac1p = NULL, *jac2p = NULL, *jac1r = NULL, *jac2r = NULL;
 
   if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || nv == 0) {
     return;
-  }
-
-  mj_markStack(d);
-
-  // allocate Jacobian
-  jac = mjSTACKALLOC(d, 6*nv, mjtNum);
-  jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jacdifr = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac2r = mjSTACKALLOC(d, 3*nv, mjtNum);
-  if (issparse) {
-    chain = mjSTACKALLOC(d, nv, int);
   }
 
   // find contacts to be included
@@ -1564,6 +1681,34 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     con = d->contact + i;
     dim = con->dim;
     con->efc_address = d->nefc;
+
+    // dense single-body-per-side fast path: bypass scratch buffers and mju_mulMatMat
+    int bid[2];
+    if (!issparse && contactSingleBody(m, con, bid)) {
+      if (noDofs(m, bid, 2)) {
+        con->efc_address = -1;
+        con->exclude = 3;
+        continue;
+      }
+      instantiateContactDense(m, d, con, i, bid, ispyramid);
+      continue;
+    }
+
+    // lazily allocate stack scratch for sparse or flex contacts
+    if (!jac) {
+      mj_markStack(d);
+      jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+      jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
+      jacdifr = mjSTACKALLOC(d, 3*nv, mjtNum);
+      jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
+      jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
+      jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
+      jac2r = mjSTACKALLOC(d, 3*nv, mjtNum);
+      if (issparse) {
+        chain = mjSTACKALLOC(d, nv, int);
+      }
+    }
+
     NV = mj_contactJacobian(m, d, con, dim, jacdifp, jacdifr,
                             jac1p, jac2p, jac1r, jac2r, chain);
 
@@ -1625,7 +1770,9 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     }
   }
 
-  mj_freeStack(d);
+  if (jac) {
+    mj_freeStack(d);
+  }
 }
 
 
@@ -2572,19 +2719,10 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     int NV = 0;
     if (nnz) {
       // single body on each side (geom-geom or flex vert-vert): skip common dofs
-      if ((con->geom[0] >= 0 || (con->vert[0] >= 0 && m->flex_interp[con->flex[0]] == 0 &&
-                                 !mj_rodHasTwist(m, con->flex[0]))) &&
-          (con->geom[1] >= 0 || (con->vert[1] >= 0 && m->flex_interp[con->flex[1]] == 0 &&
-                                 !mj_rodHasTwist(m, con->flex[1])))) {
-        // get bodies
-        int bid[2];
-        for (int side=0; side < 2; side++) {
-          bid[side] = (con->geom[side] >= 0) ?
-                      m->geom_bodyid[con->geom[side]] :
-                      m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
-        }
-        if (!noDofs(m, bid, 2)) {
-          NV = mj_jacDifPair(m, NULL, chain, bid[0], bid[1], NULL, NULL,
+      int body[2];
+      if (contactSingleBody(m, con, body)) {
+        if (!noDofs(m, body, 2)) {
+          NV = mj_jacDifPair(m, NULL, chain, body[0], body[1], NULL, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL, mj_isSparse(m), 1);
         }
       }

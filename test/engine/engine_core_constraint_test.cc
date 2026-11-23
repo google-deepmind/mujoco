@@ -2194,5 +2194,82 @@ TEST_F(CoreConstraintTest, DiscreteCoarseTimestepTangentialStiction) {
   EXPECT_LT(mju_norm3(d->qvel), MjTol(1e-3, 5e-3));
 }
 
+TEST_F(CoreConstraintTest, DenseContactMatchesSparseExact) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="5 5 .1"/>
+      <body name="root" pos="0 0 .15">
+        <freejoint/>
+        <geom type="sphere" size=".16" mass="1"/>
+        <body name="arm1" pos=".1 0 .05">
+          <joint type="hinge" axis="0 1 0"/>
+          <geom type="sphere" size=".12" mass=".5"/>
+          <body name="welded_tip" pos=".05 0 0">
+            <geom type="sphere" size=".09" mass=".1"/>
+          </body>
+        </body>
+        <body name="arm2" pos=".15 0 .05">
+          <joint type="hinge" axis="1 0 0"/>
+          <joint type="hinge" axis="0 0 1"/>
+          <geom type="sphere" size=".12" mass=".5"/>
+        </body>
+      </body>
+      <body name="other" pos=".25 0 .15">
+        <freejoint/>
+        <geom type="sphere" size=".16" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+
+  for (int condim : {1, 3, 4, 6}) {
+    for (int i = 0; i < m->ngeom; ++i) {
+      m->geom_condim[i] = condim;
+    }
+    for (int cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+      m->opt.cone = cone;
+
+      m->opt.jacobian = mjJAC_DENSE;
+      MjDataPtr d_dense = MakeData(m);
+      mj_forward(m.get(), d_dense.get());
+
+      m->opt.jacobian = mjJAC_SPARSE;
+      MjDataPtr d_sparse = MakeData(m);
+      mj_forward(m.get(), d_sparse.get());
+
+      ASSERT_GE(d_dense->ncon, 3) << "condim=" << condim << " cone=" << cone;
+      ASSERT_EQ(d_dense->nefc, d_sparse->nefc);
+
+      int nv = m->nv;
+      std::vector<mjtNum> J_sparse_dense(d_sparse->nefc * nv, 0);
+      for (int r = 0; r < d_sparse->nefc; ++r) {
+        int adr = d_sparse->efc_J_rowadr[r];
+        int nnz = d_sparse->efc_J_rownnz[r];
+        for (int k = 0; k < nnz; ++k) {
+          J_sparse_dense[r * nv + d_sparse->efc_J_colind[adr + k]] =
+              d_sparse->efc_J[adr + k];
+        }
+      }
+
+      for (int r = 0; r < d_dense->nefc; ++r) {
+        EXPECT_EQ(d_dense->efc_type[r], d_sparse->efc_type[r]);
+        EXPECT_EQ(d_dense->efc_id[r], d_sparse->efc_id[r]);
+        EXPECT_EQ(d_dense->efc_pos[r], d_sparse->efc_pos[r]);
+        EXPECT_EQ(d_dense->efc_margin[r], d_sparse->efc_margin[r]);
+        EXPECT_EQ(d_dense->efc_frictionloss[r], d_sparse->efc_frictionloss[r]);
+        for (int c = 0; c < nv; ++c) {
+          EXPECT_EQ(d_dense->efc_J[r * nv + c], J_sparse_dense[r * nv + c])
+              << "condim=" << condim << " cone=" << cone << " r=" << r
+              << " c=" << c;
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
