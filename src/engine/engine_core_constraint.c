@@ -3139,12 +3139,13 @@ static void mj_makeARSymbolic(const mjModel* m, mjData* d) {
 
     mj_markStack(d);
 
-    // Y transposed, pattern only
+    // Y transposed, pattern and row supernodes
     int* YT_rownnz = mjSTACKALLOC(d, nv, int);
     int* YT_rowadr = mjSTACKALLOC(d, nv, int);
     int* YT_colind = mjSTACKALLOC(d, d->nY, int);
+    int* YT_rowsuper = mjSTACKALLOC(d, nv, int);
     mju_transposeSparse(NULL, NULL, nefc, nv,
-                        YT_rownnz, YT_rowadr, YT_colind, NULL,
+                        YT_rownnz, YT_rowadr, YT_colind, YT_rowsuper,
                         d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind);
 
     // allocate AR row nonzeros and addresses on arena
@@ -3160,7 +3161,7 @@ static void mj_makeARSymbolic(const mjModel* m, mjData* d) {
     int* diagind = mjSTACKALLOC(d, nefc, int);
     d->nA = mju_sqrMatTDSparseSymbolic(
         d->efc_AR_rownnz, d->efc_AR_rowadr, NULL, diagind,
-        nv, nefc, YT_rownnz, YT_rowadr, YT_colind, NULL,
+        nv, nefc, YT_rownnz, YT_rowadr, YT_colind, YT_rowsuper,
         d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
 
     // allocate A values and column indices on arena
@@ -3176,7 +3177,7 @@ static void mj_makeARSymbolic(const mjModel* m, mjData* d) {
     // A = Y * Y': symbolic phase
     mju_sqrMatTDSparseSymbolic(
         d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind, diagind,
-        nv, nefc, YT_rownnz, YT_rowadr, YT_colind, NULL,
+        nv, nefc, YT_rownnz, YT_rowadr, YT_colind, YT_rowsuper,
         d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
 
     mj_freeStack(d);

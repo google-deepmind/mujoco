@@ -1799,5 +1799,90 @@ TEST_F(EngineUtilSparseTest, MjuMinDegreeMultiWordAndAbort) {
   EXPECT_LT(nL_cap, nL);
 }
 
+// Verify mju_sqrMatTDSparseSymbolic with supernodes larger than mjMAXSUPER (8),
+// both non-zero and all-zero colsuper, and both lower-only and full (diagind).
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparseSymbolicLargeSupernodes) {
+  MjModelPtr model = LoadModelFromString("<mujoco/>");
+  MjDataPtr data = MakeData(model);
+
+  // build M (nr = 25, nc = 30) with column supernodes of sizes {12, 1, 10, 7}
+  // and row supernodes of sizes {10, 6, 9}, plus an empty column supernode
+  const int nr = 25, nc = 30;
+  std::vector<int> row_blocks = {10, 6, 9};
+  std::vector<int> col_blocks = {12, 1, 10, 7};
+  // block pattern (3 x 4): col block 1 is empty
+  const int pat[3][4] = {{1, 0, 1, 0}, {1, 0, 0, 1}, {0, 0, 1, 1}};
+
+  std::vector<int> rownnz(nr, 0), rowadr(nr, 0), colind;
+  int r0 = 0;
+  for (int rb = 0; rb < 3; rb++) {
+    for (int ra = 0; ra < row_blocks[rb]; ra++) {
+      int r = r0 + ra;
+      rowadr[r] = colind.size();
+      int c0 = 0;
+      for (int cb = 0; cb < 4; cb++) {
+        if (pat[rb][cb]) {
+          for (int ca = 0; ca < col_blocks[cb]; ca++) {
+            colind.push_back(c0 + ca);
+          }
+        }
+        c0 += col_blocks[cb];
+      }
+      rownnz[r] = static_cast<int>(colind.size()) - rowadr[r];
+    }
+    r0 += row_blocks[rb];
+  }
+
+  std::vector<int> rownnzT(nc), rowadrT(nc), colindT(colind.size());
+  std::vector<int> rowsuper(nr), rowsuperT(nc), zero_super(nc, 0);
+  mju_superSparse(nr, rowsuper.data(), rownnz.data(), rowadr.data(),
+                  colind.data());
+  mju_transposeSparse(nullptr, nullptr, nr, nc, rownnzT.data(), rowadrT.data(),
+                      colindT.data(), rowsuperT.data(), rownnz.data(),
+                      rowadr.data(), colind.data());
+  EXPECT_EQ(rowsuperT[0], 11);  // 12-wide supernode (> mjMAXSUPER)
+  EXPECT_EQ(rowsuper[0], 9);    // 10-wide row supernode
+
+  for (int use_upper = 0; use_upper <= 1; use_upper++) {
+    // reference: no supernodes
+    std::vector<int> ref_nnz(nc), ref_adr(nc), ref_diag(nc);
+    int nnz_ref = mju_sqrMatTDSparseSymbolic(
+        ref_nnz.data(), ref_adr.data(), nullptr,
+        use_upper ? ref_diag.data() : nullptr, nr, nc, rownnz.data(),
+        rowadr.data(), colind.data(), nullptr, rownnzT.data(), rowadrT.data(),
+        colindT.data(), nullptr, data.get());
+    std::vector<int> ref_col(nnz_ref, -1);
+    mju_sqrMatTDSparseSymbolic(ref_nnz.data(), ref_adr.data(), ref_col.data(),
+                               use_upper ? ref_diag.data() : nullptr, nr, nc,
+                               rownnz.data(), rowadr.data(), colind.data(),
+                               nullptr, rownnzT.data(), rowadrT.data(),
+                               colindT.data(), nullptr, data.get());
+
+    // test both full supernodes and all-zero colsuper (fast-path drop)
+    for (const int* cs : {rowsuperT.data(), zero_super.data()}) {
+      std::vector<int> got_nnz(nc), got_adr(nc), got_diag(nc);
+      int nnz_got = mju_sqrMatTDSparseSymbolic(
+          got_nnz.data(), got_adr.data(), nullptr,
+          use_upper ? got_diag.data() : nullptr, nr, nc, rownnz.data(),
+          rowadr.data(), colind.data(), rowsuper.data(), rownnzT.data(),
+          rowadrT.data(), colindT.data(), cs, data.get());
+      ASSERT_EQ(nnz_got, nnz_ref);
+      EXPECT_EQ(got_nnz, ref_nnz);
+      EXPECT_EQ(got_adr, ref_adr);
+
+      std::vector<int> got_col(nnz_got, -1);
+      mju_sqrMatTDSparseSymbolic(
+          got_nnz.data(), got_adr.data(), got_col.data(),
+          use_upper ? got_diag.data() : nullptr, nr, nc, rownnz.data(),
+          rowadr.data(), colind.data(), rowsuper.data(), rownnzT.data(),
+          rowadrT.data(), colindT.data(), cs, data.get());
+      EXPECT_EQ(got_col, ref_col);
+      if (use_upper) {
+        EXPECT_EQ(got_diag, ref_diag);
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

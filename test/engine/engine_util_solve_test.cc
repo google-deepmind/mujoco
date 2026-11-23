@@ -3135,5 +3135,212 @@ TEST_F(Eig3Test, Tolerance) {
   EXPECT_LE(orth, MjTol(5e-14, 5e-6));
 }
 
+// Verify mju_cholFactorSymbolic matches a scalar reference bit-for-bit
+// (including exact LT_colind traversal order and L_super) on mixed supernodes,
+// partial lower-triangle coupling, empty rows, and n = 0/1.
+TEST_F(EngineUtilSolveTest, CholFactorSymbolicExactMatchesScalar) {
+  MjModelPtr model = LoadModelFromString("<mujoco/>");
+  MjDataPtr d = MakeData(model);
+
+  auto scalar_ref = [](int n, const vector<int>& rownnz,
+                       const vector<int>& rowadr, const vector<int>& colind,
+                       vector<int>& L_rownnz, vector<int>& L_rowadr,
+                       vector<int>& L_colind, vector<int>& LT_rownnz,
+                       vector<int>& LT_rowadr, vector<int>& LT_colind,
+                       vector<int>& LT_map, vector<int>& L_super) {
+    if (n <= 0) return 0;
+    vector<int> parent(n), flag(n);
+    L_rownnz.assign(n, 0);
+    LT_rownnz.assign(n, 0);
+    auto ustart = [&](int r) {
+      int s = rowadr[r], e = s + rownnz[r];
+      while (s < e && colind[s] <= r) s++;
+      return s;
+    };
+    for (int r = n - 1; r >= 0; r--) {
+      parent[r] = -1;
+      flag[r] = r;
+      L_rownnz[r] = 1;
+      int lt_nnz = 1;
+      int end = rowadr[r] + rownnz[r];
+      for (int c = ustart(r); c < end; c++) {
+        int i = colind[c];
+        while (flag[i] != r) {
+          L_rownnz[i]++;
+          lt_nnz++;
+          flag[i] = r;
+          int p = parent[i];
+          if (p == -1) {
+            parent[i] = r;
+            break;
+          }
+          i = p;
+        }
+      }
+      LT_rownnz[r] = lt_nnz;
+    }
+    L_rowadr.resize(n);
+    LT_rowadr.resize(n);
+    L_rowadr[0] = LT_rowadr[0] = 0;
+    int nnz = L_rownnz[0];
+    for (int r = 1; r < n; r++) {
+      L_rowadr[r] = L_rowadr[r - 1] + L_rownnz[r - 1];
+      LT_rowadr[r] = LT_rowadr[r - 1] + LT_rownnz[r - 1];
+      nnz += L_rownnz[r];
+    }
+    L_colind.assign(nnz, -1);
+    LT_colind.assign(nnz, -1);
+    LT_map.assign(nnz, -1);
+    L_super.assign(n, 0);
+    vector<int> cursor(n);
+    for (int r = n - 1; r >= 0; r--) {
+      parent[r] = -1;
+      flag[r] = r;
+      int diag_idx = L_rowadr[r] + L_rownnz[r] - 1;
+      cursor[r] = diag_idx - 1;
+      L_colind[diag_idx] = r;
+      int lt_write = LT_rowadr[r];
+      LT_colind[lt_write] = r;
+      LT_map[lt_write] = diag_idx;
+      lt_write++;
+      int end = rowadr[r] + rownnz[r];
+      int overlap = 0;
+      for (int c = ustart(r); c < end; c++) {
+        int i = colind[c];
+        while (flag[i] != r) {
+          overlap += (flag[i] == r + 1);
+          int L_idx = cursor[i]--;
+          L_colind[L_idx] = r;
+          LT_colind[lt_write] = i;
+          LT_map[lt_write] = L_idx;
+          lt_write++;
+          flag[i] = r;
+          int p = parent[i];
+          if (p == -1) {
+            parent[i] = r;
+            break;
+          }
+          i = p;
+        }
+      }
+      if (r < n - 1) {
+        L_super[r + 1] =
+            (parent[r + 1] == r && L_rownnz[r] == L_rownnz[r + 1] - 1 &&
+             LT_rownnz[r] == LT_rownnz[r + 1] + 1 &&
+             overlap == LT_rownnz[r + 1]);
+      }
+    }
+    L_super[0] = 0;
+    for (int r = n - 1; r >= 0; r--) {
+      int merge = L_super[r];
+      L_super[r] = 1 + merge + (merge && r > 0 && L_super[r - 1]);
+    }
+    return nnz;
+  };
+
+  // n = 0 edge case
+  EXPECT_EQ(mju_cholFactorSymbolic(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                   nullptr, nullptr, nullptr, nullptr, nullptr,
+                                   nullptr, 0, d.get()),
+            0);
+
+  std::mt19937 rng(42);
+  auto check_graph = [&](int n, const vector<vector<int>>& adj, bool upper_only,
+                         mjData* data_ptr) {
+    vector<int> rownnz(n), rowadr(n), colind;
+    for (int r = 0; r < n; r++) {
+      rowadr[r] = colind.size();
+      for (int c : adj[r]) {
+        if (!upper_only || c >= r) {
+          colind.push_back(c);
+        }
+      }
+      rownnz[r] = static_cast<int>(colind.size()) - rowadr[r];
+    }
+
+    vector<int> r_L_nnz, r_L_adr, r_L_col, r_LT_nnz, r_LT_adr, r_LT_col,
+        r_LT_map, r_L_sup;
+    int ref_nnz =
+        scalar_ref(n, rownnz, rowadr, colind, r_L_nnz, r_L_adr, r_L_col,
+                   r_LT_nnz, r_LT_adr, r_LT_col, r_LT_map, r_L_sup);
+
+    vector<int> L_nnz(n), L_adr(n), LT_nnz(n), LT_adr(n);
+    int nnz = mju_cholFactorSymbolic(nullptr, L_nnz.data(), L_adr.data(),
+                                     nullptr, LT_nnz.data(), LT_adr.data(),
+                                     nullptr, nullptr, rownnz.data(),
+                                     rowadr.data(), colind.data(), n, data_ptr);
+    ASSERT_EQ(nnz, ref_nnz);
+    EXPECT_EQ(L_nnz, r_L_nnz);
+    EXPECT_EQ(L_adr, r_L_adr);
+    EXPECT_EQ(LT_nnz, r_LT_nnz);
+    EXPECT_EQ(LT_adr, r_LT_adr);
+
+    vector<int> L_col(nnz), LT_col(nnz), LT_map(nnz), L_sup(n);
+    mju_cholFactorSymbolic(L_col.data(), L_nnz.data(), L_adr.data(),
+                           LT_col.data(), LT_nnz.data(), LT_adr.data(),
+                           LT_map.data(), L_sup.data(), rownnz.data(),
+                           rowadr.data(), colind.data(), n, data_ptr);
+    EXPECT_EQ(L_col, r_L_col);
+    EXPECT_EQ(LT_col, r_LT_col);
+    EXPECT_EQ(LT_map, r_LT_map);
+    EXPECT_EQ(L_sup, r_L_sup);
+  };
+
+  // n = 1
+  check_graph(1, {{0}}, /*upper_only=*/true, d.get());
+  check_graph(1, {{}}, /*upper_only=*/true, nullptr);
+
+  // mixed supernode blocks (1, 2, 3, 6) with partial lower-triangle coupling
+  for (int trial = 0; trial < 40; trial++) {
+    vector<int> bsizes;
+    int n = 0;
+    while (n < 36) {
+      int choices[] = {1, 2, 3, 6};
+      int bs = choices[rng() % 4];
+      bsizes.push_back(bs);
+      n += bs;
+    }
+    int nb = bsizes.size();
+    vector<int> badr(nb + 1, 0);
+    for (int b = 0; b < nb; b++) badr[b + 1] = badr[b] + bsizes[b];
+
+    vector<vector<bool>> mat(n, vector<bool>(n, false));
+    for (int b = 0; b < nb; b++) {
+      // block diagonal clique (occasionally omit diagonal to test empty rows)
+      if (trial % 7 != 0 || b != nb - 1) {
+        for (int i = badr[b]; i < badr[b + 1]; i++) {
+          for (int j = badr[b]; j < badr[b + 1]; j++) {
+            mat[i][j] = true;
+          }
+        }
+      }
+      // block-level couplings
+      for (int b2 = b + 1; b2 < nb; b2++) {
+        if (rng() % 4 == 0) {
+          for (int i = badr[b]; i < badr[b + 1]; i++) {
+            for (int j = badr[b2]; j < badr[b2 + 1]; j++) {
+              mat[i][j] = mat[j][i] = true;
+            }
+          }
+        }
+      }
+    }
+    // add sparse single-DOF partial couplings so rows sharing an upper pattern
+    // can differ in lower triangle (exercises partial target-block hits)
+    for (int k = 0; k < 6; k++) {
+      int u = rng() % n, v = rng() % n;
+      if (u != v) mat[u][v] = mat[v][u] = true;
+    }
+    vector<vector<int>> adj(n);
+    for (int r = 0; r < n; r++) {
+      for (int c = 0; c < n; c++) {
+        if (mat[r][c]) adj[r].push_back(c);
+      }
+    }
+    check_graph(n, adj, /*upper_only=*/(trial % 2 == 0),
+                (trial % 5 == 0) ? nullptr : d.get());
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
