@@ -17,7 +17,9 @@
 #include "src/engine/engine_core_util.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <limits>
 #include <map>
 #include <string>
@@ -532,6 +534,98 @@ TEST_F(FlexGatherStateTest, ShellTFIReproducesAffineMotion) {
             << "flex " << f << " vertex " << v;
       }
     }
+  }
+}
+
+TEST_F(FlexGatherStateTest, FlexInterpVertBitExactParity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="vol1" type="grid" count="3 3 3" spacing=".1 .1 .1"
+                dim="3" mass="1" radius="0.01" dof="trilinear" cellcount="2 2 2"/>
+      <flexcomp name="vol2" type="grid" count="4 4 4" spacing=".1 .1 .1" pos="1 0 0"
+                dim="3" mass="1" radius="0.01" dof="quadratic" cellcount="2 2 2"/>
+      <flexcomp name="sh1" type="grid" count="4 4 4" spacing=".1 .1 .1" pos="0 1 0"
+                dim="3" mass="1" radius="0.01" dof="trilinear" cellcount="3 3 3">
+        <elasticity young="1e4" poisson="0.2" elastic2d="both" thickness="0.01"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+      <flexcomp name="sh2" type="grid" count="4 4 4" spacing=".1 .1 .1" pos="1 1 0"
+                dim="3" mass="1" radius="0.01" dof="quadratic" cellcount="2 2 2">
+        <elasticity young="1e4" poisson="0.2" elastic2d="both" thickness="0.01"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  for (int f = 0; f < m->nflex; f++) {
+    int interp = m->flex_interp[f];
+    int order = interp < 0 ? -interp : interp;
+    const int nnode = m->flex_nodenum[f];
+    const int nvert = m->flex_vertnum[f];
+    std::vector<mjtNum> nodevec(3 * nnode);
+    for (int i = 0; i < 3 * nnode; i++) {
+      nodevec[i] = static_cast<mjtNum>(((i * 37) % 97) * 0.031 - 1.2);
+    }
+
+    std::vector<mjtNum> actual(3 * nvert);
+    mj_flexInterpVert(m.get(), f, nodevec.data(), actual.data());
+
+    std::vector<mjtNum> ref(3 * nvert);
+    const int adr = m->flex_celladr[f];
+    const mjtBool* cellempty = adr < 0 ? nullptr : m->flex_cellempty + adr;
+    const int vadr = m->flex_vertadr[f];
+    for (int v = 0; v < nvert; v++) {
+      int g = vadr + v;
+      int cell = m->flex_vertcell[g];
+      const mjtNum* coord = m->flex_vert0 + 3 * g;
+      if (cell < 0) {
+        cell = mju_flexActiveCell(coord, m->flex_cellnum + 3 * f, cellempty);
+      }
+      int idx[27];
+      mjtNum local[3], basis[27];
+      int npc = mju_cellLookup(coord, m->flex_cellnum + 3 * f, order, cell,
+                               local, idx);
+      mju_evalBasisArray(basis, local, order);
+      mjtNum* res = ref.data() + 3 * v;
+      mju_zero3(res);
+      for (int j = 0; j < npc; j++) {
+        mju_addToScl3(res, nodevec.data() + 3 * idx[j], basis[j]);
+      }
+    }
+    EXPECT_EQ(
+        std::memcmp(actual.data(), ref.data(), actual.size() * sizeof(mjtNum)),
+        0)
+        << "bit-exact mismatch on flex " << f;
+
+    // verify the transpose scatter is the adjoint of the gather:
+    // <vfrc, gather(u)> == <scatter(vfrc), u>, zeroing whole vertices so the
+    // skip path in the transpose kernel is exercised
+    std::vector<mjtNum> vfrc(3 * nvert);
+    for (int i = 0; i < 3 * nvert; i++) {
+      vfrc[i] = ((i / 3) % 7 == 0)
+                    ? mjtNum(0.0)
+                    : static_cast<mjtNum>(((i * 19) % 53) * 0.017 - 0.4);
+    }
+    std::vector<mjtNum> u(m->nv);
+    for (int i = 0; i < m->nv; i++) {
+      u[i] = static_cast<mjtNum>(((i * 23) % 61) * 0.013 - 0.35);
+    }
+    std::vector<mjtNum> gu(3 * nvert);
+    mj_flexGather(m.get(), d.get(), f, gu.data(), u.data());
+    std::vector<mjtNum> qout(m->nv, 0.0);
+    mj_flexScatter(m.get(), d.get(), f, qout.data(), vfrc.data(), mjtNum(1.0));
+    ASSERT_FALSE(mju_isZero(qout.data(), m->nv)) << "flex " << f;
+    mjtNum lhs = mju_dot(vfrc.data(), gu.data(), 3 * nvert);
+    mjtNum rhs = mju_dot(qout.data(), u.data(), m->nv);
+    EXPECT_NEAR(lhs, rhs, MjTol(1e-10, 1e-4) * (1 + std::abs(lhs)))
+        << "flex " << f;
   }
 }
 

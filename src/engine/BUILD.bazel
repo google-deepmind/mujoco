@@ -706,6 +706,7 @@ cc_library(
     ],
     deps = [
         ":engine_collision_primitive",
+        ":engine_crossplatform",
         ":engine_inline",
         ":engine_memory",
         ":engine_util_blas",

@@ -16,7 +16,9 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_MISC_H_
 
 #include <mujoco/mjexport.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjtype.h>
+#include "engine/engine_util_blas.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -145,6 +147,45 @@ static inline mjtNum mju_flexDphi(mjtNum s, int i, int order) {
     case 2: return 4*s - 1;
     default: return 0;
   }
+}
+
+// clip x to [min, max], preserving x if NaN
+static inline mjtNum mju_flexClip(mjtNum x, mjtNum min, mjtNum max) {
+  return x < min ? min : (x > max ? max : x);
+}
+
+// cell indices ijk and cell-local coordinates of parametric point coord in a flex lattice:
+//   the natural (clamped) cell of coord, or cell if cell >= 0 and differs from it, in which case
+//   local is extrapolated within [-0.02, 1.02]^3; shared by mju_cellLookup and inlined kernels
+static inline void mju_flexCellLocal(int ijk[3], mjtNum local[3], const mjtNum coord[3],
+                                     const int cellnum[3], int cell) {
+  int cx = cellnum[0], cy = cellnum[1], cz = cellnum[2];
+
+  // find containing cell
+  int ci = (int)mju_floor(coord[0] * cx);
+  int cj = (int)mju_floor(coord[1] * cy);
+  int ck = (int)mju_floor(coord[2] * cz);
+  ci = mjMIN(ci, cx - 1); ci = mjMAX(ci, 0);
+  cj = mjMIN(cj, cy - 1); cj = mjMAX(cj, 0);
+  ck = mjMIN(ck, cz - 1); ck = mjMAX(ck, 0);
+
+  // if precomputed cell differs from natural cell, redirect and extrapolate within [-0.02, 1.02]
+  if (cell >= 0 && cell != ci * cy * cz + cj * cz + ck) {
+    ck = cell % cz;
+    cj = (cell / cz) % cy;
+    ci = cell / (cy * cz);
+    const mjtNum kMaxExtrap = 0.02;  // must match kSliverMargin in user_flexcomp.cc
+    local[0] = mju_flexClip(coord[0] * cx - ci, -kMaxExtrap, 1 + kMaxExtrap);
+    local[1] = mju_flexClip(coord[1] * cy - cj, -kMaxExtrap, 1 + kMaxExtrap);
+    local[2] = mju_flexClip(coord[2] * cz - ck, -kMaxExtrap, 1 + kMaxExtrap);
+  } else {
+    local[0] = mju_flexClip(coord[0] * cx - ci, 0, 1);
+    local[1] = mju_flexClip(coord[1] * cy - cj, 0, 1);
+    local[2] = mju_flexClip(coord[2] * cz - ck, 0, 1);
+  }
+  ijk[0] = ci;
+  ijk[1] = cj;
+  ijk[2] = ck;
 }
 // ----------------------------- Base64 ------------------------------------------------------------
 

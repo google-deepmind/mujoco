@@ -649,30 +649,12 @@ void mju_evalBasisArray(mjtNum* basis, const mjtNum x[3], int order) {
 //   returns: number of nodes per cell (order+1)^3
 int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, int cell,
                    mjtNum local[3], int* nodeindices) {
-  int cx = cellnum[0], cy = cellnum[1], cz = cellnum[2];
+  int cy = cellnum[1], cz = cellnum[2];
 
-  // find containing cell
-  int ci = (int)mju_floor(coord[0] * cx);
-  int cj = (int)mju_floor(coord[1] * cy);
-  int ck = (int)mju_floor(coord[2] * cz);
-  ci = mjMIN(ci, cx - 1); ci = mjMAX(ci, 0);
-  cj = mjMIN(cj, cy - 1); cj = mjMAX(cj, 0);
-  ck = mjMIN(ck, cz - 1); ck = mjMAX(ck, 0);
-
-  // if precomputed cell differs from natural cell, redirect and extrapolate within [-0.02, 1.02]
-  if (cell >= 0 && cell != ci * cy * cz + cj * cz + ck) {
-    ck = cell % cz;
-    cj = (cell / cz) % cy;
-    ci = cell / (cy * cz);
-    const mjtNum kMaxExtrap = 0.02;  // must match kSliverMargin in user_flexcomp.cc
-    local[0] = mju_clip(coord[0] * cx - ci, -kMaxExtrap, 1 + kMaxExtrap);
-    local[1] = mju_clip(coord[1] * cy - cj, -kMaxExtrap, 1 + kMaxExtrap);
-    local[2] = mju_clip(coord[2] * cz - ck, -kMaxExtrap, 1 + kMaxExtrap);
-  } else {
-    local[0] = mju_clip(coord[0] * cx - ci, 0, 1);
-    local[1] = mju_clip(coord[1] * cy - cj, 0, 1);
-    local[2] = mju_clip(coord[2] * cz - ck, 0, 1);
-  }
+  // find containing cell and local coordinates
+  int ijk[3];
+  mju_flexCellLocal(ijk, local, coord, cellnum, cell);
+  int ci = ijk[0], cj = ijk[1], ck = ijk[2];
 
   // build node indices for this cell
   if (nodeindices) {

@@ -21,6 +21,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
@@ -769,6 +770,12 @@ static int flexTFINode(int nx, int ny, int nz, int i, int j, int k, int idx[26],
 }
 
 
+// cold error helper so flexPointBasis inlines without allocating mjERROR's stack buffer
+static mjNOINLINE void flexOrderError(int order, int f) {
+  mjERROR("unsupported interpolation order %d of flex %d", order, f);
+}
+
+
 // Lagrange basis of a point at [0,1]^3 reference coordinates coord of interpolated flex f in its
 // active cell (or precomputed cell >= 0, e.g. flex_vertcell), return number of nodes
 static int flexPointBasis(const mjModel* m, int f, const mjtNum coord[3], int cell,
@@ -776,7 +783,7 @@ static int flexPointBasis(const mjModel* m, int f, const mjtNum coord[3], int ce
   int interp = m->flex_interp[f];
   int order = interp < 0 ? -interp : interp;
   if (order < 1 || order > 2) {
-    mjERROR("unsupported interpolation order %d of flex %d", order, f);
+    flexOrderError(order, f);
   }
   if (cell < 0) {
     int adr = m->flex_celladr[f];
@@ -805,9 +812,98 @@ static void flexInterpNodes(const mjModel* m, int f, mjtNum* nodevec) {
         // interior nodes only depend on boundary nodes, so the update can be done in place
         int n = flexTFINode(nx, ny, nz, i, j, k, idx, w);
         mjtNum* res = nodevec + 3*(i*ny*nz + j*nz + k);
-        mju_zero3(res);
+        mjtNum r[3] = {0, 0, 0};
         for (int q=0; q < n; q++) {
-          mju_addToScl3(res, nodevec + 3*idx[q], w[q]);
+          mji_addToScl3(r, nodevec + 3*idx[q], w[q]);
+        }
+        mji_copy3(res, r);
+      }
+    }
+  }
+}
+
+
+// compute base lattice node index and 1D basis values p[axis][0..order] for a point in grid
+// (cell resolution shared with mju_cellLookup via mju_flexCellLocal)
+static inline int flexPointBase1D(const mjModel* m, int f, const mjtNum coord[3],
+                                  const int cellnum[3], int cell, int order,
+                                  int nyz_g, int nz_g, mjtNum p[3][3]) {
+  if (cell < 0) {
+    int adr = m->flex_celladr[f];
+    const mjtBool* cellempty = adr < 0 ? NULL : m->flex_cellempty + adr;
+    cell = mju_flexActiveCell(coord, cellnum, cellempty);
+  }
+  int ijk[3];
+  mjtNum local[3];
+  mju_flexCellLocal(ijk, local, coord, cellnum, cell);
+  int ci = ijk[0], cj = ijk[1], ck = ijk[2];
+
+  for (int d=0; d < 3; d++) {
+    for (int i=0; i <= order; i++) {
+      p[d][i] = mju_flexPhi(local[d], i, order);
+    }
+  }
+  return (ci*order)*nyz_g + (cj*order)*nz_g + ck*order;
+}
+
+
+// evaluate interpolated vertex vectors for compile-time order 1 or 2
+static inline void flexInterpVertOrder(const mjModel* m, int f, int order,
+                                       const mjtNum* restrict nvec, mjtNum* restrict vvec) {
+  const int* cellnum = m->flex_cellnum + 3*f;
+  int nz_g = cellnum[2]*order + 1;
+  int nyz_g = (cellnum[1]*order + 1) * nz_g;
+  int vadr = m->flex_vertadr[f];
+  int nvert = m->flex_vertnum[f];
+
+  for (int v=0; v < nvert; v++) {
+    int g = vadr + v;
+    mjtNum p[3][3];
+    int base = flexPointBase1D(m, f, m->flex_vert0 + 3*g, cellnum, m->flex_vertcell[g],
+                               order, nyz_g, nz_g, p);
+    mjtNum r[3] = {0, 0, 0};
+    for (int li=0; li <= order; li++) {
+      mjtNum w0 = p[0][li];
+      const mjtNum* row_i = nvec + 3*(base + li*nyz_g);
+      for (int lj=0; lj <= order; lj++) {
+        mjtNum w01 = w0 * p[1][lj];
+        const mjtNum* row = row_i + 3*(lj*nz_g);
+        for (int lk=0; lk <= order; lk++) {
+          mji_addToScl3(r, row + 3*lk, w01 * p[2][lk]);
+        }
+      }
+    }
+    mji_copy3(vvec + 3*v, r);
+  }
+}
+
+
+// transpose-accumulate vertex vectors onto lattice nodes for compile-time order 1 or 2
+static inline void flexInterpVertTOrder(const mjModel* m, int f, int order,
+                                        const mjtNum* restrict vvec, mjtNum* restrict nvec) {
+  const int* cellnum = m->flex_cellnum + 3*f;
+  int nz_g = cellnum[2]*order + 1;
+  int nyz_g = (cellnum[1]*order + 1) * nz_g;
+  int vadr = m->flex_vertadr[f];
+  int nvert = m->flex_vertnum[f];
+
+  for (int v=0; v < nvert; v++) {
+    const mjtNum* x = vvec + 3*v;
+    if (!x[0] && !x[1] && !x[2]) {
+      continue;
+    }
+    int g = vadr + v;
+    mjtNum p[3][3];
+    int base = flexPointBase1D(m, f, m->flex_vert0 + 3*g, cellnum, m->flex_vertcell[g],
+                               order, nyz_g, nz_g, p);
+    for (int li=0; li <= order; li++) {
+      mjtNum w0 = p[0][li];
+      mjtNum* row_i = nvec + 3*(base + li*nyz_g);
+      for (int lj=0; lj <= order; lj++) {
+        mjtNum w01 = w0 * p[1][lj];
+        mjtNum* row = row_i + 3*(lj*nz_g);
+        for (int lk=0; lk <= order; lk++) {
+          mji_addToScl3(row + 3*lk, x, w01 * p[2][lk]);
         }
       }
     }
@@ -817,17 +913,14 @@ static void flexInterpNodes(const mjModel* m, int f, mjtNum* nodevec) {
 
 // vertex vectors of interpolated flex f from a completed lattice node vector
 void mj_flexInterpVert(const mjModel* m, int f, const mjtNum* nodevec, mjtNum* vertvec) {
-  int vadr = m->flex_vertadr[f];
-  for (int v=0; v < m->flex_vertnum[f]; v++) {
-    int g = vadr + v;
-    int idx[27];
-    mjtNum basis[27];
-    int npc = flexPointBasis(m, f, m->flex_vert0 + 3*g, m->flex_vertcell[g], idx, basis);
-    mjtNum* res = vertvec + 3*v;
-    mju_zero3(res);
-    for (int j=0; j < npc; j++) {
-      mju_addToScl3(res, nodevec + 3*idx[j], basis[j]);
-    }
+  int interp = m->flex_interp[f];
+  int order = interp < 0 ? -interp : interp;
+  if (order == 1) {
+    flexInterpVertOrder(m, f, 1, nodevec, vertvec);
+  } else if (order == 2) {
+    flexInterpVertOrder(m, f, 2, nodevec, vertvec);
+  } else {
+    flexOrderError(order, f);
   }
 }
 
@@ -835,21 +928,16 @@ void mj_flexInterpVert(const mjModel* m, int f, const mjtNum* nodevec, mjtNum* v
 // transpose of flexInterpNodes followed by mj_flexInterpVert: accumulate vertex vectors onto the
 // lattice nodes, then fold interior nodes of shell-mode flexes onto the boundary
 static void flexInterpVertT(const mjModel* m, int f, const mjtNum* vertvec, mjtNum* nodevec) {
-  int vadr = m->flex_vertadr[f];
-  for (int v=0; v < m->flex_vertnum[f]; v++) {
-    const mjtNum* x = vertvec + 3*v;
-    if (!x[0] && !x[1] && !x[2]) {
-      continue;
-    }
-    int g = vadr + v;
-    int idx[27];
-    mjtNum basis[27];
-    int npc = flexPointBasis(m, f, m->flex_vert0 + 3*g, m->flex_vertcell[g], idx, basis);
-    for (int j=0; j < npc; j++) {
-      mju_addToScl3(nodevec + 3*idx[j], x, basis[j]);
-    }
+  int interp = m->flex_interp[f];
+  int order = interp < 0 ? -interp : interp;
+  if (order == 1) {
+    flexInterpVertTOrder(m, f, 1, vertvec, nodevec);
+  } else if (order == 2) {
+    flexInterpVertTOrder(m, f, 2, vertvec, nodevec);
+  } else {
+    flexOrderError(order, f);
   }
-  if (m->flex_interp[f] >= 0) {
+  if (interp >= 0) {
     return;
   }
   int dims[3], idx[26];
