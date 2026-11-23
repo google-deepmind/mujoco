@@ -245,6 +245,9 @@ class Renderer:
           frustum_top=camera.frustum_top,
           frustum_near=camera.frustum_near,
           frustum_far=camera.frustum_far,
+          frustum_center=camera.frustum_center,
+          frustum_width=camera.frustum_width,
+          orthographic=camera.orthographic,
       )
     return camera
 
