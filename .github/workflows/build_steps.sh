@@ -255,6 +255,7 @@ configure_mujoco() {
 
     cd build &&
     cmake .. \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         ${ipo_off} \
         -DCMAKE_INSTALL_PREFIX:STRING=${TMPDIR}/mujoco_install \
@@ -331,6 +332,7 @@ configure_samples() {
 
     cd build &&
     cmake .. \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -Dmujoco_ROOT:STRING=${TMPDIR}/mujoco_install \
         ${CCACHE_ARGS} \
@@ -355,6 +357,7 @@ configure_simulate() {
 
     cd build &&
     cmake .. \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -Dmujoco_ROOT:STRING=${TMPDIR}/mujoco_install \
         ${CCACHE_ARGS} \
@@ -373,6 +376,7 @@ build_simulate() {
 configure_studio() {
     echo "Configuring Studio..."
     cmake -B build \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DUSE_STATIC_LIBCXX=OFF \
@@ -465,7 +469,7 @@ build_python_bindings() {
     fi
     MUJOCO_PATH="${TMPDIR}/mujoco_install" \
     MUJOCO_PLUGIN_PATH="${TMPDIR}/mujoco_install/mujoco_plugin" \
-    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF -DFETCHCONTENT_BASE_DIR=${py_deps_dir}/_deps ${CCACHE_ARGS} ${CMAKE_ARGS} ${ext_deps_args[*]}" \
+    MUJOCO_CMAKE_ARGS="--no-warn-unused-cli -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF -DFETCHCONTENT_BASE_DIR=${py_deps_dir}/_deps ${CCACHE_ARGS} ${CMAKE_ARGS} ${ext_deps_args[*]}" \
     pip wheel -v --no-deps --no-build-isolation "${sdists[@]}"
     _populate_ext_deps_cache "${py_deps_dir}"
     rm -rf "${py_deps_dir}"
@@ -541,6 +545,7 @@ _build_wasm_threads() {  # $1 = ON | OFF
     _setup_ext_deps_args "${dir}"
     echo "Build MuJoCo with Emscripten (MUJOCO_WASM_THREADS=${mode})..."
     emcmake cmake -B "${dir}" \
+        --no-warn-unused-cli \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DMUJOCO_WASM_THREADS=${mode} \
         ${CCACHE_ARGS} \
@@ -637,6 +642,7 @@ build_mujoco_live() {
     local ext_deps_args=()
     _setup_ext_deps_args build_host
     cmake -S . -B build_host -G Ninja \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE=Release \
         -DUSE_STATIC_LIBCXX=OFF \
         -DMUJOCO_BUILD_STUDIO=ON \
@@ -652,6 +658,7 @@ build_mujoco_live() {
     echo "Building desktop WASM app..."
     _setup_ext_deps_args build_wasm
     emcmake cmake -S . -B build_wasm -G Ninja \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE=Release \
         -DMUJOCO_BUILD_STUDIO=ON \
         -DMUJOCO_USE_FILAMENT=ON \
@@ -665,6 +672,7 @@ build_mujoco_live() {
     echo "Building iOS WASM app..."
     _setup_ext_deps_args build_wasm_ios
     emcmake cmake -S . -B build_wasm_ios -G Ninja \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE=Release \
         -DMUJOCO_BUILD_STUDIO=ON \
         -DMUJOCO_USE_FILAMENT=ON \
@@ -743,7 +751,7 @@ _build_python_wheel() {
     _setup_ext_deps_args
     MUJOCO_PATH="${prefix}" \
     MUJOCO_PLUGIN_PATH="${prefix}/mujoco_plugin" \
-    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF -DFETCHCONTENT_BASE_DIR=${py_deps_dir}/_deps ${CCACHE_ARGS} ${CMAKE_ARGS} ${ext_deps_args[*]}" \
+    MUJOCO_CMAKE_ARGS="--no-warn-unused-cli -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF -DFETCHCONTENT_BASE_DIR=${py_deps_dir}/_deps ${CCACHE_ARGS} ${CMAKE_ARGS} ${ext_deps_args[*]}" \
     pip wheel -v --no-deps -w python/dist "${sdists[@]}"
     _populate_ext_deps_cache "${py_deps_dir}"
     rm -rf "${py_deps_dir}"
@@ -810,6 +818,7 @@ _configure_studio_host() {
     local ext_deps_args=()
     _setup_ext_deps_args build_host
     cmake -S . -B build_host -G Ninja \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DUSE_STATIC_LIBCXX=OFF \
@@ -991,6 +1000,7 @@ build_studio_wasm() {
         local ext_deps_args=()
         _setup_ext_deps_args build_wasm "${host_dir}/_deps"
         emcmake cmake -S . -B build_wasm -G Ninja \
+            --no-warn-unused-cli \
             -DCMAKE_BUILD_TYPE:STRING=Release \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
             -DMUJOCO_BUILD_STUDIO=ON \
@@ -1019,6 +1029,7 @@ build_engine() {
     local ext_deps_args=()
     _setup_ext_deps_args build
     cmake -S . -B build -G Ninja \
+        --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         ${ipo_off} \
         -DCMAKE_INSTALL_PREFIX:PATH="${prefix}" \
@@ -1052,6 +1063,7 @@ build_simulate_app() {
         echo "Configuring the engine + simulate build..."
         local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
         cmake -S . -B build_simulate -G Ninja \
+            --no-warn-unused-cli \
             -DCMAKE_BUILD_TYPE:STRING=Release \
             ${ipo_off} \
             -DMUJOCO_BUILD_SIMULATE=ON \

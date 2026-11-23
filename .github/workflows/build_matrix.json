@@ -68,7 +68,7 @@
     {
       "os": "macos-15",
       "label": "macos-15-arm64",
-      "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF -DCMAKE_CXX_FLAGS=\"-Wno-error=deprecated-declarations\"",
+      "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF -DCMAKE_CXX_FLAGS=-Wno-error=deprecated-declarations",
       "tmpdir": "/tmp",
       "ccache": true,
       "tier": "core"
@@ -76,7 +76,7 @@
     {
       "os": "windows-2025",
       "label": "windows-2025-msvc",
-      "cmake_args": "-DCMAKE_SYSTEM_VERSION=\"10.0.26100.0\"",
+      "cmake_args": "-DCMAKE_SYSTEM_VERSION=10.0.26100.0",
       "cmake_build_args": "-- -m",
       "tmpdir": "C:/Temp",
       "ccache": false,
@@ -85,7 +85,7 @@
     {
       "os": "windows-2025",
       "label": "windows-2025-clang",
-      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-cl -DCMAKE_CXX_COMPILER:STRING=clang-cl -DCMAKE_SYSTEM_VERSION=\"10.0.26100.0\" -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-cl -DCMAKE_CXX_COMPILER:STRING=clang-cl -DCMAKE_SYSTEM_VERSION=10.0.26100.0 -DCMAKE_CXX_FLAGS=-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF",
       "tmpdir": "C:/Temp",
       "ccache": true,
       "tier": "core"
