@@ -923,9 +923,9 @@ class SlideshowSim(plugin.SimPlugin):
         )
     )
 
-  # Run after ViewerHandle._on_reset (Priority.INTERNAL = 1) so slide-specific
-  # initial joint states (e.g. the swinging fridge door) reapply.
-  @messages.handler(priority=0)
+  # ViewerHandle resets the data before this runs, so slide-specific initial
+  # joint states (e.g. the swinging fridge door) reapply on top.
+  @messages.handler
   def _on_reset(self, _: messages.ResetEvent) -> None:
     self._slide_loaded_wall_time = time.monotonic()
     if self._is_custom_model or not self._slides:

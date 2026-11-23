@@ -397,6 +397,12 @@ class RequestPauseEvent(Event):
 class ResetEvent(Event):
   """An event requesting to reset the simulation.
 
+  The ``ViewerHandle`` resets ``MjData`` (to ``key``, or to the default state)
+  at ``Priority.CRITICAL``, before plugin handlers run. A plugin's handler
+  therefore sees the data already reset and can set its own initial state
+  (e.g. a custom ``qpos`` or ``ctrl``) on top. A handler cannot read the
+  pre-reset state, and consuming the event does not prevent the reset.
+
   Attributes:
     key: Optional keyframe index to load. If None or negative, resets to the
       default initial state.

@@ -89,6 +89,10 @@ class StepControl(plugin.SimPlugin):
       self._measured_reported = -1.0
 
   @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_reset(self, _: messages.ResetEvent) -> None:
+    self.step_control.force_sync()
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_step_control(self, event: messages.StepControlSnapshot) -> bool:
     self.step_control.set_pause_state(event.pause_state)
     self.step_control.set_speed(event.speed)

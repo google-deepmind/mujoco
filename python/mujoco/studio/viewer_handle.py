@@ -473,9 +473,13 @@ class ViewerHandle:
     self._set_state(snapshot.state, snapshot.state_sig, forward=False)
     return True
 
-  @messages.handler(priority=messages.Priority.INTERNAL)
+  @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_reset(self, event: messages.ResetEvent) -> None:
-    """Resets sim data without consuming the event so plugins observe it."""
+    """Resets sim data before plugin handlers run, without consuming the event.
+
+    Runs at ``Priority.CRITICAL`` so that plugin ``ResetEvent`` handlers see the
+    reset data and any state they set is not overwritten.
+    """
     if self.model is not None:
       assert self.data is not None
       if event.key is not None:
