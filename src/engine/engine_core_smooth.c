@@ -1270,9 +1270,10 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int ten_J_rownnz = m->ten_J_rownnz[id];
         int ten_J_rowadr = m->ten_J_rowadr[id];
         rownnz[out] = ten_J_rownnz;
-        mju_copyInt(colind + adr, m->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
-
-        mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
+        if (ten_J_rownnz) {
+          mju_copyInt(colind + adr, m->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
+          mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
+        }
       }
       break;
 
@@ -1838,7 +1839,7 @@ int mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
     }
 
     // update row k:  L(k, :) /= L(k, k)
-    mju_scl(mat + start, mat + start, invD, diag);
+    if (diag) mju_scl(mat + start, mat + start, invD, diag);
   }
 
   return clamped;
