@@ -21,6 +21,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtype.h>
+#include "engine/engine_inline.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -549,7 +550,7 @@ static void mapPose(const mjtNum xpos1[3], const mjtNum xquat1[4],
   mjtNum negpos[3], negquat[4], quat12[4];
   mju_negPose(negpos, negquat, xpos2, xquat2);
   mju_mulPose(pos12, quat12, negpos, negquat, xpos1, xquat1);
-  mju_quat2Mat(mat12, quat12);
+  mji_quat2Mat(mat12, quat12);
 }
 
 

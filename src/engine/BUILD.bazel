@@ -437,6 +437,7 @@ cc_library(
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_inline",
         ":engine_memory",
         ":engine_plugin",
         ":engine_util_blas",
@@ -1312,6 +1313,7 @@ cc_library(
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_crossplatform",
         ":engine_inline",
         ":engine_util_blas",
         ":engine_util_errmem",

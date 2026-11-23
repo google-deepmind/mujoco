@@ -35,8 +35,13 @@
 
 Private, high efficiency inlined functions for internal engine use.
 Inlining on its own does nothing due to LTO, so criteria for mji_ functions are:
-- More efficient assembly output due to `restrict`.
-- Skipped copies due to non-alias guarantee (e.g., compare mju_cross and mji_cross).
+- More efficient assembly output due to `restrict` (e.g., mji_mulMatMat3 vectorizing with
+  4-wide AVX instead of scalar reloads on aliasing-guarded mju_mulMatMat3).
+- Skipped copies or alias-check branches due to non-alias guarantee (e.g., compare mju_cross
+  and mji_cross, or mju_quat2Mat and mji_quat2Mat), including callers where the larger mju_
+  wrapper fails to inline even under ThinLTO.
+- Small functions without aliasing gains (e.g., mju_dot3) already inline under LTO and do not
+  need mji_ equivalents.
 
 mji_ functions:
 - Should be modified as little as possible from their mju_ counterparts.

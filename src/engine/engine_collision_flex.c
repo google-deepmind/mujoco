@@ -637,7 +637,7 @@ static void makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 
   mjtNum quat[4];
   mju_quatZ2Vec(quat, dif);
-  mju_quat2Mat(mat, quat);
+  mji_quat2Mat(mat, quat);
 }
 
 

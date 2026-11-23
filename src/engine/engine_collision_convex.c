@@ -890,15 +890,15 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
   mjtNum mat[9], vec[3], rel[3];
 
   // rotate frame: xmat = rot*xmat
-  mju_mulMatMat3(mat, rot, xmat);
-  mju_copy(xmat, mat, 9);
+  mji_mulMatMat3(mat, rot, xmat);
+  mji_copy9(xmat, mat);
 
   // vector to rotation origin: rel = origin - xpos
   mji_sub3(rel, origin, xpos);
 
   // displacement of origin due to rotation: vec = rot*rel - rel
-  mju_mulMatVec3(vec, rot, rel);
-  mju_subFrom3(vec, rel);
+  mji_mulMatVec3(vec, rot, rel);
+  mji_subFrom3(vec, rel);
 
   // correct xpos by subtracting displacement: xpos = xpos - vec
   mji_subFrom3(xpos, vec);
@@ -1000,14 +1000,14 @@ int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
         // make rotation matrix rot
         mjtNum quat[4], rot[9];
         mji_axisAngle2Quat(quat, axis, angle);
-        mju_quat2Mat(rot, quat);
+        mji_quat2Mat(rot, quat);
 
         // rotate g1 around initial contact point
         mju_rotateFrame(con[0].pos, rot, obj1.mat, obj1.pos);
 
         // inversely rotate g2 around initial contact point
         mjtNum invrot[9];
-        mju_transpose(invrot, rot, 3, 3);
+        mji_transpose3(invrot, rot);
         mju_rotateFrame(con[0].pos, invrot, obj2.mat, obj2.pos);
 
         // search for new contact

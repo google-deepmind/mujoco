@@ -2784,7 +2784,7 @@ static int rodChain(const mjModel* m, const mjData* d, mjData* d_stack, int f, m
   mjtNum* xpos0 = ptr; ptr += 3*nvert_ref;
   mjtNum p0_b0[3], q0_b0[4], R0_0[9];
   rodBodyPose0(m, b0, p0_b0, q0_b0);
-  mju_quat2Mat(R0_0, q0_b0);
+  mji_quat2Mat(R0_0, q0_b0);
   for (int k = 0; k < nvert_ref; k++) {
     mjtNum qk[4];
     rodVertPos0(m, va + v_chain[k], xpos0 + 3*k, qk);
@@ -3236,7 +3236,7 @@ static int rodRootDirector(const mjModel* m, const mjData* d, int f, int use_cur
   int b0 = m->flex_vertbodyid[va + (int)b[1 + 0]];
   mjtNum p0_b0[3], q0_b0[4], R0_0[9];
   rodBodyPose0(m, b0, p0_b0, q0_b0);
-  mju_quat2Mat(R0_0, q0_b0);
+  mji_quat2Mat(R0_0, q0_b0);
 
   mjtNum x0[3], x1[3], qk[4];
   rodVertPos0(m, va + (int)b[1 + 0], x0, qk);

@@ -16,6 +16,8 @@
 
 #include <math.h>
 
+#include "engine/engine_crossplatform.h"
+#include <mujoco/mjtype.h>
 #include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -722,18 +724,24 @@ void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
 }
 
 
+// outline error buffer so mju_makeFrame stays small enough to inline under LTO
+static mjNOINLINE void makeFrameError(void) {
+  mjERROR("xaxis of contact frame undefined");
+}
+
+
 // make 3D frame given x-axis (normal) and possibly y-axis (tangent 1)
 void mju_makeFrame(mjtNum frame[9]) {
   mjtNum tmp[3];
 
   // normalize xaxis
   if (mju_normalize3(frame) < 0.5) {
-    mjERROR("xaxis of contact frame undefined");
+    makeFrameError();
   }
 
   // if yaxis undefined, set yaxis to (0,1,0) if possible, otherwise (0,0,1)
   if (mju_dot3(frame+3, frame+3) < 0.25) {
-    mju_zero3(frame+3);
+    mji_zero3(frame+3);
 
     if (frame[1] < 0.5 && frame[1] > -0.5) {
       frame[4] = 1;
