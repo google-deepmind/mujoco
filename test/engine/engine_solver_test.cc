@@ -241,21 +241,19 @@ TEST_F(SolverTest, SolversEquivalent) {
     SolverTolerances tolerances;
   } kConfigs[] = {
       {.path = kModelPath,
-       .tolerances =
-           {
-               .newton = MjTol(1e-13, 1e-5),
-               .cg = MjTol(1e-13, 1e-5),
-               .pgs_pyramidal = MjTol(1e-13, 1e-5),
-               .pgs_elliptic = MjTol(1e-3, 1e-3),
-           }},
+       .tolerances = {
+           .newton = MjTol(1e-13, 1e-5),
+           .cg = MjTol(1e-13, 1e-5),
+           .pgs_pyramidal = MjTol(1e-13, 1e-5),
+           .pgs_elliptic = MjTol(1e-3, 1e-3),
+       }},
       {.path = kHumanoidPath,
-       .tolerances =
-           {
-               .newton = MjTol(1e-13, 1e-5),
-               .cg = MjTol(1e-12, 1e-5),
-               .pgs_pyramidal = MjTol(1e-12, 1e-5),
-               .pgs_elliptic = MjTol(1e-8, 1e-4),
-           }},
+       .tolerances = {
+           .newton = MjTol(1e-13, 1e-5),
+           .cg = MjTol(1e-12, 1e-5),
+           .pgs_pyramidal = MjTol(1e-12, 1e-5),
+           .pgs_elliptic = MjTol(1e-8, 1e-4),
+       }},
   };
 
   for (const auto& config : kConfigs) {
@@ -1538,6 +1536,86 @@ TEST_F(SolverTest, FlexNewtonIncrementalRefactorAndConeFold) {
     EXPECT_TRUE(saw_incremental_update) << "cone " << cone;
     EXPECT_TRUE(saw_batch_change) << "cone " << cone;
     EXPECT_TRUE(saw_full_recompute) << "cone " << cone;
+  }
+}
+
+// Closed-form rank-(dim-1) elliptic cone factor avoids unpivoted Cholesky
+// cancellation on near-axis-aligned tangent slip across condim=3, 4, and 6,
+// performs (dim-1) rank-1 updates per cone contact, and matches converged CG.
+TEST_F(SolverTest, EllipticConeClosedFormFactorAccuracy) {
+  static constexpr char xml_tmpl[] = R"(
+  <mujoco>
+    <option cone="elliptic" iterations="200"/>
+    <worldbody>
+      <geom type="plane" size="2 2 0.01" condim="%d"
+        friction="0.8 0.01 0.001"/>
+      <body pos="0 0 0.099">
+        <freejoint/>
+        <geom size="0.1" mass="1.0" condim="%d"
+          friction="0.8 0.01 0.001"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  const mjtNum slips[][3] = {
+      {2.0, 1e-5, 0.0},
+      {-2.0, 1e-5, 0.0},
+      {1.5, -0.9, 0.8},
+  };
+
+  for (int condim : {3, 4, 6}) {
+    char xml[1024], error[1024];
+    snprintf(xml, sizeof(xml), xml_tmpl, condim, condim);
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    model->opt.tolerance = 0;
+
+    for (const mjtNum* slip : slips) {
+      model->opt.solver = mjSOL_CG;
+      model->opt.jacobian = mjJAC_DENSE;
+      model->opt.iterations = 200;
+      MjDataPtr data_cg = MakeData(model);
+      data_cg->qvel[0] = slip[0];
+      data_cg->qvel[1] = slip[1];
+      data_cg->qvel[5] = slip[2];
+      mj_forward(model.get(), data_cg.get());
+      ASSERT_EQ(data_cg->nefc, condim);
+      ASSERT_EQ(data_cg->efc_state[0], mjCNSTRSTATE_CONE);
+
+      for (mjtJacobian jac : {mjJAC_DENSE, mjJAC_SPARSE}) {
+        model->opt.solver = mjSOL_NEWTON;
+        model->opt.jacobian = jac;
+        model->opt.iterations = 20;
+        MjDataPtr data_nt = MakeData(model);
+        data_nt->qvel[0] = slip[0];
+        data_nt->qvel[1] = slip[1];
+        data_nt->qvel[5] = slip[2];
+        mj_forward(model.get(), data_nt.get());
+
+        EXPECT_EQ(data_nt->warning[mjWARN_BADQACC].number, 0)
+            << "condim " << condim << " jac " << jac;
+        for (int it = 0; it < data_nt->solver_niter[0]; it++) {
+          if (data_nt->solver[it].nchange == 0 &&
+              data_nt->solver[it].nupdate > 0) {
+            EXPECT_EQ(data_nt->solver[it].nupdate, condim - 1)
+                << "condim " << condim << " jac " << jac << " iter " << it;
+          }
+        }
+        for (int i = 0; i < model->nv; i++) {
+          mjtNum scale = max(mjtNum{1}, mju_abs(data_cg->qacc[i]));
+          EXPECT_NEAR(data_nt->qacc[i] / scale, data_cg->qacc[i] / scale,
+                      MjTol(2e-13, 2e-4))
+              << "condim " << condim << " jac " << jac << " dof " << i;
+        }
+        for (int i = 0; i < condim; i++) {
+          mjtNum scale = max(mjtNum{1}, mju_abs(data_cg->efc_force[i]));
+          EXPECT_NEAR(data_nt->efc_force[i] / scale,
+                      data_cg->efc_force[i] / scale, MjTol(2e-13, 2e-4))
+              << "condim " << condim << " jac " << jac << " efc " << i;
+        }
+      }
+    }
   }
 }
 

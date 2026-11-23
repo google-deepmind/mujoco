@@ -12,6 +12,13 @@ General
   yields with a given compliance, so problems with soft constraints remain feasible. The solver can be warmstarted
   from a previous active set. The Hessian can be singular or zero (a linear program).
 
+Engine
+^^^^^^
+- Optimized :ref:`elliptic friction cone<soCones>` Hessians in the :ref:`Newton solver<soAlgorithms>` using closed-form
+  rank-``(dim - 1)`` factors (~5–30% faster elliptic Newton solves). Thanks to :github:user:`adenzler-nvidia`
+  for proposing the optimization in :doc:`MJWarp <mjwarp/index>` pull request
+  `1879 <https://github.com/google-deepmind/mujoco_warp/pull/1879>`__.
+
 Deformables
 ^^^^^^^^^^^
 - Fixed effective-metric PCG stalls and spurious ``mjWARN_INERTIA`` warnings on 2D flexes with passive contacts by
