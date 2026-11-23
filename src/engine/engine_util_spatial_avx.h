@@ -76,14 +76,6 @@ void mju_mulQuatAxis_avx(mjtNum res[4], const mjtNum quat[4], const mjtNum axis[
 // convert quaternion to 3D rotation matrix
 static inline
 void mju_quat2Mat_avx(mjtNum res[9], const mjtNum quat[4]) {
-  // null quat: identity
-  if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
-    _mm256_storeu_pd(res + 0, _mm256_setr_pd(1.0, 0.0, 0.0, 0.0));
-    _mm256_storeu_pd(res + 4, _mm256_setr_pd(1.0, 0.0, 0.0, 0.0));
-    res[8] = 1.0;
-    return;
-  }
-
   __m256d vq = _mm256_loadu_pd(quat);
   __m256d vq0 = _mm256_set1_pd(quat[0]);
   __m256d vq1 = _mm256_set1_pd(quat[1]);

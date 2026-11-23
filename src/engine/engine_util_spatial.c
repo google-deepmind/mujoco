@@ -33,24 +33,22 @@ void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]) {
     mju_zero3(res);
   }
 
-  // null quat: copy vec
-  else if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
-    mji_copy3(res, vec);
-  }
-
   // regular processing
   else {
+    mjtNum v0 = vec[0], v1 = vec[1], v2 = vec[2];
+    mjtNum q0 = quat[0], q1 = quat[1], q2 = quat[2], q3 = quat[3];
+
     // tmp = q_w * v + cross(q_xyz, v)
     mjtNum tmp[3] = {
-      quat[0]*vec[0] + quat[2]*vec[2] - quat[3]*vec[1],
-      quat[0]*vec[1] + quat[3]*vec[0] - quat[1]*vec[2],
-      quat[0]*vec[2] + quat[1]*vec[1] - quat[2]*vec[0]
+      q0*v0 + q2*v2 - q3*v1,
+      q0*v1 + q3*v0 - q1*v2,
+      q0*v2 + q1*v1 - q2*v0
     };
 
     // res = v + 2 * cross(q_xyz, t)
-    res[0] = vec[0] + 2 * (quat[2]*tmp[2] - quat[3]*tmp[1]);
-    res[1] = vec[1] + 2 * (quat[3]*tmp[0] - quat[1]*tmp[2]);
-    res[2] = vec[2] + 2 * (quat[1]*tmp[1] - quat[2]*tmp[0]);
+    res[0] = v0 + 2 * (q2*tmp[2] - q3*tmp[1]);
+    res[1] = v1 + 2 * (q3*tmp[0] - q1*tmp[2]);
+    res[2] = v2 + 2 * (q1*tmp[1] - q2*tmp[0]);
   }
 }
 
