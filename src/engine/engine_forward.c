@@ -1089,9 +1089,11 @@ static void warmstart(const mjModel* m, mjData* d) {
     mj_mulJacVec(m, d, jar, d->qacc_warmstart);
     mju_subFrom(jar, d->efc_aref, nefc);
 
-    // update constraints, save cost(qacc_warmstart)
+    // update constraints and cost(qacc_warmstart); qfrc_constraint is set by solver/dualFinish
     mjtNum cost_warmstart;
-    mj_constraintUpdate(m, d, jar, &cost_warmstart, 0);
+    mj_constraintUpdate_impl(d->ne, d->nf, nefc, d->efc_D, d->efc_R, d->efc_frictionloss,
+                             jar, d->efc_type, d->efc_id, d->contact, d->efc_state,
+                             d->efc_force, &cost_warmstart, 0);
 
     // PGS
     if (m->opt.solver == mjSOL_PGS) {
@@ -1110,7 +1112,6 @@ static void warmstart(const mjModel* m, mjData* d) {
       // use zero if better
       if (PGS_warmstart > 0) {
         mju_zero(d->efc_force, nefc);
-        mju_zero(d->qfrc_constraint, nv);
       }
     }
 
@@ -1128,7 +1129,9 @@ static void warmstart(const mjModel* m, mjData* d) {
 
       // cost(qacc_smooth)
       mjtNum cost_smooth;
-      mj_constraintUpdate(m, d, d->efc_b, &cost_smooth, 0);
+      mj_constraintUpdate_impl(d->ne, d->nf, nefc, d->efc_D, d->efc_R, d->efc_frictionloss,
+                               d->efc_b, d->efc_type, d->efc_id, d->contact, d->efc_state,
+                               d->efc_force, &cost_smooth, 0);
 
       // use qacc_smooth if better
       if (cost_warmstart > cost_smooth) {
@@ -1250,10 +1253,8 @@ static void fwdConstraint(const mjModel* m, mjData* d, mjtSolver solver, int flg
       // copy inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
       nidof = d->nidof;
       mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
-      mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
       mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
       mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
-      mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
       mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
 
       mju_dispatch(m, d, solveIslandTask, NULL, nisland);
