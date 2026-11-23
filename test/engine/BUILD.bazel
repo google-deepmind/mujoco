@@ -37,6 +37,27 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "flex_test_fixture",
+    testonly = True,
+    hdrs = ["flex_test_fixture.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_core_util",
+        "//src/engine:engine_derivative",
+        "//src/engine:engine_util_sparse",
+        "//test:fixture",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "engine_collision_box_test",
     srcs = ["engine_collision_box_test.cc"],
@@ -256,6 +277,7 @@ cc_test(
         "//test/testdata:test_mjcf",
     ],
     deps = [
+        ":flex_test_fixture",
         "//:mujoco",
         "//src/engine:engine_core",
         "//src/engine:engine_core_util",
@@ -387,6 +409,28 @@ cc_test(
         "//src/engine:engine_derivative",
         "//src/engine:engine_forward",
         "//src/engine:engine_memory",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_metric_test",
+    srcs = ["engine_metric_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":flex_test_fixture",
+        "//:mujoco",
+        "//src/engine:engine_core_util",
+        "//src/engine:engine_derivative",
+        "//src/engine:engine_util_blas",
+        "//src/engine:engine_util_sparse",
         "//test:fixture",
         "@googletest//:gtest_main",
     ],

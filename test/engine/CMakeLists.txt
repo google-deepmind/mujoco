@@ -58,6 +58,8 @@ mujoco_test(engine_io_test ADDITIONAL_LINK_LIBRARIES absl::str_format)
 
 mujoco_test(engine_ipc_test)
 
+mujoco_test(engine_metric_test)
+
 mujoco_test(
   engine_plugin_test
   ADDITIONAL_LINK_LIBRARIES
