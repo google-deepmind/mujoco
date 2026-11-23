@@ -631,7 +631,45 @@ static int effAllowed(const int* amark, int ne, int k, int q) {
   return !ne || amark[q] == k;
 }
 
-// upper bound on the number of allowed flex vertex pairs (flex edges plus 1D rod hinge spans)
+// return 1 if 2D flex f needs its 2-hop bending flap pairs in the sparse factor: true when
+// the flap term is non-negligible relative to vertex mass.
+// Dropping a flap block q and lumping |q| onto both diagonals shifts P^-1 A eigenvalues by at most
+// 2*deg*q/mmin, so 0.05*mmin keeps cond(P^-1 A) <= ~1.6 on a 6-neighbor mesh without adding 2-hop
+// fill-in to thin stretch+bend cloth.
+static int effCholBendFlaps(const mjModel* m, int f) {
+  if (m->flex_dim[f] != 2 || m->flex_rigid[f] || m->flex_interp[f] ||
+      m->flex_bendingadr[f] < 0) {
+    return 0;
+  }
+  mjtNum h = m->opt.timestep;
+  mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
+  mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
+  mjtNum scale = s1 + s2*m->flex_damping[f];
+  if (scale <= 0) {
+    return 0;
+  }
+  const mjtNum* bend = m->flex_bending + m->flex_bendingadr[f];
+  int eadr = m->flex_edgeadr[f], vadr = m->flex_vertadr[f];
+  for (int e=0; e < m->flex_edgenum[f]; e++) {
+    const int* flap = m->flex_edgeflap + 2*(eadr + e);
+    if (flap[1] == -1) {
+      continue;
+    }
+    mjtNum q = scale * mju_abs(bend[17*e + 11]);
+    int b0 = m->flex_vertbodyid[vadr + flap[0]];
+    int b1 = m->flex_vertbodyid[vadr + flap[1]];
+    mjtNum m0 = (b0 >= 0 && m->body_dofnum[b0] == 3) ? m->dof_M0[m->body_dofadr[b0]] : 0;
+    mjtNum m1 = (b1 >= 0 && m->body_dofnum[b1] == 3) ? m->dof_M0[m->body_dofadr[b1]] : 0;
+    mjtNum mmin = (m0 > 0 && m1 > 0) ? mju_min(m0, m1) : mju_max(m0, m1);
+    if (mmin > 0 && q > 0.05 * mmin) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+// upper bound on the number of allowed flex vertex pairs (flex edges, 1D rod hinge spans, and
+// 2D bending flap pairs where significant)
 static size_t effCholFlexPairs(const mjModel* m) {
   size_t np = (size_t)m->nflexedge;
   for (int f=0; f < m->nflex; f++) {
@@ -640,6 +678,8 @@ static size_t effCholFlexPairs(const mjModel* m) {
       for (int h=0; h < (int)bend[0]; h++) {
         np += mj_rodHingeVert(bend + 1 + mjROD_HINGE_SIZE*h) == 3 ? 1 : 3;
       }
+    } else if (effCholBendFlaps(m, f)) {
+      np += (size_t)m->flex_edgenum[f];
     }
   }
   return np;
@@ -677,8 +717,9 @@ static void effPairCSR(mjData* d, int nb, const int* apair, int np, int** eadr, 
   ea[nb] = ne;
 }
 
-// build the K vertex graph (kadr/knbr) and the allowed edge CSR (eadr/enbr: flex edges and 1D rod
-// hinge spans between covered vertices, both ways, sorted and deduplicated)
+// build the K vertex graph (kadr/knbr) and the allowed edge CSR (eadr/enbr: flex edges, 1D rod
+// hinge spans, and significant 2D bending flap pairs between covered vertices, both ways, sorted
+// and deduplicated)
 static int effCholGraph(mjData* d, const mjModel* m, int nb, const int* dofid, const int* blk,
                         const int* K_rownnz, const int* K_rowadr, const int* K_colind,
                         int** kadr, int** knbr, int** eadr, int** enbr) {
@@ -734,6 +775,24 @@ static int effCholGraph(mjData* d, const mjModel* m, int nb, const int* dofid, c
             apair[2*np+1] = k1;
             np++;
           }
+        }
+      }
+    } else if (effCholBendFlaps(m, f)) {
+      for (int e=0; e < m->flex_edgenum[f]; e++) {
+        const int* flap = m->flex_edgeflap + 2*(m->flex_edgeadr[f]+e);
+        if (flap[1] == -1) {
+          continue;
+        }
+        int kf[2];
+        for (int s=0; s < 2; s++) {
+          int b = m->flex_vertbodyid[m->flex_vertadr[f]+flap[s]];
+          int da = (b >= 0 && m->body_dofnum[b] == 3) ? m->body_dofadr[b] : -1;
+          kf[s] = (da >= 0 && blk[da] >= 0 && dofid[blk[da]] == da) ? blk[da] : -1;
+        }
+        if (kf[0] >= 0 && kf[1] >= 0 && kf[0] != kf[1]) {
+          apair[2*np] = kf[0];
+          apair[2*np+1] = kf[1];
+          np++;
         }
       }
     }

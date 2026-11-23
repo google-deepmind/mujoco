@@ -793,6 +793,47 @@ TEST_F(MetricTest, EffSolvePassiveFlexContact) {
   }
 }
 
+// Stiff 2D bending-only flex under Newton includes 2-hop bending flap pairs in
+// the per-step sparse factor so mj_effSolve converges in one shot.
+TEST_F(MetricTest, EffSolveBendFlapsNewton) {
+  static const char* const kPaperXml = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="Newton"
+            iterations="2" tolerance="1e-8"/>
+    <worldbody>
+      <flexcomp name="paper" type="grid" count="6 6 1" spacing="0.04 0.04 1"
+                pos="0 0 0.2" radius="0.002" mass="0.02" dim="2">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e7" poisson="0.2" thickness="2e-3"
+                    elastic2d="bend" damping="1e-4"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kPaperXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_GT(data->nefmK, 0);
+  ASSERT_GT(data->nefmL, 0);
+  EXPECT_EQ(data->efm_L[0], 1);
+  EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 0);
+
+  int nv = model->nv;
+  std::vector<mjtNum> b(nv), x(nv), r(nv);
+  for (int i = 0; i < nv; i++) {
+    b[i] = mju_Halton(i, 3) - 0.5;
+  }
+  mj_effSolve(model.get(), data.get(), x.data(), b.data());
+  EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 0);
+  mju_mulSymVecSparse(r.data(), data->M, x.data(), nv, model->M_rownnz,
+                      model->M_rowadr, model->M_colind);
+  mj_effMulAdd(model.get(), data.get(), r.data(), x.data(), /*flg_contact=*/1);
+  mju_subFrom(r.data(), b.data(), nv);
+  EXPECT_LT(mju_norm(r.data(), nv) / mju_norm(b.data(), nv), MjTol(1e-8, 1e-4));
+}
+
 // PCG requires a symmetric preconditioner. mj_effPrec must satisfy
 // u.P(v) == v.P(u); it did not when the covered and uncovered dofs shared a
 // kinematic tree, which is what the articulated vertex body here exercises.
