@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_util_blas.h"
 
+#include <cstring>
 #include <random>
 
 #include <gmock/gmock.h>
@@ -43,6 +44,42 @@ TEST_F(EngineUtilBlasTest, MjuDot) {
   EXPECT_EQ(mju_dot(a, b, 5), 7 + 2 * 6 + 3 * 5 + 4 * 4 + 5 * 3);
   EXPECT_EQ(mju_dot(a, b, 6), 7 + 2 * 6 + 3 * 5 + 4 * 4 + 5 * 3 + 6 * 2);
   EXPECT_EQ(mju_dot(a, b, 7), 7 + 2 * 6 + 3 * 5 + 4 * 4 + 5 * 3 + 6 * 2 + 7);
+
+  // Bit-exact parity against canonical 4-lane reduction across lengths 0..19
+  constexpr int kMaxN = 19;
+  mjtNum x[kMaxN], y[kMaxN];
+  for (int i = 0; i < kMaxN; ++i) {
+    mjtNum sign = (i & 2) ? -1 : 1;
+    x[i] = sign * (mjtNum(1) / ((i / 4) + 1)) + mjtNum(1e-7) / (i + 3);
+    y[i] = mjtNum(i + 1) / (2 * i + 5) - mjtNum(1) / (i + 7);
+  }
+  for (int n = 0; n <= kMaxN; ++n) {
+    int i = 0;
+    mjtNum ref = 0;
+    if (n - 4 >= 0) {
+      mjtNum r0 = x[0] * y[0];
+      mjtNum r1 = x[1] * y[1];
+      mjtNum r2 = x[2] * y[2];
+      mjtNum r3 = x[3] * y[3];
+      for (i = 4; i <= n - 4; i += 4) {
+        r0 += x[i + 0] * y[i + 0];
+        r1 += x[i + 1] * y[i + 1];
+        r2 += x[i + 2] * y[i + 2];
+        r3 += x[i + 3] * y[i + 3];
+      }
+      ref = (r0 + r2) + (r1 + r3);
+    }
+    int n_i = n - i;
+    if (n_i == 3) {
+      ref += x[i + 0] * y[i + 0] + x[i + 1] * y[i + 1] + x[i + 2] * y[i + 2];
+    } else if (n_i == 2) {
+      ref += x[i + 0] * y[i + 0] + x[i + 1] * y[i + 1];
+    } else if (n_i == 1) {
+      ref += x[i] * y[i];
+    }
+    mjtNum got = mju_dot(x, y, n);
+    EXPECT_EQ(std::memcmp(&got, &ref, sizeof(mjtNum)), 0) << "n=" << n;
+  }
 }
 
 TEST_F(EngineUtilBlasTest, MjuMulVecMatVec) {

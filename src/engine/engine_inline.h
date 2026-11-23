@@ -18,9 +18,8 @@
 #include <assert.h>
 
 #include <mujoco/mjtype.h>
+#include "engine/engine_simd.h"
 #include "engine/engine_util_blas.h"
-#include "engine/engine_util_blas_avx.h"  // IWYU pragma: keep
-#include "engine/engine_util_spatial_avx.h"  // IWYU pragma: keep
 
 #ifdef __cplusplus
   #if defined(_MSC_VER)
@@ -227,14 +226,7 @@ void mji_transpose3(mjtNum* restrict res, const mjtNum mat[9]) {
 // res = vec
 static inline
 void mji_copy4(mjtNum* restrict res, const mjtNum data[4]) {
-#ifdef mjUSEAVX
-  mju_copy4_avx(res, data);
-#else
-  res[0] = data[0];
-  res[1] = data[1];
-  res[2] = data[2];
-  res[3] = data[3];
-#endif
+  v4_store(res, v4_load(data));
 }
 
 
@@ -242,26 +234,19 @@ void mji_copy4(mjtNum* restrict res, const mjtNum data[4]) {
 // (for use in this file only)
 static inline
 mjtNum mji__normalize4(mjtNum vec[4]) {
-#ifdef mjUSEAVX
-  return mju_normalize4_avx(vec);
-#else
-  mjtNum norm = mju_sqrt((vec[0]*vec[0] + vec[1]*vec[1]) + (vec[2]*vec[2] + vec[3]*vec[3]));
+  mjtNum v0 = vec[0];
+  mjtNum v1 = vec[1];
+  mjtNum v2 = vec[2];
+  mjtNum v3 = vec[3];
+  mjtNum norm = mju_sqrt((v0*v0 + v1*v1) + (v2*v2 + v3*v3));
 
   if (norm < mjMINVAL) {
-    vec[0] = 1;
-    vec[1] = 0;
-    vec[2] = 0;
-    vec[3] = 0;
+    v4_store(vec, v4_set(1, 0, 0, 0));
   } else if (mju_abs(norm - 1) > mjMINVAL) {
-    mjtNum normInv = 1/norm;
-    vec[0] *= normInv;
-    vec[1] *= normInv;
-    vec[2] *= normInv;
-    vec[3] *= normInv;
+    v4_store(vec, v4_mul(v4_set(v0, v1, v2, v3), v4_splat(1 / norm)));
   }
 
   return norm;
-#endif
 }
 
 
@@ -286,14 +271,7 @@ void mji_rotVecQuat(mjtNum* restrict res, const mjtNum vec[3], const mjtNum quat
 // negate quaternion
 static inline
 void mji_negQuat(mjtNum* restrict res, const mjtNum quat[4]) {
-#ifdef mjUSEAVX
-  mju_negQuat_avx(res, quat);
-#else
-  res[0] = quat[0];
-  res[1] = -quat[1];
-  res[2] = -quat[2];
-  res[3] = -quat[3];
-#endif
+  v4_store(res, v4_xorsign(v4_load(quat), 0, 1, 1, 1));
 }
 
 
@@ -301,14 +279,22 @@ void mji_negQuat(mjtNum* restrict res, const mjtNum quat[4]) {
 static inline
 void mji_mulQuat(mjtNum* restrict res, const mjtNum qa[4], const mjtNum qb[4]) {
   assert(res != qa && res != qb);
-#ifdef mjUSEAVX
-  mju_mulQuat_avx(res, qa, qb);
-#else
-  res[0] = (qa[0]*qb[0] - qa[1]*qb[1]) + (-qa[2]*qb[2] - qa[3]*qb[3]);
-  res[1] = (qa[0]*qb[1] + qa[1]*qb[0]) + ( qa[2]*qb[3] - qa[3]*qb[2]);
-  res[2] = (qa[0]*qb[2] - qa[1]*qb[3]) + ( qa[2]*qb[0] + qa[3]*qb[1]);
-  res[3] = (qa[0]*qb[3] + qa[1]*qb[2]) + (-qa[2]*qb[1] + qa[3]*qb[0]);
-#endif
+  mjtNum4 vb = v4_load(qb);
+  mjtNum4 va0 = v4_splat(qa[0]);
+  mjtNum4 va1 = v4_splat(qa[1]);
+  mjtNum4 va2 = v4_splat(qa[2]);
+  mjtNum4 va3 = v4_splat(qa[3]);
+
+  mjtNum4 vb1 = v4_shuffle(vb, 1, 0, 3, 2);
+  mjtNum4 vb2 = v4_shuffle(vb, 2, 3, 0, 1);
+  mjtNum4 vb3 = v4_shuffle(vb, 3, 2, 1, 0);
+
+  mjtNum4 t0 = v4_mul(va0, vb);
+  mjtNum4 t1 = v4_mul(v4_xorsign(va1, 1, 0, 1, 0), vb1);
+  mjtNum4 t2 = v4_mul(v4_xorsign(va2, 1, 0, 0, 1), vb2);
+  mjtNum4 t3 = v4_mul(v4_xorsign(va3, 1, 1, 0, 0), vb3);
+
+  v4_store(res, v4_add(v4_add(t0, t1), v4_add(t2, t3)));
 }
 
 
@@ -316,14 +302,17 @@ void mji_mulQuat(mjtNum* restrict res, const mjtNum qa[4], const mjtNum qb[4]) {
 static inline
 void mji_mulQuatAxis(mjtNum* restrict res, const mjtNum quat[4], const mjtNum axis[3]) {
   assert(res != quat && res != axis);
-#ifdef mjUSEAVX
-  mju_mulQuatAxis_avx(res, quat, axis);
-#else
-  res[0] = -quat[1]*axis[0] - quat[2]*axis[1] - quat[3]*axis[2];
-  res[1] =  quat[0]*axis[0] - quat[3]*axis[1] + quat[2]*axis[2];
-  res[2] =  quat[3]*axis[0] + quat[0]*axis[1] - quat[1]*axis[2];
-  res[3] = -quat[2]*axis[0] + quat[1]*axis[1] + quat[0]*axis[2];
-#endif
+  mjtNum4 vq = v4_load(quat);
+  mjtNum4 vx0 = v4_splat(axis[0]);
+  mjtNum4 vx1 = v4_splat(axis[1]);
+  mjtNum4 vx2 = v4_splat(axis[2]);
+
+  mjtNum4 c0 = v4_xorsign(v4_shuffle(vq, 1, 0, 3, 2), 1, 0, 0, 1);
+  mjtNum4 c1 = v4_xorsign(v4_shuffle(vq, 2, 3, 0, 1), 1, 1, 0, 0);
+  mjtNum4 c2 = v4_xorsign(v4_shuffle(vq, 3, 2, 1, 0), 1, 0, 1, 0);
+
+  mjtNum4 s01 = v4_add(v4_mul(c0, vx0), v4_mul(c1, vx1));
+  v4_store(res, v4_add(s01, v4_mul(c2, vx2)));
 }
 
 
@@ -383,31 +372,36 @@ void mji_subQuat(mjtNum* restrict res, const mjtNum qa[4], const mjtNum qb[4]) {
 static inline
 void mji_quat2Mat(mjtNum* restrict res, const mjtNum quat[4]) {
   assert(res != quat);
-#ifdef mjUSEAVX
-  mju_quat2Mat_avx(res, quat);
-#else
-  mjtNum q00 = quat[0]*quat[0];
-  mjtNum q01 = quat[0]*quat[1];
-  mjtNum q02 = quat[0]*quat[2];
-  mjtNum q03 = quat[0]*quat[3];
-  mjtNum q11 = quat[1]*quat[1];
-  mjtNum q12 = quat[1]*quat[2];
-  mjtNum q13 = quat[1]*quat[3];
-  mjtNum q22 = quat[2]*quat[2];
-  mjtNum q23 = quat[2]*quat[3];
-  mjtNum q33 = quat[3]*quat[3];
+  mjtNum q0 = quat[0], q1 = quat[1], q2 = quat[2], q3 = quat[3];
+  mjtNum q00 = q0*q0, q11 = q1*q1, q22 = q2*q2, q33 = q3*q3;
+  mjtNum d02 = q00 - q22;
+  mjtNum d13 = q11 - q33;
+  mjtNum d0 = d02 + d13;
+  mjtNum d4 = (q00 + q22) - (q11 + q33);
+  mjtNum d8 = d02 - d13;
 
-  res[0] = (q00 - q22) + (q11 - q33);
-  res[4] = (q00 + q22) - (q11 + q33);
-  res[8] = (q00 - q22) - (q11 - q33);
+  mjtNum4 vq = v4_load(quat);
+  mjtNum4 vq0 = v4_splat(q0);
+  mjtNum4 vq1 = v4_splat(q1);
+  mjtNum4 vq3 = v4_splat(q3);
 
-  res[1] = 2*(q12 - q03);
-  res[2] = 2*(q13 + q02);
-  res[3] = 2*(q12 + q03);
-  res[5] = 2*(q23 - q01);
-  res[6] = 2*(q13 - q02);
-  res[7] = 2*(q23 + q01);
-#endif
+  // res[1..3]: 2*(q12 - q03), 2*(q13 + q02), 2*(q12 + q03)
+  mjtNum4 u0 = v4_shuffle(vq, 2, 2, 3, 2);
+  mjtNum4 w0 = v4_shuffle(vq, 3, 3, 2, 3);
+  mjtNum4 h0 = v4_add(v4_mul(vq1, u0), v4_mul(v4_xorsign(vq0, 0, 1, 0, 0), w0));
+  mjtNum4 off0 = v4_add(h0, h0);
+
+  // res[5..7]: 2*(q23 - q01), 2*(q13 - q02), 2*(q23 + q01)
+  mjtNum4 u1 = v4_shuffle(vq, 1, 2, 1, 2);
+  mjtNum4 w1 = v4_shuffle(vq, 2, 1, 2, 1);
+  mjtNum4 h1 = v4_add(v4_mul(vq3, u1), v4_mul(v4_xorsign(vq0, 0, 1, 1, 0), w1));
+  mjtNum4 off1 = v4_add(h1, h1);
+
+  v4_store(res + 0, off0);
+  res[0] = d0;
+  v4_store(res + 4, off1);
+  res[4] = d4;
+  res[8] = d8;
 }
 
 

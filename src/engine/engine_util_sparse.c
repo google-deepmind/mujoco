@@ -23,9 +23,9 @@
 #include <mujoco/mjtype.h>
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_simd.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
-#include "engine/engine_util_sparse_avx.h"  // IWYU pragma: keep
 
 //------------------------------ sparse operations -------------------------------------------------
 
@@ -34,42 +34,40 @@
 void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
                      const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
                      const mjtNum* vec2, int nnz1, const int* ind1) {
-#ifdef mjUSEAVX
-  mju_dotSparseX3_avx(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
-#else
   int i = 0;
-  int n_4 = nnz1 - 4;
 
   // clear result
-  mjtNum r00 = 0, r01 = 0, r02 = 0, r03 = 0;
-  mjtNum r10 = 0, r11 = 0, r12 = 0, r13 = 0;
-  mjtNum r20 = 0, r21 = 0, r22 = 0, r23 = 0;
+  mjtNum RES0 = 0;
+  mjtNum RES1 = 0;
+  mjtNum RES2 = 0;
+  int nnz1_4 = nnz1 - 4;
 
-  for (; i <= n_4; i+=4) {
-    mjtNum v0 = vec2[ind1[i+0]];
-    mjtNum v1 = vec2[ind1[i+1]];
-    mjtNum v2 = vec2[ind1[i+2]];
-    mjtNum v3 = vec2[ind1[i+3]];
+  // vector part
+  if (nnz1_4 >= 0) {
+    mjtNum4 val2 = v4_set(vec2[ind1[0]], vec2[ind1[1]], vec2[ind1[2]], vec2[ind1[3]]);
+    mjtNum4 sum0 = v4_mul(v4_load(vec10), val2);
+    mjtNum4 sum1 = v4_mul(v4_load(vec11), val2);
+    mjtNum4 sum2 = v4_mul(v4_load(vec12), val2);
+    i = 4;
 
-    r00 += vec10[i+0] * v0;
-    r01 += vec10[i+1] * v1;
-    r02 += vec10[i+2] * v2;
-    r03 += vec10[i+3] * v3;
+    // parallel computation
+    while (i <= nnz1_4) {
+      // get val2 only once
+      val2 = v4_set(vec2[ind1[i+0]], vec2[ind1[i+1]], vec2[ind1[i+2]], vec2[ind1[i+3]]);
 
-    r10 += vec11[i+0] * v0;
-    r11 += vec11[i+1] * v1;
-    r12 += vec11[i+2] * v2;
-    r13 += vec11[i+3] * v3;
+      // process each val1
+      sum0 = v4_add(sum0, v4_mul(v4_load(vec10 + i), val2));
+      sum1 = v4_add(sum1, v4_mul(v4_load(vec11 + i), val2));
+      sum2 = v4_add(sum2, v4_mul(v4_load(vec12 + i), val2));
 
-    r20 += vec12[i+0] * v0;
-    r21 += vec12[i+1] * v1;
-    r22 += vec12[i+2] * v2;
-    r23 += vec12[i+3] * v3;
+      i += 4;
+    }
+
+    // reduce
+    RES0 = v4_sum(sum0);
+    RES1 = v4_sum(sum1);
+    RES2 = v4_sum(sum2);
   }
-
-  mjtNum RES0 = (r00 + r02) + (r01 + r03);
-  mjtNum RES1 = (r10 + r12) + (r11 + r13);
-  mjtNum RES2 = (r20 + r22) + (r21 + r23);
 
   // scalar part
   for (; i < nnz1; i++) {
@@ -84,7 +82,6 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
   *res0 = RES0;
   *res1 = RES1;
   *res2 = RES2;
-#endif  // mjUSEAVX
 }
 
 
@@ -213,13 +210,54 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                          int nr, const int* rownnz, const int* rowadr,
                          const int* colind, const int* rowsuper) {
 #ifdef mjUSEAVX
-  mju_mulMatVecSparse_avx(res, mat, vec, nr, rownnz, rowadr, colind, rowsuper);
+  if (!rowsuper) {
+    // regular sparse dot-product
+    for (int r=0; r < nr; r++) {
+      res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
+    }
+
+    return;
+  }
+
+  // regular or supernode
+  for (int r=0; r < nr; r++) {
+    if (rowsuper[r]) {
+      int rs = rowsuper[r] + 1;
+
+      // handle rows in blocks of 3
+      while (rs >= 3) {
+        mju_dotSparseX3(res+r, res+r+1, res+r+2,
+                        mat+rowadr[r], mat+rowadr[r+1], mat+rowadr[r+2],
+                        vec, rownnz[r], colind+rowadr[r]);
+
+        r += 3;
+        rs -= 3;
+      }
+
+      // handle remaining rows
+      while (rs > 0) {
+        res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
+
+        r++;
+        rs--;
+      }
+
+      // go back one, because of outer for loop
+      r--;
+    }
+
+    else {
+      res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
+    }
+  }
 #else
+  (void)rowsuper;
+
   // regular sparse dot-product
   for (int r=0; r < nr; r++) {
     res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
   }
-#endif  // mjUSEAVX
+#endif
 }
 
 

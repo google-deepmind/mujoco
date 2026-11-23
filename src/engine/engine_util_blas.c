@@ -16,6 +16,8 @@
 
 #include <string.h>
 
+#include <mujoco/mjtype.h>
+#include "engine/engine_simd.h"
 #include "engine/engine_util_blas_avx.h"  // IWYU pragma: keep
 
 
@@ -237,39 +239,25 @@ void mju_unit4(mjtNum res[4]) {
 
 // res = vec
 void mju_copy4(mjtNum res[4], const mjtNum data[4]) {
-#ifdef mjUSEAVX
-  mju_copy4_avx(res, data);
-#else
-  res[0] = data[0];
-  res[1] = data[1];
-  res[2] = data[2];
-  res[3] = data[3];
-#endif
+  v4_store(res, v4_load(data));
 }
 
 
 // normalize vector, return length before normalization
 mjtNum mju_normalize4(mjtNum vec[4]) {
-#ifdef mjUSEAVX
-  return mju_normalize4_avx(vec);
-#else
-  mjtNum norm = mju_sqrt((vec[0]*vec[0] + vec[1]*vec[1]) + (vec[2]*vec[2] + vec[3]*vec[3]));
+  mjtNum v0 = vec[0];
+  mjtNum v1 = vec[1];
+  mjtNum v2 = vec[2];
+  mjtNum v3 = vec[3];
+  mjtNum norm = mju_sqrt((v0*v0 + v1*v1) + (v2*v2 + v3*v3));
 
   if (norm < mjMINVAL) {
-    vec[0] = 1;
-    vec[1] = 0;
-    vec[2] = 0;
-    vec[3] = 0;
+    v4_store(vec, v4_set(1, 0, 0, 0));
   } else if (mju_abs(norm - 1) > mjMINVAL) {
-    mjtNum normInv = 1/norm;
-    vec[0] *= normInv;
-    vec[1] *= normInv;
-    vec[2] *= normInv;
-    vec[3] *= normInv;
+    v4_store(vec, v4_mul(v4_set(v0, v1, v2, v3), v4_splat(1 / norm)));
   }
 
   return norm;
-#endif
 }
 
 
@@ -487,26 +475,17 @@ mjtNum mju_norm(const mjtNum* res, int n) {
 
 // vector dot-product
 mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
-#ifdef mjUSEAVX
-  return mju_dot_avx(vec1, vec2, n);
-#else
-  // do the same order of additions as the AVX intrinsics implementation.
-  // this is faster than the simple for loop you'd expect for a dot product,
-  // and produces exactly the same results.
   int i = 0;
   int n_4 = n - 4;
-  mjtNum res0 = 0;
-  mjtNum res1 = 0;
-  mjtNum res2 = 0;
-  mjtNum res3 = 0;
+  mjtNum res = 0;
 
-  for (; i <= n_4; i+=4) {
-    res0 += vec1[i+0] * vec2[i+0];
-    res1 += vec1[i+1] * vec2[i+1];
-    res2 += vec1[i+2] * vec2[i+2];
-    res3 += vec1[i+3] * vec2[i+3];
+  if (n_4 >= 0) {
+    mjtNum4 sum = v4_mul(v4_load(vec1), v4_load(vec2));
+    for (i = 4; i <= n_4; i += 4) {
+      sum = v4_add(sum, v4_mul(v4_load(vec1 + i), v4_load(vec2 + i)));
+    }
+    res = v4_sum(sum);
   }
-  mjtNum res = (res0 + res2) + (res1 + res3);
 
   // process remaining
   int n_i = n - i;
@@ -518,7 +497,6 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
     res += vec1[i]*vec2[i];
   }
   return res;
-#endif
 }
 
 
