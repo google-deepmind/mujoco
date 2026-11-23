@@ -293,15 +293,15 @@ std::vector<uint8_t> FileToMemory(const char* filename);
 template <typename T>
 std::string VectorToString(const std::vector<T>& v);
 
-// convert string to vector
+// convert string to vector, optionally reporting parse error code (0, EDOM, EINVAL, ERANGE)
 template <typename T>
-std::vector<T> StringToVector(char* cs);
+std::vector<T> StringToVector(const char* cs, int* err = nullptr);
 template <typename T>
-std::vector<T> StringToVector(const std::string& s);
+std::vector<T> StringToVector(const std::string& s, int* err = nullptr);
 template <>
-std::vector<std::string> StringToVector(char* cs);
+std::vector<std::string> StringToVector(const char* cs, int* err);
 template <>
-std::vector<std::string> StringToVector(const std::string& s);
+std::vector<std::string> StringToVector(const std::string& s, int* err);
 
 }  // namespace mujoco::user
 

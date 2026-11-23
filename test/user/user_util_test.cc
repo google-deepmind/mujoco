@@ -154,27 +154,103 @@ TEST_F(UserUtilTest, StrLower) {
 }
 
 TEST_F(UserUtilTest, StringToVectorFloat) {
-  std::vector<float> v = StringToVector<float>(" 1.2 3.2     5.3 6 ");
+  int err = -1;
+  std::vector<float> v = StringToVector<float>(" 1.2 3.2     5.3 6 ", &err);
   EXPECT_THAT(v, ElementsAre(1.2, 3.2, 5.3, 6));
+  EXPECT_EQ(err, 0);
+}
+
+TEST_F(UserUtilTest, StringToVectorPreservesErrno) {
+  int err = -1;
+  errno = ENOMEM;
+  std::vector<double> v = StringToVector<double>("0.02 1", &err);
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_THAT(v, ElementsAre(0.02, 1));
+  EXPECT_EQ(err, 0);
+
+  err = -1;
+  errno = ENOMEM;
+  std::vector<double> empty_v = StringToVector<double>("   ", &err);
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_THAT(empty_v, ElementsAre());
+  EXPECT_EQ(err, 0);
+
+  err = -1;
+  errno = ENOMEM;
+  std::vector<double> nan_v = StringToVector<double>("1 nan 2", &err);
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_EQ(nan_v.size(), 3);
+  EXPECT_EQ(err, EDOM);
+
+  err = -1;
+  errno = ENOMEM;
+  std::vector<double> bad_v = StringToVector<double>("1 x 2", &err);
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_EQ(bad_v.size(), 1);
+  EXPECT_EQ(err, EINVAL);
+
+  err = -1;
+  errno = ENOMEM;
+  std::vector<unsigned char> range_v =
+      StringToVector<unsigned char>("-10", &err);
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_EQ(range_v.size(), 0);
+  EXPECT_EQ(err, ERANGE);
+
+  err = -1;
+  errno = ENOMEM;
+  std::vector<std::string> str_v = StringToVector<std::string>("a b", &err);
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_THAT(str_v, ElementsAre("a", "b"));
+  EXPECT_EQ(err, 0);
+
+  err = -1;
+  errno = ENOMEM;
+  std::vector<double> std_str_v =
+      StringToVector<double>(std::string("0.02 1"), &err);
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_THAT(std_str_v, ElementsAre(0.02, 1));
+  EXPECT_EQ(err, 0);
+
+  // err == nullptr is optional and ignored.
+  errno = ENOMEM;
+  std::vector<double> opt_v = StringToVector<double>("0.02 1");
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_THAT(opt_v, ElementsAre(0.02, 1));
+
+  errno = ENOMEM;
+  std::vector<double> opt_str_v = StringToVector<double>(std::string("0.02 1"));
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_THAT(opt_str_v, ElementsAre(0.02, 1));
+
+  // Parse errors do not leak into errno when it starts at 0.
+  err = 0;
+  errno = 0;
+  std::vector<double> leak_v = StringToVector<double>("1 x 2", &err);
   EXPECT_EQ(errno, 0);
+  EXPECT_EQ(leak_v.size(), 1);
+  EXPECT_EQ(err, EINVAL);
 }
 
 TEST_F(UserUtilTest, StringToVectorEmpty) {
-  std::vector<float> v = StringToVector<float>("   ");
+  int err = -1;
+  std::vector<float> v = StringToVector<float>("   ", &err);
   EXPECT_THAT(v, ElementsAre());
-  EXPECT_EQ(errno, 0);
+  EXPECT_EQ(err, 0);
 }
 
 TEST_F(UserUtilTest, StringToVectorError) {
-  std::vector<float> v = StringToVector<float>("2.1 3ABCD. /123/122/113");
+  int err = 0;
+  std::vector<float> v = StringToVector<float>("2.1 3ABCD. /123/122/113", &err);
   EXPECT_THAT(v, ElementsAre(2.1));
-  EXPECT_EQ(errno, EINVAL);
+  EXPECT_EQ(err, EINVAL);
 }
 
 TEST_F(UserUtilTest, StringToVectorInt) {
-  std::vector<int> v = StringToVector<int>("  -1 3  5 6  ");
+  int err = -1;
+  std::vector<int> v = StringToVector<int>("  -1 3  5 6  ", &err);
   EXPECT_THAT(v, ElementsAre(-1, 3, 5, 6));
-  EXPECT_EQ(errno, 0);
+  EXPECT_EQ(err, 0);
 }
 
 TEST_F(UserUtilTest, StringToVectorString) {
@@ -183,51 +259,58 @@ TEST_F(UserUtilTest, StringToVectorString) {
 }
 
 TEST_F(UserUtilTest, StringToVectorInvalidNumber) {
-  auto v = StringToVector<double>("1 0.1.2.3");
+  int err = 0;
+  auto v = StringToVector<double>("1 0.1.2.3", &err);
   EXPECT_THAT(v, ElementsAre(1));
-  EXPECT_EQ(errno, EINVAL);
+  EXPECT_EQ(err, EINVAL);
 }
 
 TEST_F(UserUtilTest, StringToVectorNan) {
   MockWarningHandler warning_handler;
   warning_handler.ExpectWarnings();
-  auto v = StringToVector<double>("1 2 nan 3.21");
+  int err = 0;
+  auto v = StringToVector<double>("1 2 nan 3.21", &err);
   EXPECT_THAT(v[2], IsNan());
   EXPECT_EQ(v[3], 3.21);
-  EXPECT_EQ(errno, EDOM);
+  EXPECT_EQ(err, EDOM);
 }
 
 TEST_F(UserUtilTest, StringToVectorRange) {
-  auto v = StringToVector<unsigned char>("-10");
-  EXPECT_EQ(errno, ERANGE);
+  int err = 0;
+  auto v = StringToVector<unsigned char>("-10", &err);
+  EXPECT_EQ(err, ERANGE);
 }
 
 TEST_F(UserUtilTest, StringToVectorSubnormalAndUnderflow) {
-  auto vf = StringToVector<float>("1e-40 -1e-45 0 1e-50 2.5");
+  int err = -1;
+  auto vf = StringToVector<float>("1e-40 -1e-45 0 1e-50 2.5", &err);
   ASSERT_EQ(vf.size(), 5);
   EXPECT_GT(vf[0], 0.0f);
   EXPECT_LT(vf[1], 0.0f);
   EXPECT_EQ(vf[2], 0.0f);
   EXPECT_EQ(vf[3], 0.0f);
   EXPECT_EQ(vf[4], 2.5f);
-  EXPECT_EQ(errno, 0);
+  EXPECT_EQ(err, 0);
 
-  auto vd = StringToVector<double>("1e-315 -1e-320 1e-400 3.0");
+  err = -1;
+  auto vd = StringToVector<double>("1e-315 -1e-320 1e-400 3.0", &err);
   ASSERT_EQ(vd.size(), 4);
   EXPECT_GT(vd[0], 0.0);
   EXPECT_LT(vd[1], 0.0);
   EXPECT_EQ(vd[2], 0.0);
   EXPECT_EQ(vd[3], 3.0);
-  EXPECT_EQ(errno, 0);
+  EXPECT_EQ(err, 0);
 
-  auto vnan = StringToVector<float>("nan 1e-40");
+  err = 0;
+  auto vnan = StringToVector<float>("nan 1e-40", &err);
   ASSERT_EQ(vnan.size(), 2);
   EXPECT_THAT(vnan[0], IsNan());
   EXPECT_GT(vnan[1], 0.0f);
-  EXPECT_EQ(errno, EDOM);
+  EXPECT_EQ(err, EDOM);
 
-  auto vovf = StringToVector<float>("1.0 1e40");
-  EXPECT_EQ(errno, ERANGE);
+  err = 0;
+  auto vovf = StringToVector<float>("1.0 1e40", &err);
+  EXPECT_EQ(err, ERANGE);
 }
 
 TEST_F(UserUtilTest, VectorToString) {

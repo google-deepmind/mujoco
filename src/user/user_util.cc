@@ -1221,17 +1221,17 @@ template std::string VectorToString(const std::vector<std::string>& v);
 namespace {
 
 template <typename T>
-T StrToNum(char* str, char** c);
+T StrToNum(const char* str, char** c);
 
 template <>
-int StrToNum(char* str, char** c) {
+int StrToNum(const char* str, char** c) {
   long n = std::strtol(str, c, 10);
   if (n < INT_MIN || n > INT_MAX) errno = ERANGE;
   return n;
 }
 
 template <>
-float StrToNum(char* str, char** c) {
+float StrToNum(const char* str, char** c) {
   float f = strtof(str, c);
   if (errno == ERANGE && std::isfinite(f)) errno = 0;
   if (std::isnan(f)) errno = EDOM;
@@ -1239,7 +1239,7 @@ float StrToNum(char* str, char** c) {
 }
 
 template <>
-double StrToNum(char* str, char** c) {
+double StrToNum(const char* str, char** c) {
   double d = strtod(str, c);
   if (errno == ERANGE && std::isfinite(d)) errno = 0;
   if (std::isnan(d)) errno = EDOM;
@@ -1247,17 +1247,17 @@ double StrToNum(char* str, char** c) {
 }
 
 template <>
-unsigned char StrToNum(char* str, char** c) {
+unsigned char StrToNum(const char* str, char** c) {
   long n = std::strtol(str, c, 10);
   if (n < 0 || n > UCHAR_MAX) errno = ERANGE;
   return n;
 }
 
-inline bool IsNullOrSpace(char* c) {
+inline bool IsNullOrSpace(const char* c) {
   return std::isspace(static_cast<unsigned char>(*c)) || *c == '\0';
 }
 
-inline char* SkipSpace(char* c) {
+inline const char* SkipSpace(const char* c) {
   for (; *c != '\0'; c++) {
     if (!IsNullOrSpace(c)) { break; }
   }
@@ -1266,42 +1266,52 @@ inline char* SkipSpace(char* c) {
 }  // namespace
 
 template <typename T>
-std::vector<T> StringToVector(char* cs) {
+std::vector<T> StringToVector(const char* cs, int* err) {
+  if (err) *err = 0;
   std::vector<T> v;
-  char*          ch      = cs;
-  bool           has_nan = false;
+  const char*    ch          = cs;
+  bool           has_nan     = false;
+  int            status      = 0;
+  const int      saved_errno = errno;
 
-  errno = 0;
   // reserve worst case
   v.reserve((std::strlen(cs) >> 1) + 1);
 
   for (;;) {
     cs = SkipSpace(ch);      // skip leading spaces
     if (*cs == '\0') break;  // end of string
-    errno = 0;
-    T num = StrToNum<T>(cs, &ch);            // parse number
+    errno     = 0;
+    char* end = nullptr;
+    T     num = StrToNum<T>(cs, &end);  // parse number
+    ch        = end;
     if (!IsNullOrSpace(ch)) errno = EINVAL;  // invalid separator
     if (cs == ch) errno = EINVAL;            // failed to parse number
     if (errno == EDOM) {
       has_nan = true;
       errno   = 0;
     }
-    if (errno) break;  // NaNs are quietly ignored
+    if (errno) {  // NaNs are quietly ignored
+      status = errno;
+      break;
+    }
     v.push_back(num);
   }
-  if (!errno && has_nan) errno = EDOM;
+  if (!status && has_nan) status = EDOM;
 
   v.shrink_to_fit();
+  errno = saved_errno;
+  if (err) *err = status;
   return v;
 }
 
 template <>
-std::vector<std::string> StringToVector(char* cs) {
-  return StringToVector<std::string>(std::string(cs));
+std::vector<std::string> StringToVector(const char* cs, int* err) {
+  return StringToVector<std::string>(std::string(cs), err);
 }
 
 template <>
-std::vector<std::string> StringToVector(const std::string& s) {
+std::vector<std::string> StringToVector(const std::string& s, int* err) {
+  if (err) *err = 0;
   std::vector<std::string> v;
   std::stringstream        ss(s);
   std::string              word;
@@ -1309,19 +1319,19 @@ std::vector<std::string> StringToVector(const std::string& s) {
   return v;
 }
 
-template std::vector<int>           StringToVector(char* cs);
-template std::vector<float>         StringToVector(char* cs);
-template std::vector<double>        StringToVector(char* cs);
-template std::vector<unsigned char> StringToVector(char* cs);
+template std::vector<int>           StringToVector(const char* cs, int* err);
+template std::vector<float>         StringToVector(const char* cs, int* err);
+template std::vector<double>        StringToVector(const char* cs, int* err);
+template std::vector<unsigned char> StringToVector(const char* cs, int* err);
 
 
 template <typename T>
-std::vector<T> StringToVector(const std::string& s) {
-  return StringToVector<T>(const_cast<char*>(s.c_str()));
+std::vector<T> StringToVector(const std::string& s, int* err) {
+  return StringToVector<T>(s.c_str(), err);
 }
-template std::vector<int>           StringToVector(const std::string& s);
-template std::vector<float>         StringToVector(const std::string& s);
-template std::vector<double>        StringToVector(const std::string& s);
-template std::vector<unsigned char> StringToVector(const std::string& s);
+template std::vector<int>           StringToVector(const std::string& s, int* err);
+template std::vector<float>         StringToVector(const std::string& s, int* err);
+template std::vector<double>        StringToVector(const std::string& s, int* err);
+template std::vector<unsigned char> StringToVector(const std::string& s, int* err);
 
 }  // namespace mujoco::user
