@@ -91,16 +91,16 @@ void mj_dualFinish(const mjModel* m, mjData* d) {
 // compute 1/diag(AR)
 //   res[c] = 1 / AR[efclist[c], efclist[c]] for c = 0..nefc-1
 //   efclist is NULL for monolithic (sequential) iteration
-static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res,
-                      int nefc, const int* efclist, int flg_subR) {
-  const mjtNum *AR = d->efc_AR;
-  const mjtNum *R = d->efc_R;
+static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* restrict res,
+                      int nefc, const int* restrict efclist, int flg_subR) {
+  const mjtNum* restrict AR = d->efc_AR;
+  const mjtNum* restrict R = d->efc_R;
 
   // sparse
   if (mj_isSparse(m)) {
-    const int *rowadr = d->efc_AR_rowadr;
-    const int *rownnz = d->efc_AR_rownnz;
-    const int *colind = d->efc_AR_colind;
+    const int* restrict rowadr = d->efc_AR_rowadr;
+    const int* restrict rownnz = d->efc_AR_rownnz;
+    const int* restrict colind = d->efc_AR_colind;
 
     for (int c=0; c < nefc; c++) {
       int i = efclist ? efclist[c] : c;
@@ -3353,9 +3353,9 @@ static void HessianConeUpdate(mjData* d, mjPrimalContext* ctx) {
         const int nnz = ctx->J_rownnz[i];
 
         // compute LTJ = L'*J for this contact
-        mju_zero(LTJ, dim*nnz);
-        for (int r=0; r < dim; r++) {
-          for (int c=0; c <= r; c++) {
+        for (int c=0; c < dim; c++) {
+          mju_scl(LTJ+c*nnz, ctx->HJ+ctx->J_rowadr[i+c], local[c*dim+c], nnz);
+          for (int r=c+1; r < dim; r++) {
             mju_addToScl(LTJ+c*nnz, ctx->HJ+ctx->J_rowadr[i+r], local[r*dim+c], nnz);
           }
         }
@@ -3371,9 +3371,9 @@ static void HessianConeUpdate(mjData* d, mjPrimalContext* ctx) {
       // dense
       else {
         // compute LTJ = L'*J for this contact row
-        mju_zero(LTJ, dim*nv);
-        for (int r=0; r < dim; r++) {
-          for (int c=0; c <= r; c++) {
+        for (int c=0; c < dim; c++) {
+          mju_scl(LTJ+c*nv, ctx->J+(i+c)*nv, local[c*dim+c], nv);
+          for (int r=c+1; r < dim; r++) {
             mju_addToScl(LTJ+c*nv, ctx->J+(i+r)*nv, local[r*dim+c], nv);
           }
         }

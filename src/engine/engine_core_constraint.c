@@ -2737,10 +2737,11 @@ static void computeY_fill(mjtNum* Y, int* Y_colind,
 
 
 // in-place sparse back-substitution:  Y <- Y * M^{-1/2}
-static void computeY_backsub(mjtNum* Y, const int* Y_rownnz, const int* Y_rowadr,
-                             const int* Y_colind, int nefc,
-                             const mjtNum* qLD, const int* M_rownnz, const int* M_rowadr,
-                             const int* M_colind, const mjtNum* sqrtInvD) {
+static void computeY_backsub(mjtNum* restrict Y, const int* restrict Y_rownnz,
+                             const int* restrict Y_rowadr, const int* restrict Y_colind,
+                             int nefc, const mjtNum* restrict qLD,
+                             const int* restrict M_rownnz, const int* restrict M_rowadr,
+                             const int* restrict M_colind, const mjtNum* restrict sqrtInvD) {
   for (int r=0; r < nefc; r++) {
     int nnzY = Y_rownnz[r];
     int adrY = Y_rowadr[r];
