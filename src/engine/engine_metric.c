@@ -1142,14 +1142,18 @@ static void effCholEnsure(const mjModel* m, mjData* d) {
   }
 }
 
-static void effCholSolveBlocked(mjtNum* res, const mjtNum* L, const mjtNum* vec,
-                                const mjEffChol* c) {
+static void effCholSolveBlocked(mjtNum* restrict res, const mjtNum* restrict L,
+                                const mjtNum* restrict vec, const mjEffChol* restrict c) {
   int nb = c->nb;
-  const int *rowadr = c->L_rowadr, *rownnz = c->L_rownnz, *colind = c->L_colind;
+  const int* restrict rowadr = c->L_rowadr;
+  const int* restrict rownnz = c->L_rownnz;
+  const int* restrict colind = c->L_colind;
   mju_copy(res, vec, 3*nb);
   for (int p=nb-1; p >= 0; p--) {
     int nob = rownnz[3*p] - 1;
-    const mjtNum *L0 = L + rowadr[3*p], *L1 = L + rowadr[3*p+1], *L2 = L + rowadr[3*p+2];
+    const mjtNum* restrict L0 = L + rowadr[3*p];
+    const mjtNum* restrict L1 = L + rowadr[3*p+1];
+    const mjtNum* restrict L2 = L + rowadr[3*p+2];
     mjtNum* r = res + 3*p;
     mjtNum x2 = r[2] / L2[nob+2];
     mjtNum x1 = (r[1] - L2[nob+1]*x2) / L1[nob+1];
@@ -1157,7 +1161,7 @@ static void effCholSolveBlocked(mjtNum* res, const mjtNum* L, const mjtNum* vec,
     r[0] = x0;
     r[1] = x1;
     r[2] = x2;
-    const int* ci = colind + rowadr[3*p];
+    const int* restrict ci = colind + rowadr[3*p];
     for (int j=0; j < nob; j += 3) {
       mjtNum* rq = res + ci[j];
       rq[0] -= L0[j]*x0 + L1[j]*x1 + L2[j]*x2;
@@ -1167,8 +1171,10 @@ static void effCholSolveBlocked(mjtNum* res, const mjtNum* L, const mjtNum* vec,
   }
   for (int p=0; p < nb; p++) {
     int nob = rownnz[3*p] - 1;
-    const mjtNum *L0 = L + rowadr[3*p], *L1 = L + rowadr[3*p+1], *L2 = L + rowadr[3*p+2];
-    const int* ci = colind + rowadr[3*p];
+    const mjtNum* restrict L0 = L + rowadr[3*p];
+    const mjtNum* restrict L1 = L + rowadr[3*p+1];
+    const mjtNum* restrict L2 = L + rowadr[3*p+2];
+    const int* restrict ci = colind + rowadr[3*p];
     mjtNum s0 = 0, s1 = 0, s2 = 0;
     for (int j=0; j < nob; j += 3) {
       const mjtNum* rq = res + ci[j];
