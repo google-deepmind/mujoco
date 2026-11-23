@@ -15,6 +15,8 @@
 // Tests for engine/engine_island.c.
 
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -176,6 +178,152 @@ TEST_F(ThreadTest, ResetAndCopyPreserveThreadPoolAndClearStack) {
   EXPECT_EQ(mju_numThread(d), 5);
 
   mj_deleteData(src);
+  mj_deleteData(d);
+}
+
+struct DispatchVerifyArgs {
+  std::vector<std::atomic<int>> counts;
+  std::vector<int> owner_thread;
+  int heavy_task = -1;
+
+  explicit DispatchVerifyArgs(int n) : counts(n), owner_thread(n, -1) {
+    for (int i = 0; i < n; ++i) {
+      counts[i].store(0, std::memory_order_relaxed);
+    }
+  }
+};
+
+void VerifyTaskCallback(const mjModel* m, mjData* d, void* arg, int thread_id,
+                        int task_id) {
+  auto* v = static_cast<DispatchVerifyArgs*>(arg);
+  v->counts[task_id].fetch_add(1, std::memory_order_relaxed);
+  v->owner_thread[task_id] = thread_id;
+  if (task_id == v->heavy_task) {
+    volatile double sink = 1.0;
+    for (int k = 0; k < 2000; ++k) {
+      sink = sink * 1.0001 + 0.0001;
+    }
+  }
+}
+
+TEST_F(ThreadTest, DispatchTaskCountsAndStealing) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody/>
+  </mujoco>
+  )";
+
+  char error[1024] = "";
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  mjData* d = mj_makeData(m.get());
+  mju_threadpool(d, 4);
+  ASSERT_EQ(mju_numThread(d), 5);
+
+  // Test 0, 1, < W, == W, > W, and >> W tasks via both mju_dispatch and
+  // mju_dispatchPool, including skewed task loads to exercise work-stealing.
+  for (int ntask : {0, 1, 2, 4, 5, 6, 7, 19, 64, 512}) {
+    for (bool direct_pool : {false, true}) {
+      DispatchVerifyArgs args(ntask > 0 ? ntask : 1);
+      args.heavy_task = ntask > 4 ? 0 : -1;
+      if (direct_pool) {
+        mju_dispatchPool(m.get(), d, VerifyTaskCallback, &args, ntask);
+      } else {
+        mju_dispatch(m.get(), d, VerifyTaskCallback, &args, ntask);
+      }
+      if (ntask == 0) {
+        EXPECT_EQ(args.counts[0].load(), 0);
+      }
+      for (int i = 0; i < ntask; ++i) {
+        EXPECT_EQ(args.counts[i].load(), 1) << "ntask=" << ntask << " i=" << i;
+        EXPECT_GE(args.owner_thread[i], 0);
+        EXPECT_LT(args.owner_thread[i], 5);
+      }
+    }
+  }
+
+  mj_deleteData(d);
+}
+
+void MainThreadTaskCallback(const mjModel* m, mjData* d, void* arg,
+                            int thread_id, int task_id) {
+  auto* main_ran = static_cast<std::atomic<bool>*>(arg);
+  if (thread_id == 0) {
+    main_ran->store(true, std::memory_order_release);
+    return;
+  }
+  // hold worker tasks until the main thread has run one (bounded wait)
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (!main_ran->load(std::memory_order_acquire) &&
+         std::chrono::steady_clock::now() < deadline) {
+  }
+}
+
+TEST_F(ThreadTest, DispatchMainThreadRunsTasks) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody/>
+  </mujoco>
+  )";
+
+  char error[1024] = "";
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  mjData* d = mj_makeData(m.get());
+  mju_threadpool(d, 4);
+
+  // the main thread works through its own slice instead of only waiting
+  std::atomic<bool> main_ran{false};
+  mju_dispatchPool(m.get(), d, MainThreadTaskCallback, &main_ran, 64);
+  EXPECT_TRUE(main_ran.load());
+
+  mj_deleteData(d);
+}
+
+struct HomeSliceArgs {
+  static constexpr int kWorkers = 5;
+  std::atomic<int> started{0};
+  std::array<std::atomic<int>, kWorkers> first_task;
+  HomeSliceArgs() {
+    for (auto& t : first_task) t.store(-1, std::memory_order_relaxed);
+  }
+};
+
+void HomeSliceTaskCallback(const mjModel* m, mjData* d, void* arg,
+                           int thread_id, int task_id) {
+  auto* a = static_cast<HomeSliceArgs*>(arg);
+  int expected = -1;
+  if (!a->first_task[thread_id].compare_exchange_strong(expected, task_id)) {
+    return;
+  }
+  // barrier: no thread can steal before every thread has claimed a task
+  a->started.fetch_add(1, std::memory_order_acq_rel);
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (a->started.load(std::memory_order_acquire) < HomeSliceArgs::kWorkers &&
+         std::chrono::steady_clock::now() < deadline) {
+  }
+}
+
+TEST_F(ThreadTest, DispatchStartsEachThreadOnItsHomeSlice) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody/>
+  </mujoco>
+  )";
+
+  char error[1024] = "";
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  mjData* d = mj_makeData(m.get());
+  mju_threadpool(d, HomeSliceArgs::kWorkers - 1);
+
+  // 20 tasks over 5 threads: thread t owns tasks [4t, 4t+4)
+  HomeSliceArgs args;
+  mju_dispatchPool(m.get(), d, HomeSliceTaskCallback, &args, 20);
+  for (int t = 0; t < HomeSliceArgs::kWorkers; ++t) {
+    EXPECT_EQ(args.first_task[t].load(), 4 * t) << "thread " << t;
+  }
+
   mj_deleteData(d);
 }
 
