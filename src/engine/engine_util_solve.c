@@ -19,13 +19,11 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_memory.h"
-#include "engine/engine_util_spatial.h"
 
 //---------------------------- dense Cholesky ------------------------------------------------------
 
@@ -104,33 +102,142 @@ void mju_cholSolve(mjtNum* res, const mjtNum* restrict mat, const mjtNum* vec, i
 // Cholesky rank-one update: L*L' +/- x*x'; return rank
 int mju_cholUpdate(mjtNum* restrict mat, mjtNum* restrict x, int n, int flg_plus) {
   int rank = n;
-  mjtNum r, c, cinv, s, Lkk, tmp;
 
   for (int k=0; k < n; k++) {
-    if (x[k]) {
-      // prepare constants
-      Lkk = mat[k*(n+1)];
-      tmp = Lkk*Lkk + (flg_plus ? x[k]*x[k] : -x[k]*x[k]);
-      if (!(tmp >= mjMINVAL)) {
-        tmp = mjMINVAL;
-        rank--;
-      }
-      r = mju_sqrt(tmp);
-      c = r / Lkk;
-      cinv = 1 / c;
-      s = x[k] / Lkk;
-
-      // update diagonal
-      mat[k*(n+1)] = r;
-
-      // update mat and x
-      mjtNum s_signed = flg_plus ? s : -s;
-      for (int i=k+1; i < n; i++) {
-        mjtNum m = (mat[i*n+k] + s_signed*x[i])*cinv;
-        mat[i*n+k] = m;
-        x[i] = c*x[i] - s*m;
-      }
+    // skip zero entry
+    mjtNum xk = x[k];
+    if (!xk) {
+      continue;
     }
+
+    // prepare constants
+    mjtNum Lkk = mat[k*(n+1)];
+    mjtNum tmp = Lkk*Lkk + (flg_plus ? xk*xk : -xk*xk);
+    if (!(tmp >= mjMINVAL)) {
+      tmp = mjMINVAL;
+      rank--;
+    }
+    mjtNum r = mju_sqrt(tmp);
+    mjtNum c0 = r / Lkk;
+    mjtNum cinv0 = 1 / c0;
+    mjtNum s0 = xk / Lkk;
+    mjtNum ss0 = flg_plus ? s0 : -s0;
+
+    // update diagonal
+    mat[k*(n+1)] = r;
+
+    // last column: no subdiagonal rows
+    if (k + 1 >= n) {
+      break;
+    }
+
+    // advance row k+1 with column k so columns k and k+1 can be fused
+    mjtNum* restrict row_k1 = mat + (k+1)*n + k;
+    mjtNum xk1 = x[k+1];
+    mjtNum mk1 = (row_k1[0] + ss0*xk1) * cinv0;
+    row_k1[0] = mk1;
+    xk1 = c0*xk1 - s0*mk1;
+    x[k+1] = xk1;
+
+    int i = k + 2;
+    int n4 = n - 4;
+
+    // x[k+1] is zero: update mat and x for column k only, 4 rows at a time
+    if (!xk1) {
+      for (; i <= n4; i+=4) {
+        mjtNum* restrict col = mat + i*n + k;
+        mjtNum x0 = x[i+0], x1 = x[i+1], x2 = x[i+2], x3 = x[i+3];
+        mjtNum m0 = (col[0]   + ss0*x0) * cinv0;
+        mjtNum m1 = (col[n]   + ss0*x1) * cinv0;
+        mjtNum m2 = (col[2*n] + ss0*x2) * cinv0;
+        mjtNum m3 = (col[3*n] + ss0*x3) * cinv0;
+        col[0]   = m0;
+        col[n]   = m1;
+        col[2*n] = m2;
+        col[3*n] = m3;
+        x[i+0] = c0*x0 - s0*m0;
+        x[i+1] = c0*x1 - s0*m1;
+        x[i+2] = c0*x2 - s0*m2;
+        x[i+3] = c0*x3 - s0*m3;
+      }
+
+      // handle remaining 0..3 rows
+      for (; i < n; i++) {
+        mjtNum* restrict col = mat + i*n + k;
+        mjtNum m0 = (col[0] + ss0*x[i]) * cinv0;
+        col[0] = m0;
+        x[i] = c0*x[i] - s0*m0;
+      }
+
+      // skip column k+1 (already processed)
+      k++;
+      continue;
+    }
+
+    // prepare constants for column k+1
+    mjtNum Lkk1 = row_k1[1];
+    mjtNum tmp1 = Lkk1*Lkk1 + (flg_plus ? xk1*xk1 : -xk1*xk1);
+    if (!(tmp1 >= mjMINVAL)) {
+      tmp1 = mjMINVAL;
+      rank--;
+    }
+    mjtNum r1 = mju_sqrt(tmp1);
+    mjtNum c1 = r1 / Lkk1;
+    mjtNum cinv1 = 1 / c1;
+    mjtNum s1 = xk1 / Lkk1;
+    mjtNum ss1 = flg_plus ? s1 : -s1;
+
+    // update diagonal for column k+1
+    row_k1[1] = r1;
+
+    // update mat and x: fuse columns k and k+1, 4 rows at a time
+    for (; i <= n4; i+=4) {
+      mjtNum* restrict col = mat + i*n + k;
+      mjtNum x0 = x[i+0], x1 = x[i+1], x2 = x[i+2], x3 = x[i+3];
+
+      // apply column k rotation
+      mjtNum m00 = (col[0]   + ss0*x0) * cinv0;
+      mjtNum m10 = (col[n]   + ss0*x1) * cinv0;
+      mjtNum m20 = (col[2*n] + ss0*x2) * cinv0;
+      mjtNum m30 = (col[3*n] + ss0*x3) * cinv0;
+      col[0]   = m00;
+      col[n]   = m10;
+      col[2*n] = m20;
+      col[3*n] = m30;
+      x0 = c0*x0 - s0*m00;
+      x1 = c0*x1 - s0*m10;
+      x2 = c0*x2 - s0*m20;
+      x3 = c0*x3 - s0*m30;
+
+      // apply column k+1 rotation
+      mjtNum m01 = (col[1]     + ss1*x0) * cinv1;
+      mjtNum m11 = (col[n+1]   + ss1*x1) * cinv1;
+      mjtNum m21 = (col[2*n+1] + ss1*x2) * cinv1;
+      mjtNum m31 = (col[3*n+1] + ss1*x3) * cinv1;
+      col[1]     = m01;
+      col[n+1]   = m11;
+      col[2*n+1] = m21;
+      col[3*n+1] = m31;
+      x[i+0] = c1*x0 - s1*m01;
+      x[i+1] = c1*x1 - s1*m11;
+      x[i+2] = c1*x2 - s1*m21;
+      x[i+3] = c1*x3 - s1*m31;
+    }
+
+    // handle remaining 0..3 rows
+    for (; i < n; i++) {
+      mjtNum* restrict col = mat + i*n + k;
+      mjtNum xi = x[i];
+      mjtNum m0 = (col[0] + ss0*xi) * cinv0;
+      col[0] = m0;
+      xi = c0*xi - s0*m0;
+      mjtNum m1 = (col[1] + ss1*xi) * cinv1;
+      col[1] = m1;
+      x[i] = c1*xi - s1*m1;
+    }
+
+    // skip column k+1 (already processed)
+    k++;
   }
 
   return rank;

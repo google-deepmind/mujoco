@@ -1978,6 +1978,106 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdate) {
   }
 }
 
+TEST_F(EngineUtilSolveTest, MjuCholUpdateParity) {
+  // Frozen verbatim copy of HEAD mju_cholUpdate
+  auto ref_chol_update = [](mjtNum* mat, mjtNum* x, int n, int flg_plus) {
+    int rank = n;
+    mjtNum r, c, cinv, s, Lkk, tmp;
+
+    for (int k = 0; k < n; k++) {
+      if (x[k]) {
+        Lkk = mat[k * (n + 1)];
+        tmp = Lkk * Lkk + (flg_plus ? x[k] * x[k] : -x[k] * x[k]);
+        if (!(tmp >= mjMINVAL)) {
+          tmp = mjMINVAL;
+          rank--;
+        }
+        r = mju_sqrt(tmp);
+        c = r / Lkk;
+        cinv = 1 / c;
+        s = x[k] / Lkk;
+
+        mat[k * (n + 1)] = r;
+
+        mjtNum s_signed = flg_plus ? s : -s;
+        for (int i = k + 1; i < n; i++) {
+          mjtNum m = (mat[i * n + k] + s_signed * x[i]) * cinv;
+          mat[i * n + k] = m;
+          x[i] = c * x[i] - s * m;
+        }
+      }
+    }
+    return rank;
+  };
+
+  for (int n = 1; n <= 35; n++) {
+    for (int flg_plus : {0, 1}) {
+      for (int pattern = 0; pattern < 6; pattern++) {
+        vector<mjtNum> mat(n * n);
+        for (int i = 0; i < n; i++) {
+          for (int j = 0; j < n; j++) {
+            if (j < i) {
+              bool zero_row =
+                  (pattern == 4 && i % 2 == 1) || (pattern == 5 && i == 1);
+              mat[i * n + j] =
+                  zero_row ? 0.0 : 0.2 * (mju_Halton(i * n + j + 1, 2) - 0.5);
+            } else if (j == i) {
+              mat[i * n + j] = 1.5 + mju_Halton(i + 1, 3);
+            } else {
+              // upper triangle sentinel
+              mat[i * n + j] = -77.0 - (i * n + j);
+            }
+          }
+        }
+
+        vector<mjtNum> x(n, 0.0);
+        for (int i = 0; i < n; i++) {
+          mjtNum val = mju_Halton(i + 1, 5) - 0.5;
+          if (pattern == 0) {
+            // dense
+            x[i] = val;
+          } else if (pattern == 1) {
+            // alternating zeros and non-zeros (tests xk == 0 and fill-in)
+            x[i] = (i % 2 == 0) ? val : 0.0;
+          } else if (pattern == 2) {
+            // leading and trailing zeros with sparse interior
+            x[i] = (i >= n / 4 && i < (3 * n) / 4 && (i % 3 != 1)) ? val : 0.0;
+          } else if (pattern == 3) {
+            // large magnitude to trigger rank deficiency when flg_plus == 0
+            x[i] = 4.0 * val;
+          } else if (pattern == 4) {
+            // alternating zeros with zero odd-row lower triangle (tests xk1==0)
+            x[i] = (i % 2 == 0) ? val : 0.0;
+          } else {
+            // single zero row k=1 (tests xk1==0 with all 4 unrolled lanes != 0)
+            x[i] = (i == 1) ? 0.0 : val;
+          }
+        }
+
+        vector<mjtNum> mat_ref = mat;
+        vector<mjtNum> x_ref = x;
+
+        int rank = mju_cholUpdate(mat.data(), x.data(), n, flg_plus);
+        int rank_ref =
+            ref_chol_update(mat_ref.data(), x_ref.data(), n, flg_plus);
+
+        EXPECT_EQ(rank, rank_ref)
+            << "n=" << n << " flg_plus=" << flg_plus << " pattern=" << pattern;
+        for (int i = 0; i < n * n; i++) {
+          EXPECT_EQ(mat[i], mat_ref[i])
+              << "mat mismatch at " << i << " n=" << n
+              << " flg_plus=" << flg_plus << " pattern=" << pattern;
+        }
+        for (int i = 0; i < n; i++) {
+          EXPECT_EQ(x[i], x_ref[i])
+              << "x mismatch at " << i << " n=" << n << " flg_plus=" << flg_plus
+              << " pattern=" << pattern;
+        }
+      }
+    }
+  }
+}
+
 // Test for mju_cholUpdateSparse: sparse rank-one Cholesky update L'*L +/- x*x'
 // Uses sparse reverse Cholesky factorization and sparse rank-one update.
 TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {

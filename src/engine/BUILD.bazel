@@ -1342,13 +1342,11 @@ cc_library(
     ],
     deps = [
         ":engine_crossplatform",
-        ":engine_inline",
         ":engine_memory",
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",
         ":engine_util_sparse",
-        ":engine_util_spatial",
         "//:libmujoco_hdrs",
     ],
 )
