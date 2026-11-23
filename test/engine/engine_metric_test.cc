@@ -705,6 +705,94 @@ TEST_F(MetricTest, EffCholDiagFluidAndSkip) {
   check_exact(model.get(), data.get());
 }
 
+// Passive flex contacts between covered 2D cloths (and static geoms) are
+// factored into effChol with dynamic minimum-degree reordering, so mj_effSolve
+// converges in a few iterations without warning even under tight budgets, and
+// tight arena limits fall back cleanly without overflow.
+TEST_F(MetricTest, EffSolvePassiveFlexContact) {
+  static const char* const kDrapeXml = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG"
+            iterations="5" tolerance="1e-8"/>
+    <worldbody>
+      <geom type="sphere" pos="0 0 0" size="0.08"/>
+      <flexcomp name="c0" type="grid" count="5 5 1" spacing="0.04 0.04 1"
+                pos="0 0 0.09" radius="0.005" mass="0.05" dim="2">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e4" poisson="0.2" thickness="1e-3"
+                    elastic2d="both" damping="1e-4"/>
+      </flexcomp>
+      <flexcomp name="c1" type="grid" count="5 5 1" spacing="0.04 0.04 1"
+                pos="0.005 0 0.105" radius="0.005" mass="0.05" dim="2">
+        <contact selfcollide="auto" passive="true"/>
+        <elasticity young="1e4" poisson="0.2" thickness="1e-3"
+                    elastic2d="both" damping="1e-4"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kDrapeXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  int saw_con = 0;
+  for (int s = 0; s < 50; s++) {
+    mj_step(model.get(), data.get());
+    ASSERT_EQ(data->warning[mjWARN_INERTIA].number, 0) << "step " << s;
+    if (data->nefmcon > 0) {
+      saw_con++;
+    }
+  }
+  ASSERT_GT(saw_con, 0);
+  ASSERT_GT(data->nefmcon, 0);
+  ASSERT_GT(data->nefmL, 0);
+  EXPECT_EQ(data->efm_L[0], 1);
+
+  int nv = model->nv;
+  std::vector<mjtNum> b(nv), x(nv), r(nv);
+  for (int i = 0; i < nv; i++) {
+    b[i] = mju_Halton(i, 3) - 0.5;
+  }
+  mj_effSolve(model.get(), data.get(), x.data(), b.data());
+  EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 0);
+  mju_mulSymVecSparse(r.data(), data->M, x.data(), nv, model->M_rownnz,
+                      model->M_rowadr, model->M_colind);
+  mj_effMulAdd(model.get(), data.get(), r.data(), x.data(), /*flg_contact=*/1);
+  mju_subFrom(r.data(), b.data(), nv);
+  EXPECT_LT(mju_norm(r.data(), nv) / mju_norm(b.data(), nv), MjTol(1e-8, 1e-4));
+
+  // Sweep narena from the non-effChol peak up to the sparse-factor peak across
+  // the passive-contact effCholReserve budget: tight arenas may warn and fall
+  // back, but must never overflow the arena.
+  {
+    MockWarningHandler warning_handler;
+    warning_handler.ExpectWarnings("Insufficient arena memory");
+    warning_handler.ExpectWarnings("Flex stiffness is too ill-conditioned");
+    warning_handler.ExpectWarnings("Inertia matrix is too close to singular");
+    int saved_perm0 = model->efmC_perm[0];
+    model->efmC_perm[0] = -1;
+    MjDataPtr db = MakeData(model);
+    mju_copy(db->qpos, data->qpos, model->nq);
+    mju_copy(db->qvel, data->qvel, model->nv);
+    mj_forward(model.get(), db.get());
+    size_t lo = db->maxuse_arena + 4096;
+    model->efmC_perm[0] = saved_perm0;
+
+    size_t orig = model->narena;
+    size_t hi = data->maxuse_arena + 4096;
+    for (int k = 0; k <= 16; k++) {
+      model->narena = lo + (hi > lo ? ((hi - lo) * k) / 16 : 0);
+      MjDataPtr dt = MakeData(model);
+      mju_copy(dt->qpos, data->qpos, model->nq);
+      mju_copy(dt->qvel, data->qvel, model->nv);
+      mj_forward(model.get(), dt.get());
+      EXPECT_LE(dt->maxuse_arena, dt->narena);
+    }
+    model->narena = orig;
+  }
+}
+
 // PCG requires a symmetric preconditioner. mj_effPrec must satisfy
 // u.P(v) == v.P(u); it did not when the covered and uncovered dofs shared a
 // kinematic tree, which is what the articulated vertex body here exercises.

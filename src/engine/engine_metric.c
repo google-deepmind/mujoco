@@ -543,28 +543,82 @@ static void effCovered(int nv, int nb, const int* dofid, int* cov) {
   }
 }
 
-// greedy minimum-degree elimination on the full vertex graph (K stencil kadr/knbr plus allowed
-// edge CSR eadr/enbr), with dense bitset adjacency; the first eliminated vertex goes last
+// greedy minimum-degree elimination on either the full vertex graph (kadr/knbr + eadr/enbr) or
+// the merged step graph (madr/mcnt/mnbr), with dense bitset adjacency; first eliminated goes last
 static void effCholMinDegree(mjData* d, int nb, const int* kadr, const int* knbr,
-                             const int* eadr, const int* enbr, int* perm) {
+                             const int* eadr, const int* enbr,
+                             const int* madr, const int* mcnt, const int* mnbr, int* perm) {
   int words = (nb + 63) / 64;
   uint64_t* adj = effBits(d, (size_t)nb*words);
   uint64_t* nz_bits = effBits(d, words);
   int* scratch = effInts(d, 5*(size_t)nb + words);
   memset(adj, 0, sizeof(uint64_t)*(size_t)nb*words);
   for (int k=0; k < nb; k++) {
-    for (int j=kadr[k]; j < kadr[k+1]; j++) {
-      int q = knbr[j];
-      adj[(size_t)k*words+(q>>6)] |= 1ULL << (q&63);
-      adj[(size_t)q*words+(k>>6)] |= 1ULL << (k&63);
-    }
-    for (int j=eadr[k]; j < eadr[k+1]; j++) {
-      int q = enbr[j];
-      adj[(size_t)k*words+(q>>6)] |= 1ULL << (q&63);
-      adj[(size_t)q*words+(k>>6)] |= 1ULL << (k&63);
+    if (kadr) {
+      for (int j=kadr[k]; j < kadr[k+1]; j++) {
+        int q = knbr[j];
+        adj[(size_t)k*words+(q>>6)] |= 1ULL << (q&63);
+        adj[(size_t)q*words+(k>>6)] |= 1ULL << (k&63);
+      }
+      for (int j=eadr[k]; j < eadr[k+1]; j++) {
+        int q = enbr[j];
+        adj[(size_t)k*words+(q>>6)] |= 1ULL << (q&63);
+        adj[(size_t)q*words+(k>>6)] |= 1ULL << (k&63);
+      }
+    } else {
+      for (int j=madr[k]; j < madr[k] + mcnt[k]; j++) {
+        int q = mnbr[j];
+        adj[(size_t)k*words+(q>>6)] |= 1ULL << (q&63);
+        adj[(size_t)q*words+(k>>6)] |= 1ULL << (k&63);
+      }
     }
   }
   mju_minDegree(perm, adj, nb, NULL, NULL, NULL, 0, scratch, nz_bits);
+}
+
+// count or collect unordered covered-vertex block pairs coupled by passive flex contacts whose
+// participating dofs are all covered (skipping mixed covered/uncovered contacts avoids a
+// one-sided preconditioner term that squares the contact condition number)
+static int effCholContactPairs(const mjData* d, const int* blk, int nb,
+                               int* vmark, int* vlist, int* cpair) {
+  int np = 0;
+  for (int k=0; k < nb; k++) vmark[k] = -1;
+  for (int adr=0, cid=0; adr < d->nefmcon; cid++) {
+    int nnz = d->efm_con_ind[adr];
+    mjtNum scale = d->efm_con_val[adr];
+    const int* ci = d->efm_con_ind + adr + 2;
+    adr += 2 + nnz;
+    if (scale <= 0) {
+      continue;
+    }
+    int mvert = 0, all_cov = 1;
+    for (int a=0; a < nnz; a++) {
+      int k = blk[ci[a]];
+      if (k < 0) {
+        all_cov = 0;
+        break;
+      }
+      if (vmark[k] != cid) {
+        vmark[k] = cid;
+        vlist[mvert++] = k;
+      }
+    }
+    if (!all_cov) {
+      continue;
+    }
+    if (cpair) {
+      for (int u=0; u < mvert; u++) {
+        for (int v=u+1; v < mvert; v++) {
+          cpair[2*np] = vlist[u];
+          cpair[2*np+1] = vlist[v];
+          np++;
+        }
+      }
+    } else {
+      np += mvert * (mvert - 1) / 2;
+    }
+  }
+  return np;
 }
 
 static void effAllow(int* amark, const int* eadr, const int* enbr, int k) {
@@ -699,7 +753,7 @@ typedef struct {
 
 static int effCholBegin(const mjModel* m, mjData* d, int nb, const int* dofid, const int* blk,
                         const int* K_rownnz, const int* K_rowadr, const int* K_colind,
-                        int order, int* perm, mjEffCholPass* p) {
+                        int np_con, int order, int* perm, mjEffCholPass* p) {
   if (nb <= 0 || nb > EFF_CHOL_MAXVERT) {
     return 0;
   }
@@ -712,9 +766,16 @@ static int effCholBegin(const mjModel* m, mjData* d, int nb, const int* dofid, c
   int* mark = effInts(d, nb);
   int* adr = effInts(d, nb);
   int* cnt = effInts(d, nb);
-  int* nbr = effInts(d, (size_t)kadr[nb] + p->ne);
+  int *cadr = NULL, *cnbr = NULL, nc = 0;
+  if (np_con > 0) {
+    int* cpair = effInts(d, 2*(size_t)np_con);
+    effCholContactPairs(d, blk, nb, mark, adr, cpair);
+    effPairCSR(d, nb, cpair, np_con, &cadr, &cnbr);
+    nc = cadr[nb];
+  }
+  int* nbr = effInts(d, (size_t)kadr[nb] + p->ne + nc);
   for (int k=0; k < nb; k++) amark[k] = mark[k] = -1;
-  int tot = 0;
+  int tot = 0, has_new_con = 0;
   for (int k=0; k < nb; k++) {
     adr[k] = tot;
     mark[k] = k;
@@ -733,14 +794,27 @@ static int effCholBegin(const mjModel* m, mjData* d, int nb, const int* dofid, c
         nbr[tot++] = q;
       }
     }
+    if (cadr) {
+      for (int j=cadr[k]; j < cadr[k+1]; j++) {
+        int q = cnbr[j];
+        if (mark[q] != k) {
+          has_new_con = 1;
+          mark[q] = k;
+          nbr[tot++] = q;
+        }
+      }
+    }
     cnt[k] = tot - adr[k];
   }
   if (order) {
-    effCholMinDegree(d, nb, kadr, knbr, p->eadr, p->enbr, perm);
+    // model-level ordering (mj_effCholSetConst) includes the full K stencil (used by Newton too)
+    effCholMinDegree(d, nb, kadr, knbr, p->eadr, p->enbr, NULL, NULL, NULL, perm);
+  } else if (has_new_con) {
+    effCholMinDegree(d, nb, NULL, NULL, NULL, NULL, adr, cnt, nbr, perm);
   }
   p->rownnz = effInts(d, nb);
   p->rowadr = effInts(d, nb);
-  p->colind = effInts(d, (size_t)kadr[nb] + p->ne);
+  p->colind = effInts(d, (size_t)kadr[nb] + p->ne + nc);
   p->scratch = effInts(d, 3*(size_t)nb);
   for (int k=0; k < nb; k++) p->rownnz[perm[k]] = cnt[k];
   for (int pos=0, a=0; pos < nb; pos++) {
@@ -817,14 +891,16 @@ static size_t effCholKcap(const mjData* d, int nb, const int* dofid) {
   return cap;
 }
 
-static size_t effCholAnalysisBytes(const mjModel* m, size_t nb, size_t kcap) {
+static size_t effCholAnalysisBytes(const mjModel* m, size_t nb, size_t kcap, size_t np_con) {
   size_t ne = effCholFlexPairs(m);
-  size_t nnbr = kcap + 2*ne;
+  size_t nnbr = kcap + 2*ne + 2*np_con;
   size_t words = (nb + 63) / 64;
+  size_t con_bytes = np_con ? (effIntBytes(nb + 1) + 2*effIntBytes(2*np_con) + effIntBytes(nb)) : 0;
   return mj_stackFrameBytes() + 2*effIntBytes(nb + 1) + effIntBytes(kcap) + 2*effIntBytes(2*ne) +
-         effIntBytes(nb) + 4*effIntBytes(nb) + effIntBytes(nnbr) + effBitBytes(nb*words) +
-         effBitBytes(words) + effIntBytes(5*nb + words) + 2*effIntBytes(nb) + effIntBytes(nnbr) +
-         effIntBytes(3*nb) + 2*effIntBytes(3*nb) + effIntBytes(nb + 1);
+         effIntBytes(nb) + 4*effIntBytes(nb) + con_bytes + effIntBytes(nnbr) +
+         effBitBytes(nb*words) + effBitBytes(words) + effIntBytes(5*nb + words) +
+         2*effIntBytes(nb) + effIntBytes(nnbr) + effIntBytes(3*nb) + 2*effIntBytes(3*nb) +
+         effIntBytes(nb + 1);
 }
 
 static size_t effFillBytes(size_t nb, size_t nv) {
@@ -906,7 +982,7 @@ void mj_effCholSetConst(mjModel* m, mjData* d) {
       return;
     }
     for (int k=0; k < nb; k++) kcap += K_rownnz[dofid[k]];
-    need += effIntBytes(nK) + effIntBytes(nb) + effCholAnalysisBytes(m, nb, kcap);
+    need += effIntBytes(nK) + effIntBytes(nb) + effCholAnalysisBytes(m, nb, kcap, /*np_con=*/0);
   }
   if (avail < need) {
     mj_freeStack(d);
@@ -918,7 +994,8 @@ void mj_effCholSetConst(mjModel* m, mjData* d) {
   mjd_flexStiff_assembleGen(m, d, K_rownnz, K_rowadr, K_colind, NULL, 0, 0, 1, 1, NULL, gen);
   effCovered(nv, nb, dofid, blk);
   mjEffCholPass pass;
-  if (effCholBegin(m, d, nb, dofid, blk, K_rownnz, K_rowadr, K_colind, 1, perm, &pass)) {
+  if (effCholBegin(m, d, nb, dofid, blk, K_rownnz, K_rowadr, K_colind, /*np_con=*/0, 1, perm,
+                   &pass)) {
     for (int k=0; k < nb; k++) m->efmC_perm[perm[k]] = dofid[k];
   }
   mj_freeStack(d);
@@ -1125,6 +1202,83 @@ static void effCholFill(const mjModel* m, mjData* d, const mjEffChol* c, mjtNum*
     }
     mju_zero(scratch, 6*nq);
   }
+
+  // scatter passive flex contact rank-1 terms (scale * row' * row) on covered triples
+  if (d->nefmcon) {
+    for (int k=0; k < nb; k++) qmark[k] = -1;
+    for (int adr=0, cid=0; adr < d->nefmcon; cid++) {
+      int nnz = d->efm_con_ind[adr];
+      mjtNum scale = d->efm_con_val[adr];
+      const int* ci = d->efm_con_ind + adr + 2;
+      const mjtNum* rv = d->efm_con_val + adr + 2;
+      adr += 2 + nnz;
+      if (scale <= 0) {
+        continue;
+      }
+      int mvert = 0, all_cov = 1;
+      for (int a=0; a < nnz; a++) {
+        int dof = ci[a], k = blk[dof];
+        if (k < 0) {
+          all_cov = 0;
+          break;
+        }
+        int u;
+        if (qmark[k] != cid) {
+          qmark[k] = cid;
+          qpos[k] = u = mvert++;
+          qlist[u] = k;
+          scratch[3*u] = scratch[3*u+1] = scratch[3*u+2] = 0;
+        } else {
+          u = qpos[k];
+        }
+        scratch[3*u+(dof-c->dofid[k])] += rv[a];
+      }
+      if (!all_cov) {
+        mju_zero(scratch, 3*mvert);
+        continue;
+      }
+      for (int u=0; u < mvert; u++) {
+        int ku = qlist[u], pu = c->perm[ku];
+        const mjtNum* wu = scratch + 3*u;
+        mjtNum su0 = scale*wu[0], su1 = scale*wu[1], su2 = scale*wu[2];
+        int nob = c->L_rownnz[3*pu] - 1;
+        H[c->L_rowadr[3*pu]+nob]     += su0 * wu[0];
+        H[c->L_rowadr[3*pu+1]+nob]   += su1 * wu[0];
+        H[c->L_rowadr[3*pu+1]+nob+1] += su1 * wu[1];
+        H[c->L_rowadr[3*pu+2]+nob]   += su2 * wu[0];
+        H[c->L_rowadr[3*pu+2]+nob+1] += su2 * wu[1];
+        H[c->L_rowadr[3*pu+2]+nob+2] += su2 * wu[2];
+        for (int v=0; v < u; v++) {
+          int kv = qlist[v], pv = c->perm[kv];
+          int ph, pl;
+          const mjtNum *wh, *wl;
+          if (pu > pv) {
+            ph = pu; pl = pv; wh = wu; wl = scratch + 3*v;
+          } else {
+            ph = pv; pl = pu; wh = scratch + 3*v; wl = wu;
+          }
+          const int* vc = c->L_colind + c->L_rowadr[3*ph];
+          int nvc = (c->L_rownnz[3*ph] - 1) / 3;
+          int lo = 0, hi = nvc;
+          while (lo < hi) {
+            int mid = (lo + hi) >> 1;
+            if (vc[3*mid] < 3*pl) lo = mid + 1;
+            else hi = mid;
+          }
+          if (lo < nvc && vc[3*lo] == 3*pl) {
+            mjtNum* h0 = H + c->L_rowadr[3*ph] + 3*lo;
+            mjtNum* h1 = H + c->L_rowadr[3*ph+1] + 3*lo;
+            mjtNum* h2 = H + c->L_rowadr[3*ph+2] + 3*lo;
+            mjtNum sh0 = scale*wh[0], sh1 = scale*wh[1], sh2 = scale*wh[2];
+            h0[0] += sh0*wl[0]; h0[1] += sh0*wl[1]; h0[2] += sh0*wl[2];
+            h1[0] += sh1*wl[0]; h1[1] += sh1*wl[1]; h1[2] += sh1*wl[2];
+            h2[0] += sh2*wl[0]; h2[1] += sh2*wl[1]; h2[2] += sh2*wl[2];
+          }
+        }
+      }
+      mju_zero(scratch, 3*mvert);
+    }
+  }
   mjtNum maxdiag = 0;
   for (int r=0; r < n; r++) {
     maxdiag = mju_max(maxdiag, H[c->L_rowadr[r]+c->L_rownnz[r]-1]);
@@ -1220,7 +1374,8 @@ static void effCholApply(mjData* d, const mjEffChol* c, mjtNum* x, const mjtNum*
   mj_freeStack(d);
 }
 
-// analyse the step's efm_K pattern and allocate d->efm_L with the analysis and the factor
+// analyse the step's efm_K (+ passive contact) pattern and allocate d->efm_L with the analysis
+// and the factor
 static mjtNum* effCholReserve(const mjModel* m, mjData* d, int nb, const int* dofid, int* ntail) {
   *ntail = 0;
   if (!effCholApplies(m, d, nb, dofid)) {
@@ -1229,9 +1384,10 @@ static mjtNum* effCholReserve(const mjModel* m, mjData* d, int nb, const int* do
   int nv = m->nv;
   size_t kcap = effCholKcap(d, nb, dofid);
   size_t avail = mj_stackBytesAvailable(d);
-  size_t sym_bytes = mj_stackFrameBytes() + effIntBytes(nv) + effIntBytes(nb) +
-                     effCholAnalysisBytes(m, nb, kcap);
-  if (avail < sym_bytes) {
+  size_t base_bytes = mj_stackFrameBytes() + effIntBytes(nv) + effIntBytes(nb);
+  size_t count_bytes = d->nefmcon ? (mj_stackFrameBytes() + 2*effIntBytes(nb)) : 0;
+  size_t sym_bytes = base_bytes + effCholAnalysisBytes(m, nb, kcap, /*np_con=*/0);
+  if (avail < mjMAX(sym_bytes, base_bytes + count_bytes)) {
     mj_warning(d, mjWARN_CNSTRFULL, d->narena);
     return NULL;
   }
@@ -1239,6 +1395,22 @@ static mjtNum* effCholReserve(const mjModel* m, mjData* d, int nb, const int* do
   int* blk = effInts(d, nv);
   int* perm = effInts(d, nb);
   effCovered(nv, nb, dofid, blk);
+  int np_con = 0;
+  if (d->nefmcon) {
+    mj_markStack(d);
+    int* vmark = effInts(d, nb);
+    int* vlist = effInts(d, nb);
+    np_con = effCholContactPairs(d, blk, nb, vmark, vlist, NULL);
+    mj_freeStack(d);
+    if (np_con > 0) {
+      size_t con_sym = base_bytes + effCholAnalysisBytes(m, nb, kcap, (size_t)np_con);
+      if (avail < con_sym) {
+        mj_freeStack(d);
+        mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+        return NULL;
+      }
+    }
+  }
   int pos = 0;
   for (int t=0; t < m->nefmCvert && m->efmC_perm[t] >= 0; t++) {
     int k = m->efmC_perm[t] < nv ? blk[m->efmC_perm[t]] : -1;
@@ -1249,7 +1421,7 @@ static mjtNum* effCholReserve(const mjModel* m, mjData* d, int nb, const int* do
   mjEffCholPass pass;
   int ok = (pos == nb) &&
            effCholBegin(m, d, nb, dofid, blk, d->efm_K_rownnz, d->efm_K_rowadr, d->efm_K_colind,
-                        /*order=*/0, perm, &pass) &&
+                        np_con, /*order=*/0, perm, &pass) &&
            pass.nfe;
   if (!ok) {
     mj_freeStack(d);

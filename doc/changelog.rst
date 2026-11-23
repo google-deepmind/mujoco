@@ -14,6 +14,11 @@ General
 
 Deformables
 ^^^^^^^^^^^
+- Fixed effective-metric PCG stalls and spurious ``mjWARN_INERTIA`` warnings on 2D flexes with passive contacts by
+  including fully covered passive flex contacts in the sparse Cholesky preconditioner. Previously, passive flex
+  contacts were omitted from the preconditioner, causing the implicit solve to stall or under-converge on stacked cloth
+  scenes (2.1-2.7x faster on ``drape.xml``; existing models with passive flex contacts can change trajectory due to the
+  more accurate solve).
 - Added ``mjModel.flex_cellempty`` (``nflexcell x 1``) and ``mjModel.flex_celladr``, flagging the empty (pruned) cells
   of interpolated flexes. Points of an interpolated flex, such as contact points, are now evaluated in their active
   cell: their natural cell, or the nearest non-empty cell if it is empty, consistently with the vertex positions
