@@ -40,6 +40,7 @@
 #include "studio/ux/gui_helpers.h"
 #include "studio/ux/imgui_widgets.h"
 #include "studio/ux/interaction.h"
+#include "studio/ux/theme.h"
 
 namespace mujoco::studio {
 namespace {
@@ -242,8 +243,6 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
   const float scale = ImGui::GetWindowDpiScale();
   const float font_scale = ImGui::GetIO().FontGlobalScale;
 
-  const float kOptionsRelWidth = 0.15f;
-  const float kInspectorRelWidth = 0.22f;
   const float kPropertiesRelHeight = 0.3f;
   const float kToolsBarHeight = show_toolbar ? 36.f * scale * font_scale : 0.0f;
   const float status_bar_height = show_status_bar ? kStatusBarHeight * scale * font_scale : 0.0f;
@@ -259,9 +258,32 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
   const ImVec2 dockspace_pos{viewport->Pos.x, viewport->Pos.y + menu_bar_height + kToolsBarHeight};
   const ImVec2 dockspace_size{
       viewport->Size.x, viewport->Size.y - menu_bar_height - kToolsBarHeight - status_bar_height};
+  // Apply DPI-scaled pixel floors only when the viewport can fit both panels
+  // and the 3D scene (>= 720 dp leaves > 30% for the central viewport).
+  constexpr float kMinOptionsWidth = 248.f;
+  constexpr float kMinInspectorWidth = 255.f;
+  constexpr float kMinFloorViewportWidth = 720.f;
+  const float dpi_scale = scale * font_scale;
+  float options_rel_width = 0.15f;
+  float inspector_rel_width = 0.22f;
+  if (dockspace_size.x > 0.0f && dockspace_size.x >= kMinFloorViewportWidth * dpi_scale) {
+    options_rel_width =
+        std::max(options_rel_width, (kMinOptionsWidth * dpi_scale) / dockspace_size.x);
+    const float remaining_width = dockspace_size.x * (1.0f - options_rel_width);
+    inspector_rel_width =
+        std::max(inspector_rel_width, (kMinInspectorWidth * dpi_scale) / remaining_width);
+  }
 
   ImGuiID root = ImGui::GetID("Root");
   const bool first_time = (ImGui::DockBuilderGetNode(root) == nullptr);
+
+  const ImGuiID dpi_scale_key = ImHashStr("DockDpiScale");
+  if (ImGuiWindow* dock_win = ImGui::FindWindowByName("Dockspace")) {
+    const float prev_scale = dock_win->StateStorage.GetFloat(dpi_scale_key, 0.0f);
+    if (!first_time && prev_scale > 0.0f && scale > 0.0f && std::abs(scale - prev_scale) > 1e-3f) {
+      RescaleDock(scale / prev_scale);
+    }
+  }
 
   if (first_time) {
     ImGui::DockBuilderRemoveNode(root);
@@ -272,10 +294,10 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
     ImGuiID main = root;
 
     ImGuiID options = 0;
-    ImGui::DockBuilderSplitNode(main, ImGuiDir_Left, kOptionsRelWidth, &options, &main);
+    ImGui::DockBuilderSplitNode(main, ImGuiDir_Left, options_rel_width, &options, &main);
 
     ImGuiID inspector = 0;
-    ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, kInspectorRelWidth, &inspector, &main);
+    ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, inspector_rel_width, &inspector, &main);
 
     ImGuiID properties = 0;
     ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kPropertiesRelHeight, &properties,
@@ -308,7 +330,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking |
       ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
-      ImGuiWindowFlags_NoBackground;
+      ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings;
 
   const ImGuiWindowFlags kFixedFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
                                        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
@@ -324,6 +346,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
     const ImGuiDockNodeFlags kDockSpaceFlags =
         ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_NoDockingOverCentralNode;
     ImGui::DockSpace(root, ImVec2(0.0f, 0.0f), kDockSpaceFlags);
+    ImGui::GetStateStorage()->SetFloat(dpi_scale_key, scale);
     ImGui::End();
   }
 
@@ -358,8 +381,8 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
   if (central) {
     return ImVec4(central->Pos.x, central->Pos.y, central->Size.x, central->Size.y);
   }
-  const int settings_width = dockspace_size.x * kOptionsRelWidth;
-  const int inspector_width = dockspace_size.x * kInspectorRelWidth;
+  const int settings_width = dockspace_size.x * options_rel_width;
+  const int inspector_width = (dockspace_size.x - settings_width) * inspector_rel_width;
   const float workspace_x = dockspace_pos.x + settings_width;
   const float workspace_y = dockspace_pos.y;
   const float workspace_w = dockspace_size.x - settings_width - inspector_width;
