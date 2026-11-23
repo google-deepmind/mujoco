@@ -297,14 +297,18 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
 
     // decoupled standalone free bodies took the local gyroscopic solve in the forward
     // pass (mj_discreteGyro): mirror it, overwriting their rows with the local product
-    for (int j=0; j < m->njnt; j++) {
-      mjtNum A[36];
-      if (!mjd_freeGyroPossible(m, d, j) ||
-          !mjd_freeMhat(m, d, j, m->opt.timestep, A, /*flg_discrete=*/1)) {
-        continue;
+    if (m->ntree) {
+      int* jnts = mjSTACKALLOC(d, m->ntree, int);
+      int njnt = mjd_freeGyroJoints(m, d, jnts);
+      for (int k=0; k < njnt; k++) {
+        int j = jnts[k];
+        mjtNum A[36];
+        if (!mjd_freeMhat(m, d, j, m->opt.timestep, A, /*flg_discrete=*/1)) {
+          continue;
+        }
+        int adr = m->jnt_dofadr[j];
+        mju_mulMatVec(Ma+adr, A, d->qacc+adr, 6, 6);
       }
-      int adr = m->jnt_dofadr[j];
-      mju_mulMatVec(Ma+adr, A, d->qacc+adr, 6, 6);
     }
 
     mju_subFrom(Ma, d->efm_c, nv);

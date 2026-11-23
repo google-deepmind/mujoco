@@ -15,6 +15,7 @@
 #include "engine/engine_derivative.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -891,89 +892,185 @@ int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[
 }
 
 
-// can this free rigid subtree take the local gyroscopic treatment under discrete:
-// its rows of the solve must be decoupled -- no constraint Jacobian support, no flex
-// CSR row, no tendon or actuator metric terms on its 6 dofs. Structural: reads the
-// constraint Jacobian, valid from mj_makeConstraint on
-int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt) {
-  int adr = m->jnt_dofadr[jnt];
-  if (m->jnt_type[jnt] != mjJNT_FREE || !mj_isFreeBody(m, m->jnt_bodyid[jnt])) {
+// collect awake free rigid subtrees that can take the local gyroscopic treatment under discrete:
+// their rows of the solve must be decoupled -- no constraint Jacobian support, no flex
+// CSR row, no tendon or actuator metric terms on their 6 dofs. Structural: reads the
+// constraint Jacobian, valid from mj_makeConstraint on. Writes joint indices into jnts
+// (capacity m->ntree) and returns the count
+int mjd_freeGyroJoints(const mjModel* m, mjData* d, int* jnts) {
+  int ntree = m->ntree;
+  if (!ntree) {
     return 0;
   }
-  for (int r=0; r < 6; r++) {
-    if (d->nefmK && d->efm_K_rownnz[adr+r]) {
-      return 0;
+
+  const int* dof_treeid = m->dof_treeid;
+  const int* jnt_dofadr = m->jnt_dofadr;
+
+  // collect awake standalone free rigid subtrees without flex CSR rows
+  int ncand = 0;
+  for (int j=0; j < m->njnt; j++) {
+    if (m->jnt_type[j] != mjJNT_FREE || !mj_isFreeBody(m, m->jnt_bodyid[j])) {
+      continue;
     }
+    int adr = jnt_dofadr[j];
+    if (!d->tree_awake[dof_treeid[adr]]) {
+      continue;
+    }
+    if (d->nefmK) {
+      int has_K = 0;
+      for (int r=0; r < 6; r++) {
+        if (d->efm_K_rownnz[adr+r]) {
+          has_K = 1;
+          break;
+        }
+      }
+      if (has_K) {
+        continue;
+      }
+    }
+    jnts[ncand++] = j;
   }
 
-  // Matrix-free flex attachments can couple this free body without any CSR or constraint row.
-  int tree = m->body_treeid[m->jnt_bodyid[jnt]];
-  for (int f=0; f < m->nflex; f++) {
-    if (!mj_effFlexPossible(m, f)) continue;
+  // no candidates: quick return without touching stack or Jacobians
+  if (!ncand) {
+    return 0;
+  }
+
+  // mark candidate trees (each free rigid subtree owns all 6 dofs of its tree exclusively)
+  mj_markStack(d);
+  mjtByte* cand = mjSTACKALLOC(d, ntree, mjtByte);
+  memset(cand, 0, ntree);
+  for (int k=0; k < ncand; k++) {
+    cand[dof_treeid[jnt_dofadr[jnts[k]]]] = 1;
+  }
+  int nrem = ncand;
+
+  // matrix-free flex attachments can couple a free body without any CSR or constraint row
+  for (int f=0; f < m->nflex && nrem; f++) {
+    if (!mj_effFlexPossible(m, f)) {
+      continue;
+    }
     const int* bodies = m->flex_interp[f] ? m->flex_nodebodyid : m->flex_vertbodyid;
     int vertadr = m->flex_interp[f] ? m->flex_nodeadr[f] : m->flex_vertadr[f];
     int num = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
     for (int v=vertadr; v < vertadr+num; v++) {
-      if (m->body_treeid[bodies[v]] == tree) return 0;
+      int tree = m->body_treeid[bodies[v]];
+      if (tree >= 0 && cand[tree]) {
+        cand[tree] = 0;
+        if (--nrem == 0) {
+          break;
+        }
+      }
     }
   }
 
   // constraint Jacobian support on any of the 6 dofs couples them to the solve
   int nefc = d->nefc;
-  if (mj_isSparse(m)) {
-    for (int i=0; i < nefc; i++) {
-      int end = d->efc_J_rowadr[i] + d->efc_J_rownnz[i];
-      for (int j=d->efc_J_rowadr[i]; j < end; j++) {
-        int c = d->efc_J_colind[j];
-        if (c >= adr+6) {
-          break;
+  if (nrem && nefc) {
+    if (mj_isSparse(m)) {
+      const int* rownnz = d->efc_J_rownnz;
+      const int* rowadr = d->efc_J_rowadr;
+      const int* rowsuper = d->efc_J_rowsuper;
+      const int* colind = d->efc_J_colind;
+      for (int i=0; i < nefc && nrem; i++) {
+        int end = rowadr[i] + rownnz[i];
+        for (int j=rowadr[i]; j < end; j++) {
+          int tree = dof_treeid[colind[j]];
+          if (cand[tree]) {
+            cand[tree] = 0;
+            if (--nrem == 0) {
+              break;
+            }
+          }
         }
-        if (c >= adr) {
-          return 0;
+        if (rowsuper) {
+          i += rowsuper[i];
         }
       }
-    }
-  } else {
-    int nv = m->nv;
-    for (int i=0; i < nefc; i++) {
-      const mjtNum* row = d->efc_J + nv*i + adr;
-      for (int r=0; r < 6; r++) {
-        if (row[r]) {
-          return 0;
+    } else {
+      int nv = m->nv;
+
+      // maintain compact list of remaining candidates so we only inspect their 6 columns per row
+      int nrem_dense = 0;
+      int* rem_adr = mjSTACKALLOC(d, nrem, int);
+      int* rem_tree = mjSTACKALLOC(d, nrem, int);
+      for (int k=0; k < ncand; k++) {
+        int adr = jnt_dofadr[jnts[k]];
+        int tree = dof_treeid[adr];
+        if (cand[tree]) {
+          rem_adr[nrem_dense] = adr;
+          rem_tree[nrem_dense] = tree;
+          nrem_dense++;
+        }
+      }
+      for (int i=0; i < nefc && nrem_dense; i++) {
+        const mjtNum* row = d->efc_J + (size_t)nv*i;
+        for (int k=0; k < nrem_dense; ) {
+          const mjtNum* blk = row + rem_adr[k];
+          if (blk[0] || blk[1] || blk[2] || blk[3] || blk[4] || blk[5]) {
+            cand[rem_tree[k]] = 0;
+            nrem--;
+            nrem_dense--;
+            rem_adr[k] = rem_adr[nrem_dense];
+            rem_tree[k] = rem_tree[nrem_dense];
+          } else {
+            k++;
+          }
         }
       }
     }
   }
 
   // any tendon with metric terms touching these dofs couples them to other trees
-  for (int t=0; t < d->nefmT; t++) {
+  for (int t=0; t < d->nefmT && nrem; t++) {
     if (!d->efm_ts[t]) {
       continue;
     }
     int i = d->efm_tid[t];
     int end = m->ten_J_rowadr[i] + m->ten_J_rownnz[i];
     for (int j=m->ten_J_rowadr[i]; j < end; j++) {
-      int c = m->ten_J_colind[j];
-      if (c >= adr && c < adr+6) {
-        return 0;
-      }
-    }
-  }
-  for (int t=0; t < d->nefmA; t++) {
-    int i = d->efm_aid[t];
-    int oadr = m->actuator_outadr[i];
-    for (int k=0; k < m->actuator_outnum[i]; k++) {
-      int r = oadr + k;
-      int end = d->moment_rowadr[r] + d->moment_rownnz[r];
-      for (int j=d->moment_rowadr[r]; j < end; j++) {
-        int c = d->moment_colind[j];
-        if (c >= adr && c < adr+6) {
-          return 0;
+      int tree = dof_treeid[m->ten_J_colind[j]];
+      if (cand[tree]) {
+        cand[tree] = 0;
+        if (--nrem == 0) {
+          break;
         }
       }
     }
   }
-  return 1;
+
+  // any actuator with metric terms touching these dofs couples them to other trees
+  for (int t=0; t < d->nefmA && nrem; t++) {
+    int i = d->efm_aid[t];
+    int oadr = m->actuator_outadr[i];
+    for (int k=0; k < m->actuator_outnum[i] && nrem; k++) {
+      int r = oadr + k;
+      int end = d->moment_rowadr[r] + d->moment_rownnz[r];
+      for (int j=d->moment_rowadr[r]; j < end; j++) {
+        int tree = dof_treeid[d->moment_colind[j]];
+        if (cand[tree]) {
+          cand[tree] = 0;
+          if (--nrem == 0) {
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // compact remaining candidates in joint order
+  int nout = 0;
+  if (nrem) {
+    for (int k=0; k < ncand; k++) {
+      int j = jnts[k];
+      if (cand[dof_treeid[jnt_dofadr[j]]]) {
+        jnts[nout++] = j;
+      }
+    }
+  }
+
+  mj_freeStack(d);
+  return nout;
 }
 
 

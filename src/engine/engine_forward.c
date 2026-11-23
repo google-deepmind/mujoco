@@ -1170,18 +1170,22 @@ static void solveIslandTask(const mjModel* m, mjData* d, void* arg, int thread_i
 
 // discrete: reinstate the free-body gyroscopic derivative for decoupled standalone free
 // bodies, re-solving their rows of qacc against the local unsymmetric metric. Guarded by
-// mjd_freeGyroPossible: no constraint Jacobian support and no off-diagonal metric coupling
+// mjd_freeGyroJoints: no constraint Jacobian support and no off-diagonal metric coupling
 // on the 6 dofs, so the overwrite leaves all other rows and the constraint solution intact
 static void mj_discreteGyro(const mjModel* m, mjData* d) {
-  if (m->opt.integrator != mjINT_DISCRETE || !d->efm_active) {
+  if (m->opt.integrator != mjINT_DISCRETE || !d->efm_active || !m->ntree) {
     return;
   }
-  for (int j=0; j < m->njnt; j++) {
+
+  mj_markStack(d);
+  int* jnts = mjSTACKALLOC(d, m->ntree, int);
+  int njnt = mjd_freeGyroJoints(m, d, jnts);
+  for (int k=0; k < njnt; k++) {
+    int j = jnts[k];
     mjtNum A[36], rhs[6], x[6];
 
     // skip if the joint cannot take the decoupled local treatment
-    if (!mjd_freeGyroPossible(m, d, j) ||
-        !mjd_freeMhat(m, d, j, m->opt.timestep, A, /*flg_discrete=*/1)) {
+    if (!mjd_freeMhat(m, d, j, m->opt.timestep, A, /*flg_discrete=*/1)) {
       continue;
     }
 
@@ -1199,6 +1203,7 @@ static void mj_discreteGyro(const mjModel* m, mjData* d) {
       mji_copy6(d->qacc + adr, x);
     }
   }
+  mj_freeStack(d);
 }
 
 

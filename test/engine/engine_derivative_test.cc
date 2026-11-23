@@ -42,10 +42,13 @@ namespace mujoco {
 namespace {
 
 using ::std::vector;
+using ::testing::Contains;
 using ::testing::DoubleNear;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using DerivativeTest = MujocoTest;
@@ -4567,8 +4570,12 @@ TEST_P(FlexAttachmentTest, BendingDampingDerivative) {
 
 TEST_P(FlexAttachmentTest, AttachmentCannotUseFreeGyroShortcut) {
   int body = mj_name2id(model.get(), mjOBJ_BODY, "carrier");
-  EXPECT_FALSE(
-      mjd_freeGyroPossible(model.get(), data.get(), model->body_jntadr[body]));
+  int jnt = model->body_jntadr[body];
+
+  std::vector<int> jnts(model->ntree);
+  int njnt = mjd_freeGyroJoints(model.get(), data.get(), jnts.data());
+  jnts.resize(njnt);
+  EXPECT_THAT(jnts, Not(Contains(jnt)));
 }
 
 TEST_P(FlexAttachmentTest, GeneralAssembleMatchesMatrixFree) {
@@ -4941,6 +4948,84 @@ TEST_F(DerivativeTest, StepFDIPCRestoresContinuationState) {
   mj_step(m.get(), d_ref.get());
   EXPECT_EQ(std::memcmp(d->qpos, d_ref->qpos, sizeof(mjtNum) * m->nq), 0);
   EXPECT_EQ(std::memcmp(d->qvel, d_ref->qvel, sizeof(mjtNum) * m->nv), 0);
+}
+
+TEST_F(DerivativeTest, FreeGyroJointsFiltersCoupledAndSleepingBodies) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <option integrator="discrete" timestep="0.005">
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <site name="world_s" pos="2 0 1"/>
+      <body name="free_ok_1" pos="0 0 2">
+        <freejoint name="j_ok_1"/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+      </body>
+      <body name="free_contact" pos="0 1 .09">
+        <freejoint name="j_contact"/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+      <body name="articulated" pos="1 0 2">
+        <freejoint name="j_artic"/>
+        <geom type="sphere" size=".1" mass="1"/>
+        <body pos=".2 0 0">
+          <joint type="hinge" axis="0 1 0"/>
+          <geom type="sphere" size=".05" mass=".5"/>
+        </body>
+      </body>
+      <body name="free_tendon" pos="2 0 2">
+        <freejoint name="j_tendon"/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+        <site name="ten_s" pos="0 0 0"/>
+      </body>
+      <body name="free_actuator" pos="3 0 2">
+        <freejoint name="j_actuator"/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+        <site name="act_s" pos="0 0 0"/>
+      </body>
+      <body name="free_sleep" pos="4 0 2" sleep="init">
+        <freejoint name="j_sleep"/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+      </body>
+      <body name="free_ok_2" pos="5 0 2">
+        <freejoint name="j_ok_2"/>
+        <geom type="box" size=".1 .1 .1" mass="1"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial stiffness="20" damping="1">
+        <site site="world_s"/>
+        <site site="ten_s"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <position site="act_s" kp="10" kv="1" gear="0 0 1 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  int j_ok_1 = mj_name2id(model.get(), mjOBJ_JOINT, "j_ok_1");
+  int j_ok_2 = mj_name2id(model.get(), mjOBJ_JOINT, "j_ok_2");
+
+  for (mjtJacobian jac : {mjJAC_SPARSE, mjJAC_DENSE}) {
+    model->opt.jacobian = jac;
+    mj_resetData(model.get(), data.get());
+    mj_forward(model.get(), data.get());
+    ASSERT_GT(data->nefc, 0);
+    ASSERT_GT(data->nefmT, 0);
+    ASSERT_GT(data->nefmA, 0);
+
+    std::vector<int> actual(model->ntree);
+    int njnt = mjd_freeGyroJoints(model.get(), data.get(), actual.data());
+    actual.resize(njnt);
+    EXPECT_THAT(actual, ElementsAre(j_ok_1, j_ok_2));
+  }
 }
 
 }  // namespace

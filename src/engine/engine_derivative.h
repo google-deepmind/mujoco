@@ -59,8 +59,9 @@ MJAPI void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt, mjtNum B
 MJAPI int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36],
                        int flg_discrete);
 
-// can this free rigid subtree take the local gyroscopic treatment under discrete
-MJAPI int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt);
+// collect awake free rigid subtrees that can take the local gyroscopic treatment under discrete;
+// writes their joint indices into jnts (capacity m->ntree) and returns the count
+MJAPI int mjd_freeGyroJoints(const mjModel* m, mjData* d, int* jnts);
 
 // compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
 //   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
