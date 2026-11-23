@@ -57,7 +57,7 @@ Deflection errors below are signed relative to theory (negative = too stiff).
 | Cloth, garments, flags, thin plates/shells | `2` | `full` | `3 * nvert` | Pair positive collision `radius` with physical `thickness` and `elastic2d="both"` (or `"stretch"`). Required for flat 2D sheets (cloth, plates). |
 | Compliant solids or lattice shells | `2` or `3` | `trilinear` | `3 * (cx+1)*(cy+1)*(cz+1)` for `cellcount="cx cy cz"` (`24` for `1 1 1`) | **Default for compact solids.** Two independent choices: `dim` picks the embedded/collision mesh (`2` surface triangles, `3` tets); `elastic2d` picks mechanics (`"none"` = 3D volume/cut-cell, `bunny_multicell.xml`; else = shell on lattice boundary faces with interior nodes auto-pinned, `bunny_shell.xml`; both at `dim=3` in `hollow_vs_solid.xml`). Under-predicts bending deflection by 50-98% at 1-8 cells; supports `yield`. |
 | 3D beams, solids, or lattice shells that bend | `2` or `3` | `quadratic` | `3 * (2*cx+1)*(2*cy+1)*(2*cz+1)` (`81` for `1 1 1`) | Same independent `dim` (`2` triangles as in `bunny_quadratic.xml`, `3` tets) and `elastic2d` (volume vs. shell) choices, without shear locking: -6% / -2% bending error at `cellcount="2 1 1"` / `"4 1 1"` (`mechanisms/cantilever.xml`); supports `yield`. |
-| Fine local indentation (`3`) or 2D bend plasticity (`2`) | `2` or `3` | `full` | `3 * nvert` | Highest cost in 3D and still stiff in bending (-56% / -25% bending error at 17x3x3 / 33x5x5 for 5-17x the cost of `quadratic`); use only when localized 3D dents/yield (`model/plastic/clay.xml`) or 2D bending plasticity (`paper.xml`, `foil.xml`; `dim="2"` required) need per-vertex DOFs. |
+| Fine local indentation (`3`) or 2D bend plasticity (`2`) | `2` or `3` | `full` | `3 * nvert` | Highest cost in 3D and still stiff in bending (-56% / -25% bending error at 17x3x3 / 33x5x5 for 3-12x the cost of `quadratic`); use only when localized 3D dents/yield (`model/plastic/clay.xml`) or 2D bending plasticity (`paper.xml`, `foil.xml`; `dim="2"` required) need per-vertex DOFs. |
 | Planar compliant mechanisms (e.g. Fin-Ray) | `2` or `3` | `2d` | `2 * nvert` | X-Y slide DOFs in parent frame (`model/flex/gripper_2d.xml`); parent body may have joints even when unpinned. |
 | Hollow pressurized / spherical-like blobs | `2` or `3` | `radial` | `nvert - 1` (+6 parent `freejoint`) | 1 radial slide DOF per shell vertex; center vertex `0` is pinned to the parent (`type` `box`/`cylinder`/`ellipsoid`, `model/flex/softbox.xml`). Add a parent `<freejoint/>` for free motion. |
 | Exact non-convex rigid collider | `2` or `3` | `rigid="true"` | `0` extra DOFs | Pins all vertices to parent body (auto-set if all points are pinned); exact triangle/tet collisions without convex hulling or SDFs. |
@@ -92,9 +92,10 @@ adds numerical damping `damping = timestep`
 `qacc_smooth = (M_hat)^-1 f` (`mj_effSolve`) runs PCG on `M_hat`: 1D rods and
 non-interpolated 2D flexes build a per-step sparse Cholesky preconditioner (1
 iter on rods/2D stretch, a few on 2D bend), whereas 3D `full` and all
-`trilinear`/`quadratic` flexes (`dim=2` shells included) iterate up to
-`opt.iterations` (hitting the cap warns `"Flex stiffness is too
-ill-conditioned..."` as `mjWARN_INERTIA`, leaving `qacc_smooth` unconverged).
+`trilinear`/`quadratic` flexes (`dim=2` shells included) use symmetric
+Gauss-Seidel (SGS) preconditioned PCG and iterate up to `opt.iterations`
+(hitting the cap warns `"Flex stiffness is too ill-conditioned..."` as
+`mjWARN_INERTIA`, leaving `qacc_smooth` unconverged).
 
 -   **`solver="Newton"` (default -- unless factorization is prohibitive):**
     Sparse-Cholesky factors `M_hat` + constraints (`gradient ~ 1e-12`-`1e-15`).
@@ -463,6 +464,8 @@ Tracks A and B run on **`MJWarp` (`mujoco_warp`, `impl='warp'`)** in `float32`
     `2.8` ms at `1`, `1.9x`-`8.0x` at `64`), while cloth/3D contact fill-in and
     `efm0_L` hold back 3 scenes; **`CG` + `discrete`** (`bunny_shell`, `clay`)
     beats CPU at `1` world (`1.2x`, `8.2x`) when `solver_niter < iterations`.
+    Unlike CPU, other `discrete` flexes keep parallel Jacobi PCG in
+    `eff_solve`: serial SGS is much slower on GPU (`references/mjwarp.md`).
 -   **Size buffers (`make_data` / `put_data`):** Defaults overflow on 20/33
     scenes (`nefc`, causing `NaN`s); `nconmax >= 16384`, `njmax >= 16384`,
     `njmax_nnz >= 1048576` cleared all 33 (`--measure_alloc` / `d.overflow`).

@@ -557,6 +557,306 @@ TEST_F(MetricTest, EffSolve) {
   EXPECT_LT(solve_residual(model.get(), data.get()), 1e-4);
 }
 
+// Verify mj_effSolve's Eisenstat SGS path (and articulated fallback) on 3D
+// flexes against an exact dense Cholesky solve of (M + B) x = b, covering
+// uncovered trees, fluid drag, in-place aliasing, non-CSR rank-1 couplings
+// (tendon, actuator, passive flex contact), and sleeping trees.
+TEST_F(MetricTest, EffSolve3DFlexExact) {
+  auto verify_exact = [](const mjModel* m, mjData* d) {
+    int nv = m->nv;
+    ASSERT_GT(nv, 0);
+    ASSERT_GE(d->efm_active, 1);
+    ASSERT_GT(d->nefmK, 0);
+
+    // assemble dense A = M + B via mj_effMulAdd
+    vector<mjtNum> A(nv * nv, 0);
+    vector<mjtNum> ej(nv, 0), col(nv, 0);
+    for (int j = 0; j < nv; j++) {
+      ej[j] = 1;
+      mju_mulSymVecSparse(col.data(), d->M, ej.data(), nv, m->M_rownnz,
+                          m->M_rowadr, m->M_colind);
+      mj_effMulAdd(m, d, col.data(), ej.data(), /*flg_contact=*/1);
+      for (int i = 0; i < nv; i++) A[i * nv + j] = col[i];
+      ej[j] = 0;
+    }
+
+    // dense Cholesky reference solve A * x_ref = b
+    vector<mjtNum> L = A;
+    ASSERT_EQ(mju_cholFactor(L.data(), nv, 0), nv);
+    vector<mjtNum> b(nv), x_ref(nv), x(nv), Ax(nv);
+    for (int i = 0; i < nv; i++) {
+      b[i] = 1.0 + 0.1 * ((i * 7) % 13) - 0.5;
+    }
+    mju_cholSolve(x_ref.data(), L.data(), b.data(), nv);
+
+    mj_effSolve(m, d, x.data(), b.data());
+    EXPECT_EQ(d->warning[mjWARN_INERTIA].number, 0);
+
+    // verify true residual and agreement with dense Cholesky
+    mju_mulSymVecSparse(Ax.data(), d->M, x.data(), nv, m->M_rownnz, m->M_rowadr,
+                        m->M_colind);
+    mj_effMulAdd(m, d, Ax.data(), x.data(), /*flg_contact=*/1);
+    mjtNum r2 = 0, b2 = 0, e2 = 0, xr2 = 0;
+    for (int i = 0; i < nv; i++) {
+      mjtNum ri = b[i] - Ax[i];
+      mjtNum ei = x[i] - x_ref[i];
+      r2 += ri * ri;
+      b2 += b[i] * b[i];
+      e2 += ei * ei;
+      xr2 += x_ref[i] * x_ref[i];
+    }
+    EXPECT_LT(mju_sqrt(r2 / b2), MjTol(1e-7, 5e-4));
+    EXPECT_LT(mju_sqrt(e2 / xr2), MjTol(1e-6, 1e-3));
+
+    // in-place aliasing x == b must produce the same result
+    vector<mjtNum> x_inplace = b;
+    mj_effSolve(m, d, x_inplace.data(), x_inplace.data());
+    mjtNum d2 = 0;
+    for (int i = 0; i < nv; i++) {
+      mjtNum di = x_inplace[i] - x[i];
+      d2 += di * di;
+    }
+    EXPECT_LT(mju_sqrt(d2 / xr2), MjTol(1e-12, 1e-6));
+  };
+
+  char error[1024];
+
+  // Case 1: simple 3D FEM + uncovered articulated hinge + fluid drag.
+  static const char* const kXmlSimple = R"(
+  <mujoco>
+    <option solver="CG" integrator="discrete" tolerance="1e-10" iterations="200"
+            viscosity="0.5" density="1.2"/>
+    <worldbody>
+      <body name="pend" pos="0.5 0 0.5">
+        <joint type="hinge" axis="0 1 0" stiffness="5" damping="0.2"/>
+        <geom type="capsule" size="0.02 0.1" mass="0.3" contype="0" conaffinity="0"/>
+        <body pos="0 0 -0.2">
+          <joint type="hinge" axis="1 0 0" damping="0.1"/>
+          <geom type="sphere" size="0.03" mass="0.2" contype="0" conaffinity="0"/>
+        </body>
+      </body>
+      <flexcomp name="block" type="box" count="3 3 2" spacing="0.04 0.04 0.04"
+                radius="0.005" dim="3" mass="0.3" pos="0 0 0.5" dof="full">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="5e3" poisson="0.25" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  {
+    auto model = LoadModelFromString(kXmlSimple, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    auto data = MakeData(model);
+    data->qvel[0] = 0.7;
+    data->qvel[1] = -0.4;
+    mj_forward(model.get(), data.get());
+    EXPECT_EQ(data->nefmL, 0);
+    verify_exact(model.get(), data.get());
+  }
+
+  // Case 2: simple 3D flex with passive contact, free body, tendon, actuator.
+  static const char* const kXmlCouplings = R"(
+  <mujoco>
+    <option solver="CG" integrator="discrete" tolerance="1e-10" iterations="200"/>
+    <worldbody>
+      <geom type="plane" size="1 1 0.1"/>
+      <body name="arm" pos="0.4 0 0.3">
+        <joint name="h1" type="hinge" axis="0 1 0"/>
+        <geom type="sphere" size="0.03" mass="0.2" contype="0" conaffinity="0"/>
+        <body pos="0.1 0 0">
+          <joint name="h2" type="hinge" axis="0 1 0"/>
+          <geom type="sphere" size="0.03" mass="0.2" contype="0" conaffinity="0"/>
+        </body>
+      </body>
+      <body name="freeb" pos="-0.4 0 0.3">
+        <freejoint/>
+        <geom type="box" size="0.04 0.04 0.04" mass="0.4" contype="0" conaffinity="0"/>
+      </body>
+      <flexcomp name="block" type="box" count="3 3 2" spacing="0.04 0.04 0.04"
+                radius="0.015" dim="3" mass="0.3" pos="0 0 0.018" dof="full">
+        <contact selfcollide="none" passive="true"/>
+        <elasticity young="5e3" poisson="0.25" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+    <tendon>
+      <fixed name="t1" stiffness="20" damping="1">
+        <joint joint="h1" coef="1"/>
+        <joint joint="h2" coef="-0.5"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position name="act" tendon="t1" kp="30" kv="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  {
+    auto model = LoadModelFromString(kXmlCouplings, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    auto data = MakeData(model);
+    data->qpos[0] = 0.2;
+    data->ctrl[0] = 0.1;
+    mj_forward(model.get(), data.get());
+    ASSERT_GT(data->nefmT, 0);
+    ASSERT_GT(data->nefmA, 0);
+    ASSERT_GT(data->nefmcon, 0);
+    verify_exact(model.get(), data.get());
+  }
+
+  // Case 3: articulated 3D flex under Newton (general CSR fallback).
+  static const char* const kXmlArticulated = R"(
+  <mujoco>
+    <option solver="Newton" integrator="discrete" tolerance="1e-10" iterations="200"/>
+    <worldbody>
+      <body name="base" pos="0 0 0.3">
+        <joint type="slide" axis="0 0 1" stiffness="10" damping="0.5"/>
+        <geom type="sphere" size="0.01" mass="0.5" contype="0" conaffinity="0"/>
+        <flexcomp name="block" type="box" count="3 3 2" spacing="0.04 0.04 0.04"
+                  radius="0.005" dim="3" mass="0.3" pos="0 0 0" dof="full">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="5e3" poisson="0.25" damping="0.05"/>
+          <pin id="0"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  {
+    auto model = LoadModelFromString(kXmlArticulated, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    auto data = MakeData(model);
+    mj_forward(model.get(), data.get());
+    verify_exact(model.get(), data.get());
+  }
+
+  // Case 4: awake 3D flex + sleeping rigid body (sleep_filter active).
+  static const char* const kXmlSleep = R"(
+  <mujoco>
+    <option solver="CG" integrator="discrete" tolerance="1e-10" iterations="200">
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <body name="sleeper" pos="1 0 0.5" sleep="init">
+        <freejoint/>
+        <geom type="sphere" size="0.05" mass="0.5" contype="0" conaffinity="0"/>
+      </body>
+      <flexcomp name="block" type="box" count="3 3 2" spacing="0.04 0.04 0.04"
+                radius="0.005" dim="3" mass="0.3" pos="0 0 0.5" dof="full">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="5e3" poisson="0.25" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  {
+    auto model = LoadModelFromString(kXmlSleep, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    auto data = MakeData(model);
+    mj_forward(model.get(), data.get());
+    ASSERT_LT(data->nv_awake, model->nv);
+    verify_exact(model.get(), data.get());
+  }
+
+  // Case 5: tilted passive contact on 3D flex under tight tolerance and budget
+  // (folding efm_con diagonals into SGS D without off-diagonal contact terms
+  // crushes orthogonal-mode eigenvalues and stalls convergence).
+  static const char* const kXmlTiltedPassive = R"(
+  <mujoco>
+    <option timestep="0.01" solver="Newton" integrator="discrete"
+            tolerance="1e-12" iterations="100"/>
+    <worldbody>
+      <geom type="plane" size="1 1 0.1" euler="25 35 0"/>
+      <flexcomp name="block" type="grid" count="3 3 2" spacing="0.03 0.03 0.03"
+                radius="0.004" dim="3" mass="0.3" pos="0 0 0.02" dof="full">
+        <contact selfcollide="none" passive="true"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  {
+    auto model = LoadModelFromString(kXmlTiltedPassive, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    auto data = MakeData(model);
+    for (int step = 0; step < 5; step++) {
+      mj_step(model.get(), data.get());
+    }
+    EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 0);
+    ASSERT_GT(data->nefmcon, 0);
+    EXPECT_EQ(data->nefmL, 0);
+    verify_exact(model.get(), data.get());
+  }
+}
+
+// Verify Eisenstat SGS converges substantially faster than qH diagonal PCG on
+// a stiff 3D FEM flex within a tight iteration budget.
+TEST_F(MetricTest, EffSolve3DFlexConvergence) {
+  static const char* const kXmlStiff3D = R"(
+  <mujoco>
+    <option timestep="0.003" solver="CG" integrator="discrete"
+            tolerance="1e-5" iterations="35"/>
+    <worldbody>
+      <flexcomp name="clay" type="grid" dim="3" count="8 8 4"
+                spacing="0.02 0.02 0.025" radius="0.002" mass="1.0"
+                pos="0 0 0.1">
+        <pin gridrange="0 0 0 7 7 0"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="2e5" poisson="0.2" damping="0.02"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  auto model = LoadModelFromString(kXmlStiff3D, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  auto data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_GT(data->nefmK, 0);
+  ASSERT_EQ(data->nefmL, 0);
+
+  int nv = model->nv;
+  vector<mjtNum> b(nv), x(nv), Ax(nv);
+  for (int i = 0; i < nv; i++) {
+    b[i] = 1.0 + 0.3 * ((i * 5) % 11) - 1.5;
+  }
+
+  // SGS PCG must converge within 35 iterations without warning.
+  mj_effSolve(model.get(), data.get(), x.data(), b.data());
+  EXPECT_EQ(data->warning[mjWARN_INERTIA].number, 0);
+  mju_mulSymVecSparse(Ax.data(), data->M, x.data(), nv, model->M_rownnz,
+                      model->M_rowadr, model->M_colind);
+  mj_effMulAdd(model.get(), data.get(), Ax.data(), x.data(), /*flg_contact=*/1);
+  mjtNum r2 = 0, b2 = 0;
+  for (int i = 0; i < nv; i++) {
+    mjtNum ri = b[i] - Ax[i];
+    r2 += ri * ri;
+    b2 += b[i] * b[i];
+  }
+  EXPECT_LT(mju_sqrt(r2 / b2), MjTol(1e-5, 2e-5));
+
+  // Reference qH-preconditioned PCG (using mj_effPrec) does not converge in 35
+  // iterations on the same problem.
+  vector<mjtNum> r = b, z(nv), p(nv), Ap(nv);
+  mj_effPrec(model.get(), data.get(), z.data(), r.data());
+  p = z;
+  mjtNum rz = mju_dot(r.data(), z.data(), nv);
+  for (int it = 0; it < model->opt.iterations; it++) {
+    mju_mulSymVecSparse(Ap.data(), data->M, p.data(), nv, model->M_rownnz,
+                        model->M_rowadr, model->M_colind);
+    mj_effMulAdd(model.get(), data.get(), Ap.data(), p.data(),
+                 /*flg_contact=*/1);
+    mjtNum pAp = mju_dot(p.data(), Ap.data(), nv);
+    ASSERT_GT(pAp, 0);
+    mjtNum alpha = rz / pAp;
+    mju_addToScl(r.data(), Ap.data(), -alpha, nv);
+    mj_effPrec(model.get(), data.get(), z.data(), r.data());
+    mjtNum rznew = mju_dot(r.data(), z.data(), nv);
+    mju_addScl(p.data(), z.data(), p.data(), rznew / rz, nv);
+    rz = rznew;
+  }
+  mjtNum qh_relres = mju_sqrt(mju_dot(r.data(), r.data(), nv) / b2);
+  EXPECT_GT(qh_relres, 10 * model->opt.tolerance);
+}
+
 // A cloth with per-step stretch stiffness, used by the two tests below.
 // Independent flex slides with an articulated descendant: the mass matrix
 // couples the covered vertex triple to an uncovered hinge in the same kinematic

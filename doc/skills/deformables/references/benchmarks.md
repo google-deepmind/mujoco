@@ -61,21 +61,22 @@ Reference: Euler-Bernoulli `P L^3 / (3 E I)` = 8.64 mm (shear adds < 1%).
 | `trilinear` 8x1x1 | 96 | 0.14 | -50.0% |
 | `trilinear` 4x2x2 | 108 | 0.21 | -78.4% |
 | `quadratic` 1x1x1 | 54 | 0.11 | -24.5% |
-| `quadratic` 2x1x1 | 108 | 0.34 | -6.4% |
-| `quadratic` 4x1x1 | 216 | 1.09 | -1.8% |
-| `full` 17x3x3 | 432 | 1.74 | -55.7% |
-| `full` 33x5x5 | 2400 | 16.3 | -24.8% |
+| `quadratic` 2x1x1 | 108 | 0.30 | -6.4% |
+| `quadratic` 4x1x1 | 216 | 0.86 | -1.8% |
+| `full` 17x3x3 | 432 | 0.90 | -55.7% |
+| `full` 33x5x5 | 2400 | 10.2 | -24.8% |
 
 Rod nv counts 3 slides per unpinned vertex plus one twist hinge per unclamped
 edge.
 
 -   **Rods win slender problems:** the half-segment-offset 17-vertex rod is
-    60x more accurate than `quadratic` 2x1x1 at 1/5 of the cost.
+    60x more accurate than `quadratic` 2x1x1 at 1/4 of the cost.
 -   **`trilinear` converges very slowly in bending** (-98% / -79% / -50% at
     1 / 4 / 8 cells along the span), and extra cells across the thickness
-    (4x2x2) do not help. **`full` linear tets lock too** while costing 5-15x a
-    more accurate `quadratic` beam; the 33x5x5 grid also warns `Flex stiffness
-    is too ill-conditioned for the effective-metric block preconditioner`.
+    (4x2x2) do not help. **`full` linear tets lock too** while costing 3-12x a
+    more accurate `quadratic` beam (the 33x5x5 grid converges cleanly under SGS
+    preconditioning at `poisson = 0.25`, warning `mjWARN_INERTIA` only near
+    incompressibility in Sec. 7).
 -   **Rod clamp offset:** `<pin id="0 1"/>` clamps the rod at the middle of
     edge 0, so a rod that starts at the mount bends as if half a segment
     short. Start it half a segment behind the mount: `spacing = L / (n - 1.5)`
@@ -304,12 +305,12 @@ across `poisson = 0.25, 0.45, 0.49`.
 
 | Formulation | nv | ms/step (0.25 / 0.45 / 0.49) | Tip error (`nu = 0.25`) | Tip error (`nu = 0.45`) | Tip error (`nu = 0.49`) |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `trilinear` 8x1x1 | 96 | 0.15 / 0.18 / 0.26 | -50.0% | -58.4% | -67.2% |
-| `quadratic` 2x1x1 | 108 | 0.34 / 0.45 / 0.70 | -6.4% | -24.4% | -47.6% |
-| `quadratic` 4x1x1 | 216 | 1.00 / 1.71 / 2.70 | -1.8% | -11.5% | -21.0% |
-| `full` 17x3x3 | 432 | 1.71 / 2.45 / 2.51 | -55.7% | -73.0% | -90.1% |
-| `full` 17x3x3, SNH | 432 | 1.86 / 2.66 / 2.69 | -55.7% | -73.0% | -90.1% |
-| `full` 33x5x5 | 2400 | 16.0 / 19.3 / 21.9 | -24.8% | -43.1% | -72.2% |
+| `trilinear` 8x1x1 | 96 | 0.14 / 0.18 / 0.25 | -50.0% | -58.4% | -67.2% |
+| `quadratic` 2x1x1 | 108 | 0.30 / 0.38 / 0.59 | -6.4% | -24.4% | -47.6% |
+| `quadratic` 4x1x1 | 216 | 0.76 / 1.18 / 2.08 | -1.8% | -11.5% | -21.0% |
+| `full` 17x3x3 | 432 | 0.90 / 1.23 / 1.94 | -55.7% | -73.0% | -90.1% |
+| `full` 17x3x3, SNH | 432 | 1.05 / 1.39 / 2.11 | -55.7% | -73.0% | -90.1% |
+| `full` 33x5x5 | 2400 | 9.85 / 14.7 / 17.9 | -24.8% | -43.1% | -72.2% |
 
 -   **All 3D formulations lock volumetrically toward `poisson = 0.5`:** as the
     Lame parameter `lambda = E nu / ((1 + nu)(1 - 2 nu))` diverges, even
@@ -320,11 +321,13 @@ across `poisson = 0.25, 0.45, 0.49`.
     `poisson <= 0.45` (and refine `quadratic` to 4x1x1 if `0.45` accuracy
     within ~12% is needed). Both `full` and interpolated 3D flexes reject
     `poisson >= 0.5` at compile time (`Poisson ratio must be in [0, 0.5)`).
--   **3D smooth solve is block-PCG capped by `<option iterations>`:** the
-    unconstrained `M + h*D + h^2*K` solve uses block-preconditioned PCG. Near
-    `poisson = 0.49` (or on fine `full` grids), ill-conditioning causes PCG to
-    take more iterations (raising step cost 1.4-2.7x) or hit the iteration cap
-    and emit `mjWARN_INERTIA`.
+-   **3D smooth solve is SGS-preconditioned PCG capped by `<option iterations>`:**
+    the unconstrained `M + h*D + h^2*K` solve uses symmetric Gauss-Seidel (SGS)
+    preconditioned PCG on standalone 3-DOF flex nodes (falling back to
+    block-diagonal PCG on articulated flexes). Near `poisson = 0.49`,
+    ill-conditioning causes PCG to take more iterations (raising step cost
+    1.8-2.7x) or hit the iteration cap and emit `mjWARN_INERTIA` (`full`
+    33x5x5 at `nu = 0.49`).
 
 ## 8. Cantilever Dynamics & Implicit-Step Damping
 
@@ -343,10 +346,10 @@ decay rate `sigma = c omega^2 / 2`, and backward-Euler step decay
 | 1D rod, 9v, half-segment offset | 28 | 0.05 | -0.5% | 4.345 | -3.2% | 2.61 | +40.0% | +0.5% |
 | 1D rod, 17v, half-segment offset | 60 | 0.08 | -0.1% | 4.408 | -1.8% | 2.68 | +39.9% | +0.5% |
 | 1D rod, 33v, half-segment offset | 124 | 0.15 | -0.0% | 4.441 | -1.0% | 2.73 | +40.0% | +0.5% |
-| `trilinear` 8x1x1 | 96 | 0.14 | -50.0% | 6.046 | +34.7% | 5.05 | +39.9% | +0.9% |
-| `quadratic` 2x1x1 | 108 | 0.33 | -6.4% | 4.480 | -0.2% | 2.77 | +40.0% | +0.5% |
-| `quadratic` 4x1x1 | 216 | 1.01 | -1.8% | 4.426 | -1.4% | 2.71 | +40.0% | +0.5% |
-| `full` 17x3x3 | 432 | 2.23 | -55.7% | 6.082 | +35.5% | 5.28 | +44.6% | +4.4% |
+| `trilinear` 8x1x1 | 96 | 0.18 | -50.0% | 6.046 | +34.7% | 5.05 | +39.9% | +0.9% |
+| `quadratic` 2x1x1 | 108 | 0.31 | -6.4% | 4.480 | -0.2% | 2.77 | +40.0% | +0.5% |
+| `quadratic` 4x1x1 | 216 | 0.82 | -1.8% | 4.426 | -1.4% | 2.71 | +40.0% | +0.5% |
+| `full` 17x3x3 | 432 | 1.13 | -55.7% | 6.082 | +35.5% | 5.28 | +44.6% | +4.4% |
 
 Timestep sweep on `quadratic` 2x1x1 (same law holds on 1D rods;
 *measured at MuJoCo `70dede937` with `benchmark_flex.py --problems=dynamics`*):

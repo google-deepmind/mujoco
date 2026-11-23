@@ -23,6 +23,11 @@ Deformables
   of interpolated flexes. Points of an interpolated flex, such as contact points, are now evaluated in their active
   cell: their natural cell, or the nearest non-empty cell if it is empty, consistently with the vertex positions
   (``flex_vertcell``). Previously contact weights near pruned cells could weight the pinned nodes of the empty cell.
+- The ``discrete`` :ref:`integrator<option-integrator>` smooth solve for 3D and interpolated
+  :ref:`flexes<deformable-flex>` now uses symmetric Gauss-Seidel (Eisenstat) preconditioning instead of diagonal
+  preconditioning, reusing the assembled stiffness matrix in place with zero extra arena memory. This cuts smooth-solve
+  iterations 2-3x and speeds up stepping by ~15% on ``model/plastic/clay.xml`` and
+  ``model/flex/mechanisms/cantilever.xml`` (up to ~1.9x on unconstrained 3D tetrahedral meshes).
 
 Compiler
 ^^^^^^^^

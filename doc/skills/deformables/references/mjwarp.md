@@ -54,7 +54,14 @@ default `make_data` flex buffer heuristics, or supported flex features
         iterations) and run in `1.2`-`2.8` ms/step at `nworld=1`
         (`3.2x`-`13.0x` slower than sub-millisecond CPU `mj_step` due to GPU
         kernel-launch overhead at small `nv = 76`-`283`; `1.9x`-`8.0x` faster at
-        `nworld=64`). The remaining 3 scenes are held back at `nworld=1` by: (1)
+        `nworld=64`). Other CSR-assembled `discrete` flexes (3D `full`,
+        `trilinear`, 2D stretch cloth) keep parallel Jacobi PCG in `eff_solve`,
+        unlike CPU `mj_effSolve` (Eisenstat SGS): a 1-thread/world SGS port
+        was `12x`-`85x` slower in `eff_solve` and `2.1x`-`31x` slower per step
+        on an A100 (`floppy.xml` `nworld=1/64/1024`, `clay.xml` `nworld=1/64`),
+        because ~6-31 serial sweeps over `nv = 1153`-`6349` rows on one thread
+        per world lose to `(nworld, nv)`-parallel matvecs despite ~3x fewer
+        iterations. The remaining 3 scenes are held back at `nworld=1` by: (1)
         single-thread `efm0_L` triangular solve (`poncho_edgeequality.xml` `123`
         ms/step), (2) Cholesky fill-in on self-colliding cloth and dense 3D
         contact (`poncho.xml` `100` ms/step, `poncho_edgeequality.xml` `123`
