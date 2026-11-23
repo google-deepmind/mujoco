@@ -1230,14 +1230,15 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     // single island covering all DOFs: mj_island fills map_dof2idof and map_efc2iefc in
     // ascending order per island, so both maps are the identity and monolithic M, qLD, and J
     // can be reused directly without copying
-    if (d->nisland == 1 && d->nidof == m->nv && !mj_effUseQH(d)) {
+    if (d->nisland == 1 && d->nidof == m->nv) {
+      int use_qH = mj_effUseQH(d);
       ctx->nJ               = d->nJ;
       ctx->M_rownnz         = m->M_rownnz;
       ctx->M_rowadr         = m->M_rowadr;
       ctx->M_colind         = m->M_colind;
       ctx->M                = d->M;
-      ctx->qLD              = d->qLD;
-      ctx->qLDiagInv        = d->qLDiagInv;
+      ctx->qLD              = use_qH ? d->qH : d->qLD;
+      ctx->qLDiagInv        = use_qH ? d->qHDiagInv : d->qLDiagInv;
       ctx->J                = d->efc_J;
       if (ctx->is_sparse) {
         ctx->J_rownnz       = d->efc_J_rownnz;
