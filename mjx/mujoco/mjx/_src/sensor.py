@@ -822,15 +822,16 @@ def sensor_acc(m: Model, d: Data) -> Data:
           cvel = d.cvel[bodyid]
           offset = pos - d.subtree_com[m.body_rootid[bodyid]]
 
-          sensor = _framelinacc(cvel, cacc, offset).reshape(-1)
+          sensor = _framelinacc(cvel, cacc, offset)
         elif sensor_type == SensorType.FRAMEANGACC:
-          sensor = cacc[:, :3].reshape(-1)
+          sensor = cacc[:, :3]
         else:
           raise ValueError(f'Unknown sensor type: {sensor_type}')
 
         adrt = adr[idxt, None] + np.arange(3)[None]
+        cutofft = cutoff[idxt]
 
-        sensors.append(sensor.reshape(-1))
+        sensors.append(_apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
         adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     else:
