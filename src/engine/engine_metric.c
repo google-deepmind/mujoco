@@ -1106,7 +1106,12 @@ static void effCholFill(const mjModel* m, mjData* d, const mjEffChol* c, mjtNum*
       int i = i0 + a;
       for (int j=m->M_rowadr[i]; j < m->M_rowadr[i] + m->M_rownnz[i]; j++) {
         int col = m->M_colind[j];
-        if (col >= i0) H[da[a]+col-i0] += d->M[j];
+        if (col >= i0) {
+          H[da[a]+col-i0] += d->M[j] + (d->efm_fluid ? d->efm_fluid[j] : 0);
+        }
+      }
+      if (d->efm_diag) {
+        H[da[a]+a] += d->efm_diag[i];
       }
     }
     for (int i=0; i < nvc; i++) slot[vc[3*i]/3] = -1;
@@ -2167,6 +2172,12 @@ void mj_effShift(const mjModel* m, mjData* d) {
     mju_scl(d->efm_fluid, d->efm_fluid, -m->opt.timestep, m->nC);
     mj_freeStack(d);
   }
+
+  // velocity-dependent diagonal/fluid updates invalidate a previously factored effChol
+  // (e.g. mj_forwardSkip re-running the velocity stage without mj_effBuild)
+  if ((d->efm_diag || d->efm_fluid) && effCholReserved(d) && d->efm_L[0] == 1) {
+    d->efm_L[0] = EFF_CHOL_PENDING;
+  }
 }
 
 
@@ -2977,6 +2988,12 @@ void mj_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   d->efm_diag = (any_diag || d->nefmT || any_act || any_fluid || any_twist) ? EFMALLOC(mjtNum, nv) : NULL;
   d->efm_sdiag = d->efm_diag ? EFMALLOC(mjtNum, nv) : NULL;
   d->efm_fluid = any_fluid ? EFMALLOC(mjtNum, m->nC) : NULL;
+  if (d->efm_diag) {
+    mju_zero(d->efm_diag, nv);
+  }
+  if (d->efm_fluid) {
+    mju_zero(d->efm_fluid, m->nC);
+  }
 
   // assemble the standard-flex part of B into CSR (constant during the step). With stretch or
   // assemblable interp present, assemble the FULL matrix (bending included): one CSR then

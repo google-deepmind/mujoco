@@ -647,6 +647,64 @@ TEST_F(MetricTest, EffSolveCapWarns) {
   testing::Mock::VerifyAndClearExpectations(&warning_handler);
 }
 
+// effCholFill includes efm_diag and efm_fluid on covered triples, and
+// mj_effShift invalidates a previously factored effChol so mj_forwardSkip
+// re-factors with updated velocity-dependent fluid drag.
+TEST_F(MetricTest, EffCholDiagFluidAndSkip) {
+  static const char* const kFluidClothXml = R"(
+  <mujoco>
+    <option timestep="0.01" integrator="discrete" solver="CG"
+            iterations="2" tolerance="1e-8" viscosity="1" density="10"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.05 0.05 1"
+                pos="0 0 0.5" radius="0.005" mass="0.1" dim="2">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.2" thickness="2e-3"
+                    elastic2d="stretch"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kFluidClothXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  auto check_exact = [&](const mjModel* m, mjData* d) {
+    int nv = m->nv;
+    std::vector<mjtNum> b(nv), x(nv), r(nv);
+    for (int i = 0; i < nv; i++) {
+      b[i] = mju_Halton(i, 5) - 0.5;
+    }
+    mj_effSolve(m, d, x.data(), b.data());
+    EXPECT_EQ(d->warning[mjWARN_INERTIA].number, 0);
+    mju_mulSymVecSparse(r.data(), d->M, x.data(), nv, m->M_rownnz, m->M_rowadr,
+                        m->M_colind);
+    mj_effMulAdd(m, d, r.data(), x.data(), /*flg_contact=*/1);
+    mju_subFrom(r.data(), b.data(), nv);
+    EXPECT_LT(mju_norm(r.data(), nv) / mju_norm(b.data(), nv),
+              MjTol(1e-8, 1e-4));
+  };
+
+  mj_forward(model.get(), data.get());
+  ASSERT_THAT(data->efm_diag, NotNull());
+  ASSERT_THAT(data->efm_fluid, NotNull());
+  EXPECT_GT(mju_norm(data->efm_fluid, model->nC), 0);
+  ASSERT_GT(data->nefmL, 0);
+  EXPECT_EQ(data->efm_L[0], 1);
+  check_exact(model.get(), data.get());
+
+  // Change qvel and re-run from the velocity stage only: fluid drag changes
+  // efm_fluid/efm_diag without rebuilding efm_L, so mj_effShift must
+  // invalidate the factor.
+  for (int i = 0; i < model->nv; i++) {
+    data->qvel[i] = 10.0 * (mju_Halton(i, 7) - 0.5);
+  }
+  mj_forwardSkip(model.get(), data.get(), mjSTAGE_POS, 0);
+  EXPECT_EQ(data->efm_L[0], 1);
+  check_exact(model.get(), data.get());
+}
+
 // PCG requires a symmetric preconditioner. mj_effPrec must satisfy
 // u.P(v) == v.P(u); it did not when the covered and uncovered dofs shared a
 // kinematic tree, which is what the articulated vertex body here exercises.
