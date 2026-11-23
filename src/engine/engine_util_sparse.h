@@ -22,6 +22,7 @@
 #include <mujoco/mjexport.h>
 #include <mujoco/mjtype.h>
 #include "engine/engine_util_sparse_avx.h"
+#include "engine/engine_util_sparse_rvv.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -242,6 +243,8 @@ static inline
 mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1) {
 #ifdef mjUSEAVX
   return mju_dotSparse_avx(vec1, vec2, nnz1, ind1);
+#elif defined(mjUSERVV)
+  return mju_dotSparse_rvv(vec1, vec2, nnz1, ind1);
 #else
   int i = 0;
   mjtNum res = 0;
@@ -276,6 +279,8 @@ static inline
 int mju_compare(const int* vec1, const int* vec2, int n) {
 #ifdef mjUSEAVX
   return mju_compare_avx(vec1, vec2, n);
+#elif defined(mjUSERVV)
+  return mju_compare_rvv(vec1, vec2, n);
 #else
   return !memcmp(vec1, vec2, n*sizeof(int));
 #endif  // mjUSEAVX
@@ -342,6 +347,8 @@ static inline
 void mju_addToSclScl(mjtNum* res, const mjtNum* vec, mjtNum scl1, mjtNum scl2, int n) {
 #ifdef mjUSEAVX
   mju_addToSclScl_avx(res, vec, scl1, scl2, n);
+#elif defined(mjUSERVV)
+  mju_addToSclScl_rvv(res, vec, scl1, scl2, n);
 #else
   for (int i=0; i < n; i++) {
     res[i] = res[i]*scl1 + vec[i]*scl2;
