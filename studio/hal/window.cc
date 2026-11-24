@@ -112,17 +112,18 @@ Window::Window(std::string_view title, int width, int height, Config config)
     mju_error("Error initializing SDL: %s", SDL_GetError());
   }
 
-  int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+  int window_flags = SDL_WINDOW_RESIZABLE;
   if (IsHeadless(config_.gfx_mode)) {
-    // No additional window flags needed for headless rendering.
+    // Headless rendering blits a width_ x height_ buffer via SDL_GetWindowSurface.
   } else if (IsVulkan(config_.gfx_mode)) {
-    window_flags |= SDL_WINDOW_VULKAN;
+    window_flags |= SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_VULKAN;
   } else if (IsWebGl(config_.gfx_mode)) {
-    window_flags |= SDL_WINDOW_OPENGL;
+    window_flags |= SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
   } else if (IsOpenGl(config_.gfx_mode)) {
+    window_flags |= SDL_WINDOW_ALLOW_HIGHDPI;
     // On Windows, SDL_WINDOW_OPENGL makes SDL call SetPixelFormat on the HWND,
     // which can only be set once and would block Filament's PlatformWGL.
 #if !defined(__WIN32__)

@@ -14,15 +14,20 @@
 
 #include "studio/app.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <span>
 #include <string>
 
 #include "testing/base/public/gunit.h"
+#include <imgui.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/support/renderer.h"
@@ -37,7 +42,9 @@ struct AppTestPeer {
   static mjModel* model(App& app) { return app.has_model() ? app.model() : nullptr; }
   static mjData* data(App& app) { return app.has_data() ? app.data() : nullptr; }
   static mjvCamera* camera(App& app) { return &app.camera_; }
+  static mjvOption* vis_options(App& app) { return &app.vis_options_; }
   static Window* window(App& app) { return app.window_.get(); }
+  static ModelScene* model_scene(App& app) { return app.model_scene_.get(); }
   static Renderer* renderer(App& app) { return app.renderer_.get(); }
   static std::unique_lock<std::mutex> LockPhysics(App& app) {
     return std::unique_lock<std::mutex>(app.physics_mutex_);
@@ -322,6 +329,110 @@ TEST(AppTest, ModelSceneSyncProjectsLabelsWithPortraitFov) {
   ASSERT_TRUE(labels.contains("top_body"));
   EXPECT_NEAR(labels["edge_body"][0], 1.5f, 1e-4f);
   EXPECT_NEAR(labels["top_body"][1], 1.5f, 1e-4f);
+}
+
+TEST(AppTest, SceneLabelsCoverFullViewportAndStayBehindUiAfterPortraitToLandscapeResize) {
+  setenv("SDL_VIDEODRIVER", "dummy", 1);
+
+  const std::string ini_path =
+      std::string(::testing::TempDir()) + "/resize_labels_regression_mujoco.ini";
+  {
+    std::ofstream ini_file(ini_path);
+    ini_file << "[Window][labels]\nPos=60,60\nSize=150,400\nCollapsed=0\n\n";
+  }
+
+  App::Config config;
+  config.width = 200;
+  config.height = 600;
+  config.ini_path = ini_path;
+  config.gfx_mode = GraphicsMode::FilamentOpenGlSoftware;
+  App app(config);
+
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="main" pos="0 0 2" fovy="90"/>
+      <body name="left_body" pos="-1.5 0 0">
+        <geom type="sphere" size="0.1"/>
+      </body>
+      <body name="right_body" pos="2.2 0 0">
+        <geom type="sphere" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::span<const std::byte> buf(reinterpret_cast<const std::byte*>(kXml), sizeof(kXml) - 1);
+  app.LoadModelFromBuffer(buf, "text/xml", "welcome_labels.xml");
+
+  mjModel* model = AppTestPeer::model(app);
+  mjData* data = AppTestPeer::data(app);
+  mjvCamera* camera = AppTestPeer::camera(app);
+  mjvOption* vis_options = AppTestPeer::vis_options(app);
+  Window* window = AppTestPeer::window(app);
+  ModelScene* model_scene = AppTestPeer::model_scene(app);
+  ASSERT_NE(model, nullptr);
+  ASSERT_NE(data, nullptr);
+  ASSERT_NE(model_scene, nullptr);
+
+  camera->type = mjCAMERA_FIXED;
+  camera->fixedcamid = 0;
+  vis_options->label = mjLABEL_BODY;
+
+  const auto run_ui_and_labels_frame = [&]() {
+    app.Update();
+    app.BuildGui();
+    {
+      auto lock = AppTestPeer::LockPhysics(app);
+      model_scene->Sync(model, data, {0, 0, window->GetWidth(), window->GetHeight()}, vis_options,
+                        nullptr, camera, {});
+    }
+    ImGui::Render();
+    window->EndFrame();
+  };
+
+  for (int i = 0; i < 3; ++i) {
+    run_ui_and_labels_frame();
+  }
+
+  // Resize from 200x600 portrait to 900x600 landscape (aspect 1.5, horizontal
+  // half-span at z=0 is 3.0, so right_body at x=2.2 projects to x_ndc ≈ +0.733,
+  // screen x ≈ 780 >> 200).
+  window->Resize(900, 600);
+  run_ui_and_labels_frame();
+
+  const ImDrawData* draw_data = ImGui::GetDrawData();
+  ASSERT_NE(draw_data, nullptr);
+
+  int labels_idx = -1;
+  int options_idx = -1;
+  const ImDrawList* labels_list = nullptr;
+  for (int i = 0; i < draw_data->CmdLists.Size; ++i) {
+    const ImDrawList* list = draw_data->CmdLists[i];
+    if (!list->_OwnerName) {
+      continue;
+    }
+    if (std::strncmp(list->_OwnerName, "labels", 6) == 0) {
+      labels_idx = i;
+      labels_list = list;
+    } else if (std::strncmp(list->_OwnerName, "Options", 7) == 0) {
+      options_idx = i;
+    }
+  }
+
+  ASSERT_NE(labels_list, nullptr);
+  EXPECT_GE(labels_idx, 0);
+  EXPECT_GT(options_idx, labels_idx);
+  ASSERT_EQ(labels_list->CmdBuffer.Size, 1);
+  EXPECT_FLOAT_EQ(labels_list->CmdBuffer[0].ClipRect.x, 0.0f);
+  EXPECT_FLOAT_EQ(labels_list->CmdBuffer[0].ClipRect.y, 0.0f);
+  EXPECT_FLOAT_EQ(labels_list->CmdBuffer[0].ClipRect.z, 900.0f);
+  EXPECT_FLOAT_EQ(labels_list->CmdBuffer[0].ClipRect.w, 600.0f);
+
+  float max_vtx_x = -std::numeric_limits<float>::infinity();
+  for (int i = 0; i < labels_list->VtxBuffer.Size; ++i) {
+    max_vtx_x = std::max(max_vtx_x, labels_list->VtxBuffer[i].pos.x);
+  }
+  EXPECT_GT(max_vtx_x, 750.0f);
 }
 
 }  // namespace

@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
 
@@ -463,25 +464,43 @@ void DrawTextAt(const char* text, float x, float y, float z) {
 }
 
 void DrawTextAtInRect(const char* text, float x, float y, float z, const ImVec4& rect) {
-  if (x < -1 || y < -1 || x > 1 || y > 1 || z < -1 || z > 1) {
+  if (text == nullptr || text[0] == '\0' || rect.z <= 0.0f || rect.w <= 0.0f) {
+    return;
+  }
+  // Negated bounds checks also reject NaNs.
+  if (!(x >= -1.0f && x <= 1.0f && y >= -1.0f && y <= 1.0f && z >= -1.0f && z <= 1.0f)) {
     return;
   }
 
   const ImVec2 center_pos = ClipSpaceToRectCoordinates(x, y, rect);
   const ImVec2 size = ImGui::CalcTextSize(text);
+  const ImVec2 pos(center_pos.x - size.x * 0.5f, center_pos.y);
+  const ImVec2 shadow_pos(pos.x + 2.0f, pos.y + 2.0f);
 
-  const ImVec2 pos = ImVec2(center_pos.x - size.x / 2, center_pos.y);
-  const ImVec2 shadow_pos = ImVec2(pos.x + 2, pos.y + 2);
-  const int flags = ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing |
-                    ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration |
-                    ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav;
+  constexpr ImGuiWindowFlags kFlags =
+      ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing |
+      ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+      ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking |
+      ImGuiWindowFlags_NoSavedSettings;
 
-  ImGui::Begin("labels", nullptr, flags);
-  ImGui::BeginChild("labels", ImGui::GetIO().DisplaySize, 0, flags);
-  ImDrawList* draw_list = ImGui::GetWindowDrawList();
-  draw_list->AddText(shadow_pos, IM_COL32_BLACK, text);
-  draw_list->AddText(pos, IM_COL32_WHITE, text);
-  ImGui::EndChild();
+  const ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(viewport->Pos, ImGuiCond_Always);
+  ImGui::SetNextWindowSize(viewport->Size, ImGuiCond_Always);
+
+  // Keep the window name "labels": web_client.cc matches list->_OwnerName
+  // against "labels" so 3D scene labels stay behind streamed remote UI.
+  if (ImGui::Begin("labels", nullptr, kFlags)) {
+    ImGuiWindow* win = ImGui::GetCurrentWindow();
+    if (GImGui->Windows[0] != win) {
+      ImGui::BringWindowToDisplayBack(win);
+    }
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->PushClipRect(ImVec2(rect.x, rect.y), ImVec2(rect.x + rect.z, rect.y + rect.w),
+                            false);
+    draw_list->AddText(shadow_pos, IM_COL32_BLACK, text);
+    draw_list->AddText(pos, IM_COL32_WHITE, text);
+    draw_list->PopClipRect();
+  }
   ImGui::End();
 }
 namespace {

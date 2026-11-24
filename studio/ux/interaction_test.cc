@@ -544,5 +544,98 @@ TEST(InteractionTest, MovePerturbScalesVerticalDragAndIsotropicRotationInPortrai
   mj_deleteModel(m);
 }
 
+TEST(InteractionTest, PickAndPerturbHandleFixedOrthographicCamera) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="ortho" pos="0 0 2" projection="orthographic" fovy="4"/>
+      <body name="top_edge" pos="0 1.6 0">
+        <freejoint/>
+        <geom name="top_geom" type="sphere" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(kXml, nullptr, error.data(), error.size());
+  ASSERT_NE(spec, nullptr) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  mj_deleteSpec(spec);
+  ASSERT_NE(m, nullptr);
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  const int top_body = mj_name2id(m, mjOBJ_BODY, "top_edge");
+  ASSERT_GT(top_body, 0);
+
+  mjvCamera cam;
+  mjv_defaultCamera(&cam);
+  cam.type = mjCAMERA_FIXED;
+  cam.fixedcamid = 0;
+
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+
+  // Orthographic vertical extent is [-2, 2], so y_world = 1.6 is at
+  // top-down y = (1 - 1.6 / 2.0) / 2 = 0.1.
+  const PickResult picked = Pick(m, d, &cam, 0.5f, 0.1f, 1.0f, &opt);
+  EXPECT_EQ(picked.body, top_body);
+
+  // Orthographic movement scale equals the vertical frustum height (fovy).
+  mjvPerturb pert;
+  mjv_defaultPerturb(&pert);
+  pert.select = top_body;
+  InitPerturb(m, d, &cam, &pert, mjPERT_TRANSLATE);
+  EXPECT_NEAR(pert.scale, 4.0, 1e-5);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST(InteractionTest, PickUsesRealBottomAnchorForAsymmetricFrustum) {
+  // sensorsize="0.04 0.04", focal="0.02 0.02", principal="0 0.01":
+  // At z = 0 (depth 2), vertical frustum spans y in [-3, +1], so the viewport
+  // midpoint (x = 0.5, y = 0.5) projects to (0, -1, 0), not (0, +1, 0).
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="shifted" pos="0 0 2" sensorsize="0.04 0.04"
+              focal="0.02 0.02" principal="0 0.01"/>
+      <body name="at_neg_y" pos="0 -1 0">
+        <geom type="sphere" size="0.1"/>
+      </body>
+      <body name="at_pos_y" pos="0 1 0">
+        <geom type="sphere" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(kXml, nullptr, error.data(), error.size());
+  ASSERT_NE(spec, nullptr) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  mj_deleteSpec(spec);
+  ASSERT_NE(m, nullptr);
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  const int neg_body = mj_name2id(m, mjOBJ_BODY, "at_neg_y");
+  ASSERT_GT(neg_body, 0);
+
+  mjvCamera cam;
+  mjv_defaultCamera(&cam);
+  cam.type = mjCAMERA_FIXED;
+  cam.fixedcamid = 0;
+
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+
+  const PickResult picked = Pick(m, d, &cam, 0.5f, 0.5f, 1.0f, &opt);
+  EXPECT_EQ(picked.body, neg_body);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco::studio

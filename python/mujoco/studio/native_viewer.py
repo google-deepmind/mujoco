@@ -141,7 +141,6 @@ class NativeViewer(viewer_protocol.Viewer):
       height = self._window.GetDrawableHeight()
 
     self._sync_renderer(self.model)
-    self._imgui_bridge.update()
     if self._model_scene:
       self._model_scene.sync(
           width,
@@ -153,6 +152,7 @@ class NativeViewer(viewer_protocol.Viewer):
           self.vis_options,
           self.extra_geoms,
       )
+    self._imgui_bridge.update()
 
     draw_mode = mjrf.DrawMode.DRAW_MODE_DEFAULT
     if self.render_flags.flags[mujoco.mjtRndFlag.mjRND_SEGMENT]:
