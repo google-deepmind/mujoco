@@ -687,10 +687,15 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     WriteAttrTxt(elem, "name", mesh->name);
     if (mesh->classname != "main") { WriteAttrTxt(elem, "class", mesh->classname); }
     WriteAttrTxt(elem, "vertex", Numbers(vert));
-    if (mesh->ntexcoord() == mesh->nvert() && mesh->FaceTexcoord() == mesh->Face()) {
+    if (!mesh->Texcoord().empty()) {
       WriteAttrTxt(elem, "texcoord", Numbers(mesh->Texcoord()));
     }
     WriteAttrTxt(elem, "face", Numbers(mesh->Face()));
+    // texture coordinates that are not one per vertex are indexed per face corner
+    if (!mesh->Texcoord().empty() &&
+        (mesh->ntexcoord() != mesh->nvert() || mesh->FaceTexcoord() != mesh->Face())) {
+      WriteAttrTxt(elem, "facetexcoord", Numbers(mesh->FaceTexcoord()));
+    }
   }
 
   // regular
@@ -724,6 +729,14 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     if (!mesh->UserFace().empty()) {
       text = Numbers(mesh->UserFace());
       WriteAttrTxt(elem, "face", text);
+    }
+
+    // write face corner normal and texcoord indices
+    if (!mesh->UserFaceNormal().empty()) {
+      WriteAttrTxt(elem, "facenormal", Numbers(mesh->UserFaceNormal()));
+    }
+    if (!mesh->UserFaceTexcoord().empty()) {
+      WriteAttrTxt(elem, "facetexcoord", Numbers(mesh->UserFaceTexcoord()));
     }
   }
 

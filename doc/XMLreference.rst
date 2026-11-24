@@ -1516,21 +1516,37 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 .. _asset-mesh-normal:
 
-:at:`normal`: :at-val:`real(3*nvert), optional`
-   Vertex 3D normal data. If specified, the number of normals must equal the number of vertices. The model compiler
-   normalizes the normals automatically.
+:at:`normal`: :at-val:`real(3*nnormal), optional`
+   Vertex 3D normal data. If specified without :ref:`facenormal<asset-mesh-facenormal>`, the number of normals must
+   equal the number of vertices. The model compiler normalizes the normals automatically.
 
 .. _asset-mesh-texcoord:
 
-:at:`texcoord`: :at-val:`real(2*nvert), optional`
-   Vertex 2D texture coordinates, which are numbers between 0 and 1. If specified, the number of texture coordinate
-   pairs must equal the number of vertices.
+:at:`texcoord`: :at-val:`real(2*ntexcoord), optional`
+   Vertex 2D texture coordinates, which are numbers between 0 and 1. If specified without
+   :ref:`facetexcoord<asset-mesh-facetexcoord>`, the number of texture coordinate pairs must equal the number of
+   vertices.
 
 .. _asset-mesh-face:
 
 :at:`face`: :at-val:`int(3*nface), optional`
    Faces of the mesh. Each face is a sequence of 3 vertex indices, in counter-clockwise order. The indices must be
    integers between 0 and nvert-1.
+
+.. _asset-mesh-facenormal:
+
+:at:`facenormal`: :at-val:`int(3*nface), optional`
+   Normal indices of the face corners, one for each index in :ref:`face<asset-mesh-face>` and in the same order. The
+   indices must be integers between 0 and nnormal-1. This allows a vertex to have a different normal in each face that
+   uses it, as in OBJ files. If omitted, each corner uses the normal of its vertex.
+
+.. _asset-mesh-facetexcoord:
+
+:at:`facetexcoord`: :at-val:`int(3*nface), optional`
+   Texture coordinate indices of the face corners, one for each index in :ref:`face<asset-mesh-face>` and in the same
+   order. The indices must be integers between 0 and ntexcoord-1. This allows a vertex to have different texture
+   coordinates in each face that uses it, as along a texture seam. If omitted, each corner uses the texture coordinates
+   of its vertex.
 
 .. _asset-mesh-refpos:
 

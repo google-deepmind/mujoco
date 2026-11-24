@@ -348,6 +348,7 @@ void mjCMesh::CopyFromSpec() {
   material_     = spec_material_;
   ProcessVertices(spec_vert_);
   texcoord_          = spec_texcoord_;
+  facenormal_        = spec_facenormal_;
   facetexcoord_      = spec_facetexcoord_;
   maxhullvert_       = spec.maxhullvert;
   plugin.active      = spec.plugin.active;
@@ -1784,6 +1785,32 @@ void mjCMesh::CheckInitialMesh() const {
   for (int i = 0; i < nf; i++) {
     if (face_[i] >= nv || face_[i] < 0) {
       throw mjCError(this, "in face %d, vertex index %d does not exist", nullptr, i / 3, face_[i]);
+    }
+  }
+
+  // check face corner normal and texcoord indices, if given
+  if (!facenormal_.empty()) {
+    if (facenormal_.size() != face_.size()) {
+      throw mjCError(this, "face data must have the same size as face normal data");
+    }
+    int nn = normal_.size() / 3;
+    for (int i = 0; i < nf; i++) {
+      if (facenormal_[i] >= nn || facenormal_[i] < 0) {
+        throw mjCError(this, "in face %d, normal index %d does not exist", nullptr, i / 3,
+                       facenormal_[i]);
+      }
+    }
+  }
+  if (!facetexcoord_.empty()) {
+    if (facetexcoord_.size() != face_.size()) {
+      throw mjCError(this, "face data must have the same size as face texcoord data");
+    }
+    int nt = texcoord_.size() / 2;
+    for (int i = 0; i < nf; i++) {
+      if (facetexcoord_[i] >= nt || facetexcoord_[i] < 0) {
+        throw mjCError(this, "in face %d, texcoord index %d does not exist", nullptr, i / 3,
+                       facetexcoord_[i]);
+      }
     }
   }
 }
