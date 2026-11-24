@@ -506,11 +506,10 @@ MJAPI void mj_projectConstraint(const mjModel* m, mjData* d);
 // Compute efc_vel, efc_aref.
 MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 
-// Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians.
+// Compute efc_state, efc_force, qfrc_constraint.
 // If cost is not NULL, set *cost = s(jar) where jar = Jac*qacc-aref.
 // Nullable: cost
-MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
-                               mjtNum cost[1], int flg_coneHessian);
+MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar, mjtNum cost[1]);
 
 
 //---------------------------------- Support -------------------------------------------------------

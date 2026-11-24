@@ -1093,7 +1093,7 @@ static void warmstart(const mjModel* m, mjData* d) {
     mjtNum cost_warmstart;
     mj_constraintUpdate_impl(d->ne, d->nf, nefc, d->efc_D, d->efc_R, d->efc_frictionloss,
                              jar, d->efc_type, d->efc_id, d->contact, d->efc_state,
-                             d->efc_force, &cost_warmstart, 0);
+                             d->efc_force, &cost_warmstart);
 
     // PGS
     if (m->opt.solver == mjSOL_PGS) {
@@ -1131,7 +1131,7 @@ static void warmstart(const mjModel* m, mjData* d) {
       mjtNum cost_smooth;
       mj_constraintUpdate_impl(d->ne, d->nf, nefc, d->efc_D, d->efc_R, d->efc_frictionloss,
                                d->efc_b, d->efc_type, d->efc_id, d->contact, d->efc_state,
-                               d->efc_force, &cost_smooth, 0);
+                               d->efc_force, &cost_smooth);
 
       // use qacc_smooth if better
       if (cost_warmstart > cost_smooth) {

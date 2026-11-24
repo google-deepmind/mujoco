@@ -1516,12 +1516,12 @@ void mj_compareFwdInv_wrapper(const MjModel& m, MjData& d) {
   mj_compareFwdInv(m.get(), d.get());
 }
 
-void mj_constraintUpdate_wrapper(const MjModel& m, MjData& d, const NumberArray& jar, const val& cost, int flg_coneHessian) {
+void mj_constraintUpdate_wrapper(const MjModel& m, MjData& d, const NumberArray& jar, const val& cost) {
   UNPACK_ARRAY(mjtNum, jar);
   UNPACK_NULLABLE_VALUE(mjtNum, cost);
   CHECK_SIZE(cost, 1);
   CHECK_SIZE(jar, d.nefc());
-  mj_constraintUpdate(m.get(), d.get(), jar_.data(), cost_.data(), flg_coneHessian);
+  mj_constraintUpdate(m.get(), d.get(), jar_.data(), cost_.data());
 }
 
 void mj_contactForce_wrapper(const MjModel& m, const MjData& d, int id, const val& result) {
@@ -4618,7 +4618,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjContact>("MjContact")
     .constructor<>()
     .function("copy", &MjContact::copy, take_ownership())
-    .property("H", &MjContact::H)
     .property("adhesion", &MjContact::adhesion, &MjContact::set_adhesion)
     .property("dim", &MjContact::dim, &MjContact::set_dim)
     .property("dist", &MjContact::dist, &MjContact::set_dist)

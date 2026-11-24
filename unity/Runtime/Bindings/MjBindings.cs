@@ -1711,7 +1711,6 @@ public unsafe struct mjContact_ {
   public double adhesion;
   public fixed double surfacevel[3];
   public double mu;
-  public fixed double H[36];
   public int dim;
   public int geom1;
   public int geom2;
@@ -7117,7 +7116,7 @@ public static unsafe extern void mj_projectConstraint(mjModel_* m, mjData_* d);
 public static unsafe extern void mj_referenceConstraint(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_constraintUpdate(mjModel_* m, mjData_* d, double* jar, double* cost, int flg_coneHessian);
+public static unsafe extern void mj_constraintUpdate(mjModel_* m, mjData_* d, double* jar, double* cost);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_stateSize(mjModel_* m, int sig);

@@ -567,7 +567,7 @@ TEST_F(CoreConstraintTest, ConstraintUpdateImpl) {
 
       // constraint update for data1 given jar
       mjtNum cost1;
-      mj_constraintUpdate(model, d1, jar, &cost1, /*flg_coneHessian=*/1);
+      mj_constraintUpdate(model, d1, jar, &cost1);
 
       // iterate over islands, check match
       mjtNum cost2 = 0;
@@ -576,7 +576,6 @@ TEST_F(CoreConstraintTest, ConstraintUpdateImpl) {
         for (int i = 0; i < nefc; i++) d2->efc_state[i] = -1;
         mju_zero(d2->efc_force, nefc);
         mju_zero(d2->qfrc_constraint, nv);
-        for (int i = 0; i < d2->ncon; i++) mju_zero(d2->contact[i].H, 36);
 
         // sizes and indices, in this island
         int efcnum = d2->island_nefc[island];
@@ -596,8 +595,7 @@ TEST_F(CoreConstraintTest, ConstraintUpdateImpl) {
         mj_constraintUpdate_impl(ne, nf, efcnum, d2->iefc_D + adr,
                                  d2->iefc_R + adr, d2->iefc_frictionloss + adr,
                                  jari, d2->iefc_type + adr, d2->iefc_id + adr,
-                                 d2->contact, state, force, &cost2i,
-                                 /*flg_coneHessian=*/1);
+                                 d2->contact, state, force, &cost2i);
 
         // compare nefc vectors
         for (int c = 0; c < efcnum; c++) {
@@ -605,20 +603,6 @@ TEST_F(CoreConstraintTest, ConstraintUpdateImpl) {
           EXPECT_EQ(d2->efc_island[i], island);
           EXPECT_EQ(state[c], d1->efc_state[i]);
           EXPECT_THAT(force[c], MjNear(d1->efc_force[i], 1e-12, 1e-4));
-        }
-
-        // compare cone Hessians
-        if (cone == mjCONE_ELLIPTIC) {
-          for (int c = 0; c < d2->ncon; c++) {
-            int efcadr = d2->contact[c].efc_address;
-            if (d2->efc_island[efcadr] == island &&
-                d2->efc_state[efcadr] == mjCNSTRSTATE_CONE) {
-              for (int j = 0; j < 36; j++) {
-                EXPECT_THAT(d2->contact[c].H[j],
-                            MjNear(d1->contact[c].H[j], 1e-12, 1e-4));
-              }
-            }
-          }
         }
 
         // add island cost to total cost
@@ -2009,8 +1993,9 @@ TEST_F(CoreConstraintTest, ArenaOverflowClearsRowCounts) {
   }
 }
 
-// tiny tangential residual T where T^3 underflows must not poison contact.H
-TEST_F(CoreConstraintTest, EllipticConeHessianSmallTangent) {
+// tiny tangential residual T where T^3 underflows must not poison constraint
+// force/cost
+TEST_F(CoreConstraintTest, EllipticConeSmallTangent) {
   static constexpr char xml[] = R"(
   <mujoco>
     <option cone="elliptic"/>
@@ -2033,7 +2018,6 @@ TEST_F(CoreConstraintTest, EllipticConeHessianSmallTangent) {
 
   const mjContact& con = d->contact[0];
   const mjtNum mu = con.mu;
-  const mjtNum Dm = d->efc_D[0] / (mu * mu * (1 + mu * mu));
 
   // T > 0 where T^2 is normal but T^3 underflows to 0 (even with subnormals),
   // while orthogonal tangent components are 0 so Inf * 0 would produce NaN
@@ -2042,26 +2026,13 @@ TEST_F(CoreConstraintTest, EllipticConeHessianSmallTangent) {
   mjtNum jar[6] = {N / mu, T / con.friction[0], 0, 0, 0, 0};
 
   mjtNum cost = 0;
-  mj_constraintUpdate(m.get(), d.get(), jar, &cost, /*flg_coneHessian=*/1);
+  mj_constraintUpdate(m.get(), d.get(), jar, &cost);
 
   EXPECT_EQ(d->efc_state[0], mjCNSTRSTATE_CONE);
   EXPECT_FALSE(mju_isBad(cost));
   for (int j = 0; j < 6; j++) {
     EXPECT_FALSE(mju_isBad(d->efc_force[j])) << "row " << j;
   }
-  for (int j = 0; j < 36; j++) {
-    EXPECT_FALSE(mju_isBad(d->contact[0].H[j])) << "entry " << j;
-  }
-
-  // check exact analytical cone Hessian entries along and orthogonal to Uhat_1
-  const mjtNum f0 = con.friction[0];
-  const mjtNum f1 = con.friction[1];
-  EXPECT_THAT(d->contact[0].H[0], MjNear(Dm * mu * mu, 1e-12, 1e-5));
-  EXPECT_THAT(d->contact[0].H[1], MjNear(-Dm * mu * mu * f0, 1e-12, 1e-5));
-  EXPECT_EQ(d->contact[0].H[2], 0);
-  EXPECT_THAT(d->contact[0].H[7], MjNear(Dm * mu * mu * f0 * f0, 1e-12, 1e-5));
-  EXPECT_THAT(d->contact[0].H[14],
-              MjNear(Dm * (mu * mu + 0.5) * f1 * f1, 1e-12, 1e-5));
 }
 
 TEST_F(CoreConstraintTest, TendonEqualitySetsEfcadr) {

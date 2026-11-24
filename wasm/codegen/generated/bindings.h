@@ -474,9 +474,6 @@ struct MjContact {
   void set_mu(mjtNum value) {
     ptr_->mu = value;
   }
-  emscripten::val H() const {
-    return emscripten::val(emscripten::typed_memory_view(36, ptr_->H));
-  }
   int dim() const {
     return ptr_->dim;
   }

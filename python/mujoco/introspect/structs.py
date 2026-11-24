@@ -5518,14 +5518,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='friction of regularized cone, set by mj_makeConstraint',
              ),
              StructFieldDecl(
-                 name='H',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(36,),
-                 ),
-                 doc='cone Hessian, set by mj_constraintUpdate',
-             ),
-             StructFieldDecl(
                  name='dim',
                  type=ValueType(name='int'),
                  doc='contact space dimensionality: 1, 3, 4 or 6',

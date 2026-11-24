@@ -264,7 +264,7 @@ attributed to the joints.
 
 .. _mj_constraintUpdate:
 
-Compute ``efc_state``, ``efc_force``, ``qfrc_constraint``, and (optionally) cone Hessians.
+Compute ``efc_state``, ``efc_force``, and ``qfrc_constraint``.
 If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - aref``.
 
 *Nullable:* ``cost``

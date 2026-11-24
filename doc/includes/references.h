@@ -49,7 +49,6 @@ typedef struct mjContact_ {        // result of collision detection functions
 
   // internal storage used by solver
   mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
-  mjtNum  H[36];                   // cone Hessian, set by mj_constraintUpdate
 
   // contact descriptors set by mj_collideXXX
   int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
@@ -4072,8 +4071,7 @@ void mj_makeConstraint(const mjModel* m, mjData* d);
 void mj_island(const mjModel* m, mjData* d);
 void mj_projectConstraint(const mjModel* m, mjData* d);
 void mj_referenceConstraint(const mjModel* m, mjData* d);
-void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
-                         mjtNum cost[1], int flg_coneHessian);
+void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar, mjtNum cost[1]);
 int mj_stateSize(const mjModel* m, int sig);
 void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, int sig);
 void mj_extractState(const mjModel* m, const mjtNum* src, int srcsig,

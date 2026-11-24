@@ -1653,7 +1653,7 @@ static void PrimalUpdateConstraint(mjPrimalContext* ctx) {
                            ctx->efc_frictionloss, ctx->Jaref, ctx->efc_type, ctx->efc_id,
                            ctx->is_elliptic ? ctx->contact : NULL,
                            ctx->efc_state, ctx->efc_force,
-                           &(ctx->cost), /*flg_coneHessian=*/0);
+                           &(ctx->cost));
 
   // compute qfrc_constraint (dense or sparse)
   if (!ctx->is_sparse) {

@@ -679,7 +679,7 @@ static mjtNum ipc_efcCost(const mjModel* m, mjData* d, const mjtNum* qacc, mjtNu
   mj_mulJacVec(m, d, jar, qacc);
   mju_subFrom(jar, d->efc_aref, nefc);
   mjtNum cost = 0;
-  mj_constraintUpdate(m, d, jar, &cost, 0);
+  mj_constraintUpdate(m, d, jar, &cost);
   d->nefc = savednefc;
   mj_freeStack(d);
   return h * h * cost;
@@ -1419,7 +1419,7 @@ void mj_ipc(const mjModel* m, mjData* d) {
     mjtNum* jar = mjSTACKALLOC(d, d->nefc, mjtNum);
     mj_mulJacVec(m, d, jar, aeff);
     mju_subFrom(jar, d->efc_aref, d->nefc);
-    mj_constraintUpdate(m, d, jar, NULL, 0);
+    mj_constraintUpdate(m, d, jar, NULL);
   } else {
     mju_zero(d->qfrc_constraint, m->nv);
   }

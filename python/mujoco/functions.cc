@@ -372,14 +372,12 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
   Def<traits::mj_constraintUpdate>(
       pymodule, [](const raw::MjModel* m, raw::MjData* d,
                    Eigen::Ref<const EigenVectorX> jar,
-                   std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 1>>> cost,
-                   int flg_coneHessian) {
+                   std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 1>>> cost) {
         if (jar.size() != d->nefc) {
           throw py::type_error("size of jar should equal nefc");
         }
         return InterceptMjErrors(::mj_constraintUpdate)(
-            m, d, jar.data(), cost.has_value() ? cost->data() : nullptr,
-            flg_coneHessian);
+            m, d, jar.data(), cost.has_value() ? cost->data() : nullptr);
       });
 
   // Support

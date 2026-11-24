@@ -362,8 +362,7 @@ describe('MuJoCo WASM Bindings', () => {
       mujoco.mj_mulJacVec(model!, data!, res, data!.qacc);
       mujoco.mju_subFrom(res, data!.efc_aref);
       const cost = mujoco.DoubleBuffer.FromArray([0]);
-      mujoco.mj_constraintUpdate(
-          model!, data!, res.GetView(), cost, /*flg_coneHessian=*/ 1);
+      mujoco.mj_constraintUpdate(model!, data!, res.GetView(), cost);
 
       expect(cost.GetView()[0]).toBeCloseTo(3357.584);
 
@@ -1074,9 +1073,9 @@ describe('MuJoCo WASM Bindings', () => {
     const contact1 = new mujoco.MjContact();
     const contact2 = new mujoco.MjContact();
     try {
-      contact1.H[3] = 1;
-      expect(contact1.H).not.toEqual(contact2.H);
-      contact2.H[3] = 1;
+      contact1.frame[3] = 1;
+      expect(contact1.frame).not.toEqual(contact2.frame);
+      contact2.frame[3] = 1;
       expect(contact1).toEqual(contact2);
     } finally {
       contact1.delete();

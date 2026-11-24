@@ -2037,7 +2037,6 @@ static void mj_setContact(const mjModel* m, const mjData* d, mjContact* con,
   // clear fields that are computed later
   con->efc_address = -1;
   con->mu = 0;
-  mju_zero(con->H, 36);
 
   // set deprecated fields
   con->geom1 = con->geom[0];

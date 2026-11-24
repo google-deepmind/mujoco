@@ -216,7 +216,7 @@ void mj_invConstraint(const mjModel* m, mjData* d) {
   mju_subFrom(jar, d->efc_aref, nefc);
 
   // call update function
-  mj_constraintUpdate(m, d, jar, NULL, 0);
+  mj_constraintUpdate(m, d, jar, NULL);
 
   mj_freeStack(d);
   TM_END(mjTIMER_CONSTRAINT);

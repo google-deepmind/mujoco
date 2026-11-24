@@ -82,25 +82,6 @@ TEST_F(MjCollisionTest, EmptyModel) {
   EXPECT_THAT(colliding_pairs(model.get(), data.get()), IsEmpty());
 }
 
-TEST_F(MjCollisionTest, ZeroedHessian) {
-  static const char* const kModelFilePath = "engine/testdata/collisions.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  char error[1024];
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
-
-  mj_fwdPosition(model, data);
-  for (int i = 0; i < data->ncon; i++) {
-    for (int j = 0; j < 36; j++) {
-      EXPECT_FALSE(isnan(data->contact[i].H[j]))
-          << "NaN in contact[" << i << "].H[" << j << "]";
-    }
-  }
-  mj_deleteData(data);
-  mj_deleteModel(model);
-}
-
 TEST_F(MjCollisionTest, ContactCount) {
   constexpr char xml[] = R"(
   <mujoco>

@@ -2715,12 +2715,8 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
                  nullable=True,
              ),
-             FunctionParameterDecl(
-                 name='flg_coneHessian',
-                 type=ValueType(name='int'),
-             ),
          ),
-         doc='Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set *cost = s(jar) where jar = Jac*qacc-aref.',  # pylint: disable=line-too-long
+         doc='Compute efc_state, efc_force, qfrc_constraint. If cost is not NULL, set *cost = s(jar) where jar = Jac*qacc-aref.',  # pylint: disable=line-too-long
      )),
     ('mj_stateSize',
      FunctionDecl(

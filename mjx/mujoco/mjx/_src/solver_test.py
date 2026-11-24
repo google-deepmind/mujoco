@@ -71,7 +71,7 @@ class SolverTest(parameterized.TestCase):
       jaref = np.zeros(d.nefc, dtype=float)
       cost = np.zeros(1)
       mujoco.mj_mulJacVec(m, d, jaref, qacc)
-      mujoco.mj_constraintUpdate(m, d, jaref - d.efc_aref, cost, 0)
+      mujoco.mj_constraintUpdate(m, d, jaref - d.efc_aref, cost)
       return cost
 
     # sample a mix of active/inactive constraints at different timesteps

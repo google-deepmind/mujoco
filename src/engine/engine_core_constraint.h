@@ -116,17 +116,16 @@ MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 void mj_regularizeConstraint(const mjModel* m, mjData* d, int flg_AR);
 
 // compute efc_state, efc_force; contact may be NULL if no elliptic contact constraints exist
-//  optional: cost(qacc) = s_hat(jar); cone Hessians
+//  optional: cost(qacc) = s_hat(jar)
 MJAPI void mj_constraintUpdate_impl(int ne, int nf, int nefc,
                                     const mjtNum* D, const mjtNum* R, const mjtNum* floss,
                                     const mjtNum* jar, const int* type, const int* id,
-                                    mjContact* contact, int* state, mjtNum* force, mjtNum cost[1],
-                                    int flg_coneHessian);
+                                    const mjContact* contact, int* state, mjtNum* force,
+                                    mjtNum cost[1]);
 
 // compute efc_state, efc_force, qfrc_constraint
-// optional: cost(qacc) = s_hat(jar) where jar = Jac*qacc-aref; cone Hessians
-MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
-                               mjtNum cost[1], int flg_coneHessian);
+// optional: cost(qacc) = s_hat(jar) where jar = Jac*qacc-aref
+MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar, mjtNum cost[1]);
 
 
 #ifdef __cplusplus

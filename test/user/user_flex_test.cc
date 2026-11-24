@@ -729,9 +729,6 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
     for (int j = 0; j < 9; ++j) {
       EXPECT_EQ(d1->contact[i].frame[j], d2->contact[i].frame[j]);
     }
-    for (int j = 0; j < 36; ++j) {
-      EXPECT_EQ(d1->contact[i].H[j], d2->contact[i].H[j]);
-    }
   }
 
   EXPECT_EQ(d1->nefc, 4 * (d1->contact[0].dim - 1) * 2);

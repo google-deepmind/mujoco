@@ -3444,12 +3444,12 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
 //---------------------------- update constraint state ---------------------------------------------
 
 // compute efc_state, efc_force
-//  optional: cost(qacc) = s_hat(jar); cone Hessians
+//  optional: cost(qacc) = s_hat(jar)
 void mj_constraintUpdate_impl(int ne, int nf, int nefc,
                               const mjtNum* D, const mjtNum* R, const mjtNum* floss,
                               const mjtNum* jar, const int* type, const int* id,
-                              mjContact* contact, int* state, mjtNum* force, mjtNum cost[1],
-                              int flg_coneHessian) {
+                              const mjContact* contact, int* state, mjtNum* force,
+                              mjtNum cost[1]) {
   mjtNum s = 0;
 
   // no constraints: clear cost, return
@@ -3546,8 +3546,9 @@ void mj_constraintUpdate_impl(int ne, int nf, int nefc,
     // contact with elliptic cone
     else {
       // get contact
-      mjContact* con = contact + id[i];
-      mjtNum mu = con->mu, *friction = con->friction;
+      const mjContact* con = contact + id[i];
+      mjtNum mu = con->mu;
+      const mjtNum* friction = con->friction;
       int dim = con->dim;
 
       // map to regular dual cone space
@@ -3604,47 +3605,6 @@ void mj_constraintUpdate_impl(int ne, int nf, int nefc,
 
         // set state
         state[i] = mjCNSTRSTATE_CONE;
-
-        // cone Hessian
-        if (flg_coneHessian) {
-          // get Hessian pointer
-          mjtNum* H = contact[id[i]].H;
-
-          // set first row: (1, -mu * Uhat)
-          H[0] = 1;
-          for (int j=1; j < dim; j++) {
-            H[j] = -mu*Uhat[j-1];
-          }
-
-          // set upper block: (mu*N/T) * Uhat*Uhat'
-          mjtNum scl = mu*(N/T);
-          for (int k=1; k < dim; k++) {
-            for (int j=k; j < dim; j++) {
-              H[k*dim+j] = scl*Uhat[j-1]*Uhat[k-1];
-            }
-          }
-
-          // add to diagonal: (mu^2 - mu*N/T) * I
-          scl = mu*mu - scl;
-          for (int j=1; j < dim; j++) {
-            H[j*(dim+1)] += scl;
-          }
-
-          // pre and post multiply by diag(mu, friction), scale by Dm
-          for (int k=0; k < dim; k++) {
-            scl = Dm * (k == 0 ? mu : friction[k-1]);
-            for (int j=k; j < dim; j++) {
-              H[k*dim+j] *= scl * (j == 0 ? mu : friction[j-1]);
-            }
-          }
-
-          // make symmetric: copy upper into lower
-          for (int k=0; k < dim; k++) {
-            for (int j=k+1; j < dim; j++) {
-              H[j*dim+k] = H[k*dim+j];
-            }
-          }
-        }
       }
 
       // replicate state in all cone dimensions
@@ -3665,11 +3625,10 @@ void mj_constraintUpdate_impl(int ne, int nf, int nefc,
 
 
 // compute efc_state, efc_force, qfrc_constraint
-// optional: cost(qacc) = s_hat(jar) where jar = Jac*qacc-aref; cone Hessians
-void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
-                         mjtNum cost[1], int flg_coneHessian) {
+// optional: cost(qacc) = s_hat(jar) where jar = Jac*qacc-aref
+void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar, mjtNum cost[1]) {
   mj_constraintUpdate_impl(d->ne, d->nf, d->nefc, d->efc_D, d->efc_R, d->efc_frictionloss,
                            jar, d->efc_type, d->efc_id, d->contact, d->efc_state, d->efc_force,
-                           cost, flg_coneHessian);
+                           cost);
   mj_mulJacTVec(m, d, d->qfrc_constraint, d->efc_force);
 }

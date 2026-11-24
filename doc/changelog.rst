@@ -14,6 +14,17 @@ General
 
 Engine
 ^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Removed the ``H`` field of :ref:`mjContact` and the ``flg_coneHessian`` parameter of :ref:`mj_constraintUpdate`,
+     as the Newton solver now computes closed-form elliptic cone factors directly without materializing ``mjContact.H``.
+     The size of :ref:`mjContact` was reduced from 608 to 320 bytes (from 328 to 184 bytes in single precision).
+
+     **Migration:** Remove uses of ``mjContact.H`` and drop the trailing ``flg_coneHessian`` argument when calling
+     :ref:`mj_constraintUpdate`.
+
 - Optimized :ref:`elliptic friction cone<soCones>` Hessians in the :ref:`Newton solver<soAlgorithms>` using closed-form
   rank-``(dim - 1)`` factors (~5–30% faster elliptic Newton solves). Thanks to :github:user:`adenzler-nvidia`
   for proposing the optimization in :doc:`MJWarp <mjwarp/index>` pull request
