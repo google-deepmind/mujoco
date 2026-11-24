@@ -21,7 +21,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
-#include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_inline.h"  // IWYU pragma: keep
@@ -437,7 +436,7 @@ void ScalarQuat2Mat(mjtNum res[9], const mjtNum quat[4]) {
   res[7] = 2 * (q23 + q01);
 }
 
-#if defined(mjUSEPLATFORMSIMD) && defined(__AVX__) && !defined(mjUSESINGLE)
+#if defined(mjUSEPLATFORMSIMD) && defined(__AVX__)
   #ifndef mjUSEAVX
     #error \
         "mjUSEAVX must be defined when mjUSEPLATFORMSIMD and __AVX__ are active"

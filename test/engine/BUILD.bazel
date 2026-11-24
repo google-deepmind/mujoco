@@ -684,7 +684,10 @@ cc_test(
     name = "engine_simd_test",
     srcs = ["engine_simd_test.cc"],
     conlyopts = ["-std=c11"],
-    copts = [
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-psabi"],
+    }) + [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
         "-ffp-contract=off",

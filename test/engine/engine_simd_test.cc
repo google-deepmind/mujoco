@@ -84,11 +84,11 @@ MJ_DEFINE_SHUFFLE_WRAPPERS()
   #error "mjUSEFMA must be disabled by default until P4"
 #endif
 
-#if defined(mjUSEPLATFORMSIMD) && !defined(mjUSESINGLE)
+#if defined(mjUSEPLATFORMSIMD)
   #if defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)
     #ifndef mjVECTORIZE
       #error \
-          "mjVECTORIZE must be defined by default on Clang/GCC double precision"
+          "mjVECTORIZE must be defined by default on Clang/GCC with mjUSEPLATFORMSIMD"
     #endif
   #endif
   #if defined(__AVX__)
@@ -115,8 +115,7 @@ MJ_DEFINE_SHUFFLE_WRAPPERS()
 #undef mjSCALAR
 }  // namespace simd_scalar
 
-#if (defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)) && \
-    !defined(mjUSESINGLE)
+#if defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)
   #define MJ_HAS_VECEXT_BACKEND 1
 namespace simd_vecext {
   #define mjVECTORIZE
@@ -128,7 +127,7 @@ MJ_DEFINE_SHUFFLE_WRAPPERS()
 }  // namespace simd_vecext
 #endif
 
-#if defined(__AVX__) && !defined(mjUSESINGLE)
+#if defined(__AVX__)
   #define MJ_HAS_AVX_BACKEND 1
 namespace simd_avx {
   #define mjUSEAVX
@@ -234,6 +233,8 @@ std::vector<Vec4> BuildTestVectors() {
       mjtNum(-1.0) - L::epsilon(),
       mjtNum(3.14159265358979323846),
       mjtNum(-2.71828182845904523536),
+      mjtNum(1e-7),
+      mjtNum(-1e-7),
       mjtNum(1e-16),
       mjtNum(-1e-16),
   };

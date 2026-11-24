@@ -23,8 +23,8 @@
 
 //------------------------------ backend and FMA configuration -------------------------------------
 
-// select SIMD backend when mjUSEPLATFORMSIMD is enabled in double precision
-#if defined(mjUSEPLATFORMSIMD) && !defined(mjUSESINGLE) && \
+// select SIMD backend when mjUSEPLATFORMSIMD is enabled
+#if defined(mjUSEPLATFORMSIMD) && \
     !defined(mjSCALAR) && !defined(mjVECTORIZE) && !defined(mjUSEAVX)
   #if defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)
     #define mjVECTORIZE
@@ -34,7 +34,7 @@
   #endif
 #endif
 
-#if defined(mjUSEAVX) && !defined(mjUSESINGLE)
+#if defined(mjUSEAVX)
   #include <immintrin.h>  // IWYU pragma: export
 #endif
 
@@ -75,22 +75,35 @@ mjtNum mju_fma(mjtNum a, mjtNum b, mjtNum c) {
 
 //------------------------------ GCC/Clang vector extensions backend -------------------------------
 
-#if defined(mjVECTORIZE) && !defined(mjUSESINGLE)
+#if defined(mjVECTORIZE)
 
-#if defined(__clang__) && defined(__AVX__)
-  #define mjSIMD_ATTR static inline __attribute__((__min_vector_width__(256)))
+#ifdef mjUSESINGLE
+  #if defined(__clang__) && defined(__AVX__)
+    #define mjSIMD_ATTR static inline __attribute__((__min_vector_width__(128)))
+  #else
+    #define mjSIMD_ATTR static inline
+  #endif
+  typedef float mjtNum4_f32 __attribute__((vector_size(16)));
+  typedef uint32_t mjtNum4_u32 __attribute__((vector_size(16)));
+  typedef mjtNum4_f32 mjtNum4_vec_;
+  typedef mjtNum4_u32 mjtNum4_bits_;
 #else
-  #define mjSIMD_ATTR static inline
+  #if defined(__clang__) && defined(__AVX__)
+    #define mjSIMD_ATTR static inline __attribute__((__min_vector_width__(256)))
+  #else
+    #define mjSIMD_ATTR static inline
+  #endif
+  typedef double mjtNum4_f64 __attribute__((vector_size(32)));
+  typedef uint64_t mjtNum4_u64 __attribute__((vector_size(32)));
+  typedef mjtNum4_f64 mjtNum4_vec_;
+  typedef mjtNum4_u64 mjtNum4_bits_;
 #endif
-
-typedef double mjtNum4_f64 __attribute__((vector_size(32)));
-typedef uint64_t mjtNum4_u64 __attribute__((vector_size(32)));
-typedef struct { mjtNum4_f64 v; } mjtNum4;
+typedef struct { mjtNum4_vec_ v; } mjtNum4;
 
 
 // wrap raw vector in mjtNum4
 mjSIMD_ATTR
-mjtNum4 v4_wrap_(mjtNum4_f64 v) {
+mjtNum4 v4_wrap_(mjtNum4_vec_ v) {
   mjtNum4 r;
   r.v = v;
   return r;
@@ -116,7 +129,7 @@ void v4_store(mjtNum* p, mjtNum4 a) {
 // set 4 lanes (also used for gathers)
 mjSIMD_ATTR
 mjtNum4 v4_set(mjtNum a, mjtNum b, mjtNum c, mjtNum d) {
-  mjtNum4_f64 v = {a, b, c, d};
+  mjtNum4_vec_ v = {a, b, c, d};
   return v4_wrap_(v);
 }
 
@@ -124,7 +137,7 @@ mjtNum4 v4_set(mjtNum a, mjtNum b, mjtNum c, mjtNum d) {
 // broadcast scalar to all 4 lanes
 mjSIMD_ATTR
 mjtNum4 v4_splat(mjtNum a) {
-  mjtNum4_f64 v = {a, a, a, a};
+  mjtNum4_vec_ v = {a, a, a, a};
   return v4_wrap_(v);
 }
 
@@ -153,9 +166,13 @@ mjtNum4 v4_mul(mjtNum4 a, mjtNum4 b) {
 // negate selected lanes by XORing sign bits
 mjSIMD_ATTR
 mjtNum4 v4_xorsign(mjtNum4 a, int s0, int s1, int s2, int s3) {
+#ifdef mjUSESINGLE
+  const uint32_t sign = (uint32_t)1 << 31;
+#else
   const uint64_t sign = (uint64_t)1 << 63;
-  mjtNum4_u64 m = {s0 ? sign : 0, s1 ? sign : 0, s2 ? sign : 0, s3 ? sign : 0};
-  return v4_wrap_((mjtNum4_f64)((mjtNum4_u64)a.v ^ m));
+#endif
+  mjtNum4_bits_ m = {s0 ? sign : 0, s1 ? sign : 0, s2 ? sign : 0, s3 ? sign : 0};
+  return v4_wrap_((mjtNum4_vec_)((mjtNum4_bits_)a.v ^ m));
 }
 
 
@@ -168,7 +185,7 @@ mjtNum4 v4_xorsign(mjtNum4 a, int s0, int s1, int s2, int s3) {
 // horizontal sum with fixed (l0+l2) + (l1+l3) reduction tree
 mjSIMD_ATTR
 mjtNum v4_sum(mjtNum4 a) {
-  mjtNum4_f64 s = a.v + __builtin_shufflevector(a.v, a.v, 2, 3, 0, 1);
+  mjtNum4_vec_ s = a.v + __builtin_shufflevector(a.v, a.v, 2, 3, 0, 1);
   return s[0] + s[1];
 }
 
@@ -185,7 +202,7 @@ mjtNum4 v4_fma(mjtNum4 a, mjtNum4 b, mjtNum4 c) {
   #ifdef __clang__
     #pragma STDC FP_CONTRACT OFF
   #endif
-  mjtNum4_f64 prod = a.v * b.v;
+  mjtNum4_vec_ prod = a.v * b.v;
   return v4_wrap_(prod + c.v);
 #endif
 }
@@ -193,9 +210,120 @@ mjtNum4 v4_fma(mjtNum4 a, mjtNum4 b, mjtNum4 c) {
 #undef mjSIMD_ATTR
 
 
-//------------------------------ AVX intrinsics backend (MSVC) -------------------------------------
+//------------------------------ SSE/AVX intrinsics backend (MSVC) ---------------------------------
 
-#elif defined(mjUSEAVX) && !defined(mjUSESINGLE)
+#elif defined(mjUSEAVX)
+
+#ifdef mjUSESINGLE
+
+typedef struct { __m128 v; } mjtNum4;
+
+
+// wrap __m128 in mjtNum4
+static inline
+mjtNum4 v4_wrap_(__m128 v) {
+  mjtNum4 r;
+  r.v = v;
+  return r;
+}
+
+
+// load 4 mjtNums from memory
+static inline
+mjtNum4 v4_load(const mjtNum* p) {
+  return v4_wrap_(_mm_loadu_ps(p));
+}
+
+
+// store 4 mjtNums to memory
+static inline
+void v4_store(mjtNum* p, mjtNum4 a) {
+  _mm_storeu_ps(p, a.v);
+}
+
+
+// set 4 lanes (also used for gathers)
+static inline
+mjtNum4 v4_set(mjtNum a, mjtNum b, mjtNum c, mjtNum d) {
+  return v4_wrap_(_mm_setr_ps(a, b, c, d));
+}
+
+
+// broadcast scalar to all 4 lanes
+static inline
+mjtNum4 v4_splat(mjtNum a) {
+  return v4_wrap_(_mm_set1_ps(a));
+}
+
+
+// lane-wise addition
+static inline
+mjtNum4 v4_add(mjtNum4 a, mjtNum4 b) {
+  return v4_wrap_(_mm_add_ps(a.v, b.v));
+}
+
+
+// lane-wise subtraction
+static inline
+mjtNum4 v4_sub(mjtNum4 a, mjtNum4 b) {
+  return v4_wrap_(_mm_sub_ps(a.v, b.v));
+}
+
+
+// lane-wise multiplication
+static inline
+mjtNum4 v4_mul(mjtNum4 a, mjtNum4 b) {
+  return v4_wrap_(_mm_mul_ps(a.v, b.v));
+}
+
+
+// negate selected lanes by XORing sign bits
+static inline
+mjtNum4 v4_xorsign(mjtNum4 a, int s0, int s1, int s2, int s3) {
+  __m128 m = _mm_setr_ps(s0 ? -0.0f : 0.0f, s1 ? -0.0f : 0.0f,
+                         s2 ? -0.0f : 0.0f, s3 ? -0.0f : 0.0f);
+  return v4_wrap_(_mm_xor_ps(a.v, m));
+}
+
+
+// permute lanes with compile-time indices; a is evaluated multiple times and must be
+// side-effect-free
+#define v4_shuffle(a, i0, i1, i2, i3) \
+  v4_wrap_(_mm_shuffle_ps((a).v, (a).v, _MM_SHUFFLE(i3, i2, i1, i0)))
+
+
+// horizontal sum with fixed (l0+l2) + (l1+l3) reduction tree
+static inline
+mjtNum v4_sum(mjtNum4 a) {
+  __m128 s = _mm_add_ps(a.v, _mm_shuffle_ps(a.v, a.v, _MM_SHUFFLE(1, 0, 3, 2)));
+  return _mm_cvtss_f32(_mm_add_ss(s, _mm_shuffle_ps(s, s, 1)));
+}
+
+
+// lane-wise fused multiply-add: a*b + c
+static inline
+mjtNum4 v4_fma(mjtNum4 a, mjtNum4 b, mjtNum4 c) {
+#if defined(mjUSEFMA) && (defined(__FMA__) || (defined(_MSC_VER) && defined(__AVX2__)))
+  return v4_wrap_(_mm_fmadd_ps(a.v, b.v, c.v));
+#elif defined(mjUSEFMA)
+  mjtNum av[4], bv[4], cv[4];
+  _mm_storeu_ps(av, a.v);
+  _mm_storeu_ps(bv, b.v);
+  _mm_storeu_ps(cv, c.v);
+  return v4_set(mju_fma(av[0], bv[0], cv[0]),
+                mju_fma(av[1], bv[1], cv[1]),
+                mju_fma(av[2], bv[2], cv[2]),
+                mju_fma(av[3], bv[3], cv[3]));
+#else
+  #ifdef __clang__
+    #pragma STDC FP_CONTRACT OFF
+  #endif
+  __m128 prod = _mm_mul_ps(a.v, b.v);
+  return v4_wrap_(_mm_add_ps(prod, c.v));
+#endif
+}
+
+#else  // !mjUSESINGLE
 
 typedef struct { __m256d v; } mjtNum4;
 
@@ -321,6 +449,8 @@ mjtNum4 v4_fma(mjtNum4 a, mjtNum4 b, mjtNum4 c) {
   return v4_wrap_(_mm256_add_pd(prod, c.v));
 #endif
 }
+
+#endif  // !mjUSESINGLE
 
 
 //------------------------------ plain-C scalar reference backend ----------------------------------
