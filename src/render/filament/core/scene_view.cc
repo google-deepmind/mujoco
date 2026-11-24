@@ -118,6 +118,8 @@ static filament::ColorGrading* BuildFilamentColorGrading(
   return filament::ColorGrading::Builder()
       .toneMapper(tone_mapper.get())
       .outputColorSpace(output_color_space)
+      .luminanceScaling(opts.luminance_scaling)
+      .gamutMapping(opts.gamut_mapping)
       .exposure(opts.exposure)
       .nightAdaptation(opts.night_adaptation)
       .contrast(opts.contrast)
@@ -645,6 +647,8 @@ void SceneView::Apply(const mjrfBloomOpts& opts) {
   bloom.levels = opts.levels;
   bloom.lensFlare = opts.lens_flare;
   bloom.starburst = opts.starburst;
+  bloom.dirtStrength = opts.dirt_strength;
+  bloom.resolution = opts.resolution;
   main_view_->setBloomOptions(bloom);
 }
 
@@ -688,6 +692,8 @@ void SceneView::Apply(const mjrfFogOpts& opts) {
   fog.maximumOpacity = opts.max_opacity;
   fog.height = opts.height;
   fog.heightFalloff = opts.height_falloff;
+  fog.inScatteringStart = opts.in_scattering_start;
+  fog.inScatteringSize = opts.in_scattering_size;
   main_view_->setFogOptions(fog);
 }
 

@@ -39,6 +39,44 @@ namespace {
 using ::testing::HasSubstr;
 using RendererTest = MujocoTest;
 
+TEST_F(RendererTest, ModelRenderOptsRestoresBloomFogAndColorGrading) {
+  static constexpr char kXml[] = R"(
+    <mujoco>
+      <custom>
+        <numeric name="filament.bloom.dirt_strength" data="0.7"/>
+        <numeric name="filament.bloom.resolution" data="512"/>
+        <numeric name="filament.fog.in_scattering_start" data="3"/>
+        <numeric name="filament.fog.in_scattering_size" data="8"/>
+        <numeric name="filament.cg.luminance_scaling" data="1"/>
+        <numeric name="filament.cg.gamut_mapping" data="1"/>
+      </custom>
+    </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_NE(model, nullptr) << error;
+  MjModelPtr empty = LoadModelFromString("<mujoco/>", error, sizeof(error));
+  ASSERT_NE(empty, nullptr) << error;
+
+  mjrfRenderOpts opts;
+  mjrf_modelRenderOpts(&opts, model.get());
+  EXPECT_FLOAT_EQ(opts.bloom.dirt_strength, 0.7f);
+  EXPECT_EQ(opts.bloom.resolution, 512);
+  EXPECT_FLOAT_EQ(opts.fog.in_scattering_start, 3.0f);
+  EXPECT_FLOAT_EQ(opts.fog.in_scattering_size, 8.0f);
+  EXPECT_TRUE(opts.color_grading.luminance_scaling);
+  EXPECT_TRUE(opts.color_grading.gamut_mapping);
+
+  // Unset keys keep the same defaults even after a prior model set them.
+  mjrf_modelRenderOpts(&opts, empty.get());
+  EXPECT_FLOAT_EQ(opts.bloom.dirt_strength, 0.2f);
+  EXPECT_EQ(opts.bloom.resolution, 384);
+  EXPECT_FLOAT_EQ(opts.fog.in_scattering_start, 0.0f);
+  EXPECT_FLOAT_EQ(opts.fog.in_scattering_size, -1.0f);
+  EXPECT_FALSE(opts.color_grading.luminance_scaling);
+  EXPECT_FALSE(opts.color_grading.gamut_mapping);
+}
+
 static constexpr uint8_t kRed[3] = {255, 0, 0};
 static constexpr uint8_t kGreen[3] = {0, 255, 0};
 static constexpr uint8_t kBlue[3] = {0, 0, 255};
