@@ -3146,7 +3146,7 @@ static void mj_makeARSymbolic(const mjModel* m, mjData* d) {
     int* YT_rowsuper = mjSTACKALLOC(d, nv, int);
     mju_transposeSparse(NULL, NULL, nefc, nv,
                         YT_rownnz, YT_rowadr, YT_colind, YT_rowsuper,
-                        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind);
+                        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper);
 
     // allocate AR row nonzeros and addresses on arena
     d->efc_AR_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
@@ -3220,7 +3220,7 @@ static void mj_makeARNumeric(const mjModel* m, mjData* d) {
     mjtNum* YT = mjSTACKALLOC(d, d->nY, mjtNum);
     mju_transposeSparse(YT, d->efc_Y, nefc, nv,
                         YT_rownnz, YT_rowadr, YT_colind, NULL,
-                        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind);
+                        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper);
 
     // diagonal positions, recovered from the stored pattern (rows are sorted)
     int* diagind = mjSTACKALLOC(d, nefc, int);

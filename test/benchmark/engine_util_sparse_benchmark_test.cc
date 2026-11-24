@@ -125,7 +125,7 @@ CombineData& GetCombineData() {
     mjtNum* JT = mj_stackAllocNum(d, d->nJ);
     mju_transposeSparse(JT, d->efc_J, d->nefc, m->nv, JT_rownnz, JT_rowadr,
                         JT_colind, JT_rowsuper, d->efc_J_rownnz,
-                        d->efc_J_rowadr, d->efc_J_colind);
+                        d->efc_J_rowadr, d->efc_J_colind, nullptr);
 
     // compute H = J'*D*J, uncompressed layout
     mju_sqrMatTDUncompressedInit(rowadr, m->nv);
@@ -158,7 +158,7 @@ struct TransposeData {
   int nefc;
   int nJ;
   std::vector<mjtNum> efc_J;
-  std::vector<int> efc_J_rownnz, efc_J_rowadr, efc_J_colind;
+  std::vector<int> efc_J_rownnz, efc_J_rowadr, efc_J_colind, efc_J_rowsuper;
 };
 
 enum class Size { H2_100, H100 };
@@ -191,6 +191,7 @@ TransposeData& GetTransposeData() {
     td.efc_J_rownnz.assign(d->efc_J_rownnz, d->efc_J_rownnz + d->nefc);
     td.efc_J_rowadr.assign(d->efc_J_rowadr, d->efc_J_rowadr + d->nefc);
     td.efc_J_colind.assign(d->efc_J_colind, d->efc_J_colind + d->nJ);
+    td.efc_J_rowsuper.assign(d->efc_J_rowsuper, d->efc_J_rowsuper + d->nefc);
 
     mj_deleteData(d);
     mj_deleteModel(m);
@@ -205,7 +206,7 @@ TransposeData& GetTransposeData() {
 void ABSL_ATTRIBUTE_NOINLINE transposeSparse_baseline(
     mjtNum* res, const mjtNum* mat, int nr, int nc, int* res_rownnz,
     int* res_rowadr, int* res_colind, int* res_rowsuper, const int* rownnz,
-    const int* rowadr, const int* colind) {
+    const int* rowadr, const int* colind, const int* rowsuper) {
   memset(res_rownnz, 0, nc * sizeof(int));
   for (int rt = 0; rt < nc; rt++) {
     res_rowadr[rt] = rt * nr;
@@ -462,7 +463,7 @@ enum class Supernode { None, PostProcess, Inline };
 
 template <Size S>
 static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func,
-                               Supernode super) {
+                               Supernode super, bool in_super = false) {
   TransposeData& data = GetTransposeData<S>();
 
   // allocate output buffers (uncompressed layout)
@@ -474,12 +475,13 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func,
 
   // time benchmark
   for (auto s : state) {
-    int* rowsuper =
+    int* res_super =
         (super == Supernode::Inline) ? res_rowsuper.data() : nullptr;
+    const int* rowsuper = in_super ? data.efc_J_rowsuper.data() : nullptr;
     func(res.data(), data.efc_J.data(), data.nefc, data.nv, res_rownnz.data(),
-         res_rowadr.data(), res_colind.data(), rowsuper,
+         res_rowadr.data(), res_colind.data(), res_super,
          data.efc_J_rownnz.data(), data.efc_J_rowadr.data(),
-         data.efc_J_colind.data());
+         data.efc_J_colind.data(), rowsuper);
     if (super == Supernode::PostProcess) {
       mju_superSparse(data.nv, res_rowsuper.data(), res_rownnz.data(),
                       res_rowadr.data(), res_colind.data());
@@ -522,6 +524,22 @@ BM_transposeSparse_2H100_superinline(benchmark::State& state) {
 BENCHMARK(BM_transposeSparse_2H100_superinline);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_transposeSparse_2H100_rowsuper(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_transposeSparse<Size::H2_100>(state, &mju_transposeSparse, Supernode::None,
+                                   /*in_super=*/true);
+}
+BENCHMARK(BM_transposeSparse_2H100_rowsuper);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_transposeSparse_2H100_superboth(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_transposeSparse<Size::H2_100>(state, &mju_transposeSparse,
+                                   Supernode::Inline, /*in_super=*/true);
+}
+BENCHMARK(BM_transposeSparse_2H100_superboth);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
 BM_transposeSparse_100H_old(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_transposeSparse<Size::H100>(state, &transposeSparse_baseline,
@@ -551,6 +569,22 @@ BM_transposeSparse_100H_superinline(benchmark::State& state) {
                                  Supernode::Inline);
 }
 BENCHMARK(BM_transposeSparse_100H_superinline);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_transposeSparse_100H_rowsuper(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_transposeSparse<Size::H100>(state, &mju_transposeSparse, Supernode::None,
+                                 /*in_super=*/true);
+}
+BENCHMARK(BM_transposeSparse_100H_rowsuper);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_transposeSparse_100H_superboth(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_transposeSparse<Size::H100>(state, &mju_transposeSparse, Supernode::Inline,
+                                 /*in_super=*/true);
+}
+BENCHMARK(BM_transposeSparse_100H_superboth);
 
 }  // namespace
 }  // namespace mujoco

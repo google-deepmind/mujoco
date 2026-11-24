@@ -2212,7 +2212,7 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
   // transpose for upper triangle (needed by cholFactorSymbolic)
   int HT_rownnz[4], HT_rowadr[4], HT_colind[16];
   mju_transposeSparse(nullptr, nullptr, n, n, HT_rownnz, HT_rowadr, HT_colind,
-                      nullptr, H_rownnz, H_rowadr, H_colind);
+                      nullptr, H_rownnz, H_rowadr, H_colind, nullptr);
 
   // count fill-in (also computes LT structure)
   int L_rownnz[4], L_rowadr[4];
@@ -2230,7 +2230,8 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
   // verify LT structure matches what we'd get from a separate transpose
   int LT_rownnz_ref[4], LT_rowadr_ref[4], LT_colind_ref[16];
   mju_transposeSparse(nullptr, nullptr, n, n, LT_rownnz_ref, LT_rowadr_ref,
-                      LT_colind_ref, nullptr, L_rownnz, L_rowadr, L_colind);
+                      LT_colind_ref, nullptr, L_rownnz, L_rowadr, L_colind,
+                      nullptr);
 
   // LT structure should match
   EXPECT_THAT(AsVector(LT_rownnz, 4),

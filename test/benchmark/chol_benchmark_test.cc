@@ -97,7 +97,8 @@ struct HessianData {
     JT_rowsuper.resize(nv);
     mju_transposeSparse(JT.data(), d->efc_J, nefc, nv, JT_rownnz.data(),
                         JT_rowadr.data(), JT_colind.data(), JT_rowsuper.data(),
-                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                        nullptr);
 
     // count H sparsity: nH from J'*D*J
     H_rownnz.resize(nv);
@@ -153,7 +154,8 @@ struct HessianData {
     HT_colind.resize(nH);
     mju_transposeSparse(nullptr, nullptr, nv, nv, HT_rownnz.data(),
                         HT_rowadr.data(), HT_colind.data(), nullptr,
-                        H_rownnz.data(), H_rowadr.data(), H_colind.data());
+                        H_rownnz.data(), H_rowadr.data(), H_colind.data(),
+                        nullptr);
 
     // count L fill-in (also counts LT structure)
     L_rownnz.resize(nv);

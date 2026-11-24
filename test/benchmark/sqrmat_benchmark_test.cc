@@ -77,7 +77,8 @@ struct SparseTestData {
     JT_rowsuper.assign(nv, 0);
     mju_transposeSparse(JT.data(), J.data(), nefc, nv, JT_rownnz.data(),
                         JT_rowadr.data(), JT_colind.data(), JT_rowsuper.data(),
-                        J_rownnz.data(), J_rowadr.data(), J_colind.data());
+                        J_rownnz.data(), J_rowadr.data(), J_colind.data(),
+                        nullptr);
 
     // compute D corresponding to quadratic constraint states
     D.resize(nefc);

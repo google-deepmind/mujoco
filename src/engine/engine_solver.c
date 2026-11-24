@@ -1607,7 +1607,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
       int offset = ctx->J_rowadr[0];
       mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
                           ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                          ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
+                          ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset, ctx->J_rowsuper);
     } else {
       // no constraints (reachable via the flex CG dispatch): valid empty transpose structures
       mju_zeroInt(ctx->JT_rownnz, nv);
@@ -3156,7 +3156,7 @@ static int MakeHessian(const mjModel* m, mjData* d, mjPrimalContext* ctx) {
 
     // compute H' sparse structure (upper triangle, required for symbolic Cholesky)
     mju_transposeSparse(NULL, NULL, nv, nv, ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind, NULL,
-                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
+                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL);
 
     // count total and row non-zeros of reverse-Cholesky factors L and LT
     ctx->nL = mju_cholFactorSymbolic(NULL, ctx->L_rownnz, ctx->L_rowadr, NULL,
