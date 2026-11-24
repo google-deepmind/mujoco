@@ -16,7 +16,9 @@
 
 #include "src/engine/engine_util_blas.h"
 
+#include <cmath>
 #include <cstring>
+#include <limits>
 #include <random>
 
 #include <gmock/gmock.h>
@@ -80,6 +82,111 @@ TEST_F(EngineUtilBlasTest, MjuDot) {
     mjtNum got = mju_dot(x, y, n);
     EXPECT_EQ(std::memcmp(&got, &ref, sizeof(mjtNum)), 0) << "n=" << n;
   }
+}
+
+TEST_F(EngineUtilBlasTest, MjuSumL1) {
+  constexpr int kMaxN = 19;
+  mjtNum a[kMaxN];
+
+  for (int i = 0; i < kMaxN; i++) {
+    mjtNum sign = (i % 3 == 0) ? -1.0 : 1.0;
+    a[i] = sign * (1.0 / (i + 1) + 1e-3 * ((i * 7) % 11));
+  }
+
+  auto ref_reduce4 = [](const mjtNum* terms, int n) {
+    int i = 0;
+    mjtNum r0 = 0, r1 = 0, r2 = 0, r3 = 0;
+    for (; i <= n - 4; i += 4) {
+      r0 += terms[i + 0];
+      r1 += terms[i + 1];
+      r2 += terms[i + 2];
+      r3 += terms[i + 3];
+    }
+    mjtNum res = (r0 + r2) + (r1 + r3);
+    for (; i < n; i++) {
+      res += terms[i];
+    }
+    return res;
+  };
+
+  mjtNum abs_a[kMaxN];
+  for (int i = 0; i < kMaxN; i++) {
+    abs_a[i] = std::abs(a[i]);
+  }
+
+  for (int n = 0; n <= kMaxN; n++) {
+    EXPECT_EQ(mju_sum(a, n), ref_reduce4(a, n)) << "n=" << n;
+    EXPECT_EQ(mju_L1(a, n), ref_reduce4(abs_a, n)) << "n=" << n;
+  }
+
+  // Exact ground-truth integer and dyadic sequences.
+  mjtNum seq[kMaxN];
+  mjtNum alt[kMaxN];
+  for (int i = 0; i < kMaxN; i++) {
+    seq[i] = static_cast<mjtNum>(i + 1) * static_cast<mjtNum>(0.25);
+    alt[i] = (i % 2 == 0) ? seq[i] : -seq[i];
+  }
+  for (int n = 0; n <= kMaxN; n++) {
+    mjtNum expected_l1 =
+        static_cast<mjtNum>(n * (n + 1)) * static_cast<mjtNum>(0.125);
+    mjtNum expected_alt =
+        static_cast<mjtNum>((n % 2 == 0) ? -(n / 2) : (n + 1) / 2) *
+        static_cast<mjtNum>(0.25);
+    EXPECT_EQ(mju_sum(seq, n), expected_l1) << "n=" << n;
+    EXPECT_EQ(mju_sum(alt, n), expected_alt) << "n=" << n;
+    EXPECT_EQ(mju_L1(alt, n), expected_l1) << "n=" << n;
+  }
+
+  // Reduction-tree check: distinguish (r0 + r2) + (r1 + r3) from both
+  // (r0 + r1) + (r2 + r3) and sequential summation.
+  const mjtNum eps = std::numeric_limits<mjtNum>::epsilon();
+  const mjtNum q = static_cast<mjtNum>(0.25) * eps;
+  const mjtNum sum_cancel[4] = {1, q, -1, q};
+  // (1 + -1) + (q + q) = 0.5*eps; (1+q)+(-1+q) = 0; sequential = 0.25*eps.
+  EXPECT_EQ(mju_sum(sum_cancel, 4), static_cast<mjtNum>(0.5) * eps);
+
+  const mjtNum t = static_cast<mjtNum>(0.375) * eps;
+  const mjtNum l1_tree[4] = {static_cast<mjtNum>(0.5), q,
+                             static_cast<mjtNum>(-0.5), t};
+  // (0.5 + 0.5) + (0.25 + 0.375)*eps = 1 + 0.625*eps -> 1 + eps;
+  // (0.5 + 0.25*eps) + (0.5 + 0.375*eps) = 0.5 + (0.5 + 0.5*eps) -> 1;
+  // sequential -> 1.
+  EXPECT_EQ(mju_L1(l1_tree, 4), static_cast<mjtNum>(1) + eps);
+
+  // Edge cases: negative n, -0.0, Inf, NaN (both 4-wide loop and tail).
+  EXPECT_EQ(mju_sum(nullptr, -1), 0);
+  EXPECT_EQ(mju_L1(nullptr, -1), 0);
+  EXPECT_EQ(mju_sum(a, -100), 0);
+  EXPECT_EQ(mju_L1(a, -100), 0);
+
+  const mjtNum nz = static_cast<mjtNum>(-0.0);
+  const mjtNum neg_zeros[5] = {nz, nz, nz, nz, nz};
+  for (int n : {1, 4, 5}) {
+    mjtNum l1 = mju_L1(neg_zeros, n);
+    EXPECT_EQ(l1, 0);
+    EXPECT_FALSE(std::signbit(l1)) << "n=" << n;
+    EXPECT_EQ(mju_sum(neg_zeros, n), 0);
+  }
+
+  const mjtNum inf = std::numeric_limits<mjtNum>::infinity();
+  const mjtNum qnan = std::numeric_limits<mjtNum>::quiet_NaN();
+  const mjtNum pos_inf[5] = {1, 2, inf, 4, 5};
+  EXPECT_TRUE(std::isinf(mju_sum(pos_inf, 5)));
+  EXPECT_GT(mju_sum(pos_inf, 5), 0);
+  EXPECT_TRUE(std::isinf(mju_L1(pos_inf, 5)));
+
+  const mjtNum opp_inf[5] = {inf, 1, -inf, 2, 3};
+  EXPECT_TRUE(std::isnan(mju_sum(opp_inf, 5)));
+  EXPECT_TRUE(std::isinf(mju_L1(opp_inf, 5)));
+  EXPECT_GT(mju_L1(opp_inf, 5), 0);
+
+  const mjtNum with_nan_body[4] = {1, qnan, 2, 3};
+  EXPECT_TRUE(std::isnan(mju_sum(with_nan_body, 4)));
+  EXPECT_TRUE(std::isnan(mju_L1(with_nan_body, 4)));
+
+  const mjtNum with_nan_tail[5] = {1, 2, 3, 4, qnan};
+  EXPECT_TRUE(std::isnan(mju_sum(with_nan_tail, 5)));
+  EXPECT_TRUE(std::isnan(mju_L1(with_nan_tail, 5)));
 }
 
 TEST_F(EngineUtilBlasTest, MjuMulVecMatVec) {

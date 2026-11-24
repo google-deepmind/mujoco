@@ -300,9 +300,23 @@ void mju_copyInd(mjtNum* res, const mjtNum* vec, const int* ind, int n) {
 
 // sum(vec)
 mjtNum mju_sum(const mjtNum* vec, int n) {
-  mjtNum res = 0;
+  int i = 0;
+  int n_4 = n - 4;
+  mjtNum res0 = 0;
+  mjtNum res1 = 0;
+  mjtNum res2 = 0;
+  mjtNum res3 = 0;
 
-  for (int i=0; i < n; i++) {
+  for (; i <= n_4; i+=4) {
+    res0 += vec[i+0];
+    res1 += vec[i+1];
+    res2 += vec[i+2];
+    res3 += vec[i+3];
+  }
+  mjtNum res = (res0 + res2) + (res1 + res3);
+
+  // process remaining
+  for (; i < n; i++) {
     res += vec[i];
   }
 
@@ -312,9 +326,23 @@ mjtNum mju_sum(const mjtNum* vec, int n) {
 
 // sum(abs(vec))
 mjtNum mju_L1(const mjtNum* vec, int n) {
-  mjtNum res = 0;
+  int i = 0;
+  int n_4 = n - 4;
+  mjtNum res0 = 0;
+  mjtNum res1 = 0;
+  mjtNum res2 = 0;
+  mjtNum res3 = 0;
 
-  for (int i=0; i < n; i++) {
+  for (; i <= n_4; i+=4) {
+    res0 += mju_abs(vec[i+0]);
+    res1 += mju_abs(vec[i+1]);
+    res2 += mju_abs(vec[i+2]);
+    res3 += mju_abs(vec[i+3]);
+  }
+  mjtNum res = (res0 + res2) + (res1 + res3);
+
+  // process remaining
+  for (; i < n; i++) {
     res += mju_abs(vec[i]);
   }
 
@@ -569,19 +597,6 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
   }
   return res;
 }
-
-
-
-// vector dot-product, at given indices
-mjtNum mju_dotInd(const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n) {
-  mjtNum res = 0;
-  for (int i = 0; i < n; i++) {
-    int k = ind[i];
-    res += vec1[k] * vec2[k];
-  }
-  return res;
-}
-
 
 
 //------------------------------ matrix-vector operations ------------------------------------------
