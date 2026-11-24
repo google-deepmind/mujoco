@@ -60,7 +60,10 @@ _C_CONLYOPTS = [
     "-Wimplicit-fallthrough",
 ] + select({
     "@platforms//os:windows": [],
-    "//conditions:default": ["-fno-math-errno"],
+    "//conditions:default": [
+        "-fno-math-errno",
+        "-Wno-psabi",
+    ],
 })
 
 cc_library(

@@ -22,7 +22,10 @@ cc_library(
         "-Wunused",
         "-Wvla",
         "-Wimplicit-fallthrough",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-psabi"],
+    }),
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
