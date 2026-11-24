@@ -2468,6 +2468,120 @@ TEST_F(XMLReaderTest, InvalidAttach) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(XMLReaderTest, RecursiveModelAsset) {
+  // model file that names itself
+  static constexpr char self_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="self" file="self.xml"/>
+    </asset>
+  </mujoco>
+  )";
+
+  // model file that names itself through a '..' path
+  static constexpr char dotdot_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="self" file="../sub/dotdot.xml"/>
+    </asset>
+  </mujoco>
+  )";
+
+  // two model files that name each other
+  static constexpr char a_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="b" file="b.xml"/>
+    </asset>
+  </mujoco>
+  )";
+
+  static constexpr char b_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="a" file="a.xml"/>
+    </asset>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "self.xml", self_xml, sizeof(self_xml));
+  mj_addBufferVFS(vfs.get(), "sub/dotdot.xml", dotdot_xml, sizeof(dotdot_xml));
+  mj_addBufferVFS(vfs.get(), "a.xml", a_xml, sizeof(a_xml));
+  mj_addBufferVFS(vfs.get(), "b.xml", b_xml, sizeof(b_xml));
+
+  std::array<char, 1024> error;
+  for (const char* file : {"self.xml", "sub/dotdot.xml", "a.xml"}) {
+    SCOPED_TRACE(file);
+    mjSpec* spec = mj_parseXML(file, vfs.get(), error.data(), error.size());
+    EXPECT_THAT(spec, IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr(string("recursive model asset '") + file + "'"));
+    mj_deleteSpec(spec);
+  }
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(XMLReaderTest, RepeatedModelAsset) {
+  static constexpr char hand_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="hand">
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char arm_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="hand" file="hand.xml"/>
+    </asset>
+    <worldbody>
+      <body name="arm">
+        <geom size="1"/>
+        <attach model="hand" body="hand" prefix="hand_"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // the same model file named more than once, also inside another model file,
+  // is not recursive
+  static constexpr char robot_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="left" file="arm.xml"/>
+      <model name="right" file="arm.xml"/>
+      <model name="hand" file="hand.xml"/>
+    </asset>
+    <worldbody>
+      <attach model="left" body="arm" prefix="left_"/>
+      <attach model="right" body="arm" prefix="right_"/>
+      <attach model="hand" body="hand" prefix="spare_"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "hand.xml", hand_xml, sizeof(hand_xml));
+  mj_addBufferVFS(vfs.get(), "arm.xml", arm_xml, sizeof(arm_xml));
+  mj_addBufferVFS(vfs.get(), "robot.xml", robot_xml, sizeof(robot_xml));
+
+  std::array<char, 1024> error;
+  mjModel* model =
+      mj_loadXML("robot.xml", vfs.get(), error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_GE(mj_name2id(model, mjOBJ_BODY, "left_hand_hand"), 0);
+  EXPECT_GE(mj_name2id(model, mjOBJ_BODY, "right_hand_hand"), 0);
+  EXPECT_GE(mj_name2id(model, mjOBJ_BODY, "spare_hand"), 0);
+  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
+}
+
 TEST_F(XMLReaderTest, LookupCompilerOptionWithoutSpecCopy) {
   static constexpr char child_xml[] = R"(
   <mujoco>

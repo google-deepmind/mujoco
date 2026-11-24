@@ -364,6 +364,19 @@ mjSpec* ParseXML(const char* filename, const mjVFS* vfs, char* error, int nerror
   mju_getResourceDir(resource, &dir, &ndir);
   std::string_view directory(dir, ndir);
 
+  // block files already being parsed on this thread: a <model> asset parses
+  // its file with a nested call, so a model file that names itself, directly
+  // or through other model files, would recurse until the stack overflows
+  static thread_local std::unordered_set<std::string> parsing;
+  const std::string name = resource->name ? resource->name : filename;
+  if (!parsing.insert(name).second) {
+    if (error) { std::snprintf(error, nerror, "ParseXML: recursive model asset '%s'", filename); }
+    mju_closeResource(resource);
+    return nullptr;
+  }
+  mujoco::user::Cleanup cleanup;
+  cleanup += [&name]() { parsing.erase(name); };
+
   mjSpec* spec = SpecFromXML({xml, xml + buffer_size}, directory, filename, vfs, error, nerror);
 
   mju_closeResource(resource);
