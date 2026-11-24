@@ -510,6 +510,7 @@ typedef struct mjrfLightParams_ {
   float softness;                 // spot light edge softness, fraction of cone angle in [0, 1]
   int shadow_map_size;            // size of shadow map texture, 0 to use default size
   float bulb_radius;              // bulb radius, used for soft shadows
+  float image_diffuse_scale;      // image light diffuse factor, default to 1.0
 } mjrfLightParams;
 
 // Initializes the mjrfLightParams to default values.

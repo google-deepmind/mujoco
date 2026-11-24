@@ -162,6 +162,7 @@ void mjrf_defaultLightParams(mjrfLightParams* params) {
   params->softness = 0.0f;
   params->bulb_radius = 0.0f;
   params->shadow_map_size = 2048;
+  params->image_diffuse_scale = 1.0f;
 }
 
 void mjrf_defaultMaterial(mjrfMaterial* material) {

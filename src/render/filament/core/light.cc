@@ -59,7 +59,12 @@ Light::Light(filament::Engine* engine, const mjrfLightParams& params)
       const Texture::SphericalHarmonics* spherical_harmonics =
           texture->GetSphericalHarmonics();
       if (spherical_harmonics != nullptr) {
-        builder.irradiance(3, *spherical_harmonics);
+        Texture::SphericalHarmonics scaled_harmonics;
+        for (int i = 0; i < 9; ++i) {
+          scaled_harmonics[i] =
+              (*spherical_harmonics)[i] * params.image_diffuse_scale;
+        }
+        builder.irradiance(3, scaled_harmonics);
       }
     }
     builder.intensity(params.intensity);
