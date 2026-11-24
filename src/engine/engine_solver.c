@@ -1359,6 +1359,194 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
 }
 
 
+// extract island M, qLD (or qH), and qLDiagInv using contiguous tree-DOF runs
+static void primalExtractIslandM(const mjModel* m, const mjData* d, mjPrimalContext* ctx,
+                                 const mjtNum* gLD, const mjtNum* gLDiagInv) {
+  int nv = ctx->nv;
+  int idofadr = d->island_idofadr[ctx->island];
+  const int* restrict idof2dof = d->map_idof2dof + idofadr;
+
+  // M and qLD are block-diagonal by tree, and each tree's DOFs are contiguous in both global and
+  // island order, so every column in a contiguous run shifts by the constant delta = k0 - r
+  int adr = 0;
+  for (int r=0; r < nv; ) {
+    int k0 = idof2dof[r];
+    int delta = k0 - r;
+    int len = 1;
+    while (r + len < nv && idof2dof[r+len] == k0 + len) {
+      len++;
+    }
+
+    int src0 = m->M_rowadr[k0];
+    int run_nnz = (m->M_rowadr[k0+len-1] + m->M_rownnz[k0+len-1]) - src0;
+    mju_copyInt(ctx->M_rownnz + r, m->M_rownnz + k0, len);
+    int row_shift = src0 - adr;
+    for (int i=0; i < len; i++) {
+      ctx->M_rowadr[r+i] = m->M_rowadr[k0+i] - row_shift;
+    }
+    if (delta == 0) {
+      mju_copyInt(ctx->M_colind + adr, m->M_colind + src0, run_nnz);
+    } else {
+      const int* restrict src_col = m->M_colind + src0;
+      int* restrict dst_col = ctx->M_colind + adr;
+      for (int j=0; j < run_nnz; j++) {
+        dst_col[j] = src_col[j] - delta;
+      }
+    }
+    mju_copy(ctx->qLD + adr, gLD + src0, run_nnz);
+    mju_copy(ctx->M + adr, d->M + src0, run_nnz);
+    mju_copy(ctx->qLDiagInv + r, gLDiagInv + k0, len);
+
+    adr += run_nnz;
+    r += len;
+  }
+}
+
+
+// fused island sparse J extraction, J_rowsuper construction, and JT transpose
+static void primalExtractIslandJAndTranspose(const mjData* d, mjPrimalContext* ctx) {
+  int nv = ctx->nv;
+  int nefc = ctx->nefc;
+  int island = ctx->island;
+  int idofadr = d->island_idofadr[island];
+  int iefcadr = d->island_iefcadr[island];
+  const int* restrict idof2dof = d->map_idof2dof + idofadr;
+  const int* restrict dof2idof = d->map_dof2idof;
+  const int* restrict iefc2efc = d->map_iefc2efc + iefcadr;
+
+  int* restrict J_rownnz = ctx->J_rownnz;
+  int* restrict J_rowadr = ctx->J_rowadr;
+  int* restrict J_rowsuper = ctx->J_rowsuper;
+  int* restrict J_colind = ctx->J_colind;
+  mjtNum* restrict J = ctx->J;
+
+  int* restrict JT_rownnz = ctx->JT_rownnz;
+  int* restrict JT_rowadr = ctx->JT_rowadr;
+  int* restrict JT_rowsuper = ctx->JT_rowsuper;
+
+  // initialize JT counts and supernode flags
+  mju_zeroInt(JT_rownnz, nv);
+  for (int i=0; i < nv-1; i++) {
+    JT_rowsuper[i] = 1;
+  }
+  JT_rowsuper[nv-1] = 0;
+
+  // contiguous island DOF slice allows constant subtraction instead of dof2idof gather
+  int contiguous_dof = (idof2dof[nv-1] - idof2dof[0] == nv - 1);
+  int dof0 = idof2dof[0];
+
+  // pass 1: extract J using d->efc_J_rowsuper runs, detect J_rowsuper boundaries, count JT
+  int j_adr = 0;
+  int prev_nnz = -1;
+  const int* prev_col = NULL;
+  for (int r=0; r < nefc; ) {
+    int k = iefc2efc[r];
+    int nnz = d->efc_J_rownnz[k];
+
+    // reuse maximal contiguous prefix of global J supernode present in this island
+    int s = d->efc_J_rowsuper[k];
+    int ns = 1;
+    if (s > 0) {
+      if (r + s < nefc && iefc2efc[r+s] == k + s) {
+        ns = s + 1;
+      } else {
+        while (ns <= s && r + ns < nefc && iefc2efc[r+ns] == k + ns) {
+          ns++;
+        }
+      }
+    }
+
+    for (int t=0; t < ns; t++) {
+      J_rownnz[r+t] = nnz;
+      J_rowadr[r+t] = j_adr + t*nnz;
+      J_rowsuper[r+t] = 1;
+    }
+
+    int* restrict dst_col = J_colind + j_adr;
+    if (nnz > 0) {
+      int src_adr0 = d->efc_J_rowadr[k];
+      const int* restrict src_col = d->efc_J_colind + src_adr0;
+
+      // remap colind once for the supernode
+      if (contiguous_dof) {
+        for (int j=0; j < nnz; j++) {
+          dst_col[j] = src_col[j] - dof0;
+        }
+      } else {
+        for (int j=0; j < nnz; j++) {
+          dst_col[j] = dof2idof[src_col[j]] - idofadr;
+        }
+      }
+
+      // count JT_rownnz and mark non-supernode boundaries in JT
+      int c_prev = dst_col[0];
+      JT_rownnz[c_prev] += ns;
+      if (c_prev > 0) {
+        JT_rowsuper[c_prev-1] = 0;
+      }
+      for (int j=1; j < nnz; j++) {
+        int c = dst_col[j];
+        JT_rownnz[c] += ns;
+        if (c != c_prev + 1) {
+          JT_rowsuper[c-1] = 0;
+        }
+        c_prev = c;
+      }
+
+      // replicate remapped column indices across remaining rows in the supernode
+      for (int t=1; t < ns; t++) {
+        mju_copyInt(dst_col + t*nnz, dst_col, nnz);
+      }
+
+      // copy J values (bulk copy when contiguous in d->efc_J)
+      if (ns == 1 || d->efc_J_rowadr[k+ns-1] == src_adr0 + (ns-1)*nnz) {
+        mju_copy(J + j_adr, d->efc_J + src_adr0, ns*nnz);
+      } else {
+        for (int t=0; t < ns; t++) {
+          mju_copy(J + j_adr + t*nnz, d->efc_J + d->efc_J_rowadr[k+t], nnz);
+        }
+      }
+    }
+
+    // check supernode boundary with previous run
+    if (r > 0) {
+      J_rowsuper[r-1] = (nnz == prev_nnz && (nnz == 0 || mju_compare(prev_col, dst_col, nnz)));
+    }
+    prev_nnz = nnz;
+    prev_col = dst_col;
+    j_adr += ns * nnz;
+    r += ns;
+  }
+
+  // finalize J_rowsuper
+  J_rowsuper[nefc-1] = 0;
+  for (int i=nefc-2; i >= 0; i--) {
+    if (J_rowsuper[i]) {
+      J_rowsuper[i] += J_rowsuper[i+1];
+    }
+  }
+
+  // finalize JT_rowsuper and compute JT_rowadr
+  for (int i=0; i < nv-1; i++) {
+    JT_rowsuper[i] &= (JT_rownnz[i] == JT_rownnz[i+1]);
+  }
+  for (int i=nv-2; i >= 0; i--) {
+    if (JT_rowsuper[i]) {
+      JT_rowsuper[i] += JT_rowsuper[i+1];
+    }
+  }
+  JT_rowadr[0] = 0;
+  for (int i=1; i < nv; i++) {
+    JT_rowadr[i] = JT_rowadr[i-1] + JT_rownnz[i-1];
+  }
+
+  // pass 2: fill JT_colind and JT using precomputed JT_rowadr and finalized J_rowsuper
+  mju_transposeSparse(ctx->JT, ctx->J, nefc, nv,
+                      NULL, ctx->JT_rowadr, ctx->JT_colind, NULL,
+                      ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind, ctx->J_rowsuper);
+}
+
+
 // allocate fixed-size arrays in mjPrimalContext
 //  mj_{mark/free}Stack in calling function!
 static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, int flg_Newton) {
@@ -1582,27 +1770,23 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     int use_qH = mj_effUseQH(d);
     const mjtNum* gLD = use_qH ? d->qH : d->qLD;
     const mjtNum* gLDiagInv = use_qH ? d->qHDiagInv : d->qLDiagInv;
-    mju_blockSparse(ctx->qLD, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
-                    gLD, m->M_rownnz, m->M_rowadr, m->M_colind,
-                    nv, d->map_idof2dof + idofadr, d->map_dof2idof,
-                    d->island_idofadr[island], 0, ctx->M, d->M);
-    mju_gather(ctx->qLDiagInv, gLDiagInv, d->map_idof2dof + idofadr, nv);
+    primalExtractIslandM(m, d, ctx, gLD, gLDiagInv);
 
     if (!is_sparse) {
       mju_block(ctx->J, d->efc_J, m->nv, nv, nefc,
                 d->map_iefc2efc + iefcadr, d->map_idof2dof + idofadr);
+    } else if (nefc) {
+      primalExtractIslandJAndTranspose(d, ctx);
     } else {
-      mju_blockSparse(ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
-                      d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-                      nefc, d->map_iefc2efc + iefcadr, d->map_dof2idof,
-                      d->island_idofadr[island], 0, NULL, NULL);
-
-      mju_superSparse(nefc, ctx->J_rowsuper, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind);
+      // no constraints: valid empty transpose structures
+      mju_zeroInt(ctx->JT_rownnz, nv);
+      mju_zeroInt(ctx->JT_rowadr, nv);
+      mju_zeroInt(ctx->JT_rowsuper, nv);
     }
   }
 
-  // sparse: compute Jacobian transpose
-  if (is_sparse) {
+  // sparse without island copy: compute Jacobian transpose using J supernodes
+  else if (is_sparse) {
     if (nefc) {
       int offset = ctx->J_rowadr[0];
       mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
