@@ -1289,7 +1289,7 @@ typedef struct mjModel_ {
   int*      mapD2M;               // index mapping from D to M                (nC x 1)
 
   // compilation signature
-  uint64_t  signature;            // also held by the mjSpec that compiled this model
+  uint64_t  signature;            // structural signature shared with the compiling spec
 } mjModel;
 typedef struct mjResource_ {
   char* name;                                   // name of resource (filename, etc)
