@@ -21,7 +21,9 @@
 #include <numbers>
 #include <string>
 #include <tuple>
+#include <vector>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
@@ -39,6 +41,10 @@
 
 namespace mujoco {
 namespace {
+
+using ::testing::DoubleNear;
+using ::testing::ElementsAre;
+using ::testing::Pointwise;
 
 // Ensure mujoco_usd is not dead-stripped by the linker so its static
 // initializer registers USD plugins (mjcPhysics, newton, usdMjcf) at load time.
@@ -656,6 +662,82 @@ def Xform "zero_mass_body" (
   EXPECT_NEAR(model->body_iquat[7], 0.0, MjTol(1e-7, 1e-6));
   EXPECT_NEAR(model->body_mass[2], 3.4, MjTol(1e-7, 1e-6));
   EXPECT_NEAR(model->body_mass[3], 5.6, MjTol(1e-7, 1e-6));
+}
+
+// newton:inertia is the full tensor in the body frame and overrides
+// physics:diagonalInertia and physics:principalAxes, which writers may author
+// as a fallback for readers without the Newton schemas (#3932).
+TEST_F(UsdInertialSemanticsTest, NewtonInertiaOverridesPrincipalAxes) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "all" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "NewtonMassAPI"]
+) {
+    float physics:mass = 1
+    point3f physics:centerOfMass = (0, 0, 0)
+    float3 physics:diagonalInertia = (0.31, 0.25, 0.19)
+    quatf physics:principalAxes = (0.70710678, 0, 0, 0.70710678)
+    double[] newton:inertia = [0.3, 0.25, 0.2, 0.01, 0, 0]
+    def Sphere "collider" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+}
+def Xform "axes" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "NewtonMassAPI"]
+) {
+    float physics:mass = 1
+    point3f physics:centerOfMass = (0, 0, 0)
+    quatf physics:principalAxes = (0.70710678, 0, 0, 0.70710678)
+    double[] newton:inertia = [0.3, 0.25, 0.2, 0.01, 0, 0]
+    def Sphere "collider" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  for (const char* name : {"/all", "/axes"}) {
+    mjsBody* body = mjs_findBody(spec.get(), name);
+    ASSERT_NE(body, nullptr) << name;
+    EXPECT_THAT(body->fullinertia, ElementsAre(0.3, 0.25, 0.2, 0.01, 0, 0)) << name;
+    EXPECT_THAT(body->inertia, ElementsAre(0, 0, 0)) << name;
+    EXPECT_THAT(body->iquat, ElementsAre(1, 0, 0, 0)) << name;
+  }
+
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+
+  // the same body in MJCF
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <inertial pos="0 0 0" mass="1" fullinertia="0.3 0.25 0.2 0.01 0 0"/>
+        <geom type="sphere" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr reference = LoadModelFromString(xml);
+  ASSERT_NE(reference, nullptr);
+
+  // inertia tensor of body `b` in the body frame
+  auto tensor = [](const mjModel* m, int b) {
+    mjtNum rot[9], diag[9] = {0}, tmp[9], out[9];
+    mju_quat2Mat(rot, m->body_iquat + 4 * b);
+    for (int i = 0; i < 3; i++) diag[4 * i] = m->body_inertia[3 * b + i];
+    mju_mulMatMatT(tmp, diag, rot, 3, 3, 3);
+    mju_mulMatMat(out, rot, tmp, 3, 3, 3);
+    return std::vector<mjtNum>(out, out + 9);
+  };
+  std::vector<mjtNum> expected = tensor(reference.get(), 1);
+  for (int b = 1; b <= 2; b++) {
+    EXPECT_THAT(tensor(model.get(), b),
+                Pointwise(DoubleNear(MjTol(1e-10, 1e-6)), expected))
+        << "body " << b;
+  }
 }
 
 TEST_F(UsdInertialSemanticsTest, VisualGeomMassAPIDecoded) {
