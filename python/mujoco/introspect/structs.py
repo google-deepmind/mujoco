@@ -5650,6 +5650,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='int'),
                  doc='number of Cholesky updates in line search',
              ),
+             StructFieldDecl(
+                 name='lsresult',
+                 type=ValueType(name='int'),
+                 doc='line search result (CG/Newton), -1 if not applicable',
+             ),
          ),
      )),
     ('mjData',

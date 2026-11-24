@@ -393,6 +393,40 @@ TEST_F(SolverTest, EllipticLineSearchPrecisionDiagnostics) {
   }
 }
 
+TEST_F(SolverTest, LineSearchResultStatistics) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+      <option tolerance="0" iterations="1" ls_iterations="1"/>
+      <worldbody>
+        <geom type="plane" size="1 1 1"/>
+        <body pos="0 0 0.09">
+          <freejoint/>
+          <geom type="sphere" size="0.1" mass="1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  model->opt.disableflags |= mjDSBL_ISLAND | mjDSBL_WARMSTART;
+
+  for (mjtSolver solver : {mjSOL_CG, mjSOL_NEWTON, mjSOL_PGS}) {
+    model->opt.solver = solver;
+    mj_resetData(model.get(), data.get());
+    mj_forward(model.get(), data.get());
+    ASSERT_EQ(data->solver_niter[0], 1) << solver;
+    if (solver == mjSOL_PGS) {
+      EXPECT_EQ(data->solver[0].lsresult, -1);
+    } else {
+      // The initial two evaluations exhaust the line-search budget.
+      EXPECT_EQ(data->solver[0].lsresult, 3);
+      EXPECT_GE(data->solver[0].neval, model->opt.ls_iterations);
+    }
+  }
+}
+
 TEST_F(SolverTest, EllipticLineSearchCancellation) {
   std::string xml = R"(
   <mujoco>

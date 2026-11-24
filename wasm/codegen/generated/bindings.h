@@ -933,6 +933,12 @@ struct MjSolverStat {
   void set_nupdate(int value) {
     ptr_->nupdate = value;
   }
+  int lsresult() const {
+    return ptr_->lsresult;
+  }
+  void set_lsresult(int value) {
+    ptr_->lsresult = value;
+  }
 
  private:
   mjSolverStat* ptr_;

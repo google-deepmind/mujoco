@@ -1408,9 +1408,10 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
           fprintf(fp, "    lineslope = ");
           fprintf(fp, float_format, stat->lineslope);
           fprintf(fp, "\n");
-          fprintf(fp, "          nactive = %d   nchange = %d   neval = %d   nupdate = %d\n",
+          fprintf(fp, "          nactive = %d   nchange = %d   neval = %d   nupdate = %d"
+                      "   lsresult = %d\n",
                   stat->nactive, stat->nchange,
-                  stat->neval, stat->nupdate);
+                  stat->neval, stat->nupdate, stat->lsresult);
         }
         fprintf(fp, "\n");
       }

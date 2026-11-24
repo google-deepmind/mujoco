@@ -91,6 +91,7 @@ typedef struct mjSolverStat_ {  // per-iteration solver statistics
   int     nchange;              // number of constraint state changes
   int     neval;                // number of cost evaluations in line search
   int     nupdate;              // number of Cholesky updates in line search
+  int     lsresult;             // line search result (CG/Newton), -1 if not applicable
 } mjSolverStat;
 
 

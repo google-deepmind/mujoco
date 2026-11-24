@@ -5562,6 +5562,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("gradient", &MjSolverStat::gradient, &MjSolverStat::set_gradient)
     .property("improvement", &MjSolverStat::improvement, &MjSolverStat::set_improvement)
     .property("lineslope", &MjSolverStat::lineslope, &MjSolverStat::set_lineslope)
+    .property("lsresult", &MjSolverStat::lsresult, &MjSolverStat::set_lsresult)
     .property("nactive", &MjSolverStat::nactive, &MjSolverStat::set_nactive)
     .property("nchange", &MjSolverStat::nchange, &MjSolverStat::set_nchange)
     .property("neval", &MjSolverStat::neval, &MjSolverStat::set_neval)
