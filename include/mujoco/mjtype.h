@@ -262,6 +262,8 @@ typedef enum mjtDyn {             // type of actuator dynamics
   mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
   mjDYN_DCMOTOR,                  // DC motor electrical dynamics
   mjDYN_PID,                      // PID controller states: slew, integral
+  mjDYN_MILLARD2012,              // muscle activation and compliant-tendon fiber, Millard 2012
+  mjDYN_GEYER2010,                // muscle activation and compliant-tendon fiber, Geyer 2010
   mjDYN_USER                      // user-defined dynamics type
 } mjtDyn;
 
@@ -273,6 +275,8 @@ typedef enum mjtGain {            // type of actuator gain
   mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
   mjGAIN_SO3,                     // geodesic servo on an SO3 transmission: force = kp * log(error)
   mjGAIN_PID,                     // PID controller: position and velocity setpoint inputs
+  mjGAIN_MILLARD2012,             // active fiber force, Millard 2012
+  mjGAIN_GEYER2010,               // active fiber force, Geyer 2010
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;
 
@@ -283,6 +287,8 @@ typedef enum mjtBias {            // type of actuator bias
   mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
   mjBIAS_DCMOTOR,                 // DC motor bias: back-EMF, cogging, LuGre friction
   mjBIAS_SO3,                     // damping term of the SO3 geodesic servo
+  mjBIAS_MILLARD2012,             // passive fiber force, Millard 2012
+  mjBIAS_GEYER2010,               // passive fiber force, Geyer 2010
   mjBIAS_USER                     // user-defined bias type
 } mjtBias;
 

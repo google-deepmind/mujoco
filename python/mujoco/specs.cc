@@ -1873,6 +1873,58 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       py::arg("thermal") = std::array<double, 6>{0, 0, 0, 0, 0, 0},
       py::arg("lugre") = std::array<double, 5>{0, 0, 0, 0, 0},
       py::arg("ctrlspec") = 0);
+  mjsActuator.def(
+      "set_to_millard2012",
+      [](raw::MjsActuator* self, std::array<double, 2> timeconst,
+         double minactivation, double force, double optlength,
+         double slacklength, double vmax, double pennation,
+         double fiberdamping, bool rigidtendon,
+         std::array<double, 4> activecurve, std::array<double, 5> passivecurve,
+         std::array<double, 4> tendoncurve,
+         std::array<double, 6> velocitycurve) {
+        std::string err = mjs_setToMillard2012(
+            self, timeconst.data(), minactivation, force, optlength,
+            slacklength, vmax, pennation, fiberdamping, rigidtendon,
+            activecurve.data(), passivecurve.data(), tendoncurve.data(),
+            velocitycurve.data());
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("timeconst") = std::array<double, 2>{0.01, 0.04},
+      py::arg("minactivation") = 0.01, py::arg("force") = 1000,
+      py::arg("optlength") = 0.1, py::arg("slacklength") = 0.2,
+      py::arg("vmax") = 10, py::arg("pennation") = 0,
+      py::arg("fiberdamping") = 0.1, py::arg("rigidtendon") = false,
+      py::arg("activecurve") =
+          std::array<double, 4>{0.4441, 0.73, 1.8123, 0.8616},
+      py::arg("passivecurve") = std::array<double, 5>{0, 0.7, 0.2, 0, 0.75},
+      py::arg("tendoncurve") = std::array<double, 4>{0.049, 0, 2.0 / 3, 0.5},
+      py::arg("velocitycurve") =
+          std::array<double, 6>{1.4, 0.25, 5, 0.15, 0.6, 0.9});
+  mjsActuator.def(
+      "set_to_geyer2010",
+      [](raw::MjsActuator* self, std::array<double, 2> timeconst,
+         double tausmooth, double force, double optlength, double slacklength,
+         double vmax, double fiberdamping, bool rigidtendon,
+         std::array<double, 2> activecurve, std::array<double, 2> passivecurve,
+         double tendoncurve, double velocitycurve) {
+        std::string err = mjs_setToGeyer2010(
+            self, timeconst.data(), tausmooth, force, optlength, slacklength,
+            vmax, fiberdamping, rigidtendon, activecurve.data(),
+            passivecurve.data(), tendoncurve, velocitycurve);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("timeconst") = std::array<double, 2>{0.01, 0.04},
+      py::arg("tausmooth") = 0, py::arg("force") = 1000,
+      py::arg("optlength") = 0.1, py::arg("slacklength") = 0.2,
+      py::arg("vmax") = 12, py::arg("fiberdamping") = 0,
+      py::arg("rigidtendon") = false,
+      py::arg("activecurve") = std::array<double, 2>{0.56, 0.05},
+      py::arg("passivecurve") = std::array<double, 2>{1, 0},
+      py::arg("tendoncurve") = 0.04, py::arg("velocitycurve") = 5);
 
   // ============================= MJSTENDONPATH ===============================
   // helper struct for tendon path indexing

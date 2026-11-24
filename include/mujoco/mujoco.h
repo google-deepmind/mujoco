@@ -559,6 +559,10 @@ MJAPI void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
 // Copy current state to the k-th model keyframe.
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 
+// Set compliant-tendon muscle fibers to their isometric equilibrium at the current actuator lengths
+// and activations; call after mj_forward.
+MJAPI void mj_muscleEquilibrium(const mjModel* m, mjData* d);
+
 // Add contact to d->contact list; return 0 if success; 1 if buffer full.
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 
@@ -1857,6 +1861,23 @@ MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], 
                                    double nominal[3], double saturation[3], double inductance[2],
                                    double cogging[3], double controller[6], double thermal[6],
                                    double lugre[5], int ctrlspec);
+
+// Set actuator to Millard2012 compliant-tendon muscle; return error if any.
+// Nullable: timeconst, activecurve, passivecurve, tendoncurve, velocitycurve
+MJAPI const char* mjs_setToMillard2012(mjsActuator* actuator, double timeconst[2],
+                                       double minactivation, double force, double optlength,
+                                       double slacklength, double vmax, double pennation,
+                                       double fiberdamping, int rigidtendon,
+                                       double activecurve[4], double passivecurve[5],
+                                       double tendoncurve[4], double velocitycurve[6]);
+
+// Set actuator to Geyer2010 compliant-tendon muscle; return error if any.
+// Nullable: timeconst, activecurve, passivecurve
+MJAPI const char* mjs_setToGeyer2010(mjsActuator* actuator, double timeconst[2], double tausmooth,
+                                     double force, double optlength, double slacklength,
+                                     double vmax, double fiberdamping, int rigidtendon,
+                                     double activecurve[2], double passivecurve[2],
+                                     double tendoncurve, double velocitycurve);
 
 
 //---------------------------------- Assets --------------------------------------------------------

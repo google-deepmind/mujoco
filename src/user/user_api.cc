@@ -2104,6 +2104,126 @@ const char* mjs_setToDCMotor(mjsActuator* actuator,
 }
 
 
+// Set to Millard2012 compliant-tendon muscle: OpenSim Millard2012EquilibriumMuscle parameters,
+// with OpenSim's defaults for the curves that are not given; a non-positive stiffness at one
+// normalized force takes OpenSim's default, which depends on the strain at one normalized force
+const char* mjs_setToMillard2012(mjsActuator* actuator,
+                                 double       timeconst[2],
+                                 double       minactivation,
+                                 double       force,
+                                 double       optlength,
+                                 double       slacklength,
+                                 double       vmax,
+                                 double       pennation,
+                                 double       fiberdamping,
+                                 int          rigidtendon,
+                                 double       activecurve[4],
+                                 double       passivecurve[5],
+                                 double       tendoncurve[4],
+                                 double       velocitycurve[6]) {
+  SetControl(actuator, mjACTUATOR_MILLARD2012);
+  actuator->dyntype  = mjDYN_MILLARD2012;
+  actuator->gaintype = mjGAIN_MILLARD2012;
+  actuator->biastype = mjBIAS_MILLARD2012;
+
+  // OpenSim defaults: ActiveForceLengthCurve, FiberForceLengthCurve, TendonForceLengthCurve,
+  // ForceVelocityCurve
+  double active[4]   = {0.4441, 0.73, 1.8123, 0.8616};
+  double passive[5]  = {0, 0.7, 0.2, 0, 0.75};
+  double tendon[4]   = {0.049, 0, 2.0/3.0, 0.5};
+  double velocity[6] = {1.4, 0.25, 5, 0.15, 0.6, 0.9};
+  if (activecurve) { std::copy(activecurve, activecurve + 4, active); }
+  if (passivecurve) { std::copy(passivecurve, passivecurve + 5, passive); }
+  if (tendoncurve) { std::copy(tendoncurve, tendoncurve + 4, tendon); }
+  if (velocitycurve) { std::copy(velocitycurve, velocitycurve + 6, velocity); }
+  if (passive[3] <= 0) { passive[3] = 2 / (passive[1] - passive[0]); }
+  if (tendon[1] <= 0) { tendon[1] = 1.375 / tendon[0]; }
+
+  // dynprm: activation and fiber dynamics
+  actuator->dynprm[0] = timeconst ? timeconst[0] : 0.01;
+  actuator->dynprm[1] = timeconst ? timeconst[1] : 0.04;
+  actuator->dynprm[2] = minactivation;
+  actuator->dynprm[3] = fiberdamping;
+  std::copy(velocity, velocity + 6, actuator->dynprm + 4);
+
+  // gainprm: active fiber
+  actuator->gainprm[0] = force;
+  actuator->gainprm[1] = optlength;
+  actuator->gainprm[2] = slacklength;
+  actuator->gainprm[3] = vmax;
+  actuator->gainprm[4] = pennation;
+  std::copy(active, active + 4, actuator->gainprm + 5);
+
+  // biasprm: passive elements
+  std::copy(passive, passive + 5, actuator->biasprm);
+  std::copy(tendon, tendon + 4, actuator->biasprm + 5);
+  actuator->biasprm[9] = rigidtendon ? 1 : 0;
+
+  if (force <= 0) return "Millard2012 muscle: force must be positive";
+  if (optlength <= 0) return "Millard2012 muscle: optimal fiber length must be positive";
+  if (slacklength <= 0) return "Millard2012 muscle: tendon slack length must be positive";
+  return "";
+}
+
+
+// Set to Geyer2010 compliant-tendon muscle: Geyer and Herr (2010) parameters, with their defaults
+// for the curves that are not given; a non-positive parallel element strain takes the paper's,
+// the width of the active force-length curve
+const char* mjs_setToGeyer2010(mjsActuator* actuator,
+                               double       timeconst[2],
+                               double       tausmooth,
+                               double       force,
+                               double       optlength,
+                               double       slacklength,
+                               double       vmax,
+                               double       fiberdamping,
+                               int          rigidtendon,
+                               double       activecurve[2],
+                               double       passivecurve[2],
+                               double       tendoncurve,
+                               double       velocitycurve) {
+  SetControl(actuator, mjACTUATOR_GEYER2010);
+  actuator->dyntype  = mjDYN_GEYER2010;
+  actuator->gaintype = mjGAIN_GEYER2010;
+  actuator->biastype = mjBIAS_GEYER2010;
+
+  // Geyer and Herr (2010) defaults: width and residual force of the active force-length curve,
+  // rest length and reference strain of the parallel element
+  double active[2]  = {0.56, 0.05};
+  double passive[2] = {1, 0};
+  if (activecurve) { std::copy(activecurve, activecurve + 2, active); }
+  if (passivecurve) { std::copy(passivecurve, passivecurve + 2, passive); }
+  if (passive[1] <= 0) { passive[1] = active[0]; }
+
+  // dynprm: activation and fiber dynamics
+  actuator->dynprm[0] = timeconst ? timeconst[0] : 0.01;
+  actuator->dynprm[1] = timeconst ? timeconst[1] : 0.04;
+  actuator->dynprm[2] = tausmooth;
+  actuator->dynprm[3] = fiberdamping;
+  actuator->dynprm[4] = velocitycurve;
+
+  // gainprm: active fiber
+  actuator->gainprm[0] = force;
+  actuator->gainprm[1] = optlength;
+  actuator->gainprm[2] = slacklength;
+  actuator->gainprm[3] = vmax;
+  std::copy(active, active + 2, actuator->gainprm + 4);
+
+  // biasprm: passive elements
+  std::copy(passive, passive + 2, actuator->biasprm);
+  actuator->biasprm[2] = tendoncurve;
+  actuator->biasprm[3] = rigidtendon ? 1 : 0;
+
+  // the fiber is solved with the activation at the end of the step, as Song's implementation does
+  actuator->actearly = 1;
+
+  if (force <= 0) return "Geyer2010 muscle: force must be positive";
+  if (optlength <= 0) return "Geyer2010 muscle: optimal fiber length must be positive";
+  if (slacklength <= 0) return "Geyer2010 muscle: tendon slack length must be positive";
+  return "";
+}
+
+
 // get spec from body
 mjSpec* mjs_getSpec(const mjsElement* element) {
   return &(static_cast<const mjCBase*>(element)->model->spec);

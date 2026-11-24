@@ -1947,7 +1947,9 @@ typedef enum mjtActuator {         // actuator element, which owns its shortcut 
   mjACTUATOR_ADHESION,             // adhesion
   mjACTUATOR_PID,                  // pid servo
   mjACTUATOR_ORIENTATION,          // orientation servo
-  mjACTUATOR_DCMOTOR               // dc motor
+  mjACTUATOR_DCMOTOR,              // dc motor
+  mjACTUATOR_MILLARD2012,          // compliant-tendon muscle, Millard 2012
+  mjACTUATOR_GEYER2010             // compliant-tendon muscle, Geyer 2010
 } mjtActuator;
 typedef enum mjtCTimer {           // compiler timing categories
   // top-level timers (wall-clock)
@@ -2792,6 +2794,8 @@ typedef enum mjtDyn {             // type of actuator dynamics
   mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
   mjDYN_DCMOTOR,                  // DC motor electrical dynamics
   mjDYN_PID,                      // PID controller states: slew, integral
+  mjDYN_MILLARD2012,              // muscle activation and compliant-tendon fiber, Millard 2012
+  mjDYN_GEYER2010,                // muscle activation and compliant-tendon fiber, Geyer 2010
   mjDYN_USER                      // user-defined dynamics type
 } mjtDyn;
 typedef enum mjtGain {            // type of actuator gain
@@ -2801,6 +2805,8 @@ typedef enum mjtGain {            // type of actuator gain
   mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
   mjGAIN_SO3,                     // geodesic servo on an SO3 transmission: force = kp * log(error)
   mjGAIN_PID,                     // PID controller: position and velocity setpoint inputs
+  mjGAIN_MILLARD2012,             // active fiber force, Millard 2012
+  mjGAIN_GEYER2010,               // active fiber force, Geyer 2010
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;
 typedef enum mjtBias {            // type of actuator bias
@@ -2809,6 +2815,8 @@ typedef enum mjtBias {            // type of actuator bias
   mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
   mjBIAS_DCMOTOR,                 // DC motor bias: back-EMF, cogging, LuGre friction
   mjBIAS_SO3,                     // damping term of the SO3 geodesic servo
+  mjBIAS_MILLARD2012,             // passive fiber force, Millard 2012
+  mjBIAS_GEYER2010,               // passive fiber force, Geyer 2010
   mjBIAS_USER                     // user-defined bias type
 } mjtBias;
 typedef enum mjtCtrlChart {       // so3 input signature (actuator_ctrlspec): orientation chart
@@ -4089,6 +4097,7 @@ void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
 void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
                           const mjtNum* times, const mjtNum* values, mjtNum phase);
 void mj_setKeyframe(mjModel* m, const mjData* d, int k);
+void mj_muscleEquilibrium(const mjModel* m, mjData* d);
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 int mj_isPyramidal(const mjModel* m);
 int mj_isSparse(const mjModel* m);
@@ -4495,6 +4504,17 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
                              double nominal[3], double saturation[3], double inductance[2],
                              double cogging[3], double controller[6], double thermal[6],
                              double lugre[5], int ctrlspec);
+const char* mjs_setToMillard2012(mjsActuator* actuator, double timeconst[2],
+                                 double minactivation, double force, double optlength,
+                                 double slacklength, double vmax, double pennation,
+                                 double fiberdamping, int rigidtendon,
+                                 double activecurve[4], double passivecurve[5],
+                                 double tendoncurve[4], double velocitycurve[6]);
+const char* mjs_setToGeyer2010(mjsActuator* actuator, double timeconst[2], double tausmooth,
+                               double force, double optlength, double slacklength,
+                               double vmax, double fiberdamping, int rigidtendon,
+                               double activecurve[2], double passivecurve[2],
+                               double tendoncurve, double velocitycurve);
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);

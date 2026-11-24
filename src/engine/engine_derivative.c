@@ -26,6 +26,7 @@
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_muscle.h"
 #include "engine/engine_passive.h"
 #include "engine/engine_sleep.h"
 #include "engine/engine_support.h"
@@ -3859,6 +3860,12 @@ mjtNum mjd_actuatorLenDeriv(const mjModel* m, const mjData* d, int i) {
     bias_len += gain_len * actuatorInput(m, d, i);
   }
 
+  // compliant-tendon muscle: total derivative of gain .* act + bias, through the fiber solve
+  if (m->actuator_gaintype[i] == mjGAIN_MILLARD2012 ||
+      m->actuator_gaintype[i] == mjGAIN_GEYER2010) {
+    bias_len += mj_muscleForceLen(m, d, i);
+  }
+
   return bias_len;
 }
 
@@ -3957,6 +3964,12 @@ mjtNum mjd_actuatorVelDeriv(const mjModel* m, const mjData* d, int i) {
   // force = gain .* [ctrl/act]
   if (gain_vel != 0) {
     bias_vel += gain_vel * actuatorInput(m, d, i);
+  }
+
+  // compliant-tendon muscle: total derivative of gain .* act + bias
+  if (m->actuator_gaintype[i] == mjGAIN_MILLARD2012 ||
+      m->actuator_gaintype[i] == mjGAIN_GEYER2010) {
+    bias_vel += mj_muscleForceVel(m, d, i);
   }
 
   return bias_vel;

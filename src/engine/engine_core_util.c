@@ -2145,7 +2145,9 @@ int mj_effActuatorPossible(const mjModel* m, int i) {
          m->actuator_gaintype[i] == mjGAIN_AFFINE  ||
          m->actuator_gaintype[i] == mjGAIN_SO3     ||
          m->actuator_gaintype[i] == mjGAIN_MUSCLE  ||
-         m->actuator_gaintype[i] == mjGAIN_DCMOTOR;
+         m->actuator_gaintype[i] == mjGAIN_DCMOTOR ||
+         m->actuator_gaintype[i] == mjGAIN_MILLARD2012 ||
+         m->actuator_gaintype[i] == mjGAIN_GEYER2010;
 }
 
 

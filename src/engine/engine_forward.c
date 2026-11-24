@@ -35,6 +35,7 @@
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_metric.h"
+#include "engine/engine_muscle.h"
 #include "engine/engine_passive.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sensor.h"
@@ -591,6 +592,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       break;
     }
 
+    case mjDYN_MILLARD2012:         // compliant-tendon muscle: activation and fiber
+    case mjDYN_GEYER2010:
+      mj_muscleActDot(m, d, i, ctrl[uadr]);
+      break;
+
     default:                        // user dynamics
       if (mjcb_act_dyn) {
         if (actnum == 1) {
@@ -623,6 +629,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // force = gain .* [ctrl/act] + bias
   for (int i=0; i < nactuator; i++) {
+    mjtNum muscle_bias = 0;
+
     // skip if sleeping
     if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
       continue;
@@ -746,6 +754,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       break;
     }
 
+    case mjGAIN_MILLARD2012:        // compliant-tendon muscle: gain and bias from the fiber
+    case mjGAIN_GEYER2010:
+      mj_muscleGainBias(m, d, i, &gain, &muscle_bias);
+      break;
+
     case mjGAIN_SO3:                // handled above via early continue
       mjERROR("mjGAIN_SO3 reached SISO switch (actuator %d)", i);
       break;
@@ -840,6 +853,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
                              m->actuator_lengthrange+2*oadr,
                              m->actuator_acc0[oadr],
                              biasprm);
+      break;
+
+    case mjBIAS_MILLARD2012:        // compliant-tendon muscle: computed with the gain
+    case mjBIAS_GEYER2010:
+      bias = muscle_bias;
       break;
 
     case mjBIAS_DCMOTOR: {          // DC motor: back-EMF only (current-limited)

@@ -504,6 +504,16 @@ See :ref:`Delays<CDelay>` for details.
 
 Copy current state to the k-th model keyframe.
 
+.. _mj_muscleEquilibrium:
+
+`mj_muscleEquilibrium <#mj_muscleEquilibrium>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_muscleEquilibrium
+
+Set compliant-tendon muscle fibers to their isometric equilibrium at the current actuator lengths
+and activations; call after mj_forward.
+
 .. _mj_addContact:
 
 `mj_addContact <#mj_addContact>`__
@@ -6327,6 +6337,28 @@ Set actuator to active adhesion; return error if any.
 Set actuator to DC motor; return error if any.
 
 *Nullable:* ``motorconst``, ``nominal``, ``saturation``, ``inductance``, ``cogging``, ``controller``, ``thermal``, ``lugre``
+
+.. _mjs_setToMillard2012:
+
+`mjs_setToMillard2012 <#mjs_setToMillard2012>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToMillard2012
+
+Set actuator to Millard2012 compliant-tendon muscle; return error if any.
+
+*Nullable:* ``timeconst``, ``activecurve``, ``passivecurve``, ``tendoncurve``, ``velocitycurve``
+
+.. _mjs_setToGeyer2010:
+
+`mjs_setToGeyer2010 <#mjs_setToGeyer2010>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToGeyer2010
+
+Set actuator to Geyer2010 compliant-tendon muscle; return error if any.
+
+*Nullable:* ``timeconst``, ``activecurve``, ``passivecurve``
 
 .. _AddAssets:
 

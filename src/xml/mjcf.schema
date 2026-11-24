@@ -269,6 +269,8 @@ enum actuatortype : mjtActuator {   # the element an actuator is written with
   pid           = mjACTUATOR_PID
   orientation   = mjACTUATOR_ORIENTATION
   dcmotor       = mjACTUATOR_DCMOTOR
+  millard2012   = mjACTUATOR_MILLARD2012
+  geyer2010     = mjACTUATOR_GEYER2010
 }
 
 enum dyn : mjtDyn {
@@ -279,6 +281,8 @@ enum dyn : mjtDyn {
   muscle        = mjDYN_MUSCLE
   dcmotor       = mjDYN_DCMOTOR
   pid           = mjDYN_PID
+  millard2012   = mjDYN_MILLARD2012
+  geyer2010     = mjDYN_GEYER2010
   user          = mjDYN_USER
 }
 
@@ -293,6 +297,8 @@ enum gain : mjtGain {
   dcmotor   = mjGAIN_DCMOTOR
   so3       = mjGAIN_SO3
   pid       = mjGAIN_PID
+  millard2012 = mjGAIN_MILLARD2012
+  geyer2010 = mjGAIN_GEYER2010
   user      = mjGAIN_USER
 }
 
@@ -315,6 +321,8 @@ enum bias : mjtBias {
   muscle    = mjBIAS_MUSCLE
   dcmotor   = mjBIAS_DCMOTOR
   so3       = mjBIAS_SO3
+  millard2012 = mjBIAS_MILLARD2012
+  geyer2010 = mjBIAS_GEYER2010
   user      = mjBIAS_USER
 }
 
@@ -852,6 +860,8 @@ element default {
   child muscle ?
   child adhesion ?
   child dcmotor ?
+  child millard2012 ?
+  child geyer2010 ?
 }
 
 element layer {
@@ -1489,6 +1499,8 @@ element actuator : mjsActuator {
   child muscle *
   child adhesion *
   child dcmotor *
+  child millard2012 *
+  child geyer2010 *
   child actuator_plugin *
 }
 
@@ -1665,6 +1677,49 @@ element dcmotor : mjsActuator (control=custom) {
   thermal            : double[1..6] (reading=custom, dim=opaque)
   lugre              : double[1..5] (reading=custom, dim="F Q^-1, F T Q^-1, F, F, Q T^-1")
   input              : flags<inputbit> (reading=custom)  # token subset, or the none keyword
+}
+
+element millard2012 : mjsActuator (control=1) {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2] (dim=F)
+  use actuator_dynamics
+  use transmission
+  timeconst          : double[2] (reading=custom, dim=T)  # activation, deactivation
+  minactivation      : double (reading=custom, dim=1)
+  force              : double (reading=custom, dim=F)  # maximum isometric force
+  optlength          : double (reading=custom, dim=Q)  # optimal fiber length
+  slacklength        : double (reading=custom, dim=Q)  # tendon slack length
+  vmax               : double (reading=custom, dim="T^-1")  # in optimal fiber lengths
+  pennation          : double (reading=custom, dim=A)  # at the optimal fiber length, radians
+  fiberdamping       : double (reading=custom, dim=1)
+  rigidtendon        : bool (reading=custom)
+  activecurve        : double[1..4] (reading=custom, dim=1)  # lmin, transition, lmax, slope
+  passivecurve       : double[1..5] (reading=custom, dim=1)  # strain0, strain1, klow, kiso, curviness
+  tendoncurve        : double[1..4] (reading=custom, dim=1)  # strain1, kiso, ftoe, curviness
+  velocitycurve      : double[1..6] (reading=custom, dim=1)  # fmaxecc, conslope, isoslope, eccslope, concurv, ecccurv
+}
+
+element geyer2010 : mjsActuator (control=1) {
+  use actuator_base
+  ctrllimited        : enum<FalseTrueAuto> = auto
+  forcelimited       : enum<FalseTrueAuto> = auto
+  forcerange         : double[2] (dim=F)
+  use actuator_dynamics
+  use transmission
+  timeconst          : double[2] (reading=custom, dim=T)  # activation, deactivation
+  tausmooth          : double (reading=custom, dim=1)
+  force              : double (reading=custom, dim=F)  # maximum isometric force
+  optlength          : double (reading=custom, dim=Q)  # optimal fiber length
+  slacklength        : double (reading=custom, dim=Q)  # tendon slack length
+  vmax               : double (reading=custom, dim="T^-1")  # in optimal fiber lengths
+  fiberdamping       : double (reading=custom, dim=1)
+  rigidtendon        : bool (reading=custom)
+  activecurve        : double[1..2] (reading=custom, dim=1)  # width, residual force
+  passivecurve       : double[1..2] (reading=custom, dim=1)  # rest length, reference strain
+  tendoncurve        : double (reading=custom, dim=1)  # reference strain
+  velocitycurve      : double (reading=custom, dim=1)  # shape factor K
 }
 
 element actuator_plugin : mjsActuator (xml=plugin, control=opaque) {

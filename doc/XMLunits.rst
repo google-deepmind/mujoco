@@ -972,6 +972,88 @@
      - *other*
    * - :ref:`actuator/dcmotor/lugre<actuator-dcmotor-lugre>`
      - :math:`F\,Q^{-1},\ F\,T\,Q^{-1},\ F,\ F,\ Q\,T^{-1}`
+   * - :ref:`actuator/millard2012/delay<actuator-millard2012-delay>`
+     - :math:`T`
+   * - :ref:`actuator/millard2012/ctrlrange<actuator-millard2012-ctrlrange>`
+     - :math:`1`
+   * - :ref:`actuator/millard2012/user<actuator-millard2012-user>`
+     - *other*
+   * - :ref:`actuator/millard2012/forcerange<actuator-millard2012-forcerange>`
+     - :math:`F`
+   * - :ref:`actuator/millard2012/lengthrange<actuator-millard2012-lengthrange>`
+     - :math:`Q`
+   * - :ref:`actuator/millard2012/gear<actuator-millard2012-gear>`
+     - *varies*
+   * - :ref:`actuator/millard2012/damping<actuator-millard2012-damping>`
+     - :math:`F\,T\,Q^{-1},\ F\,T^{2}\,Q^{-2},\ F\,T^{3}\,Q^{-3}`
+   * - :ref:`actuator/millard2012/armature<actuator-millard2012-armature>`
+     - :math:`F\,T^{2}\,Q^{-1}`
+   * - :ref:`actuator/millard2012/cranklength<actuator-millard2012-cranklength>`
+     - :math:`L`
+   * - :ref:`actuator/millard2012/timeconst<actuator-millard2012-timeconst>`
+     - :math:`T`
+   * - :ref:`actuator/millard2012/minactivation<actuator-millard2012-minactivation>`
+     - :math:`1`
+   * - :ref:`actuator/millard2012/force<actuator-millard2012-force>`
+     - :math:`F`
+   * - :ref:`actuator/millard2012/optlength<actuator-millard2012-optlength>`
+     - :math:`Q`
+   * - :ref:`actuator/millard2012/slacklength<actuator-millard2012-slacklength>`
+     - :math:`Q`
+   * - :ref:`actuator/millard2012/vmax<actuator-millard2012-vmax>`
+     - :math:`T^{-1}`
+   * - :ref:`actuator/millard2012/pennation<actuator-millard2012-pennation>`
+     - :math:`A`
+   * - :ref:`actuator/millard2012/fiberdamping<actuator-millard2012-fiberdamping>`
+     - :math:`1`
+   * - :ref:`actuator/millard2012/activecurve<actuator-millard2012-activecurve>`
+     - :math:`1`
+   * - :ref:`actuator/millard2012/passivecurve<actuator-millard2012-passivecurve>`
+     - :math:`1`
+   * - :ref:`actuator/millard2012/tendoncurve<actuator-millard2012-tendoncurve>`
+     - :math:`1`
+   * - :ref:`actuator/millard2012/velocitycurve<actuator-millard2012-velocitycurve>`
+     - :math:`1`
+   * - :ref:`actuator/geyer2010/delay<actuator-geyer2010-delay>`
+     - :math:`T`
+   * - :ref:`actuator/geyer2010/ctrlrange<actuator-geyer2010-ctrlrange>`
+     - :math:`1`
+   * - :ref:`actuator/geyer2010/user<actuator-geyer2010-user>`
+     - *other*
+   * - :ref:`actuator/geyer2010/forcerange<actuator-geyer2010-forcerange>`
+     - :math:`F`
+   * - :ref:`actuator/geyer2010/lengthrange<actuator-geyer2010-lengthrange>`
+     - :math:`Q`
+   * - :ref:`actuator/geyer2010/gear<actuator-geyer2010-gear>`
+     - *varies*
+   * - :ref:`actuator/geyer2010/damping<actuator-geyer2010-damping>`
+     - :math:`F\,T\,Q^{-1},\ F\,T^{2}\,Q^{-2},\ F\,T^{3}\,Q^{-3}`
+   * - :ref:`actuator/geyer2010/armature<actuator-geyer2010-armature>`
+     - :math:`F\,T^{2}\,Q^{-1}`
+   * - :ref:`actuator/geyer2010/cranklength<actuator-geyer2010-cranklength>`
+     - :math:`L`
+   * - :ref:`actuator/geyer2010/timeconst<actuator-geyer2010-timeconst>`
+     - :math:`T`
+   * - :ref:`actuator/geyer2010/tausmooth<actuator-geyer2010-tausmooth>`
+     - :math:`1`
+   * - :ref:`actuator/geyer2010/force<actuator-geyer2010-force>`
+     - :math:`F`
+   * - :ref:`actuator/geyer2010/optlength<actuator-geyer2010-optlength>`
+     - :math:`Q`
+   * - :ref:`actuator/geyer2010/slacklength<actuator-geyer2010-slacklength>`
+     - :math:`Q`
+   * - :ref:`actuator/geyer2010/vmax<actuator-geyer2010-vmax>`
+     - :math:`T^{-1}`
+   * - :ref:`actuator/geyer2010/fiberdamping<actuator-geyer2010-fiberdamping>`
+     - :math:`1`
+   * - :ref:`actuator/geyer2010/activecurve<actuator-geyer2010-activecurve>`
+     - :math:`1`
+   * - :ref:`actuator/geyer2010/passivecurve<actuator-geyer2010-passivecurve>`
+     - :math:`1`
+   * - :ref:`actuator/geyer2010/tendoncurve<actuator-geyer2010-tendoncurve>`
+     - :math:`1`
+   * - :ref:`actuator/geyer2010/velocitycurve<actuator-geyer2010-velocitycurve>`
+     - :math:`1`
    * - :ref:`actuator/plugin/delay<actuator-plugin-delay>`
      - :math:`T`
    * - :ref:`actuator/plugin/ctrlrange<actuator-plugin-ctrlrange>`

@@ -1372,6 +1372,48 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator, const mjsDe
         ReadAttr(elem, "lugre", 5, s.lugre, text, false, false);
         ReadInputSpec(elem, &s.ctrlspec);
         break;
+      case mjACTUATOR_MILLARD2012: {
+        ReadAttr(elem, "timeconst", 2, s.timeconst, text);
+        ReadAttr(elem, "minactivation", 1, &s.minactivation, text);
+        ReadAttr(elem, "force", 1, &s.force, text);
+        ReadAttr(elem, "optlength", 1, &s.optlength, text);
+        ReadAttr(elem, "slacklength", 1, &s.slacklength, text);
+        ReadAttr(elem, "vmax", 1, &s.vmax, text);
+        ReadAttr(elem, "pennation", 1, &s.pennation, text);
+        ReadAttr(elem, "fiberdamping", 1, &s.fiberdamping, text);
+        int rigid;
+        if (MapValue(elem, "rigidtendon", &rigid, bool_map, 2)) { s.rigidtendon = rigid; }
+
+        // a strain at one normalized force without its stiffness takes the derived stiffness
+        ReadAttr(elem, "activecurve", 4, s.activecurve, text, false, false);
+        int npassive = ReadAttr(elem, "passivecurve", 5, s.passivecurve, text, false, false);
+        if (npassive && npassive < 4) { s.passivecurve[3] = 0; }
+        if (ReadAttr(elem, "tendoncurve", 4, s.tendoncurve, text, false, false) == 1) {
+          s.tendoncurve[1] = 0;
+        }
+        ReadAttr(elem, "velocitycurve", 6, s.velocitycurve, text, false, false);
+        break;
+      }
+      case mjACTUATOR_GEYER2010: {
+        ReadAttr(elem, "timeconst", 2, s.timeconst, text);
+        ReadAttr(elem, "tausmooth", 1, &s.tausmooth, text);
+        ReadAttr(elem, "force", 1, &s.force, text);
+        ReadAttr(elem, "optlength", 1, &s.optlength, text);
+        ReadAttr(elem, "slacklength", 1, &s.slacklength, text);
+        ReadAttr(elem, "vmax", 1, &s.vmax, text);
+        ReadAttr(elem, "fiberdamping", 1, &s.fiberdamping, text);
+        int rigid;
+        if (MapValue(elem, "rigidtendon", &rigid, bool_map, 2)) { s.rigidtendon = rigid; }
+
+        // a parallel element rest length without its strain takes the derived strain
+        ReadAttr(elem, "activecurve", 2, s.activecurve, text, false, false);
+        if (ReadAttr(elem, "passivecurve", 2, s.passivecurve, text, false, false) == 1) {
+          s.passivecurve[1] = 0;
+        }
+        ReadAttr(elem, "tendoncurve", 1, s.tendoncurve, text);
+        ReadAttr(elem, "velocitycurve", 1, s.velocitycurve, text);
+        break;
+      }
       default:  // motor, velocity, damper: kv is read above
         break;
     }

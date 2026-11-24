@@ -91,8 +91,10 @@ struct mjXShortcut {
   double kp, kv, dampratio, timeconst[2], tausmooth, range[2], force, scale, lmin, lmax, vmax,
       fpmax, fvmax, bias[3], area, diameter, gain, ki, imax, slewmax, motorconst[2], resistance,
       nominal[3], saturation[3], inductance[2], cogging[3], controller[6], thermal[6], lugre[5],
-      inheritrange;
+      inheritrange, minactivation, optlength, slacklength, pennation, fiberdamping,
+      activecurve[4], passivecurve[5], tendoncurve[4], velocitycurve[6];
   int  ctrlspec;
+  bool rigidtendon;
   bool has_kv, has_dampratio, has_timeconst;  // kv/dampratio and timeconst are given or not
 };
 

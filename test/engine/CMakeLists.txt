@@ -60,6 +60,8 @@ mujoco_test(engine_ipc_test)
 
 mujoco_test(engine_metric_test)
 
+mujoco_test(engine_muscle_test)
+
 mujoco_test(
   engine_plugin_test
   ADDITIONAL_LINK_LIBRARIES

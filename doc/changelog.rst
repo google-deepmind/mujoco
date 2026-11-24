@@ -14,6 +14,13 @@ General
 
 Engine
 ^^^^^^
+- Added the :ref:`millard2012 <actuator-millard2012>` actuator, a muscle with a compliant tendon and pennation:
+  OpenSim's ``Millard2012EquilibriumMuscle`` with OpenSim's parameters and curves. The fiber length is an activation
+  variable, advanced by an implicit solve of the force balance between fiber and tendon. See
+  :ref:`Compliant-tendon muscles <CMuscleTendon>`. Added :ref:`mj_muscleEquilibrium` and
+  :ref:`mjs_setToMillard2012`.
+- Added the :ref:`geyer2010 <actuator-geyer2010>` actuator, the compliant-tendon muscle of Geyer and Herr (2010), on the
+  same fiber state and solver. Added :ref:`mjs_setToGeyer2010`.
 - Optimized :ref:`elliptic friction cone<soCones>` Hessians in the :ref:`Newton solver<soAlgorithms>` using closed-form
   rank-``(dim - 1)`` factors (~5–30% faster elliptic Newton solves). Thanks to :github:user:`adenzler-nvidia`
   for proposing the optimization in :doc:`MJWarp <mjwarp/index>` pull request

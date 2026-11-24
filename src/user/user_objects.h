@@ -2259,6 +2259,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
 
   // scale the compiled copy by the gauge, or back
   void   ApplyGauge(bool inverse = false);
+  void   CheckTendonMuscle() const;  // validate compliant-tendon muscle parameters
   double CoordinateFactor(const mjCGauge& g) const;
 
   void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);

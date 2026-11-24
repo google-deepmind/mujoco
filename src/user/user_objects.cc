@@ -8350,6 +8350,134 @@ double mjCActuator::CoordinateFactor(const mjCGauge& g) const {
 // scale the compiled copy by the gauge of the transmission target, or back. Q is the coordinate of
 // the transmission, L^q, and G the generalized force, M L^(2-q) T^-2; gains and biases are force
 // class whatever their dimension, and a control follows its declared input
+// validate a compliant-tendon muscle: matching types, the fiber and activation states, and the
+// parameter ranges for which the curves exist (OpenSim's own checks for Millard2012)
+void mjCActuator::CheckTendonMuscle() const {
+  bool geyer = dyntype == mjDYN_GEYER2010 || gaintype == mjGAIN_GEYER2010 ||
+               biastype == mjBIAS_GEYER2010;
+  const char* type = geyer ? "geyer2010" : "millard2012";
+  auto fail = [&](const char* msg) {
+    char full[400];
+    mju::sprintf_arr(full, "%s in %s actuator '%s' (id = %d)", msg, type, name.c_str(), id);
+    throw mjCError(this, "%s", full);
+  };
+
+  bool match = geyer ? dyntype == mjDYN_GEYER2010 && gaintype == mjGAIN_GEYER2010 &&
+                       biastype == mjBIAS_GEYER2010
+                     : dyntype == mjDYN_MILLARD2012 && gaintype == mjGAIN_MILLARD2012 &&
+                       biastype == mjBIAS_MILLARD2012;
+  if (!match) {
+    fail("dyntype, gaintype and biastype must match");
+  }
+  if (plugin.active) {
+    fail("plugins are not supported");
+  }
+  if (actdim != 2) {
+    fail("actdim must be 2 (fiber, activation)");
+  }
+  if (is_actlimited()) {
+    fail("actrange is not supported, it would clamp the fiber state");
+  }
+  if (ctrlnum_ != 1) {
+    fail("exactly one input (excitation) is required");
+  }
+
+  const double* d = dynprm;
+  const double* g = gainprm;
+  const double* b = biasprm;
+  const double sqrteps = std::sqrt(std::numeric_limits<double>::epsilon());
+  const double maxpennation = std::acos(0.1);
+
+  // Geyer2010
+  if (geyer) {
+    if (!(g[0] > 0) || !(g[1] > 0) || !(g[2] > 0) || !(g[3] > 0)) {
+      fail("force, optimal fiber length, tendon slack length and vmax must be positive");
+    }
+    if (b[3] != 0 && b[3] != 1) {
+      fail("rigid tendon must be 0 or 1");
+    }
+    if (!(d[0] > 0) || !(d[1] > 0)) {
+      fail("activation time constants must be positive");
+    }
+    if (!(d[2] >= 0)) {
+      fail("tausmooth cannot be negative");
+    }
+    if (!(d[3] >= 0)) {
+      fail("fiber damping cannot be negative");
+    }
+    if (!(g[4] > 0) || !(g[5] > 0 && g[5] < 1)) {
+      fail("active force-length requires width > 0 and a residual force in (0, 1)");
+    }
+    if (!(b[0] > 0) || !(b[1] > 0)) {
+      fail("parallel element requires a positive rest length and reference strain");
+    }
+    if (!(b[2] > 0)) {
+      fail("tendon reference strain must be positive");
+    }
+    if (!(d[4] > 1/7.56)) {
+      fail("force-velocity shape factor must exceed 1/7.56, or the eccentric branch has a pole");
+    }
+    return;
+  }
+
+  // Millard2012
+  if (!(g[0] > 0) || !(g[1] > 0) || !(g[2] > 0) || !(g[3] > 0)) {
+    fail("force, optimal fiber length, tendon slack length and vmax must be positive");
+  }
+  if (!(g[4] >= 0 && g[4] < maxpennation)) {
+    fail("pennation angle must be in [0, acos(0.1))");
+  }
+  if (b[9] != 0 && b[9] != 1) {
+    fail("rigid tendon must be 0 or 1");
+  }
+
+  // activation and damping
+  bool damped = d[3] >= 0.001;
+  bool classic = !damped && !b[9];
+  if (!(d[0] > 0) || !(d[1] > 0)) {
+    fail("activation time constants must be positive");
+  }
+  if (!(d[2] >= (classic ? 0.01 : 0)) || !(d[2] < 1)) {
+    fail("minimum activation must be in [0, 1), and at least 0.01 without fiber damping");
+  }
+  if (!(d[3] >= 0)) {
+    fail("fiber damping cannot be negative");
+  }
+
+  // active force-length: knots increasing, ascending slope below the plateau
+  double ylow = classic ? 0.1 : 0;
+  if (!(g[5] >= 0 && g[6] > g[5] + sqrteps && 1 > g[6] + sqrteps && g[7] > 1 + sqrteps)) {
+    fail("active force-length requires 0 <= lmin < transition < 1 < lmax");
+  }
+  if (!(g[8] >= 0 && g[8] < (1 - ylow) / (1 - g[6]))) {
+    fail("active force-length shallow ascending slope out of range");
+  }
+
+  // passive force-length
+  double span = b[1] - b[0];
+  if (!(span > 0) || !(b[3] > 1/span) || !(b[2] > 0 && b[2] < 1/span) ||
+      !(b[4] >= 0 && b[4] <= 1)) {
+    fail("passive force-length requires strain1 > strain0, kiso > 1/(strain1 - strain0), "
+         "0 < klow < 1/(strain1 - strain0) and curviness in [0, 1]");
+  }
+
+  // tendon force-length
+  if (!(b[5] > 0) || !(b[6] > 1/b[5]) || !(b[7] > 0 && b[7] < 1) ||
+      !(b[8] >= 0 && b[8] <= 1)) {
+    fail("tendon force-length requires strain1 > 0, kiso > 1/strain1, 0 < ftoe < 1 and "
+         "curviness in [0, 1]");
+  }
+
+  // force-velocity
+  if (!(d[4] > 1) || !(d[5] >= sqrteps && d[5] <= 1) || !(d[6] > 1) ||
+      !(d[7] >= sqrteps && d[7] < d[4] - 1) || !(d[8] >= 0 && d[8] <= 1) ||
+      !(d[9] >= 0 && d[9] <= 1)) {
+    fail("force-velocity requires fmaxecc > 1, 0 < conslope <= 1, isoslope > 1, "
+         "0 < eccslope < fmaxecc - 1 and curvinesses in [0, 1]");
+  }
+}
+
+
 void mjCActuator::ApplyGauge(bool inverse) {
   // transmission target, and whether its coordinate is a length
   const bool      linear6 = gear[0] || gear[1] || gear[2];
@@ -8466,6 +8594,14 @@ void mjCActuator::ApplyGauge(bool inverse) {
   else if (gaintype == mjGAIN_MUSCLE) {
     if (gainprm[2] > 0) { gainprm[2] *= g.Force(a, 1); }
     if (biastype == mjBIAS_MUSCLE && biasprm[2] > 0) { biasprm[2] *= g.Force(a, 1); }
+  }
+
+  // compliant-tendon muscle: the force is G, the fiber and tendon lengths are Q; vmax is in optimal
+  // fiber lengths per second and the curves are normalized
+  else if (gaintype == mjGAIN_MILLARD2012 || gaintype == mjGAIN_GEYER2010) {
+    gainprm[0] *= g.Force(a, 1);
+    gainprm[1] *= fq;
+    gainprm[2] *= fq;
   }
 
   // pid: inputs pos, vel and ff; ki is G/(Q T), the integral and slew limits are Q, and so are the
@@ -8897,8 +9033,12 @@ void mjCActuator::Compile(void) {
         dyntype != mjDYN_USER &&
         dyntype != mjDYN_DCMOTOR &&
         dyntype != mjDYN_PID &&
+        dyntype != mjDYN_MILLARD2012 &&
+        dyntype != mjDYN_GEYER2010 &&
         !so3_) {
-      throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user', 'dcmotor' and 'pid'");
+      throw mjCError(this,
+                     "actdim > 1 is only allowed for dyntype 'user', 'dcmotor', 'pid', "
+                     "'millard2012' and 'geyer2010'");
     }
     if (actdim == 1 && dyntype == mjDYN_NONE) {
       throw mjCError(this, "invalid actdim 1 in stateless actuator");
@@ -8912,6 +9052,12 @@ void mjCActuator::Compile(void) {
   int dcmotor_nslot =
       (dynprm[7] > 0) + (gainprm[5] > 0) + (dynprm[2] > 0) + (dynprm[5] > 0) + (dynprm[0] > 0);
   if (dyntype == mjDYN_DCMOTOR && !plugin.active && actdim < 0) { actdim = dcmotor_nslot; }
+
+  // compliant-tendon muscles: fiber and activation
+  if ((dyntype == mjDYN_MILLARD2012 || dyntype == mjDYN_GEYER2010) && !plugin.active &&
+      actdim < 0) {
+    actdim = 2;
+  }
 
   // set actdim to 1 if it is unset and type is standard one-activation dyntype
   if (actdim < 0) { actdim = (dyntype != mjDYN_NONE); }
@@ -8979,6 +9125,13 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
+  }
+
+  // compliant-tendon muscles
+  if (dyntype == mjDYN_MILLARD2012 || gaintype == mjGAIN_MILLARD2012 ||
+      biastype == mjBIAS_MILLARD2012 || dyntype == mjDYN_GEYER2010 ||
+      gaintype == mjGAIN_GEYER2010 || biastype == mjBIAS_GEYER2010) {
+    CheckTendonMuscle();
   }
 
   // plugin

@@ -1055,14 +1055,14 @@ The :math:`\text{\small FLV}` function is not exactly the same, but both MuJoCo 
 experimental data, so they are very close. For a description of the OpenSim model and summary of relevant experimental
 data, see `Millard et al. (2013) <https://doi.org/10.1115/1.4023390>`__.
 
-We assume inelastic tendons while OpenSim can model tendon elasticity. We decided not to do that here, because tendon
-elasticity requires fast-equilibrium assumptions which in turn require various tweaks and are prone to simulation
-instability. In practice tendons are quite stiff, and their effect can be captured approximately by stretching the
-:math:`\text{FL}` curve corresponding to the inelastic case (`Zajac (1989)
-<https://pubmed.ncbi.nlm.nih.gov/2676342/>`__). This can be done in MuJoCo by shortening the muscle operating range.
+This muscle assumes inelastic tendons while OpenSim can model tendon elasticity. In practice tendons are quite stiff,
+and their effect can be captured approximately by stretching the :math:`\text{FL}` curve corresponding to the inelastic
+case (`Zajac (1989) <https://pubmed.ncbi.nlm.nih.gov/2676342/>`__). This can be done in MuJoCo by shortening the muscle
+operating range. For an elastic tendon, see :ref:`Compliant-tendon muscles <CMuscleTendon>` below.
 
-Pennation angle (i.e., the angle between the muscle and the line of force) is not modeled in MuJoCo and is assumed to
-be 0. This effect can be approximated by scaling down the muscle force and also adjusting the operating range.
+Pennation angle (i.e., the angle between the muscle and the line of force) is not modeled by this muscle and is assumed
+to be 0. This effect can be approximated by scaling down the muscle force and also adjusting the operating range. The
+compliant-tendon muscles model pennation.
 
 Tendon wrapping is also more limited in MuJoCo. We allow spheres and infinite cylinders as wrapping objects, and require
 two wrapping objects to be separated by a fixed site in the tendon path. This is to avoid the need for iterative
@@ -1076,6 +1076,80 @@ Below we illustrate the four types of tendon wrapping available, for which the g
 paths, lengths, and moments analytically:
 
 |image3|
+
+.. _CMuscleTendon:
+
+**Compliant-tendon muscles**
+
+The :ref:`muscle <actuator-muscle>` actuator described above has an inelastic tendon. For models that need a tendon
+which stretches, a fiber length that differs from the path length, or a pennated fiber, MuJoCo provides the
+:ref:`millard2012 <actuator-millard2012>` and :ref:`geyer2010 <actuator-geyer2010>` actuators. The first is OpenSim's
+``Millard2012EquilibriumMuscle`` (`Millard et al. (2013) <https://doi.org/10.1115/1.4023390>`__), with OpenSim's
+parameter names, units, defaults and curves, so the properties of an OpenSim muscle transfer without refitting:
+
+.. code-block:: xml
+
+   <actuator>
+     <millard2012 tendon="mytendon" force="525" optlength="0.116" slacklength="0.272"/>
+   </actuator>
+
+The muscle has a contractile fiber of length :math:`l_{ce}` at pennation angle :math:`\phi` in series with a tendon of
+length :math:`l_T = l - l_{ce} \cos\phi`, where :math:`l` is the length of the transmission. The pennation is
+fixed-width, :math:`l_{ce} \sin\phi = l_{opt} \sin\phi_{opt}`. With normalized fiber length
+:math:`\tilde l = l_{ce} / l_{opt}` and velocity :math:`\tilde v = \dot l_{ce} / (v_{max} l_{opt})`, the force balance
+between the tendon and the fiber is
+
+.. math::
+   f_T\!\left(\frac{l_T}{l_{slack}}\right) = \cos\phi \left[a f_L(\tilde l) f_V(\tilde v) + f_P(\tilde l)
+   + \beta \tilde v \right],
+
+where :math:`a` is the activation and :math:`\beta` the fiber damping. The four normalized curves are OpenSim's quintic
+Bézier curves, built from the parameters of OpenSim's ``ActiveForceLengthCurve``, ``FiberForceLengthCurve``,
+``TendonForceLengthCurve`` and ``ForceVelocityCurve`` and evaluated exactly.
+
+The actuator has two activation variables, ``act = [fiber, activation]``. The activation follows the same dynamics as
+the :ref:`muscle <actuator-muscle>` actuator, with the excitation floored at the minimum activation. The fiber state is
+:math:`l_{ce} / l_{opt} - 1`, so a zeroed state, as after :ref:`mj_resetData`, is a fiber at its optimal length. Each
+evaluation of the dynamics solves the force balance for the fiber length at the end of the step, with the velocity
+discretized by backward Euler, and sets ``act_dot`` of the fiber to the resulting fiber velocity. The implicit
+discretization keeps the stiff fiber dynamics stable at the usual time steps. The actuator force is
+:math:`\text{gain} \cdot a + \text{bias}`, with
+
+.. math::
+   \text{gain} = -F_{max} \cos\phi \, f_L f_V, \qquad
+   \text{bias} = -F_{max} \cos\phi \, (f_P + \beta \tilde v)
+
+evaluated at the solved fiber length, which equals the tendon force :math:`-F_{max} f_T`. A pose that is set rather than
+integrated, for example from a keyframe, can start from the isometric equilibrium of the fibers by calling
+:ref:`mj_muscleEquilibrium` after :ref:`mj_forward`.
+
+With :ref:`rigidtendon <actuator-millard2012-rigidtendon>`, the tendon is inextensible, as with OpenSim's
+``ignore_tendon_compliance``: the fiber length follows from the transmission length, the fiber velocity is the
+transmission velocity projected onto the fiber, and the force is zero when the fiber reaches its minimum length or the
+tendon goes slack. A fiber damping below 0.001 selects OpenSim's undamped model, for which OpenSim raises the floor of
+the active force-length curve to 0.1 and the force-velocity slopes at the maximum velocities to half the slopes near
+them, and requires a minimum activation of at least 0.01.
+
+The :ref:`geyer2010 <actuator-geyer2010>` actuator is the muscle of `Geyer and Herr (2010)
+<https://doi.org/10.1109/TNSRE.2010.2047592>`__, an unpennated fiber with a buffer element that keeps it from collapsing
+when the tendon is slack, on the same fiber state, solver and force split. Its force balance is
+
+.. math::
+   f_{SE}\!\left(\frac{l_T}{l_{slack}}\right) + f_{BE}(\tilde l)
+   = f_V(\tilde v) \left[f_{PE}(\tilde l) + a f_L(\tilde l)\right] + \beta \tilde v ,
+
+with :math:`l_T = l - l_{ce}`, the force-velocity curve scaling the parallel element as well as the active force. The
+curves are those of `Geyer et al. (2003) <https://doi.org/10.1098/rspb.2003.2454>`__ as Song and Geyer implement them:
+:math:`f_L = \exp(\ln c \, |(\tilde l - 1)/w|^3)`, quadratic tendon, parallel and buffer elements, and Hill's hyperbola
+:math:`(1 + \tilde v)/(1 - K \tilde v)` for shortening. For lengthening the force-velocity curve is Song's hyperbola
+:math:`N - (\tilde v - 1)/((1 - 7.56 K) \tilde v - 2)`, which reaches :math:`N` at the maximum velocity and continues
+smoothly beyond it; it joins the shortening branch only for :math:`N = 1.5`, which is therefore fixed. The actuator
+force is :math:`\text{gain} \cdot a + \text{bias}` with :math:`\text{gain} = -F_{max} f_V f_L` and
+:math:`\text{bias} = -F_{max} (f_V f_{PE} + \beta \tilde v - f_{BE})` at the solved fiber, which equals the tendon force
+:math:`-F_{max} f_{SE}`. The fiber damping :math:`\beta`, a parallel element with its own rest length and strain, and the
+smooth switch between the activation time constants are optional additions to the paper's muscle, which has none of
+them. With a rigid tendon the fiber length is :math:`l - l_{slack}`, its velocity the change of that length over the
+step, as in the compliant case, and the force is zero where the buffer element would push.
 
 .. _CSensor:
 

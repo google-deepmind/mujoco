@@ -1853,6 +1853,10 @@ void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, co
   mj_multiRay(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), dist_.data(), normal_.data(), nray, cutoff);
 }
 
+void mj_muscleEquilibrium_wrapper(const MjModel& m, MjData& d) {
+  mj_muscleEquilibrium(m.get(), d.get());
+}
+
 int mj_name2id_wrapper(const MjModel& m, int type, const String& name) {
   CHECK_VAL(name);
   return mj_name2id(m.get(), type, name.as<const std::string>().data());
@@ -2927,11 +2931,27 @@ std::string mjs_setToDamper_wrapper(MjsActuator& actuator, double kv) {
   return std::string(mjs_setToDamper(actuator.get(), kv));
 }
 
+std::string mjs_setToGeyer2010_wrapper(MjsActuator& actuator, const val& timeconst, double tausmooth, double force, double optlength, double slacklength, double vmax, double fiberdamping, int rigidtendon, const val& activecurve, const val& passivecurve, double tendoncurve, double velocitycurve) {
+  UNPACK_NULLABLE_VALUE(double, timeconst);
+  UNPACK_NULLABLE_VALUE(double, activecurve);
+  UNPACK_NULLABLE_VALUE(double, passivecurve);
+  return std::string(mjs_setToGeyer2010(actuator.get(), timeconst_.data(), tausmooth, force, optlength, slacklength, vmax, fiberdamping, rigidtendon, activecurve_.data(), passivecurve_.data(), tendoncurve, velocitycurve));
+}
+
 std::string mjs_setToIntVelocity_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
   UNPACK_VALUE(double, timeconst);
   return std::string(mjs_setToIntVelocity(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange));
+}
+
+std::string mjs_setToMillard2012_wrapper(MjsActuator& actuator, const val& timeconst, double minactivation, double force, double optlength, double slacklength, double vmax, double pennation, double fiberdamping, int rigidtendon, const val& activecurve, const val& passivecurve, const val& tendoncurve, const val& velocitycurve) {
+  UNPACK_NULLABLE_VALUE(double, timeconst);
+  UNPACK_NULLABLE_VALUE(double, activecurve);
+  UNPACK_NULLABLE_VALUE(double, passivecurve);
+  UNPACK_NULLABLE_VALUE(double, tendoncurve);
+  UNPACK_NULLABLE_VALUE(double, velocitycurve);
+  return std::string(mjs_setToMillard2012(actuator.get(), timeconst_.data(), minactivation, force, optlength, slacklength, vmax, pennation, fiberdamping, rigidtendon, activecurve_.data(), passivecurve_.data(), tendoncurve_.data(), velocitycurve_.data()));
 }
 
 std::string mjs_setToMotor_wrapper(MjsActuator& actuator) {
@@ -3936,7 +3956,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjACTUATOR_ADHESION", mjACTUATOR_ADHESION)
     .value("mjACTUATOR_PID", mjACTUATOR_PID)
     .value("mjACTUATOR_ORIENTATION", mjACTUATOR_ORIENTATION)
-    .value("mjACTUATOR_DCMOTOR", mjACTUATOR_DCMOTOR);
+    .value("mjACTUATOR_DCMOTOR", mjACTUATOR_DCMOTOR)
+    .value("mjACTUATOR_MILLARD2012", mjACTUATOR_MILLARD2012)
+    .value("mjACTUATOR_GEYER2010", mjACTUATOR_GEYER2010);
   enum_<mjtAlignFree>("mjtAlignFree")
     .value("mjALIGNFREE_FALSE", mjALIGNFREE_FALSE)
     .value("mjALIGNFREE_TRUE", mjALIGNFREE_TRUE)
@@ -3947,6 +3969,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjBIAS_MUSCLE", mjBIAS_MUSCLE)
     .value("mjBIAS_DCMOTOR", mjBIAS_DCMOTOR)
     .value("mjBIAS_SO3", mjBIAS_SO3)
+    .value("mjBIAS_MILLARD2012", mjBIAS_MILLARD2012)
+    .value("mjBIAS_GEYER2010", mjBIAS_GEYER2010)
     .value("mjBIAS_USER", mjBIAS_USER);
   enum_<mjtBuiltin>("mjtBuiltin")
     .value("mjBUILTIN_NONE", mjBUILTIN_NONE)
@@ -4077,6 +4101,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjDYN_MUSCLE", mjDYN_MUSCLE)
     .value("mjDYN_DCMOTOR", mjDYN_DCMOTOR)
     .value("mjDYN_PID", mjDYN_PID)
+    .value("mjDYN_MILLARD2012", mjDYN_MILLARD2012)
+    .value("mjDYN_GEYER2010", mjDYN_GEYER2010)
     .value("mjDYN_USER", mjDYN_USER);
   enum_<mjtEmbed>("mjtEmbed")
     .value("mjEMBED_FALSE", mjEMBED_FALSE)
@@ -4151,6 +4177,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjGAIN_DCMOTOR", mjGAIN_DCMOTOR)
     .value("mjGAIN_SO3", mjGAIN_SO3)
     .value("mjGAIN_PID", mjGAIN_PID)
+    .value("mjGAIN_MILLARD2012", mjGAIN_MILLARD2012)
+    .value("mjGAIN_GEYER2010", mjGAIN_GEYER2010)
     .value("mjGAIN_USER", mjGAIN_USER);
   enum_<mjtGeom>("mjtGeom")
     .value("mjGEOM_PLANE", mjGEOM_PLANE)
@@ -6488,6 +6516,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_mulM", &mj_mulM_wrapper);
   function("mj_mulM2", &mj_mulM2_wrapper);
   function("mj_multiRay", &mj_multiRay_wrapper);
+  function("mj_muscleEquilibrium", &mj_muscleEquilibrium_wrapper);
   function("mj_name2id", &mj_name2id_wrapper);
   function("mj_normalizeQuat", &mj_normalizeQuat_wrapper);
   function("mj_objectAcceleration", &mj_objectAcceleration_wrapper);
@@ -6659,7 +6688,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_setToCylinder", &mjs_setToCylinder_wrapper);
   function("mjs_setToDCMotor", &mjs_setToDCMotor_wrapper);
   function("mjs_setToDamper", &mjs_setToDamper_wrapper);
+  function("mjs_setToGeyer2010", &mjs_setToGeyer2010_wrapper);
   function("mjs_setToIntVelocity", &mjs_setToIntVelocity_wrapper);
+  function("mjs_setToMillard2012", &mjs_setToMillard2012_wrapper);
   function("mjs_setToMotor", &mjs_setToMotor_wrapper);
   function("mjs_setToMuscle", &mjs_setToMuscle_wrapper);
   function("mjs_setToOrientation", &mjs_setToOrientation_wrapper);

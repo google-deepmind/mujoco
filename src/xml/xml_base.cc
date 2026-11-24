@@ -115,6 +115,40 @@ void mjXShortcutDefaults(mjXShortcut* s, mjtActuator type) {
     case mjACTUATOR_ADHESION:
       s->gain = 1;
       break;
+    case mjACTUATOR_MILLARD2012: {
+      // OpenSim Millard2012EquilibriumMuscle; a stiffness of 0 takes OpenSim's derived default
+      const double active[4]   = {0.4441, 0.73, 1.8123, 0.8616};
+      const double passive[5]  = {0, 0.7, 0.2, 0, 0.75};
+      const double tendon[4]   = {0.049, 0, 2.0/3.0, 0.5};
+      const double velocity[6] = {1.4, 0.25, 5, 0.15, 0.6, 0.9};
+      s->timeconst[0]  = 0.01;
+      s->timeconst[1]  = 0.04;
+      s->minactivation = 0.01;
+      s->force         = 1000;
+      s->optlength     = 0.1;
+      s->slacklength   = 0.2;
+      s->vmax          = 10;
+      s->fiberdamping  = 0.1;
+      std::copy(active, active + 4, s->activecurve);
+      std::copy(passive, passive + 5, s->passivecurve);
+      std::copy(tendon, tendon + 4, s->tendoncurve);
+      std::copy(velocity, velocity + 6, s->velocitycurve);
+      break;
+    }
+    case mjACTUATOR_GEYER2010:
+      // Geyer and Herr (2010); a parallel element strain of 0 takes the paper's, the width
+      s->timeconst[0]     = 0.01;
+      s->timeconst[1]     = 0.04;
+      s->force            = 1000;
+      s->optlength        = 0.1;
+      s->slacklength      = 0.2;
+      s->vmax             = 12;
+      s->activecurve[0]   = 0.56;
+      s->activecurve[1]   = 0.05;
+      s->passivecurve[0]  = 1;
+      s->tendoncurve[0]   = 0.04;
+      s->velocitycurve[0] = 5;
+      break;
     default:
       break;
   }
@@ -133,6 +167,10 @@ static bool ShortcutInherits(const mjsActuator* slot, mjtActuator type) {
       return slot->gaintype == mjGAIN_MUSCLE;
     case mjACTUATOR_DCMOTOR:
       return slot->gaintype == mjGAIN_DCMOTOR;
+    case mjACTUATOR_MILLARD2012:
+      return slot->gaintype == mjGAIN_MILLARD2012;
+    case mjACTUATOR_GEYER2010:
+      return slot->gaintype == mjGAIN_GEYER2010;
     case mjACTUATOR_PID:
       return slot->gaintype == mjGAIN_PID;
     case mjACTUATOR_ORIENTATION:
@@ -232,6 +270,44 @@ void mjXShortcutFromActuator(mjXShortcut* s, const mjsActuator* a, mjtActuator t
       std::copy(lugre, lugre + 5, s->lugre);
       break;
     }
+    case mjACTUATOR_MILLARD2012:
+      std::copy(d, d + 2, s->timeconst);
+      s->minactivation = d[2];
+      s->fiberdamping  = d[3];
+      std::copy(d + 4, d + 10, s->velocitycurve);
+      s->force       = g[0];
+      s->optlength   = g[1];
+      s->slacklength = g[2];
+      s->vmax        = g[3];
+      s->pennation   = g[4];
+      std::copy(g + 5, g + 9, s->activecurve);
+      std::copy(b, b + 5, s->passivecurve);
+      std::copy(b + 5, b + 9, s->tendoncurve);
+      s->rigidtendon = b[9] != 0;
+
+      // derived stiffnesses read back as derived
+      if (s->passivecurve[3] == 2 / (s->passivecurve[1] - s->passivecurve[0])) {
+        s->passivecurve[3] = 0;
+      }
+      if (s->tendoncurve[1] == 1.375 / s->tendoncurve[0]) { s->tendoncurve[1] = 0; }
+      break;
+    case mjACTUATOR_GEYER2010:
+      std::copy(d, d + 2, s->timeconst);
+      s->tausmooth        = d[2];
+      s->fiberdamping     = d[3];
+      s->velocitycurve[0] = d[4];
+      s->force            = g[0];
+      s->optlength        = g[1];
+      s->slacklength      = g[2];
+      s->vmax             = g[3];
+      std::copy(g + 4, g + 6, s->activecurve);
+      std::copy(b, b + 2, s->passivecurve);
+      s->tendoncurve[0] = b[2];
+      s->rigidtendon    = b[3] != 0;
+
+      // the derived parallel element strain reads back as derived
+      if (s->passivecurve[1] == s->activecurve[0]) { s->passivecurve[1] = 0; }
+      break;
     default:
       break;
   }
@@ -299,6 +375,35 @@ const char* mjXSetToShortcut(mjsActuator* a, mjtActuator type, const mjXShortcut
                               c.thermal,
                               c.lugre,
                               s.ctrlspec);
+    case mjACTUATOR_MILLARD2012:
+      return mjs_setToMillard2012(a,
+                                  c.timeconst,
+                                  s.minactivation,
+                                  s.force,
+                                  s.optlength,
+                                  s.slacklength,
+                                  s.vmax,
+                                  s.pennation,
+                                  s.fiberdamping,
+                                  s.rigidtendon,
+                                  c.activecurve,
+                                  c.passivecurve,
+                                  c.tendoncurve,
+                                  c.velocitycurve);
+    case mjACTUATOR_GEYER2010:
+      return mjs_setToGeyer2010(a,
+                                c.timeconst,
+                                s.tausmooth,
+                                s.force,
+                                s.optlength,
+                                s.slacklength,
+                                s.vmax,
+                                s.fiberdamping,
+                                s.rigidtendon,
+                                c.activecurve,
+                                c.passivecurve,
+                                s.tendoncurve[0],
+                                s.velocitycurve[0]);
     default:
       return "not an actuator shortcut";
   }
