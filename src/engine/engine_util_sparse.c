@@ -209,7 +209,6 @@ void mju_zeroSparse(mjtNum* res, const int* rownnz, const int* rowadr, const int
 void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                          int nr, const int* rownnz, const int* rowadr,
                          const int* colind, const int* rowsuper) {
-#ifdef mjUSEAVX
   if (!rowsuper) {
     // regular sparse dot-product
     for (int r=0; r < nr; r++) {
@@ -250,14 +249,6 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
       res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
     }
   }
-#else
-  (void)rowsuper;
-
-  // regular sparse dot-product
-  for (int r=0; r < nr; r++) {
-    res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
-  }
-#endif
 }
 
 
