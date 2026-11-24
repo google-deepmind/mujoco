@@ -88,7 +88,6 @@ set(MUJOCO_ENGINE_SRCS
     engine_thread.h
     engine_util_blas.c
     engine_util_blas.h
-    engine_util_blas_avx.h
     engine_util_errmem.c
     engine_util_errmem.h
     engine_util_misc.c

@@ -1179,10 +1179,7 @@ cc_library(
 cc_library(
     name = "engine_util_blas",
     srcs = ["engine_util_blas.c"],
-    hdrs = [
-        "engine_util_blas.h",
-        "engine_util_blas_avx.h",
-    ],
+    hdrs = ["engine_util_blas.h"],
     conlyopts = _C_CONLYOPTS + ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/src",

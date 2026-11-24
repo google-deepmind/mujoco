@@ -18,7 +18,6 @@
 
 #include <mujoco/mjtype.h>
 #include "engine/engine_simd.h"
-#include "engine/engine_util_blas_avx.h"  // IWYU pragma: keep
 
 
 
@@ -325,25 +324,46 @@ mjtNum mju_L1(const mjtNum* vec, int n) {
 
 // res = vec*scl
 void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
-#ifdef mjUSEAVX
-  mju_scl_avx(res, vec, scl, n);
-#else
-  for (int i=0; i < n; i++) {
+  int i = 0;
+  if (n >= 4) {
+    mjtNum4 s = v4_splat(scl);
+    for (; i <= n - 4; i += 4) {
+      v4_store(res + i, v4_mul(v4_load(vec + i), s));
+    }
+  }
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] = vec[i+0]*scl;
+    res[i+1] = vec[i+1]*scl;
+    res[i+2] = vec[i+2]*scl;
+  } else if (n_i == 2) {
+    res[i+0] = vec[i+0]*scl;
+    res[i+1] = vec[i+1]*scl;
+  } else if (n_i == 1) {
     res[i] = vec[i]*scl;
   }
-#endif
 }
 
 
 // res = vec1 + vec2
 void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
-#ifdef mjUSEAVX
-  mju_add_avx(res, vec1, vec2, n);
-#else
-  for (int i=0; i < n; i++) {
+  int i = 0;
+  for (; i <= n - 4; i += 4) {
+    v4_store(res + i, v4_add(v4_load(vec1 + i), v4_load(vec2 + i)));
+  }
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] = vec1[i+0] + vec2[i+0];
+    res[i+1] = vec1[i+1] + vec2[i+1];
+    res[i+2] = vec1[i+2] + vec2[i+2];
+  } else if (n_i == 2) {
+    res[i+0] = vec1[i+0] + vec2[i+0];
+    res[i+1] = vec1[i+1] + vec2[i+1];
+  } else if (n_i == 1) {
     res[i] = vec1[i] + vec2[i];
   }
-#endif
 }
 
 
@@ -358,13 +378,22 @@ void mju_addInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* 
 
 // res = vec1 - vec2
 void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
-#ifdef mjUSEAVX
-  mju_sub_avx(res, vec1, vec2, n);
-#else
-  for (int i=0; i < n; i++) {
+  int i = 0;
+  for (; i <= n - 4; i += 4) {
+    v4_store(res + i, v4_sub(v4_load(vec1 + i), v4_load(vec2 + i)));
+  }
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] = vec1[i+0] - vec2[i+0];
+    res[i+1] = vec1[i+1] - vec2[i+1];
+    res[i+2] = vec1[i+2] - vec2[i+2];
+  } else if (n_i == 2) {
+    res[i+0] = vec1[i+0] - vec2[i+0];
+    res[i+1] = vec1[i+1] - vec2[i+1];
+  } else if (n_i == 1) {
     res[i] = vec1[i] - vec2[i];
   }
-#endif
 }
 
 
@@ -379,13 +408,22 @@ void mju_subInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* 
 
 // res += vec
 void mju_addTo(mjtNum* res, const mjtNum* vec, int n) {
-#ifdef mjUSEAVX
-  mju_addTo_avx(res, vec, n);
-#else
-  for (int i=0; i < n; i++) {
+  int i = 0;
+  for (; i <= n - 4; i += 4) {
+    v4_store(res + i, v4_add(v4_load(res + i), v4_load(vec + i)));
+  }
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] += vec[i+0];
+    res[i+1] += vec[i+1];
+    res[i+2] += vec[i+2];
+  } else if (n_i == 2) {
+    res[i+0] += vec[i+0];
+    res[i+1] += vec[i+1];
+  } else if (n_i == 1) {
     res[i] += vec[i];
   }
-#endif
 }
 
 
@@ -400,25 +438,46 @@ void mju_addToInd(mjtNum* res, const mjtNum* vec, const int* ind, int n) {
 
 // res -= vec
 void mju_subFrom(mjtNum* res, const mjtNum* vec, int n) {
-#ifdef mjUSEAVX
-  mju_subFrom_avx(res, vec, n);
-#else
-  for (int i=0; i < n; i++) {
+  int i = 0;
+  for (; i <= n - 4; i += 4) {
+    v4_store(res + i, v4_sub(v4_load(res + i), v4_load(vec + i)));
+  }
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] -= vec[i+0];
+    res[i+1] -= vec[i+1];
+    res[i+2] -= vec[i+2];
+  } else if (n_i == 2) {
+    res[i+0] -= vec[i+0];
+    res[i+1] -= vec[i+1];
+  } else if (n_i == 1) {
     res[i] -= vec[i];
   }
-#endif
 }
 
 
 // res += vec*scl
 void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
-#ifdef mjUSEAVX
-  mju_addToScl_avx(res, vec, scl, n);
-#else
-  for (int i=0; i < n; i++) {
+  int i = 0;
+  if (n >= 4) {
+    mjtNum4 s = v4_splat(scl);
+    for (; i <= n - 4; i += 4) {
+      v4_store(res + i, v4_add(v4_load(res + i), v4_mul(v4_load(vec + i), s)));
+    }
+  }
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] += vec[i+0]*scl;
+    res[i+1] += vec[i+1]*scl;
+    res[i+2] += vec[i+2]*scl;
+  } else if (n_i == 2) {
+    res[i+0] += vec[i+0]*scl;
+    res[i+1] += vec[i+1]*scl;
+  } else if (n_i == 1) {
     res[i] += vec[i]*scl;
   }
-#endif
 }
 
 
@@ -435,13 +494,25 @@ void mju_addToSclInd(mjtNum* res, const mjtNum* vec, const int* ind, mjtNum scl,
 
 // res = vec1 + vec2*scl
 void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n) {
-#ifdef mjUSEAVX
-  mju_addScl_avx(res, vec1, vec2, scl, n);
-#else
-  for (int i=0; i < n; i++) {
+  int i = 0;
+  if (n >= 4) {
+    mjtNum4 s = v4_splat(scl);
+    for (; i <= n - 4; i += 4) {
+      v4_store(res + i, v4_add(v4_load(vec1 + i), v4_mul(v4_load(vec2 + i), s)));
+    }
+  }
+
+  int n_i = n - i;
+  if (n_i == 3) {
+    res[i+0] = vec1[i+0] + vec2[i+0]*scl;
+    res[i+1] = vec1[i+1] + vec2[i+1]*scl;
+    res[i+2] = vec1[i+2] + vec2[i+2]*scl;
+  } else if (n_i == 2) {
+    res[i+0] = vec1[i+0] + vec2[i+0]*scl;
+    res[i+1] = vec1[i+1] + vec2[i+1]*scl;
+  } else if (n_i == 1) {
     res[i] = vec1[i] + vec2[i]*scl;
   }
-#endif
 }
 
 

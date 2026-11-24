@@ -253,5 +253,130 @@ TEST_F(EngineUtilBlasTest, MjuNormalize) {
   EXPECT_THAT(tiny, ElementsAre(1, 0, 0));
 }
 
+TEST_F(EngineUtilBlasTest, ElementwiseSimdAndInPlaceParity) {
+  constexpr int kMaxN = 19;
+  mjtNum x[kMaxN], y[kMaxN], z[kMaxN];
+  for (int i = 0; i < kMaxN; ++i) {
+    mjtNum sign = (i & 1) ? -1 : 1;
+    x[i] = sign * (mjtNum(i + 2) / (2 * i + 3)) + mjtNum(1e-6) / (i + 1);
+    y[i] = -sign * (mjtNum(3 * i + 1) / (i + 5)) - mjtNum(1e-5) / (i + 2);
+    z[i] = mjtNum(i - 7) / (i + 4) + mjtNum(1e-4) / (i + 3);
+  }
+  const mjtNum scl = -mjtNum(3) / mjtNum(7);
+
+  for (int n = 0; n <= kMaxN; ++n) {
+    mjtNum ref[kMaxN] = {0}, got[kMaxN] = {0}, inplace[kMaxN] = {0};
+
+    // mju_scl (out-of-place and in-place res == vec)
+    std::memcpy(ref, z, sizeof(z));
+    std::memcpy(got, z, sizeof(z));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] * scl;
+    mju_scl(got, x, scl, n);
+    EXPECT_EQ(std::memcmp(got, ref, sizeof(ref)), 0) << "scl n=" << n;
+    std::memcpy(ref, x, sizeof(x));
+    std::memcpy(inplace, x, sizeof(x));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] * scl;
+    mju_scl(inplace, inplace, scl, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "scl inplace n=" << n;
+
+    // mju_add (out-of-place, res == vec1, res == vec2)
+    std::memcpy(ref, z, sizeof(z));
+    std::memcpy(got, z, sizeof(z));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] + y[i];
+    mju_add(got, x, y, n);
+    EXPECT_EQ(std::memcmp(got, ref, sizeof(ref)), 0) << "add n=" << n;
+    std::memcpy(ref, x, sizeof(x));
+    std::memcpy(inplace, x, sizeof(x));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] + y[i];
+    mju_add(inplace, inplace, y, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "add inplace1 n=" << n;
+    std::memcpy(ref, y, sizeof(y));
+    std::memcpy(inplace, y, sizeof(y));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] + y[i];
+    mju_add(inplace, x, inplace, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "add inplace2 n=" << n;
+
+    // mju_sub (out-of-place, res == vec1, res == vec2)
+    std::memcpy(ref, z, sizeof(z));
+    std::memcpy(got, z, sizeof(z));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] - y[i];
+    mju_sub(got, x, y, n);
+    EXPECT_EQ(std::memcmp(got, ref, sizeof(ref)), 0) << "sub n=" << n;
+    std::memcpy(ref, x, sizeof(x));
+    std::memcpy(inplace, x, sizeof(x));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] - y[i];
+    mju_sub(inplace, inplace, y, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "sub inplace1 n=" << n;
+    std::memcpy(ref, y, sizeof(y));
+    std::memcpy(inplace, y, sizeof(y));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] - y[i];
+    mju_sub(inplace, x, inplace, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "sub inplace2 n=" << n;
+
+    // mju_addTo (out-of-place and res == vec)
+    std::memcpy(ref, z, sizeof(z));
+    std::memcpy(got, z, sizeof(z));
+    for (int i = 0; i < n; ++i) ref[i] += x[i];
+    mju_addTo(got, x, n);
+    EXPECT_EQ(std::memcmp(got, ref, sizeof(ref)), 0) << "addTo n=" << n;
+    std::memcpy(ref, x, sizeof(x));
+    std::memcpy(inplace, x, sizeof(x));
+    for (int i = 0; i < n; ++i) ref[i] += ref[i];
+    mju_addTo(inplace, inplace, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "addTo inplace n=" << n;
+
+    // mju_subFrom (out-of-place and res == vec)
+    std::memcpy(ref, z, sizeof(z));
+    std::memcpy(got, z, sizeof(z));
+    for (int i = 0; i < n; ++i) ref[i] -= x[i];
+    mju_subFrom(got, x, n);
+    EXPECT_EQ(std::memcmp(got, ref, sizeof(ref)), 0) << "subFrom n=" << n;
+    std::memcpy(ref, x, sizeof(x));
+    std::memcpy(inplace, x, sizeof(x));
+    for (int i = 0; i < n; ++i) ref[i] -= ref[i];
+    mju_subFrom(inplace, inplace, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "subFrom inplace n=" << n;
+
+    // mju_addToScl (out-of-place and res == vec)
+    std::memcpy(ref, z, sizeof(z));
+    std::memcpy(got, z, sizeof(z));
+    for (int i = 0; i < n; ++i) ref[i] += x[i] * scl;
+    mju_addToScl(got, x, scl, n);
+    EXPECT_EQ(std::memcmp(got, ref, sizeof(ref)), 0) << "addToScl n=" << n;
+    std::memcpy(ref, x, sizeof(x));
+    std::memcpy(inplace, x, sizeof(x));
+    for (int i = 0; i < n; ++i) ref[i] += ref[i] * scl;
+    mju_addToScl(inplace, inplace, scl, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "addToScl inplace n=" << n;
+
+    // mju_addScl (out-of-place, res == vec1, res == vec2)
+    std::memcpy(ref, z, sizeof(z));
+    std::memcpy(got, z, sizeof(z));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] + y[i] * scl;
+    mju_addScl(got, x, y, scl, n);
+    EXPECT_EQ(std::memcmp(got, ref, sizeof(ref)), 0) << "addScl n=" << n;
+    std::memcpy(ref, x, sizeof(x));
+    std::memcpy(inplace, x, sizeof(x));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] + y[i] * scl;
+    mju_addScl(inplace, inplace, y, scl, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "addScl inplace1 n=" << n;
+    std::memcpy(ref, y, sizeof(y));
+    std::memcpy(inplace, y, sizeof(y));
+    for (int i = 0; i < n; ++i) ref[i] = x[i] + y[i] * scl;
+    mju_addScl(inplace, x, inplace, scl, n);
+    EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
+        << "addScl inplace2 n=" << n;
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
