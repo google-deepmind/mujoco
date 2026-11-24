@@ -20,6 +20,7 @@
 #include <cstring>
 #include <limits>
 #include <random>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -482,6 +483,112 @@ TEST_F(EngineUtilBlasTest, ElementwiseSimdAndInPlaceParity) {
     mju_addScl(inplace, x, inplace, scl, n);
     EXPECT_EQ(std::memcmp(inplace, ref, sizeof(ref)), 0)
         << "addScl inplace2 n=" << n;
+  }
+}
+
+TEST_F(EngineUtilBlasTest, MjuMulMatVecAndTVecExact) {
+  std::mt19937_64 rng(42);
+  std::uniform_real_distribution<mjtNum> dist(-2.0, 2.0);
+  std::uniform_real_distribution<mjtNum> prob(0.0, 1.0);
+
+  for (int nc : {1, 2, 3, 4, 5, 7, 9, 16, 18, 24, 27, 31, 32, 49, 64, 67}) {
+    for (int nr : {0, 1, 3, 4, 5, 17, 135, 300}) {
+      std::vector<mjtNum> mat(nr * nc, 0);
+      std::vector<mjtNum> x(nc, 0);
+      std::vector<mjtNum> y(nr, 0);
+      for (int c = 0; c < nc; ++c) x[c] = dist(rng);
+      for (int r = 0; r < nr; ++r) {
+        y[r] = prob(rng) < 0.35 ? 0 : dist(rng);
+        for (int c = 0; c < nc; ++c) {
+          mat[r * nc + c] = prob(rng) < 0.5 ? 0 : dist(rng);
+        }
+      }
+
+      std::vector<mjtNum> res(nr, 123.0), ref(nr, 0);
+      mju_mulMatVec(res.data(), mat.data(), x.data(), nr, nc);
+      for (int r = 0; r < nr; ++r) {
+        ref[r] = mju_dot(mat.data() + r * nc, x.data(), nc);
+      }
+      if (nr > 0) {
+        EXPECT_EQ(std::memcmp(res.data(), ref.data(), nr * sizeof(mjtNum)), 0)
+            << "nr=" << nr << " nc=" << nc;
+      }
+
+      std::vector<mjtNum> tres(nc, 123.0), tref(nc, 0);
+      mju_mulMatTVec(tres.data(), mat.data(), y.data(), nr, nc);
+      for (int r = 0; r < nr; ++r) {
+        if (y[r]) {
+          mju_addToScl(tref.data(), mat.data() + r * nc, y[r], nc);
+        }
+      }
+      EXPECT_EQ(std::memcmp(tres.data(), tref.data(), nc * sizeof(mjtNum)), 0)
+          << "nr=" << nr << " nc=" << nc;
+
+      // Verify all-zero y clears output buffer when nr > 0.
+      if (nr > 0) {
+        std::vector<mjtNum> yzero(nr, 0);
+        std::vector<mjtNum> zres(nc, 123.0), zref(nc, 0);
+        mju_mulMatTVec(zres.data(), mat.data(), yzero.data(), nr, nc);
+        EXPECT_EQ(std::memcmp(zres.data(), zref.data(), nc * sizeof(mjtNum)), 0)
+            << "all-zero y nr=" << nr << " nc=" << nc;
+      }
+    }
+  }
+}
+
+TEST_F(EngineUtilBlasTest, MjuSqrMatTDExact) {
+  std::mt19937_64 rng(123);
+  std::uniform_real_distribution<mjtNum> dist(-2.0, 2.0);
+  std::uniform_real_distribution<mjtNum> prob(0.0, 1.0);
+
+  for (int nc : {1, 2, 3, 4, 5, 8, 9, 15, 18, 27, 49, 63, 64, 67}) {
+    for (int nr : {0, 1, 7, 135, 300}) {
+      std::vector<mjtNum> mat(nr * nc, 0);
+      std::vector<mjtNum> diag(nr, 0);
+      for (int r = 0; r < nr; ++r) {
+        diag[r] = prob(rng) < 0.3 ? 0 : dist(rng);
+        if (r < nr / 4) {
+          // single-nonzero row before multi-nonzero rows
+          mat[r * nc + (r % nc)] = dist(rng);
+        } else if (r > (3 * nr) / 4 && (r % 3 == 0)) {
+          // single-nonzero row after multi-nonzero rows
+          mat[r * nc + (r % nc)] = dist(rng);
+        } else {
+          for (int c = 0; c < nc; ++c) {
+            mat[r * nc + c] = prob(rng) < 0.55 ? 0 : dist(rng);
+          }
+        }
+      }
+
+      for (int use_diag : {0, 1}) {
+        const mjtNum* dptr = use_diag ? diag.data() : nullptr;
+        for (int flg_upper : {0, 1}) {
+          std::vector<mjtNum> res(nc * nc, 123.0), ref(nc * nc, 0);
+          mju_sqrMatTD_impl(res.data(), mat.data(), dptr, nr, nc, flg_upper);
+          for (int j = 0; j < nr; ++j) {
+            mjtNum dj = dptr ? dptr[j] : 1;
+            if (!dj) continue;
+            const mjtNum* row = mat.data() + j * nc;
+            for (int i = 0; i < nc; ++i) {
+              if (row[i]) {
+                mju_addToScl(ref.data() + i * nc, row, row[i] * dj, i + 1);
+              }
+            }
+          }
+          if (flg_upper) {
+            for (int i = 0; i < nc; ++i) {
+              for (int j = i + 1; j < nc; ++j) {
+                ref[i * nc + j] = ref[j * nc + i];
+              }
+            }
+          }
+          EXPECT_EQ(
+              std::memcmp(res.data(), ref.data(), nc * nc * sizeof(mjtNum)), 0)
+              << "nr=" << nr << " nc=" << nc << " use_diag=" << use_diag
+              << " flg_upper=" << flg_upper;
+        }
+      }
+    }
   }
 }
 
