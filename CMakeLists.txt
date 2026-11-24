@@ -375,6 +375,43 @@ if(NOT EMSCRIPTEN AND NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
           DESTINATION ${CONFIG_PACKAGE_LOCATION}
   )
 
+  # Provide relocatable pkg-config metadata for shared Unix builds (static builds
+  # would also require linking unexported vendored dependencies).
+  get_target_property(_mujoco_library_type mujoco TYPE)
+  if(UNIX AND _mujoco_library_type STREQUAL "SHARED_LIBRARY")
+    if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")
+      set(MUJOCO_PC_PREFIX "${CMAKE_INSTALL_PREFIX}")
+      set(MUJOCO_PC_LIBDIR "${CMAKE_INSTALL_LIBDIR}")
+    else()
+      file(
+        RELATIVE_PATH
+        _mujoco_pc_prefix_rel
+        "/${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+        "/"
+      )
+      string(
+        REGEX
+        REPLACE "/$"
+                ""
+                _mujoco_pc_prefix_rel
+                "${_mujoco_pc_prefix_rel}"
+      )
+      set(MUJOCO_PC_PREFIX "\${pcfiledir}/${_mujoco_pc_prefix_rel}")
+      set(MUJOCO_PC_LIBDIR "\${prefix}/${CMAKE_INSTALL_LIBDIR}")
+    endif()
+    if(IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
+      set(MUJOCO_PC_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}")
+    else()
+      set(MUJOCO_PC_INCLUDEDIR "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
+    endif()
+    configure_file(cmake/mujoco.pc.in "${CMAKE_CURRENT_BINARY_DIR}/mujoco.pc" @ONLY)
+    install(
+      FILES "${CMAKE_CURRENT_BINARY_DIR}/mujoco.pc"
+      DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+      COMPONENT dev
+    )
+  endif()
+
   # Install also models into share folder.
   install(
     DIRECTORY model
