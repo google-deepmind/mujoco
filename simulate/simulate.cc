@@ -3045,8 +3045,8 @@ void Simulate::RenderLoop() {
 
   // select default font
   int fontscale = ComputeFontScale(*this->platform_ui);
-  this->font = static_cast<int>(std::find(kFontScales.begin(), kFontScales.end(), fontscale) -
-                                kFontScales.begin());
+  this->font    = static_cast<int>(std::find(kFontScales.begin(), kFontScales.end(), fontscale) -
+                                   kFontScales.begin());
 
   // make empty context
   this->platform_ui->RefreshMjrContext(nullptr, fontscale);
