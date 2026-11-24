@@ -503,6 +503,7 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
             values.data(), phase);
       });
   Def<traits::mj_setKeyframe>(pymodule);
+  Def<traits::mj_muscleEquilibrium>(pymodule);
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);
   Def<traits::mj_isSparse>(pymodule);

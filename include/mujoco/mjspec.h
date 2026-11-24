@@ -176,7 +176,9 @@ typedef enum mjtActuator {         // actuator element, which owns its shortcut 
   mjACTUATOR_ADHESION,             // adhesion
   mjACTUATOR_PID,                  // pid servo
   mjACTUATOR_ORIENTATION,          // orientation servo
-  mjACTUATOR_DCMOTOR               // dc motor
+  mjACTUATOR_DCMOTOR,              // dc motor
+  mjACTUATOR_MILLARD2012,          // compliant-tendon muscle, Millard 2012
+  mjACTUATOR_GEYER2010             // compliant-tendon muscle, Geyer 2010
 } mjtActuator;
 
 typedef enum mjtCTimer {           // compiler timing categories

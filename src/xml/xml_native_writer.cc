@@ -1735,6 +1735,39 @@ XMLElement* mjXWriter::OneActuator(XMLElement* section, const mjCActuator* pactu
       WriteAttr(elem, "lugre", 5, s.lugre, d.lugre, true);
       Input();
       break;
+    case mjACTUATOR_MILLARD2012:
+      WriteAttr(elem, "timeconst", 2, s.timeconst, d.timeconst);
+      WriteAttr(elem, "minactivation", 1, &s.minactivation, &d.minactivation);
+      WriteAttr(elem, "force", 1, &s.force, &d.force);
+      WriteAttr(elem, "optlength", 1, &s.optlength, &d.optlength);
+      WriteAttr(elem, "slacklength", 1, &s.slacklength, &d.slacklength);
+      WriteAttr(elem, "vmax", 1, &s.vmax, &d.vmax);
+      WriteAttr(elem, "pennation", 1, &s.pennation, &d.pennation);
+      WriteAttr(elem, "fiberdamping", 1, &s.fiberdamping, &d.fiberdamping);
+      if (s.rigidtendon != d.rigidtendon) {
+        WriteAttrTxt(elem, "rigidtendon", s.rigidtendon ? "true" : "false");
+      }
+      WriteAttr(elem, "activecurve", 4, s.activecurve, d.activecurve);
+      WriteAttr(elem, "passivecurve", 5, s.passivecurve, d.passivecurve);
+      WriteAttr(elem, "tendoncurve", 4, s.tendoncurve, d.tendoncurve);
+      WriteAttr(elem, "velocitycurve", 6, s.velocitycurve, d.velocitycurve);
+      break;
+    case mjACTUATOR_GEYER2010:
+      WriteAttr(elem, "timeconst", 2, s.timeconst, d.timeconst);
+      WriteAttr(elem, "tausmooth", 1, &s.tausmooth, &d.tausmooth);
+      WriteAttr(elem, "force", 1, &s.force, &d.force);
+      WriteAttr(elem, "optlength", 1, &s.optlength, &d.optlength);
+      WriteAttr(elem, "slacklength", 1, &s.slacklength, &d.slacklength);
+      WriteAttr(elem, "vmax", 1, &s.vmax, &d.vmax);
+      WriteAttr(elem, "fiberdamping", 1, &s.fiberdamping, &d.fiberdamping);
+      if (s.rigidtendon != d.rigidtendon) {
+        WriteAttrTxt(elem, "rigidtendon", s.rigidtendon ? "true" : "false");
+      }
+      WriteAttr(elem, "activecurve", 2, s.activecurve, d.activecurve);
+      WriteAttr(elem, "passivecurve", 2, s.passivecurve, d.passivecurve);
+      WriteAttr(elem, "tendoncurve", 1, s.tendoncurve, d.tendoncurve);
+      WriteAttr(elem, "velocitycurve", 1, s.velocitycurve, d.velocitycurve);
+      break;
     default:
       break;
   }

@@ -3046,6 +3046,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Copy current state to the k-th model keyframe.',
      )),
+    ('mj_muscleEquilibrium',
+     FunctionDecl(
+         name='mj_muscleEquilibrium',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Set compliant-tendon muscle fibers to their isometric equilibrium at the current actuator lengths and activations; call after mj_forward.',  # pylint: disable=line-too-long
+     )),
     ('mj_addContact',
      FunctionDecl(
          name='mj_addContact',
@@ -11595,6 +11615,170 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Set actuator to DC motor; return error if any.',
+     )),
+    ('mjs_setToMillard2012',
+     FunctionDecl(
+         name='mjs_setToMillard2012',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='actuator',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsActuator'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='timeconst',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='minactivation',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='force',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='optlength',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='slacklength',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='vmax',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='pennation',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='fiberdamping',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='rigidtendon',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='activecurve',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(4,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='passivecurve',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(5,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='tendoncurve',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(4,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='velocitycurve',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(6,),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Set actuator to Millard2012 compliant-tendon muscle; return error if any.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_setToGeyer2010',
+     FunctionDecl(
+         name='mjs_setToGeyer2010',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='actuator',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsActuator'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='timeconst',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='tausmooth',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='force',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='optlength',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='slacklength',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='vmax',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='fiberdamping',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='rigidtendon',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='activecurve',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='passivecurve',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='tendoncurve',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='velocitycurve',
+                 type=ValueType(name='double'),
+             ),
+         ),
+         doc='Set actuator to Geyer2010 compliant-tendon muscle; return error if any.',  # pylint: disable=line-too-long
      )),
     ('mjs_addMesh',
      FunctionDecl(

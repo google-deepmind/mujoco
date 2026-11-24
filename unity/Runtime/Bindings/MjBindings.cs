@@ -290,7 +290,9 @@ public enum mjtDyn : int{
   mjDYN_MUSCLE = 4,
   mjDYN_DCMOTOR = 5,
   mjDYN_PID = 6,
-  mjDYN_USER = 7,
+  mjDYN_MILLARD2012 = 7,
+  mjDYN_GEYER2010 = 8,
+  mjDYN_USER = 9,
 }
 public enum mjtGain : int{
   mjGAIN_FIXED = 0,
@@ -299,7 +301,9 @@ public enum mjtGain : int{
   mjGAIN_DCMOTOR = 3,
   mjGAIN_SO3 = 4,
   mjGAIN_PID = 5,
-  mjGAIN_USER = 6,
+  mjGAIN_MILLARD2012 = 6,
+  mjGAIN_GEYER2010 = 7,
+  mjGAIN_USER = 8,
 }
 public enum mjtBias : int{
   mjBIAS_NONE = 0,
@@ -307,7 +311,9 @@ public enum mjtBias : int{
   mjBIAS_MUSCLE = 2,
   mjBIAS_DCMOTOR = 3,
   mjBIAS_SO3 = 4,
-  mjBIAS_USER = 5,
+  mjBIAS_MILLARD2012 = 5,
+  mjBIAS_GEYER2010 = 6,
+  mjBIAS_USER = 7,
 }
 public enum mjtCtrlChart : int{
   mjCHART_EXPMAP = 1,
@@ -659,6 +665,8 @@ public enum mjtActuator : int{
   mjACTUATOR_PID = 9,
   mjACTUATOR_ORIENTATION = 10,
   mjACTUATOR_DCMOTOR = 11,
+  mjACTUATOR_MILLARD2012 = 12,
+  mjACTUATOR_GEYER2010 = 13,
 }
 public enum mjtCTimer : int{
   mjCTIMER_TOTAL = 0,

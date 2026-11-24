@@ -804,6 +804,44 @@ inline constexpr mjXAttr kDcmotorAttrs[] = {
 };
 inline constexpr int kDcmotorAttrsN = sizeof(kDcmotorAttrs) / sizeof(kDcmotorAttrs[0]);
 
+// millard2012 (mjsActuator)
+inline constexpr mjXAttr kMillard2012Attrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kMillard2012AttrsN = sizeof(kMillard2012Attrs) / sizeof(kMillard2012Attrs[0]);
+
+// geyer2010 (mjsActuator)
+inline constexpr mjXAttr kGeyer2010Attrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kGeyer2010AttrsN = sizeof(kGeyer2010Attrs) / sizeof(kGeyer2010Attrs[0]);
+
 // touch (mjsSensor)
 inline constexpr mjXAttr kTouchAttrs[] = {
   {nullptr, mjXAttr::kConst, 1, true, false, false, false, (int)offsetof(mjsSensor, type), nullptr, 0, mjSENS_TOUCH},
@@ -1223,6 +1261,8 @@ inline constexpr mjXActuatorEntry kActuatorDispatch[] = {
   {"pid", mjACTUATOR_PID, kPidAttrs, kPidAttrsN},
   {"orientation", mjACTUATOR_ORIENTATION, kOrientationAttrs, kOrientationAttrsN},
   {"dcmotor", mjACTUATOR_DCMOTOR, kDcmotorAttrs, kDcmotorAttrsN},
+  {"millard2012", mjACTUATOR_MILLARD2012, kMillard2012Attrs, kMillard2012AttrsN},
+  {"geyer2010", mjACTUATOR_GEYER2010, kGeyer2010Attrs, kGeyer2010AttrsN},
 };
 inline constexpr int kActuatorDispatchN = sizeof(kActuatorDispatch) / sizeof(kActuatorDispatch[0]);
 

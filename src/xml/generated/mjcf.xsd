@@ -228,6 +228,8 @@
       <xs:enumeration value="pid"/>
       <xs:enumeration value="orientation"/>
       <xs:enumeration value="dcmotor"/>
+      <xs:enumeration value="millard2012"/>
+      <xs:enumeration value="geyer2010"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -240,6 +242,8 @@
       <xs:enumeration value="muscle"/>
       <xs:enumeration value="dcmotor"/>
       <xs:enumeration value="pid"/>
+      <xs:enumeration value="millard2012"/>
+      <xs:enumeration value="geyer2010"/>
       <xs:enumeration value="user"/>
     </xs:restriction>
   </xs:simpleType>
@@ -261,6 +265,8 @@
       <xs:enumeration value="dcmotor"/>
       <xs:enumeration value="so3"/>
       <xs:enumeration value="pid"/>
+      <xs:enumeration value="millard2012"/>
+      <xs:enumeration value="geyer2010"/>
       <xs:enumeration value="user"/>
     </xs:restriction>
   </xs:simpleType>
@@ -295,6 +301,8 @@
       <xs:enumeration value="muscle"/>
       <xs:enumeration value="dcmotor"/>
       <xs:enumeration value="so3"/>
+      <xs:enumeration value="millard2012"/>
+      <xs:enumeration value="geyer2010"/>
       <xs:enumeration value="user"/>
     </xs:restriction>
   </xs:simpleType>
@@ -545,6 +553,16 @@
       </xs:simpleType>
       <xs:minLength value="1"/>
       <xs:maxLength value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="double1to4">
+    <xs:restriction>
+      <xs:simpleType>
+        <xs:list itemType="xs:double"/>
+      </xs:simpleType>
+      <xs:minLength value="1"/>
+      <xs:maxLength value="4"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -921,7 +939,7 @@
 
   <xs:complexType name="default">
     <xs:annotation>
-      <xs:documentation>children, with cardinality the XSD cannot enforce (? at most one, ! exactly one, * any number, R recursive): default (R), mesh (?), texture (?), material (?), joint (?), geom (?), site (?), camera (?), light (?), pair (?), default_equality (?), default_tendon (?), general (?), motor (?), position (?), velocity (?), intvelocity (?), orientation (?), pid (?), damper (?), cylinder (?), muscle (?), adhesion (?), dcmotor (?)</xs:documentation>
+      <xs:documentation>children, with cardinality the XSD cannot enforce (? at most one, ! exactly one, * any number, R recursive): default (R), mesh (?), texture (?), material (?), joint (?), geom (?), site (?), camera (?), light (?), pair (?), default_equality (?), default_tendon (?), general (?), motor (?), position (?), velocity (?), intvelocity (?), orientation (?), pid (?), damper (?), cylinder (?), muscle (?), adhesion (?), dcmotor (?), millard2012 (?), geyer2010 (?)</xs:documentation>
     </xs:annotation>
     <xs:choice minOccurs="0" maxOccurs="unbounded">
       <xs:element name="default" type="default"/>
@@ -948,6 +966,8 @@
       <xs:element name="muscle" type="default_muscle"/>
       <xs:element name="adhesion" type="default_adhesion"/>
       <xs:element name="dcmotor" type="default_dcmotor"/>
+      <xs:element name="millard2012" type="default_millard2012"/>
+      <xs:element name="geyer2010" type="default_geyer2010"/>
       <xs:element name="include" type="include"/>
     </xs:choice>
     <xs:attribute name="class" type="xs:string"/>
@@ -1047,7 +1067,7 @@
 
   <xs:complexType name="actuator">
     <xs:annotation>
-      <xs:documentation>children, with cardinality the XSD cannot enforce (? at most one, ! exactly one, * any number, R recursive): general (*), motor (*), position (*), velocity (*), intvelocity (*), orientation (*), pid (*), damper (*), cylinder (*), muscle (*), adhesion (*), dcmotor (*), actuator_plugin (*)</xs:documentation>
+      <xs:documentation>children, with cardinality the XSD cannot enforce (? at most one, ! exactly one, * any number, R recursive): general (*), motor (*), position (*), velocity (*), intvelocity (*), orientation (*), pid (*), damper (*), cylinder (*), muscle (*), adhesion (*), dcmotor (*), millard2012 (*), geyer2010 (*), actuator_plugin (*)</xs:documentation>
     </xs:annotation>
     <xs:choice minOccurs="0" maxOccurs="unbounded">
       <xs:element name="general" type="general"/>
@@ -1062,6 +1082,8 @@
       <xs:element name="muscle" type="muscle"/>
       <xs:element name="adhesion" type="adhesion"/>
       <xs:element name="dcmotor" type="dcmotor"/>
+      <xs:element name="millard2012" type="millard2012"/>
+      <xs:element name="geyer2010" type="geyer2010"/>
       <xs:element name="plugin" type="actuator_plugin"/>
       <xs:element name="include" type="include"/>
     </xs:choice>
@@ -1945,6 +1967,155 @@
     <xs:attribute name="input" type="kwlist_inputbit">
       <xs:annotation>
         <xs:documentation>token subset, or the none keyword</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="default_millard2012">
+    <xs:attribute name="group" type="xs:int"/>
+    <xs:attribute name="nsample" type="xs:int"/>
+    <xs:attribute name="interp" type="kw_interp"/>
+    <xs:attribute name="delay" type="xs:double"/>
+    <xs:attribute name="ctrlrange" type="double2"/>
+    <xs:attribute name="user" type="doublelist"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcerange" type="double2"/>
+    <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
+    <xs:attribute name="damping" type="double1to3">
+      <xs:annotation>
+        <xs:documentation>damper polynomial, 1+mjNPOLY coefficients</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="armature" type="xs:double"/>
+    <xs:attribute name="cranklength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>slidercrank-only, validated</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="timeconst" type="double2">
+      <xs:annotation>
+        <xs:documentation>activation, deactivation</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="minactivation" type="xs:double"/>
+    <xs:attribute name="force" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>maximum isometric force</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="optlength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>optimal fiber length</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="slacklength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>tendon slack length</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="vmax" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>in optimal fiber lengths</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="pennation" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>at the optimal fiber length, radians</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="fiberdamping" type="xs:double"/>
+    <xs:attribute name="rigidtendon" type="kw_bool"/>
+    <xs:attribute name="activecurve" type="double1to4">
+      <xs:annotation>
+        <xs:documentation>lmin, transition, lmax, slope</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="passivecurve" type="double1to5">
+      <xs:annotation>
+        <xs:documentation>strain0, strain1, klow, kiso, curviness</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="tendoncurve" type="double1to4">
+      <xs:annotation>
+        <xs:documentation>strain1, kiso, ftoe, curviness</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="velocitycurve" type="double1to6">
+      <xs:annotation>
+        <xs:documentation>fmaxecc, conslope, isoslope, eccslope, concurv, ecccurv</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="default_geyer2010">
+    <xs:attribute name="group" type="xs:int"/>
+    <xs:attribute name="nsample" type="xs:int"/>
+    <xs:attribute name="interp" type="kw_interp"/>
+    <xs:attribute name="delay" type="xs:double"/>
+    <xs:attribute name="ctrlrange" type="double2"/>
+    <xs:attribute name="user" type="doublelist"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcerange" type="double2"/>
+    <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
+    <xs:attribute name="damping" type="double1to3">
+      <xs:annotation>
+        <xs:documentation>damper polynomial, 1+mjNPOLY coefficients</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="armature" type="xs:double"/>
+    <xs:attribute name="cranklength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>slidercrank-only, validated</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="timeconst" type="double2">
+      <xs:annotation>
+        <xs:documentation>activation, deactivation</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="tausmooth" type="xs:double"/>
+    <xs:attribute name="force" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>maximum isometric force</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="optlength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>optimal fiber length</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="slacklength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>tendon slack length</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="vmax" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>in optimal fiber lengths</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="fiberdamping" type="xs:double"/>
+    <xs:attribute name="rigidtendon" type="kw_bool"/>
+    <xs:attribute name="activecurve" type="double1to2">
+      <xs:annotation>
+        <xs:documentation>width, residual force</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="passivecurve" type="double1to2">
+      <xs:annotation>
+        <xs:documentation>rest length, reference strain</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="tendoncurve" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>reference strain</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="velocitycurve" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>shape factor K</xs:documentation>
       </xs:annotation>
     </xs:attribute>
   </xs:complexType>
@@ -3109,6 +3280,175 @@
     <xs:attribute name="input" type="kwlist_inputbit">
       <xs:annotation>
         <xs:documentation>token subset, or the none keyword</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="millard2012">
+    <xs:attribute name="name" type="xs:string"/>
+    <xs:attribute name="class" type="xs:string"/>
+    <xs:attribute name="group" type="xs:int"/>
+    <xs:attribute name="nsample" type="xs:int"/>
+    <xs:attribute name="interp" type="kw_interp"/>
+    <xs:attribute name="delay" type="xs:double"/>
+    <xs:attribute name="ctrlrange" type="double2"/>
+    <xs:attribute name="user" type="doublelist"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcerange" type="double2"/>
+    <xs:attribute name="lengthrange" type="double2"/>
+    <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
+    <xs:attribute name="damping" type="double1to3">
+      <xs:annotation>
+        <xs:documentation>damper polynomial, 1+mjNPOLY coefficients</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="armature" type="xs:double"/>
+    <xs:attribute name="cranklength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>slidercrank-only, validated</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="joint" type="xs:string"/>
+    <xs:attribute name="jointinparent" type="xs:string"/>
+    <xs:attribute name="tendon" type="xs:string"/>
+    <xs:attribute name="slidersite" type="xs:string"/>
+    <xs:attribute name="cranksite" type="xs:string"/>
+    <xs:attribute name="site" type="xs:string"/>
+    <xs:attribute name="refsite" type="xs:string"/>
+    <xs:attribute name="timeconst" type="double2">
+      <xs:annotation>
+        <xs:documentation>activation, deactivation</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="minactivation" type="xs:double"/>
+    <xs:attribute name="force" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>maximum isometric force</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="optlength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>optimal fiber length</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="slacklength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>tendon slack length</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="vmax" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>in optimal fiber lengths</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="pennation" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>at the optimal fiber length, radians</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="fiberdamping" type="xs:double"/>
+    <xs:attribute name="rigidtendon" type="kw_bool"/>
+    <xs:attribute name="activecurve" type="double1to4">
+      <xs:annotation>
+        <xs:documentation>lmin, transition, lmax, slope</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="passivecurve" type="double1to5">
+      <xs:annotation>
+        <xs:documentation>strain0, strain1, klow, kiso, curviness</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="tendoncurve" type="double1to4">
+      <xs:annotation>
+        <xs:documentation>strain1, kiso, ftoe, curviness</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="velocitycurve" type="double1to6">
+      <xs:annotation>
+        <xs:documentation>fmaxecc, conslope, isoslope, eccslope, concurv, ecccurv</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="geyer2010">
+    <xs:attribute name="name" type="xs:string"/>
+    <xs:attribute name="class" type="xs:string"/>
+    <xs:attribute name="group" type="xs:int"/>
+    <xs:attribute name="nsample" type="xs:int"/>
+    <xs:attribute name="interp" type="kw_interp"/>
+    <xs:attribute name="delay" type="xs:double"/>
+    <xs:attribute name="ctrlrange" type="double2"/>
+    <xs:attribute name="user" type="doublelist"/>
+    <xs:attribute name="ctrllimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcelimited" type="kw_FalseTrueAuto" default="auto"/>
+    <xs:attribute name="forcerange" type="double2"/>
+    <xs:attribute name="lengthrange" type="double2"/>
+    <xs:attribute name="gear" type="double1to6" default="1 0 0 0 0 0"/>
+    <xs:attribute name="damping" type="double1to3">
+      <xs:annotation>
+        <xs:documentation>damper polynomial, 1+mjNPOLY coefficients</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="armature" type="xs:double"/>
+    <xs:attribute name="cranklength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>slidercrank-only, validated</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="joint" type="xs:string"/>
+    <xs:attribute name="jointinparent" type="xs:string"/>
+    <xs:attribute name="tendon" type="xs:string"/>
+    <xs:attribute name="slidersite" type="xs:string"/>
+    <xs:attribute name="cranksite" type="xs:string"/>
+    <xs:attribute name="site" type="xs:string"/>
+    <xs:attribute name="refsite" type="xs:string"/>
+    <xs:attribute name="timeconst" type="double2">
+      <xs:annotation>
+        <xs:documentation>activation, deactivation</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="tausmooth" type="xs:double"/>
+    <xs:attribute name="force" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>maximum isometric force</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="optlength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>optimal fiber length</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="slacklength" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>tendon slack length</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="vmax" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>in optimal fiber lengths</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="fiberdamping" type="xs:double"/>
+    <xs:attribute name="rigidtendon" type="kw_bool"/>
+    <xs:attribute name="activecurve" type="double1to2">
+      <xs:annotation>
+        <xs:documentation>width, residual force</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="passivecurve" type="double1to2">
+      <xs:annotation>
+        <xs:documentation>rest length, reference strain</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="tendoncurve" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>reference strain</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="velocitycurve" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>shape factor K</xs:documentation>
       </xs:annotation>
     </xs:attribute>
   </xs:complexType>

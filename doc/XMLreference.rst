@@ -5935,13 +5935,13 @@ specify them independently.
 
 :at:`actdim`: :at-val:`real, "-1"`
    Dimension of the activation state. The default value of ``-1`` instructs the compiler to set the dimension according
-   to the :at:`dyntype`. Values larger than ``1`` are only allowed for user-defined activation dynamics, as native types
-   require dimensions of only 0 or 1. For activation dimensions bigger than 1, the *last element* is used to generate
-   force.
+   to the :at:`dyntype`. Values larger than ``1`` are only allowed for user-defined activation dynamics and for the
+   native types with several states (pid, dcmotor, millard2012, geyer2010). For activation dimensions bigger than 1, the *last
+   element* is used to generate force.
 
 .. _actuator-general-dyntype:
 
-:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, dcmotor, muscle, user], "none"`
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, dcmotor, muscle, millard2012, geyer2010, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. Repeating that description in somewhat different notation (corresponding to the mjModel
    and mjData fields involved) we have:
@@ -5956,47 +5956,54 @@ specify them independently.
    pid           act_dot = position error; see :ref:`pid<actuator-pid>`
    dcmotor       DC motor electrical dynamics, see :ref:`dcmotor<actuator-dcmotor>`
    muscle        act_dot = mju_muscleDynamics(...)
+   millard2012   muscle activation and fiber velocity, see :ref:`millard2012<actuator-millard2012>`
+   geyer2010     muscle activation and fiber velocity, see :ref:`geyer2010<actuator-geyer2010>`
    user          act_dot = mjcb_act_dyn(...)
    ============= ======================================
 
 .. _actuator-general-gaintype:
 
-:at:`gaintype`: :at-val:`[fixed, affine, muscle, dcmotor, pid, so3, user], "fixed"`
+:at:`gaintype`: :at-val:`[fixed, affine, muscle, dcmotor, pid, so3, millard2012, geyer2010, user], "fixed"`
    The gain and bias together determine the output of the force generation mechanism, which is currently assumed to be
    affine. As already explained in :ref:`Actuation model <geActuation>`, the general formula is:
    scalar_force = gain_term \* (act or ctrl) + bias_term.
    The formula uses the activation state when present, and the control otherwise. The keywords have the following
    meaning:
 
-   ======= ===============================
-   Keyword Description
-   ======= ===============================
-   fixed   gain_term = gainprm[0]
-   affine  gain_term = gain_prm[0] + gain_prm[1]*length + gain_prm[2]*velocity
-   muscle  gain_term = mju_muscleGain(...)
-   dcmotor DC motor gain (K or K/R), see :ref:`dcmotor<actuator-dcmotor>`
-   pid     PID controller with setpoint inputs, see :ref:`pid<actuator-pid>`
-   so3     geodesic orientation servo, computed jointly over 3 force outputs, see :ref:`orientation<actuator-orientation>`
-   user    gain_term = mjcb_act_gain(...)
-   ======= ===============================
+   =========== ===============================
+   Keyword     Description
+   =========== ===============================
+   fixed       gain_term = gainprm[0]
+   affine      gain_term = gain_prm[0] + gain_prm[1]*length + gain_prm[2]*velocity
+   muscle      gain_term = mju_muscleGain(...)
+   dcmotor     DC motor gain (K or K/R), see :ref:`dcmotor<actuator-dcmotor>`
+   pid         PID controller with setpoint inputs, see :ref:`pid<actuator-pid>`
+   so3         geodesic orientation servo, computed jointly over 3 force outputs, see :ref:`orientation<actuator-orientation>`
+   millard2012 active fiber force at the solved fiber, see :ref:`millard2012<actuator-millard2012>`
+   geyer2010   active fiber force at the solved fiber, see :ref:`geyer2010<actuator-geyer2010>`
+   user        gain_term = mjcb_act_gain(...)
+   =========== ===============================
 
 .. _actuator-general-biastype:
 
-:at:`biastype`: :at-val:`[none, affine, muscle, dcmotor, so3, user], "none"`
+:at:`biastype`: :at-val:`[none, affine, muscle, dcmotor, so3, millard2012, geyer2010, user], "none"`
    The keywords have the following meaning:
 
-   ======= ================================================================
-   Keyword Description
-   ======= ================================================================
-   none    bias_term = 0
-   affine  bias_term = biasprm[0] + biasprm[1]*length + biasprm[2]*velocity
-   muscle  bias_term = mju_muscleBias(...)
-   dcmotor DC motor bias: back-EMF, cogging, LuGre friction, see :ref:`dcmotor<actuator-dcmotor>`
-   so3     damping term of the geodesic orientation servo, see :ref:`orientation<actuator-orientation>`
-   user    bias_term = mjcb_act_bias(...)
-   ======= ================================================================
+   =========== ================================================================
+   Keyword     Description
+   =========== ================================================================
+   none        bias_term = 0
+   affine      bias_term = biasprm[0] + biasprm[1]*length + biasprm[2]*velocity
+   muscle      bias_term = mju_muscleBias(...)
+   dcmotor     DC motor bias: back-EMF, cogging, LuGre friction, see :ref:`dcmotor<actuator-dcmotor>`
+   so3         damping term of the geodesic orientation servo, see :ref:`orientation<actuator-orientation>`
+   millard2012 passive fiber force at the solved fiber, see :ref:`millard2012<actuator-millard2012>`
+   geyer2010   passive fiber force at the solved fiber, see :ref:`geyer2010<actuator-geyer2010>`
+   user        bias_term = mjcb_act_bias(...)
+   =========== ================================================================
 
-   Note that :at:`gaintype` and :at:`biastype` must either both be "so3" or neither.
+   Note that :at:`gaintype` and :at:`biastype` must either both be "so3" or neither, and that :at:`dyntype`,
+   :at:`gaintype` and :at:`biastype` must either all be "millard2012" or none, and likewise for "geyer2010".
 
 .. _actuator-general-dynprm:
 
@@ -7260,6 +7267,316 @@ This element has the following custom attributes in addition to the common attri
    which is added downstream: use :at:`ctrlrange` to limit a voltage command.
    (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
 
+.. _actuator-millard2012:
+
+:el-prefix:`actuator/` |-| **millard2012** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element models a Hill-type muscle in series with a compliant tendon, as described in the
+:ref:`Compliant-tendon muscles <CMuscleTendon>` section. It is OpenSim's
+``Millard2012EquilibriumMuscle`` (Millard et al. 2013), with OpenSim's names, units and defaults, so
+the properties of a ``.osim`` muscle transfer unchanged. The underlying :el:`general` attributes are
+set as follows:
+
+========= =========== ========= ==============================================================
+Attribute Setting     Attribute Setting
+========= =========== ========= ==============================================================
+dyntype   millard2012 dynprm    timeconst(2), minactivation, fiberdamping, velocitycurve(6)
+gaintype  millard2012 gainprm   force, optlength, slacklength, vmax, pennation, activecurve(4)
+biastype  millard2012 biasprm   passivecurve(5), tendoncurve(4), rigidtendon
+========= =========== ========= ==============================================================
+
+The actuator has two activation variables, the fiber length and the activation, see
+:ref:`Compliant-tendon muscles <CMuscleTendon>`. This element has thirteen custom attributes in
+addition to the common attributes:
+
+.. _actuator-millard2012-name:
+
+.. _actuator-millard2012-class:
+
+.. _actuator-millard2012-group:
+
+.. _actuator-millard2012-delay:
+
+.. _actuator-millard2012-nsample:
+
+.. _actuator-millard2012-interp:
+
+.. _actuator-millard2012-ctrllimited:
+
+.. _actuator-millard2012-forcelimited:
+
+.. _actuator-millard2012-ctrlrange:
+
+.. _actuator-millard2012-forcerange:
+
+.. _actuator-millard2012-lengthrange:
+
+.. _actuator-millard2012-gear:
+
+.. _actuator-millard2012-cranklength:
+
+.. _actuator-millard2012-joint:
+
+.. _actuator-millard2012-jointinparent:
+
+.. _actuator-millard2012-tendon:
+
+.. _actuator-millard2012-cranksite:
+
+.. _actuator-millard2012-slidersite:
+
+.. _actuator-millard2012-site:
+
+.. _actuator-millard2012-refsite:
+
+.. _actuator-millard2012-user:
+
+.. _actuator-millard2012-damping:
+
+.. _actuator-millard2012-armature:
+
+.. |actuator/millard2012 attrib list| replace::
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`nsample`, :at:`interp`, :at:`ctrllimited`,
+   :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`,
+   :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`,
+   :at:`user`, :at:`damping`, :at:`armature`
+
+|actuator/millard2012 attrib list|
+   Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-millard2012-timeconst:
+
+:at:`timeconst`: :at-val:`real(2), "0.01 0.04"`
+   Activation and deactivation time constants, OpenSim's ``activation_time_constant`` and
+   ``deactivation_time_constant``. The activation dynamics are those of the :ref:`muscle
+   <actuator-muscle>` actuator.
+
+.. _actuator-millard2012-minactivation:
+
+:at:`minactivation`: :at-val:`real, "0.01"`
+   Floor of the excitation, OpenSim's ``minimum_activation``. Must be at least 0.01 for the undamped
+   model.
+
+.. _actuator-millard2012-force:
+
+:at:`force`: :at-val:`real, "1000"`
+   Maximum isometric force, OpenSim's ``max_isometric_force``.
+
+.. _actuator-millard2012-optlength:
+
+:at:`optlength`: :at-val:`real, "0.1"`
+   Optimal fiber length, OpenSim's ``optimal_fiber_length``, in units of the transmission length.
+
+.. _actuator-millard2012-slacklength:
+
+:at:`slacklength`: :at-val:`real, "0.2"`
+   Tendon slack length, OpenSim's ``tendon_slack_length``.
+
+.. _actuator-millard2012-vmax:
+
+:at:`vmax`: :at-val:`real, "10"`
+   Maximum contraction velocity in optimal fiber lengths per second, OpenSim's
+   ``max_contraction_velocity``.
+
+.. _actuator-millard2012-pennation:
+
+:at:`pennation`: :at-val:`real, "0"`
+   Pennation angle at the optimal fiber length in radians, OpenSim's ``pennation_angle_at_optimal``.
+   Fixed-width pennation, with the maximum pennation angle acos(0.1).
+
+.. _actuator-millard2012-fiberdamping:
+
+:at:`fiberdamping`: :at-val:`real, "0.1"`
+   Fiber damping, OpenSim's ``fiber_damping``. Values below 0.001 select OpenSim's undamped model,
+   which raises the active force-length floor to 0.1 and the force-velocity slopes at vmax to half the
+   slopes near vmax.
+
+.. _actuator-millard2012-rigidtendon:
+
+:at:`rigidtendon`: :at-val:`[false, true], "false"`
+   Treat the tendon as inextensible, OpenSim's ``ignore_tendon_compliance``.
+
+.. _actuator-millard2012-activecurve:
+
+:at:`activecurve`: :at-val:`real(4), "0.4441 0.73 1.8123 0.8616"`
+   OpenSim ``ActiveForceLengthCurve``: ``min_norm_active_fiber_length``,
+   ``transition_norm_fiber_length``, ``max_norm_active_fiber_length`` and ``shallow_ascending_slope``.
+   Fewer values leave the rest at their defaults.
+
+.. _actuator-millard2012-passivecurve:
+
+:at:`passivecurve`: :at-val:`real(5), "0 0.7 0.2 0 0.75"`
+   OpenSim ``FiberForceLengthCurve``: ``strain_at_zero_force``, ``strain_at_one_norm_force``,
+   ``stiffness_at_low_force``, ``stiffness_at_one_norm_force`` and ``curviness``. A stiffness at one
+   normalized force of 0 takes OpenSim's default, 2 / (strain_at_one_norm_force -
+   strain_at_zero_force).
+
+.. _actuator-millard2012-tendoncurve:
+
+:at:`tendoncurve`: :at-val:`real(4), "0.049 0 0.6667 0.5"`
+   OpenSim ``TendonForceLengthCurve``: ``strain_at_one_norm_force``, ``stiffness_at_one_norm_force``,
+   ``norm_force_at_toe_end`` and ``curviness``. A stiffness of 0 takes OpenSim's default,
+   1.375 / strain_at_one_norm_force.
+
+.. _actuator-millard2012-velocitycurve:
+
+:at:`velocitycurve`: :at-val:`real(6), "1.4 0.25 5 0.15 0.6 0.9"`
+   OpenSim ``ForceVelocityCurve``: ``max_eccentric_velocity_force_multiplier``,
+   ``concentric_slope_near_vmax``, ``isometric_slope``, ``eccentric_slope_near_vmax``,
+   ``concentric_curviness`` and ``eccentric_curviness``. The slopes at vmax are not parameters: OpenSim
+   sets them from the damping, see :at:`fiberdamping`.
+
+
+.. _actuator-geyer2010:
+
+:el-prefix:`actuator/` |-| **geyer2010** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element models a Hill-type muscle in series with a compliant tendon, as described in the
+:ref:`Compliant-tendon muscles <CMuscleTendon>` section. It is the muscle of `Geyer and Herr (2010)
+<https://doi.org/10.1109/TNSRE.2010.2047592>`__, with the curves of `Geyer et al. (2003)
+<https://doi.org/10.1098/rspb.2003.2454>`__ as Song and Geyer implement them, and the paper's names and
+defaults. The underlying :el:`general` attributes are set as follows:
+
+========= ========= ========= ==============================================================
+Attribute Setting   Attribute Setting
+========= ========= ========= ==============================================================
+dyntype   geyer2010 dynprm    timeconst(2), tausmooth, fiberdamping, velocitycurve
+gaintype  geyer2010 gainprm   force, optlength, slacklength, vmax, activecurve(2)
+biastype  geyer2010 biasprm   passivecurve(2), tendoncurve, rigidtendon
+========= ========= ========= ==============================================================
+
+The actuator has two activation variables, the fiber length and the activation, see
+:ref:`Compliant-tendon muscles <CMuscleTendon>`. As in Song's implementation, the fiber is solved with
+the activation at the end of the step, so :ref:`actearly <actuator-general-actearly>` is set. This element
+has twelve custom attributes in addition to the common attributes:
+
+.. _actuator-geyer2010-name:
+
+.. _actuator-geyer2010-class:
+
+.. _actuator-geyer2010-group:
+
+.. _actuator-geyer2010-delay:
+
+.. _actuator-geyer2010-nsample:
+
+.. _actuator-geyer2010-interp:
+
+.. _actuator-geyer2010-ctrllimited:
+
+.. _actuator-geyer2010-forcelimited:
+
+.. _actuator-geyer2010-ctrlrange:
+
+.. _actuator-geyer2010-forcerange:
+
+.. _actuator-geyer2010-lengthrange:
+
+.. _actuator-geyer2010-gear:
+
+.. _actuator-geyer2010-cranklength:
+
+.. _actuator-geyer2010-joint:
+
+.. _actuator-geyer2010-jointinparent:
+
+.. _actuator-geyer2010-tendon:
+
+.. _actuator-geyer2010-cranksite:
+
+.. _actuator-geyer2010-slidersite:
+
+.. _actuator-geyer2010-site:
+
+.. _actuator-geyer2010-refsite:
+
+.. _actuator-geyer2010-user:
+
+.. _actuator-geyer2010-damping:
+
+.. _actuator-geyer2010-armature:
+
+.. |actuator/geyer2010 attrib list| replace::
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`nsample`, :at:`interp`, :at:`ctrllimited`,
+   :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`,
+   :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`,
+   :at:`user`, :at:`damping`, :at:`armature`
+
+|actuator/geyer2010 attrib list|
+   Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-geyer2010-timeconst:
+
+:at:`timeconst`: :at-val:`real(2), "0.01 0.04"`
+   Activation and deactivation time constants. The activation dynamics are those of the :ref:`muscle
+   <actuator-muscle>` actuator.
+
+.. _actuator-geyer2010-tausmooth:
+
+:at:`tausmooth`: :at-val:`real, "0"`
+   Width of the smooth transition between the two time constants, as in the :ref:`muscle
+   <actuator-muscle-tausmooth>` actuator.
+
+.. _actuator-geyer2010-force:
+
+:at:`force`: :at-val:`real, "1000"`
+   Maximum isometric force :math:`F_{max}`.
+
+.. _actuator-geyer2010-optlength:
+
+:at:`optlength`: :at-val:`real, "0.1"`
+   Optimal fiber length :math:`\ell_{opt}`, in units of the transmission length.
+
+.. _actuator-geyer2010-slacklength:
+
+:at:`slacklength`: :at-val:`real, "0.2"`
+   Tendon slack length :math:`\ell_{slack}`.
+
+.. _actuator-geyer2010-vmax:
+
+:at:`vmax`: :at-val:`real, "12"`
+   Maximum contraction velocity in optimal fiber lengths per second.
+
+.. _actuator-geyer2010-fiberdamping:
+
+:at:`fiberdamping`: :at-val:`real, "0"`
+   Fiber damping :math:`\beta`, in maximum isometric forces per normalized fiber velocity, as in
+   :ref:`millard2012 <actuator-millard2012-fiberdamping>`. Geyer and Herr's muscle has none.
+
+.. _actuator-geyer2010-rigidtendon:
+
+:at:`rigidtendon`: :at-val:`[false, true], "false"`
+   Treat the tendon as inextensible: the fiber length is the path length minus the tendon slack length, and
+   its velocity the change of the fiber length over the time step.
+
+.. _actuator-geyer2010-activecurve:
+
+:at:`activecurve`: :at-val:`real(2), "0.56 0.05"`
+   Active force-length curve :math:`\exp(\ln c \, |(\ell/\ell_{opt} - 1)/w|^3)`: the width :math:`w` and
+   the force :math:`c` at :math:`|\ell/\ell_{opt} - 1| = w`. The width also places the buffer element,
+   which resists compression below :math:`(1 - w) \ell_{opt}` with reference compression :math:`w/2`.
+
+.. _actuator-geyer2010-passivecurve:
+
+:at:`passivecurve`: :at-val:`real(2), "1 0"`
+   Parallel element :math:`((\ell/\ell_{opt} - r)/\varepsilon)^2` above its rest length: the rest length
+   :math:`r` in optimal fiber lengths and the reference strain :math:`\varepsilon`. A strain of 0 takes Geyer and
+   Herr's, the width :math:`w` of :at:`activecurve`.
+
+.. _actuator-geyer2010-tendoncurve:
+
+:at:`tendoncurve`: :at-val:`real, "0.04"`
+   Reference strain of the tendon, whose force is :math:`((\ell_T/\ell_{slack} - 1)/\varepsilon)^2`.
+
+.. _actuator-geyer2010-velocitycurve:
+
+:at:`velocitycurve`: :at-val:`real, "5"`
+   Shape factor :math:`K` of the force-velocity curve, which must exceed 1/7.56. The eccentric force
+   enhancement is fixed at :math:`N = 1.5`.
+
+
 .. _actuator-plugin:
 
 :el-prefix:`actuator/` |-| **plugin** |?|
@@ -7279,7 +7596,7 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-dyntype:
 
-:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, dcmotor, muscle, user], "none"`
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, pid, dcmotor, muscle, millard2012, geyer2010, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. If :ref:`dyntype<actuator-general-dyntype>` is not "none", an activation variable will
    be added to the actuator. This variable will be added after any activation state computed by the plugin (see
@@ -11170,6 +11487,130 @@ All :ref:`adhesion <actuator-adhesion>` attributes are available here except: na
 
 All :ref:`dcmotor <actuator-dcmotor>` attributes are available here except: name, class, joint, jointinparent, site,
 refsite, tendon, slidersite, cranksite.
+
+
+.. _default-millard2012:
+
+.. _default-millard2012-ctrllimited:
+
+.. _default-millard2012-forcelimited:
+
+.. _default-millard2012-ctrlrange:
+
+.. _default-millard2012-forcerange:
+
+.. _default-millard2012-gear:
+
+.. _default-millard2012-damping:
+
+.. _default-millard2012-armature:
+
+.. _default-millard2012-cranklength:
+
+.. _default-millard2012-lengthrange:
+
+.. _default-millard2012-user:
+
+.. _default-millard2012-group:
+
+.. _default-millard2012-delay:
+
+.. _default-millard2012-nsample:
+
+.. _default-millard2012-interp:
+
+.. _default-millard2012-timeconst:
+
+.. _default-millard2012-minactivation:
+
+.. _default-millard2012-force:
+
+.. _default-millard2012-optlength:
+
+.. _default-millard2012-slacklength:
+
+.. _default-millard2012-vmax:
+
+.. _default-millard2012-pennation:
+
+.. _default-millard2012-fiberdamping:
+
+.. _default-millard2012-rigidtendon:
+
+.. _default-millard2012-activecurve:
+
+.. _default-millard2012-passivecurve:
+
+.. _default-millard2012-tendoncurve:
+
+.. _default-millard2012-velocitycurve:
+
+:el-prefix:`default/` |-| **millard2012** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`millard2012 <actuator-millard2012>` attributes are available here except: name, class, joint,
+jointinparent, site, refsite, tendon, slidersite, cranksite.
+
+
+.. _default-geyer2010:
+
+.. _default-geyer2010-ctrllimited:
+
+.. _default-geyer2010-forcelimited:
+
+.. _default-geyer2010-ctrlrange:
+
+.. _default-geyer2010-forcerange:
+
+.. _default-geyer2010-gear:
+
+.. _default-geyer2010-damping:
+
+.. _default-geyer2010-armature:
+
+.. _default-geyer2010-cranklength:
+
+.. _default-geyer2010-lengthrange:
+
+.. _default-geyer2010-user:
+
+.. _default-geyer2010-group:
+
+.. _default-geyer2010-delay:
+
+.. _default-geyer2010-nsample:
+
+.. _default-geyer2010-interp:
+
+.. _default-geyer2010-timeconst:
+
+.. _default-geyer2010-tausmooth:
+
+.. _default-geyer2010-force:
+
+.. _default-geyer2010-optlength:
+
+.. _default-geyer2010-slacklength:
+
+.. _default-geyer2010-vmax:
+
+.. _default-geyer2010-fiberdamping:
+
+.. _default-geyer2010-rigidtendon:
+
+.. _default-geyer2010-activecurve:
+
+.. _default-geyer2010-passivecurve:
+
+.. _default-geyer2010-tendoncurve:
+
+.. _default-geyer2010-velocitycurve:
+
+:el-prefix:`default/` |-| **geyer2010** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`geyer2010 <actuator-geyer2010>` attributes are available here except: name, class, joint,
+jointinparent, site, refsite, tendon, slidersite, cranksite.
 
 
 .. _custom:

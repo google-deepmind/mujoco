@@ -26,3 +26,8 @@ mj_models_filegroup(
 exports_files(
     srcs = glob(["**/*.xml"]),
 )
+
+filegroup(
+    name = "millard2012_opensim",
+    srcs = ["millard2012_opensim.csv"],
+)

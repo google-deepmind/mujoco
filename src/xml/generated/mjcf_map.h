@@ -244,8 +244,10 @@ inline constexpr mjMap actuatortype_map[] = {
   {"pid",          mjACTUATOR_PID},
   {"orientation",  mjACTUATOR_ORIENTATION},
   {"dcmotor",      mjACTUATOR_DCMOTOR},
+  {"millard2012",  mjACTUATOR_MILLARD2012},
+  {"geyer2010",    mjACTUATOR_GEYER2010},
 };
-inline constexpr int actuatortype_sz = 12;
+inline constexpr int actuatortype_sz = 14;
 
 // enum dyn
 inline constexpr mjMap dyn_map[] = {
@@ -256,9 +258,11 @@ inline constexpr mjMap dyn_map[] = {
   {"muscle",       mjDYN_MUSCLE},
   {"dcmotor",      mjDYN_DCMOTOR},
   {"pid",          mjDYN_PID},
+  {"millard2012",  mjDYN_MILLARD2012},
+  {"geyer2010",    mjDYN_GEYER2010},
   {"user",         mjDYN_USER},
 };
-inline constexpr int dyn_sz = 8;
+inline constexpr int dyn_sz = 10;
 
 // enum inputkeyword
 inline constexpr mjMap inputkeyword_map[] = {
@@ -268,15 +272,17 @@ inline constexpr int inputkeyword_sz = 1;
 
 // enum gain
 inline constexpr mjMap gain_map[] = {
-  {"fixed",    mjGAIN_FIXED},
-  {"affine",   mjGAIN_AFFINE},
-  {"muscle",   mjGAIN_MUSCLE},
-  {"dcmotor",  mjGAIN_DCMOTOR},
-  {"so3",      mjGAIN_SO3},
-  {"pid",      mjGAIN_PID},
-  {"user",     mjGAIN_USER},
+  {"fixed",        mjGAIN_FIXED},
+  {"affine",       mjGAIN_AFFINE},
+  {"muscle",       mjGAIN_MUSCLE},
+  {"dcmotor",      mjGAIN_DCMOTOR},
+  {"so3",          mjGAIN_SO3},
+  {"pid",          mjGAIN_PID},
+  {"millard2012",  mjGAIN_MILLARD2012},
+  {"geyer2010",    mjGAIN_GEYER2010},
+  {"user",         mjGAIN_USER},
 };
-inline constexpr int gain_sz = 7;
+inline constexpr int gain_sz = 9;
 
 // enum inputchart
 inline constexpr mjMap inputchart_map[] = {
@@ -297,14 +303,16 @@ inline constexpr int inputbit_sz = 5;
 
 // enum bias
 inline constexpr mjMap bias_map[] = {
-  {"none",     mjBIAS_NONE},
-  {"affine",   mjBIAS_AFFINE},
-  {"muscle",   mjBIAS_MUSCLE},
-  {"dcmotor",  mjBIAS_DCMOTOR},
-  {"so3",      mjBIAS_SO3},
-  {"user",     mjBIAS_USER},
+  {"none",         mjBIAS_NONE},
+  {"affine",       mjBIAS_AFFINE},
+  {"muscle",       mjBIAS_MUSCLE},
+  {"dcmotor",      mjBIAS_DCMOTOR},
+  {"so3",          mjBIAS_SO3},
+  {"millard2012",  mjBIAS_MILLARD2012},
+  {"geyer2010",    mjBIAS_GEYER2010},
+  {"user",         mjBIAS_USER},
 };
-inline constexpr int bias_sz = 6;
+inline constexpr int bias_sz = 8;
 
 // enum interp
 inline constexpr mjMap interp_map[] = {

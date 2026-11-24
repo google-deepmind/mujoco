@@ -3135,6 +3135,231 @@
                :ref:`input<actuator-dcmotor-input>`
 
 
+      .. dropdown:: :ref:`millard2012<actuator-millard2012>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<actuator-millard2012-name>`
+
+            .. grid-item::
+               :ref:`class<actuator-millard2012-class>`
+
+            .. grid-item::
+               :ref:`group<actuator-millard2012-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-millard2012-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-millard2012-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-millard2012-delay>`
+
+            .. grid-item::
+               :ref:`ctrlrange<actuator-millard2012-ctrlrange>`
+
+            .. grid-item::
+               :ref:`user<actuator-millard2012-user>`
+
+            .. grid-item::
+               :ref:`ctrllimited<actuator-millard2012-ctrllimited>`
+
+            .. grid-item::
+               :ref:`forcelimited<actuator-millard2012-forcelimited>`
+
+            .. grid-item::
+               :ref:`forcerange<actuator-millard2012-forcerange>`
+
+            .. grid-item::
+               :ref:`lengthrange<actuator-millard2012-lengthrange>`
+
+            .. grid-item::
+               :ref:`gear<actuator-millard2012-gear>`
+
+            .. grid-item::
+               :ref:`damping<actuator-millard2012-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-millard2012-armature>`
+
+            .. grid-item::
+               :ref:`cranklength<actuator-millard2012-cranklength>`
+
+            .. grid-item::
+               :ref:`joint<actuator-millard2012-joint>`
+
+            .. grid-item::
+               :ref:`jointinparent<actuator-millard2012-jointinparent>`
+
+            .. grid-item::
+               :ref:`tendon<actuator-millard2012-tendon>`
+
+            .. grid-item::
+               :ref:`slidersite<actuator-millard2012-slidersite>`
+
+            .. grid-item::
+               :ref:`cranksite<actuator-millard2012-cranksite>`
+
+            .. grid-item::
+               :ref:`site<actuator-millard2012-site>`
+
+            .. grid-item::
+               :ref:`refsite<actuator-millard2012-refsite>`
+
+            .. grid-item::
+               :ref:`timeconst<actuator-millard2012-timeconst>`
+
+            .. grid-item::
+               :ref:`minactivation<actuator-millard2012-minactivation>`
+
+            .. grid-item::
+               :ref:`force<actuator-millard2012-force>`
+
+            .. grid-item::
+               :ref:`optlength<actuator-millard2012-optlength>`
+
+            .. grid-item::
+               :ref:`slacklength<actuator-millard2012-slacklength>`
+
+            .. grid-item::
+               :ref:`vmax<actuator-millard2012-vmax>`
+
+            .. grid-item::
+               :ref:`pennation<actuator-millard2012-pennation>`
+
+            .. grid-item::
+               :ref:`fiberdamping<actuator-millard2012-fiberdamping>`
+
+            .. grid-item::
+               :ref:`rigidtendon<actuator-millard2012-rigidtendon>`
+
+            .. grid-item::
+               :ref:`activecurve<actuator-millard2012-activecurve>`
+
+            .. grid-item::
+               :ref:`passivecurve<actuator-millard2012-passivecurve>`
+
+            .. grid-item::
+               :ref:`tendoncurve<actuator-millard2012-tendoncurve>`
+
+            .. grid-item::
+               :ref:`velocitycurve<actuator-millard2012-velocitycurve>`
+
+
+      .. dropdown:: :ref:`geyer2010<actuator-geyer2010>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<actuator-geyer2010-name>`
+
+            .. grid-item::
+               :ref:`class<actuator-geyer2010-class>`
+
+            .. grid-item::
+               :ref:`group<actuator-geyer2010-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-geyer2010-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-geyer2010-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-geyer2010-delay>`
+
+            .. grid-item::
+               :ref:`ctrlrange<actuator-geyer2010-ctrlrange>`
+
+            .. grid-item::
+               :ref:`user<actuator-geyer2010-user>`
+
+            .. grid-item::
+               :ref:`ctrllimited<actuator-geyer2010-ctrllimited>`
+
+            .. grid-item::
+               :ref:`forcelimited<actuator-geyer2010-forcelimited>`
+
+            .. grid-item::
+               :ref:`forcerange<actuator-geyer2010-forcerange>`
+
+            .. grid-item::
+               :ref:`lengthrange<actuator-geyer2010-lengthrange>`
+
+            .. grid-item::
+               :ref:`gear<actuator-geyer2010-gear>`
+
+            .. grid-item::
+               :ref:`damping<actuator-geyer2010-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-geyer2010-armature>`
+
+            .. grid-item::
+               :ref:`cranklength<actuator-geyer2010-cranklength>`
+
+            .. grid-item::
+               :ref:`joint<actuator-geyer2010-joint>`
+
+            .. grid-item::
+               :ref:`jointinparent<actuator-geyer2010-jointinparent>`
+
+            .. grid-item::
+               :ref:`tendon<actuator-geyer2010-tendon>`
+
+            .. grid-item::
+               :ref:`slidersite<actuator-geyer2010-slidersite>`
+
+            .. grid-item::
+               :ref:`cranksite<actuator-geyer2010-cranksite>`
+
+            .. grid-item::
+               :ref:`site<actuator-geyer2010-site>`
+
+            .. grid-item::
+               :ref:`refsite<actuator-geyer2010-refsite>`
+
+            .. grid-item::
+               :ref:`timeconst<actuator-geyer2010-timeconst>`
+
+            .. grid-item::
+               :ref:`tausmooth<actuator-geyer2010-tausmooth>`
+
+            .. grid-item::
+               :ref:`force<actuator-geyer2010-force>`
+
+            .. grid-item::
+               :ref:`optlength<actuator-geyer2010-optlength>`
+
+            .. grid-item::
+               :ref:`slacklength<actuator-geyer2010-slacklength>`
+
+            .. grid-item::
+               :ref:`vmax<actuator-geyer2010-vmax>`
+
+            .. grid-item::
+               :ref:`fiberdamping<actuator-geyer2010-fiberdamping>`
+
+            .. grid-item::
+               :ref:`rigidtendon<actuator-geyer2010-rigidtendon>`
+
+            .. grid-item::
+               :ref:`activecurve<actuator-geyer2010-activecurve>`
+
+            .. grid-item::
+               :ref:`passivecurve<actuator-geyer2010-passivecurve>`
+
+            .. grid-item::
+               :ref:`tendoncurve<actuator-geyer2010-tendoncurve>`
+
+            .. grid-item::
+               :ref:`velocitycurve<actuator-geyer2010-velocitycurve>`
+
+
       .. dropdown:: :ref:`plugin<actuator-plugin>` |*|
 
          .. grid:: 2 3 4 4
@@ -6595,6 +6820,171 @@
 
             .. grid-item::
                :ref:`input<default-dcmotor-input>`
+
+
+      .. dropdown:: :ref:`millard2012<default-millard2012>` :octicon:`dot`
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`group<default-millard2012-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-millard2012-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-millard2012-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-millard2012-delay>`
+
+            .. grid-item::
+               :ref:`ctrlrange<default-millard2012-ctrlrange>`
+
+            .. grid-item::
+               :ref:`user<default-millard2012-user>`
+
+            .. grid-item::
+               :ref:`ctrllimited<default-millard2012-ctrllimited>`
+
+            .. grid-item::
+               :ref:`forcelimited<default-millard2012-forcelimited>`
+
+            .. grid-item::
+               :ref:`forcerange<default-millard2012-forcerange>`
+
+            .. grid-item::
+               :ref:`gear<default-millard2012-gear>`
+
+            .. grid-item::
+               :ref:`damping<default-millard2012-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-millard2012-armature>`
+
+            .. grid-item::
+               :ref:`cranklength<default-millard2012-cranklength>`
+
+            .. grid-item::
+               :ref:`timeconst<default-millard2012-timeconst>`
+
+            .. grid-item::
+               :ref:`minactivation<default-millard2012-minactivation>`
+
+            .. grid-item::
+               :ref:`force<default-millard2012-force>`
+
+            .. grid-item::
+               :ref:`optlength<default-millard2012-optlength>`
+
+            .. grid-item::
+               :ref:`slacklength<default-millard2012-slacklength>`
+
+            .. grid-item::
+               :ref:`vmax<default-millard2012-vmax>`
+
+            .. grid-item::
+               :ref:`pennation<default-millard2012-pennation>`
+
+            .. grid-item::
+               :ref:`fiberdamping<default-millard2012-fiberdamping>`
+
+            .. grid-item::
+               :ref:`rigidtendon<default-millard2012-rigidtendon>`
+
+            .. grid-item::
+               :ref:`activecurve<default-millard2012-activecurve>`
+
+            .. grid-item::
+               :ref:`passivecurve<default-millard2012-passivecurve>`
+
+            .. grid-item::
+               :ref:`tendoncurve<default-millard2012-tendoncurve>`
+
+            .. grid-item::
+               :ref:`velocitycurve<default-millard2012-velocitycurve>`
+
+
+      .. dropdown:: :ref:`geyer2010<default-geyer2010>` :octicon:`dot`
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`group<default-geyer2010-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-geyer2010-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-geyer2010-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-geyer2010-delay>`
+
+            .. grid-item::
+               :ref:`ctrlrange<default-geyer2010-ctrlrange>`
+
+            .. grid-item::
+               :ref:`user<default-geyer2010-user>`
+
+            .. grid-item::
+               :ref:`ctrllimited<default-geyer2010-ctrllimited>`
+
+            .. grid-item::
+               :ref:`forcelimited<default-geyer2010-forcelimited>`
+
+            .. grid-item::
+               :ref:`forcerange<default-geyer2010-forcerange>`
+
+            .. grid-item::
+               :ref:`gear<default-geyer2010-gear>`
+
+            .. grid-item::
+               :ref:`damping<default-geyer2010-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-geyer2010-armature>`
+
+            .. grid-item::
+               :ref:`cranklength<default-geyer2010-cranklength>`
+
+            .. grid-item::
+               :ref:`timeconst<default-geyer2010-timeconst>`
+
+            .. grid-item::
+               :ref:`tausmooth<default-geyer2010-tausmooth>`
+
+            .. grid-item::
+               :ref:`force<default-geyer2010-force>`
+
+            .. grid-item::
+               :ref:`optlength<default-geyer2010-optlength>`
+
+            .. grid-item::
+               :ref:`slacklength<default-geyer2010-slacklength>`
+
+            .. grid-item::
+               :ref:`vmax<default-geyer2010-vmax>`
+
+            .. grid-item::
+               :ref:`fiberdamping<default-geyer2010-fiberdamping>`
+
+            .. grid-item::
+               :ref:`rigidtendon<default-geyer2010-rigidtendon>`
+
+            .. grid-item::
+               :ref:`activecurve<default-geyer2010-activecurve>`
+
+            .. grid-item::
+               :ref:`passivecurve<default-geyer2010-passivecurve>`
+
+            .. grid-item::
+               :ref:`tendoncurve<default-geyer2010-tendoncurve>`
+
+            .. grid-item::
+               :ref:`velocitycurve<default-geyer2010-velocitycurve>`
 
 
    .. dropdown:: :ref:`custom<custom>` |*|

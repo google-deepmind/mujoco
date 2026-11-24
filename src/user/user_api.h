@@ -274,6 +274,37 @@ MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator,
                                    double       lugre[5],
                                    int          ctrlspec);
 
+// Set actuator to Geyer2010 compliant-tendon muscle, return error on failure.
+MJAPI const char* mjs_setToGeyer2010(mjsActuator* actuator,
+                                     double       timeconst[2],
+                                     double       tausmooth,
+                                     double       force,
+                                     double       optlength,
+                                     double       slacklength,
+                                     double       vmax,
+                                     double       fiberdamping,
+                                     int          rigidtendon,
+                                     double       activecurve[2],
+                                     double       passivecurve[2],
+                                     double       tendoncurve,
+                                     double       velocitycurve);
+
+// Set actuator to Millard2012 compliant-tendon muscle, return error on failure.
+MJAPI const char* mjs_setToMillard2012(mjsActuator* actuator,
+                                       double       timeconst[2],
+                                       double       minactivation,
+                                       double       force,
+                                       double       optlength,
+                                       double       slacklength,
+                                       double       vmax,
+                                       double       pennation,
+                                       double       fiberdamping,
+                                       int          rigidtendon,
+                                       double       activecurve[4],
+                                       double       passivecurve[5],
+                                       double       tendoncurve[4],
+                                       double       velocitycurve[6]);
+
 
 //---------------------------------- Add assets ----------------------------------------------------
 

@@ -2467,6 +2467,16 @@ static const char* validateActuators(const mjModel* m) {
       }
       break;
 
+    case mjDYN_MILLARD2012:
+    case mjDYN_GEYER2010:
+      if (actnum != 2) {
+        return "Invalid model: compliant-tendon muscle requires actuator_actnum 2.";
+      }
+      if (ctrlnum < 1) {
+        return "Invalid model: actuator_ctrlnum is too small for the dynamics.";
+      }
+      break;
+
     default:
       break;
     }
