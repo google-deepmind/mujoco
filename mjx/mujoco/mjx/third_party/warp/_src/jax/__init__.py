@@ -7,41 +7,60 @@ import warp
 def device_to_jax(warp_device: warp.DeviceLike):
     """Return the Jax device corresponding to a Warp device.
 
+    Only Jax devices that belong to the current process are returned. A Warp CUDA device maps to the
+    local Jax GPU with the same process-local ordinal (``jax.Device.local_hardware_id``), which also holds
+    in multi-process programs that use :func:`jax.distributed.initialize`.
+
     Returns:
         :class:`jax.Device`
 
     Raises:
-        RuntimeError: Failed to find the corresponding Jax device.
+        RuntimeError: Failed to find the corresponding Jax device in the current process.
     """
     import jax  # noqa: PLC0415
 
     d = warp.get_device(warp_device)
 
+    try:
+        jax_devices = jax.local_devices(backend="cuda" if d.is_cuda else "cpu")
+    except RuntimeError:
+        jax_devices = []
+
     if d.is_cuda:
-        cuda_devices = jax.devices("cuda")
-        if d.ordinal >= len(cuda_devices):
-            raise RuntimeError(f"Jax device corresponding to '{warp_device}' is not available")
-        return cuda_devices[d.ordinal]
-    else:
-        cpu_devices = jax.devices("cpu")
-        if not cpu_devices:
-            raise RuntimeError(f"Jax device corresponding to '{warp_device}' is not available")
-        return cpu_devices[0]
+        for jax_device in jax_devices:
+            if jax_device.local_hardware_id == d.ordinal:
+                return jax_device
+    elif jax_devices:
+        return jax_devices[0]
+
+    raise RuntimeError(f"Jax device corresponding to '{warp_device}' is not available")
 
 
 def device_from_jax(jax_device) -> warp._src.context.Device:
     """Return the Warp device corresponding to a Jax device.
 
+    A Jax GPU maps to the Warp CUDA device with the same process-local ordinal
+    (``jax.Device.local_hardware_id``). This differs from the global ``jax.Device.id`` in multi-process
+    programs that use :func:`jax.distributed.initialize`.
+
     Args:
         jax_device (jax.Device): A Jax device descriptor.
 
     Raises:
-        RuntimeError: The Jax device is neither a CPU nor GPU device.
+        RuntimeError: The Jax device is neither a CPU nor GPU device, or it is a GPU that belongs to
+            another process.
     """
     if jax_device.platform == "cpu":
         return warp.get_device("cpu")
     elif jax_device.platform == "gpu":
-        return warp.get_cuda_device(jax_device.id)
+        import jax  # noqa: PLC0415
+
+        if jax_device.process_index != jax.process_index() or jax_device.local_hardware_id is None:
+            raise RuntimeError(
+                f"Jax device '{jax_device}' belongs to process {jax_device.process_index} "
+                f"and is not addressable from process {jax.process_index()}"
+            )
+        return warp.get_cuda_device(jax_device.local_hardware_id)
     else:
         raise RuntimeError(f"Unsupported Jax device platform '{jax_device.platform}'")
 
