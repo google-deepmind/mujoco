@@ -3522,7 +3522,106 @@ void mj_constraintUpdate_impl(int ne, int nf, int nefc,
   }
 
   // update contact constraints (general path with elliptic cones)
-  for (int i=ne + nf; i < nefc; i++) {
+  int i = ne + nf;
+  while (i < nefc && type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
+    if (jar[i] >= 0) {
+      force[i] = 0;
+      state[i] = mjCNSTRSTATE_SATISFIED;
+    } else {
+      force[i] = -D[i]*jar[i];
+      if (cost) {
+        s += 0.5*D[i]*jar[i]*jar[i];
+      }
+      state[i] = mjCNSTRSTATE_QUADRATIC;
+    }
+    i++;
+  }
+
+  // 4-wide batched path for contiguous dim=3 elliptic contacts
+  for (; i + 12 <= nefc; i += 12) {
+    if (type[i+0] != mjCNSTR_CONTACT_ELLIPTIC ||
+        type[i+3] != mjCNSTR_CONTACT_ELLIPTIC ||
+        type[i+6] != mjCNSTR_CONTACT_ELLIPTIC ||
+        type[i+9] != mjCNSTR_CONTACT_ELLIPTIC) {
+      break;
+    }
+    const mjContact* c0 = contact + id[i+0];
+    const mjContact* c1 = contact + id[i+3];
+    const mjContact* c2 = contact + id[i+6];
+    const mjContact* c3 = contact + id[i+9];
+    if (c0->dim != 3 || c1->dim != 3 || c2->dim != 3 || c3->dim != 3) {
+      break;
+    }
+
+    const mjContact* cons[4] = {c0, c1, c2, c3};
+    mjtNum U1[4], U2[4], Tsqr[4], T[4];
+    for (int lane=0; lane < 4; lane++) {
+      int r = i + 3*lane;
+      const mjtNum* fric = cons[lane]->friction;
+      U1[lane] = jar[r+1] * fric[0];
+      U2[lane] = jar[r+2] * fric[1];
+      Tsqr[lane] = U1[lane]*U1[lane] + U2[lane]*U2[lane];
+    }
+    for (int lane=0; lane < 4; lane++) {
+      T[lane] = mju_sqrt(Tsqr[lane]);
+    }
+
+    for (int lane=0; lane < 4; lane++) {
+      int r = i + 3*lane;
+      const mjContact* con = cons[lane];
+      mjtNum mu = con->mu;
+      mjtNum N = jar[r] * mu;
+      mjtNum Tl = T[lane];
+
+      // top zone
+      if (N >= mu*Tl || (Tl <= 0 && N >= 0)) {
+        force[r+0] = 0;
+        force[r+1] = 0;
+        force[r+2] = 0;
+        state[r+0] = mjCNSTRSTATE_SATISFIED;
+        state[r+1] = mjCNSTRSTATE_SATISFIED;
+        state[r+2] = mjCNSTRSTATE_SATISFIED;
+      }
+
+      // bottom zone
+      else if (mu*N + Tl <= 0 || (Tl <= 0 && N < 0)) {
+        mjtNum j0 = jar[r+0], j1 = jar[r+1], j2 = jar[r+2];
+        mjtNum d0 = D[r+0], d1 = D[r+1], d2 = D[r+2];
+        force[r+0] = -d0*j0;
+        force[r+1] = -d1*j1;
+        force[r+2] = -d2*j2;
+        if (cost) {
+          s += 0.5*d0*j0*j0;
+          s += 0.5*d1*j1*j1;
+          s += 0.5*d2*j2*j2;
+        }
+        state[r+0] = mjCNSTRSTATE_QUADRATIC;
+        state[r+1] = mjCNSTRSTATE_QUADRATIC;
+        state[r+2] = mjCNSTRSTATE_QUADRATIC;
+      }
+
+      // middle zone
+      else {
+        mjtNum f0 = con->friction[0], f1 = con->friction[1];
+        mjtNum Dm = D[r] / (mu*mu*(1 + mu*mu));
+        mjtNum NmT = N - mu*Tl;
+        if (cost) {
+          s += 0.5*Dm*NmT*NmT;
+        }
+        mjtNum u0 = U1[lane] / Tl;
+        mjtNum u1 = U2[lane] / Tl;
+        mjtNum fn = -Dm*NmT*mu;
+        force[r+0] = fn;
+        force[r+1] = -fn*u0*f0;
+        force[r+2] = -fn*u1*f1;
+        state[r+0] = mjCNSTRSTATE_CONE;
+        state[r+1] = mjCNSTRSTATE_CONE;
+        state[r+2] = mjCNSTRSTATE_CONE;
+      }
+    }
+  }
+
+  for (; i < nefc; i++) {
 
     // non-negative constraint
     if (type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
