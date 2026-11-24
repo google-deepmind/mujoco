@@ -241,19 +241,21 @@ TEST_F(SolverTest, SolversEquivalent) {
     SolverTolerances tolerances;
   } kConfigs[] = {
       {.path = kModelPath,
-       .tolerances = {
-           .newton = MjTol(1e-13, 1e-5),
-           .cg = MjTol(1e-13, 1e-5),
-           .pgs_pyramidal = MjTol(1e-13, 1e-5),
-           .pgs_elliptic = MjTol(1e-3, 1e-3),
-       }},
+       .tolerances =
+           {
+               .newton = MjTol(1e-13, 1e-5),
+               .cg = MjTol(1e-13, 1e-5),
+               .pgs_pyramidal = MjTol(1e-13, 1e-5),
+               .pgs_elliptic = MjTol(1e-3, 1e-3),
+           }},
       {.path = kHumanoidPath,
-       .tolerances = {
-           .newton = MjTol(1e-13, 1e-5),
-           .cg = MjTol(1e-12, 1e-5),
-           .pgs_pyramidal = MjTol(1e-12, 1e-5),
-           .pgs_elliptic = MjTol(1e-8, 1e-4),
-       }},
+       .tolerances =
+           {
+               .newton = MjTol(1e-13, 1e-5),
+               .cg = MjTol(1e-12, 1e-5),
+               .pgs_pyramidal = MjTol(1e-12, 1e-5),
+               .pgs_elliptic = MjTol(1e-8, 1e-4),
+           }},
   };
 
   for (const auto& config : kConfigs) {
