@@ -269,4 +269,15 @@ void FilamentContext::ValidateSwapChains(
   }
 }
 
+const char* FilamentContext::GetBackendName() const {
+  switch (backend_) {
+    case filament::Engine::Backend::OPENGL:
+      return "opengl";
+    case filament::Engine::Backend::VULKAN:
+      return "vulkan";
+    default:
+      return "unknown";
+  }
+}
+
 }  // namespace mujoco

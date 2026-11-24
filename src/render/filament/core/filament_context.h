@@ -62,7 +62,7 @@ class FilamentContext : public mjrfContext {
 
   filament::Engine* GetEngine() const { return engine_; }
 
-  filament::Engine::Backend GetBackend() const { return backend_; }
+  const char* GetBackendName() const;
 
   ObjectManager* GetObjectManager() const { return object_manager_.get(); }
 
