@@ -54,6 +54,10 @@ Compiler
 - :ref:`strippath<compiler-strippath>` no longer strips file names that match a registered
   :ref:`resource provider<exProvider>`, such as ``package://`` URIs. These names are not filesystem paths, and the
   compiler already treats them as absolute when combining them with :ref:`meshdir<compiler-meshdir>`.
+- Added :ref:`facenormal<asset-mesh-facenormal>` and :ref:`facetexcoord<asset-mesh-facetexcoord>` to
+  :ref:`mesh<asset-mesh>`, so that meshes with per-corner normals or texture coordinates, such as those built by
+  importers and the USD decoder, are saved to MJCF and reload unchanged (:issue:`3931`). Inline meshes now also use
+  ``mjsMesh.userfacenormal``, which was previously only used for meshes loaded from files.
 
 Rendering
 ^^^^^^^^^
