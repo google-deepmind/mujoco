@@ -1487,6 +1487,45 @@ TEST_F(MjCJointTest, BodySimpleFalse) {
   EXPECT_THAT(d_ns->xpos[3 * b + 2], MjNear(d->xpos[3 * b + 2], 1e-10, 1e-6));
 }
 
+// sliders on the same axis are coupled by the mass of their body, which is then
+// not simple
+TEST_F(MjCJointTest, RepeatedSlideAxisDemotesSimpleBody) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" axis="0 0 1" armature="1"/>
+        <joint type="slide" axis="0 0 -1" armature="1"/>
+        <geom size=".1" mass="1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint type="slide" axis="1 0 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <geom size=".1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  EXPECT_EQ(m->body_simple[1], 0);
+  EXPECT_EQ(m->body_simple[2], 2);
+
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  // M = [[mass + armature, -mass], [-mass, mass + armature]]
+  EXPECT_EQ(m->M_rownnz[1], 2);
+  mjtNum* M = d->M + m->M_rowadr[1];
+  EXPECT_THAT(M[0], MjNear(-1, 1e-14, 1e-6));
+  EXPECT_THAT(M[1], MjNear(2, 1e-14, 1e-6));
+
+  // free fall: the two sliders together accelerate by 2/3 of gravity
+  mjtNum acc = d->qacc[0] - d->qacc[1];
+  EXPECT_THAT(acc, MjNear(m->opt.gravity[2] * 2 / 3, 1e-14, 1e-5));
+}
+
 // the armature of a fixed tendon, or of an actuator on a tendon, couples the
 // dofs of a body which is then not simple
 TEST_F(MjCJointTest, TendonArmatureCouplingDemotesSimpleBody) {

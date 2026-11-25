@@ -2371,8 +2371,8 @@ defined. Its body name is automatically defined as "world".
    - **Kinematic root**: The body's parent is either the world body or a static body.
    - **Leaf body**: The body is a leaf node in the kinematic tree (it has no child bodies).
    - **Origin-centered joints**: All joints belonging to this body must reside at the body's origin.
-   - **Aligned joint axes**: Any hinge or slide joint axes must be aligned with the local coordinate axes, and at most
-     one joint with rotational degrees of freedom (hinge or ball) is permitted.
+   - **Aligned joint axes**: Any hinge or slide joint axes must be aligned with the local coordinate axes, slide joints
+     must not share an axis, and at most one joint with rotational degrees of freedom (hinge or ball) is permitted.
    - **No inertia-bearing tendons**: The body must not contain sites or geoms used as wrap objects by any tendon that
      has non-zero :ref:`armature<tendon-spatial-armature>`.
 

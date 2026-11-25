@@ -8696,8 +8696,8 @@ TEST_F(ForwardTest, CheckWarningCount) {
   <mujoco>
     <worldbody>
       <body>
-        <joint type="slide"/>
-        <joint type="slide"/>
+        <joint type="slide" axis="1 0 0"/>
+        <joint type="slide" axis="0 1 0"/>
         <geom size="1"/>
       </body>
     </worldbody>
