@@ -502,7 +502,7 @@ def rungekutta4(m: Model, d: Data) -> Data:
     kact = d0.act + dact_dot * m.opt.timestep
     kqvel = d0.qvel + dqacc * m.opt.timestep
     d = d.replace(qpos=kqpos, qvel=kqvel, act=kact, time=t)
-    d = forward(m, d)
+    d = _forward(m, d, skip_sensor=True)
 
     # RKMK: map the stage angular velocities to rotation vector rates
     if has_rot_jnt:
@@ -550,20 +550,17 @@ def implicit(m: Model, d: Data) -> Data:
   return _advance(m, d, d.act_dot, qacc)
 
 
-@named_scope
-def forward(m: Model, d: Data) -> Data:
-  """Forward dynamics."""
-  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
-    from mujoco.mjx.warp import forward as mjxw_forward  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
-    return mjxw_forward.forward(m, d)
-
+def _forward(m: Model, d: Data, skip_sensor: bool = False) -> Data:
+  """Internal JAX forward dynamics with optional sensor skipping."""
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('forward requires JAX backend implementation.')
 
   d = fwd_position(m, d)
-  d = sensor.sensor_pos(m, d)
+  if not skip_sensor:
+    d = sensor.sensor_pos(m, d)
   d = fwd_velocity(m, d)
-  d = sensor.sensor_vel(m, d)
+  if not skip_sensor:
+    d = sensor.sensor_vel(m, d)
   d = fwd_actuation(m, d)
   d = fwd_acceleration(m, d)
 
@@ -572,9 +569,20 @@ def forward(m: Model, d: Data) -> Data:
     return d
 
   d = named_scope(solver.solve)(m, d)
-  d = sensor.sensor_acc(m, d)
+  if not skip_sensor:
+    d = sensor.sensor_acc(m, d)
 
   return d
+
+
+@named_scope
+def forward(m: Model, d: Data) -> Data:
+  """Forward dynamics."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import forward as mjxw_forward  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
+    return mjxw_forward.forward(m, d)
+
+  return _forward(m, d)
 
 
 @named_scope
