@@ -26,11 +26,11 @@ material {
     depthWrite : false,
     depthCulling : false,
     parameters : [
-        { type : sampler2d, name : source },
+        { type : sampler2d, name : source, precision : high },
         { type : sampler2d, name : scene_depth, precision : high, filterable : false },
         { type : sampler2d, name : selection_depth, precision : high, filterable : false },
         { type : float4, name : color },
-        { type : float, name : width },
+        { type : float, name : width, precision : high },
         { type : float, name : dim }
     ],
     variables : [
@@ -46,25 +46,25 @@ vertex {
 }
 
 fragment {
-  vec2 unpack(vec4 value) {
-    float x = value.r + value.g / 255.0;
-    float y = value.b + value.a / 255.0;
+  highp vec2 unpack(highp vec4 value) {
+    highp float x = value.r + value.g / 255.0;
+    highp float y = value.b + value.a / 255.0;
     // Reverse scale and bias
     return (vec2(x, y) - 0.001) / 0.999;
   }
 
   void postProcess(inout PostProcessInputs postProcess) {
-    vec4 tex = texture(materialParams_source, variable_vertex.xy);
+    highp vec4 tex = texture(materialParams_source, variable_vertex.xy);
     if (tex == vec4(0.0)) {
       discard;
     }
 
-    vec2 edge = unpack(tex);
+    highp vec2 edge = unpack(tex);
 
     // Calculate distance to the nearest edge in pixel units.
-    vec2 size = vec2(textureSize(materialParams_source, 0));
-    vec2 diff = (edge - variable_vertex.xy) * size;
-    float dist = length(diff);
+    highp vec2 size = vec2(textureSize(materialParams_source, 0));
+    highp vec2 diff = (edge - variable_vertex.xy) * size;
+    highp float dist = length(diff);
 
     // Exclude the interior of the selected object itself.
     if (dist <= 0.5) {
@@ -72,16 +72,16 @@ fragment {
     }
 
     // Only draw outline if the pixel is within 'width' of an edge.
-    float width = materialParams.width;
+    highp float width = materialParams.width;
     if (dist >= width) {
       discard;
     }
 
     // Inner edge anti-aliasing (smooths transition from object to outline).
     // Outer edge anti-aliasing (fades at the outline boundary).
-    float inner_alpha = smoothstep(0.0, 1.0, dist);
-    float outer_alpha = smoothstep(width, width - 1.0, dist);
-    float alpha = outer_alpha * inner_alpha;
+    highp float inner_alpha = smoothstep(0.0, 1.0, dist);
+    highp float outer_alpha = 1.0 - smoothstep(width - 1.0, width, dist);
+    highp float alpha = outer_alpha * inner_alpha;
 
     // Dim the outline where it is occluded. The depth buffer is reversed
     // (1 = near, 0 = far), so the outline is occluded if the scene depth at

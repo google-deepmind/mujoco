@@ -32,18 +32,18 @@ fragment {
   // We do this by packing each coordinate into a 16-bit value. Values are
   // adjusted to ensure [0x0000] is reserved for "untouched" pixels rather
   // than the pixel at the position (0, 0).
-  vec4 pack(vec2 value) {
+  highp vec4 pack(highp vec2 value) {
     // Scale and bias the value to avoid (0,0,0,0).
-    vec2 adjusted = value * 0.999 + 0.001;
+    highp vec2 adjusted = value * 0.999 + 0.001;
 
     // Pack float [0, 1] into two 8-bit channels.
-    float val_x = adjusted.x * 255.0;
-    float r_x = floor(val_x) / 255.0;
-    float g_x = fract(val_x);
+    highp float val_x = adjusted.x * 255.0;
+    highp float r_x = floor(val_x) / 255.0;
+    highp float g_x = fract(val_x);
 
-    float val_y = adjusted.y * 255.0;
-    float r_y = floor(val_y) / 255.0;
-    float g_y = fract(val_y);
+    highp float val_y = adjusted.y * 255.0;
+    highp float r_y = floor(val_y) / 255.0;
+    highp float g_y = fract(val_y);
 
     return vec4(r_x, g_x, r_y, g_y);
   }
@@ -52,7 +52,7 @@ fragment {
     prepareMaterial(material);
 
     // Get the screen-space position of the fragment, normalized to [0-1].
-    vec2 uv = gl_FragCoord.xy * frameUniforms.resolution.zw;
+    highp vec2 uv = gl_FragCoord.xy * frameUniforms.resolution.zw;
     material.baseColor = pack(uv);
   }
 }
