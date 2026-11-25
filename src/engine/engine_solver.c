@@ -30,6 +30,7 @@
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_metric.h"
+#include "engine/engine_simd.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -1147,6 +1148,9 @@ typedef struct {
   mjtNum* search;         // linesearch vector                            (nv x 1)
   mjtNum* quad;           // quadratic polynomials for constraint costs   (nefc x 3)
   int* oldstate;          // previous constraint state                    (nefc x 1)
+  int efc_cone_start;     // first elliptic contact row, or nefc if none
+  int efc_cone3_start;    // start of 4-wide contiguous dim=3 elliptic contacts
+  int efc_cone3_end;      // end of 4-wide contiguous dim=3 elliptic contacts
 
   // CG arrays (PrimalAllocate, CG only)
   mjtNum* gradold;        // previous gradient                            (nv x 1)
@@ -1238,6 +1242,20 @@ typedef struct {
   int LSresult;           // linesearch result
   mjtNum LSslope;         // linesearch slope at solution
 } mjPrimalContext;
+
+
+// return 1 if 4 contiguous dim=3 elliptic contacts start at pos
+static inline int isFourDim3Elliptic(const mjPrimalContext* ctx, int pos) {
+  return pos + 12 <= ctx->nefc &&
+         ctx->efc_type[pos+0] == mjCNSTR_CONTACT_ELLIPTIC &&
+         ctx->contact[ctx->efc_id[pos+0]].dim == 3 &&
+         ctx->efc_type[pos+3] == mjCNSTR_CONTACT_ELLIPTIC &&
+         ctx->contact[ctx->efc_id[pos+3]].dim == 3 &&
+         ctx->efc_type[pos+6] == mjCNSTR_CONTACT_ELLIPTIC &&
+         ctx->contact[ctx->efc_id[pos+6]].dim == 3 &&
+         ctx->efc_type[pos+9] == mjCNSTR_CONTACT_ELLIPTIC &&
+         ctx->contact[ctx->efc_id[pos+9]].dim == 3;
+}
 
 
 // set sizes and pointers to mjData arrays in mjPrimalContext
@@ -1343,18 +1361,40 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     }
   }
 
-  // check whether any elliptic contact constraint is actually present
+  // check whether any elliptic contact constraint is actually present and find 4-wide dim=3 span
+  ctx->efc_cone_start = ctx->nefc;
+  ctx->efc_cone3_start = ctx->nefc;
+  ctx->efc_cone3_end = ctx->nefc;
   if (ctx->is_elliptic) {
     int has_elliptic = 0;
     if (d->ncon > 0) {
       for (int i = ctx->ne + ctx->nf; i < ctx->nefc; i++) {
         if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
+          ctx->efc_cone_start = i;
           has_elliptic = 1;
           break;
         }
       }
     }
     ctx->is_elliptic = has_elliptic;
+    if (has_elliptic) {
+      int pos = ctx->efc_cone_start;
+      int start = pos, end = pos;
+      while (pos + 12 <= ctx->nefc) {
+        if (isFourDim3Elliptic(ctx, pos)) {
+          start = pos;
+          do {
+            pos += 12;
+          } while (isFourDim3Elliptic(ctx, pos));
+          end = pos;
+          break;
+        }
+        pos += (ctx->efc_type[pos] == mjCNSTR_CONTACT_ELLIPTIC)
+                   ? ctx->contact[ctx->efc_id[pos]].dim : 1;
+      }
+      ctx->efc_cone3_start = start;
+      ctx->efc_cone3_end = end;
+    }
   }
 }
 
@@ -1686,7 +1726,9 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     CARVE_NUM(ctx->grad,   nv);
     CARVE_NUM(ctx->Mgrad,  nv);
     CARVE_NUM(ctx->search, nv);
-    CARVE_NUM(ctx->quad,   3*nefc);
+    if (is_elliptic) {
+      CARVE_NUM(ctx->quad, 3*nefc);
+    }
     if (is_sparse) {
       CARVE_NUM(ctx->JT, nJ);
     }
@@ -1938,78 +1980,158 @@ static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
 }
 
 
+// 36-element SoA layout in ctx->quad + 3*i for 4 contiguous dim=3 elliptic contacts (4*3*3 = 36)
+enum {
+  CONE4_Q0 = 0,  CONE4_Q1 = 4,  CONE4_Q2 = 8,
+  CONE4_U0 = 12, CONE4_T0 = 16, CONE4_DM = 20,
+  CONE4_MU = 24, CONE4_F0 = 28, CONE4_F1 = 32
+};
+
+
+// 4-wide batched preparation for contiguous dim=3 elliptic contacts
+static void PrimalPrepareElliptic4(mjPrimalContext* ctx) {
+  mjtNum4 vhalf = v4_splat(0.5);
+  mjtNum4 vone = v4_splat(1);
+  for (int i = ctx->efc_cone3_start; i < ctx->efc_cone3_end; i += 12) {
+    mjtNum4 J0, J1, J2, K0, K1, K2, D0, D1, D2;
+    v4_load4x3(ctx->Jaref + i, &J0, &J1, &J2);
+    v4_load4x3(ctx->Jv + i, &K0, &K1, &K2);
+    v4_load4x3(ctx->efc_D + i, &D0, &D1, &D2);
+
+    const mjContact* c0 = ctx->contact + ctx->efc_id[i+0];
+    const mjContact* c1 = ctx->contact + ctx->efc_id[i+3];
+    const mjContact* c2 = ctx->contact + ctx->efc_id[i+6];
+    const mjContact* c3 = ctx->contact + ctx->efc_id[i+9];
+
+    mjtNum4 vmu = v4_set(c0->mu, c1->mu, c2->mu, c3->mu);
+    mjtNum4 vf0 = v4_set(c0->friction[0], c1->friction[0], c2->friction[0], c3->friction[0]);
+    mjtNum4 vf1 = v4_set(c0->friction[1], c1->friction[1], c2->friction[1], c3->friction[1]);
+
+    // bottom-zone quadratic coefficients (q0, q1, q2)
+    mjtNum4 DJ0 = v4_mul(D0, J0);
+    mjtNum4 DJ1 = v4_mul(D1, J1);
+    mjtNum4 DJ2 = v4_mul(D2, J2);
+    mjtNum4 vq0 = v4_mul(vhalf, v4_add(v4_add(v4_mul(J0, DJ0), v4_mul(J1, DJ1)),
+                                       v4_mul(J2, DJ2)));
+    mjtNum4 vq1 = v4_add(v4_add(v4_mul(K0, DJ0), v4_mul(K1, DJ1)), v4_mul(K2, DJ2));
+    mjtNum4 vq2 = v4_mul(vhalf, v4_add(v4_add(v4_mul(v4_mul(K0, D0), K0),
+                                              v4_mul(v4_mul(K1, D1), K1)),
+                                       v4_mul(v4_mul(K2, D2), K2)));
+
+    // cone quantities at alpha=0 (normal U0, tangential norm T0, middle-zone metric Dm)
+    mjtNum4 vU0 = v4_mul(J0, vmu);
+    mjtNum4 vU1 = v4_mul(J1, vf0);
+    mjtNum4 vU2 = v4_mul(J2, vf1);
+    mjtNum4 vT0 = v4_sqrt(v4_add(v4_mul(vU1, vU1), v4_mul(vU2, vU2)));
+    mjtNum4 mu2 = v4_mul(vmu, vmu);
+    mjtNum4 vDm = v4_div(D0, v4_mul(mu2, v4_add(vone, mu2)));
+
+    mjtNum* w = ctx->quad + 3*i;
+    v4_store(w + CONE4_Q0, vq0);
+    v4_store(w + CONE4_Q1, vq1);
+    v4_store(w + CONE4_Q2, vq2);
+    v4_store(w + CONE4_U0, vU0);
+    v4_store(w + CONE4_T0, vT0);
+    v4_store(w + CONE4_DM, vDm);
+    v4_store(w + CONE4_MU, vmu);
+    v4_store(w + CONE4_F0, vf0);
+    v4_store(w + CONE4_F1, vf1);
+  }
+}
+
+
 // prepare quadratic polynomials and contact cone quantities
 static void PrimalPrepare(mjPrimalContext* ctx) {
-  int nv = ctx->nv, nefc = ctx->nefc;
+  int nv = ctx->nv, ne = ctx->ne, nefc = ctx->nefc;
   const mjtNum* v = ctx->search;
 
   // Gauss: alpha^2*0.5*v'*M*v + alpha*v'*(Ma-qfrc_smooth) + 0.5*(a-qacc_smooth)'*(Ma-qfrc_smooth)
   //  quadGauss[0] already computed in PrimalUpdateConstraint
-  ctx->quadGauss[1] = mju_dot(v, ctx->Ma, nv) - mju_dot(ctx->qfrc_smooth, v, nv);
-  ctx->quadGauss[2] = 0.5*mju_dot(v, ctx->Mv, nv);
+  mjtNum qg1 = mju_dot(v, ctx->Ma, nv) - mju_dot(ctx->qfrc_smooth, v, nv);
+  mjtNum qg2 = 0.5*mju_dot(v, ctx->Mv, nv);
 
-  // fast path: no elliptic cones
-  if (!ctx->is_elliptic) {
-    for (int i=0; i < nefc; i++) {
-      mjtNum Jv = ctx->Jv[i];
-      mjtNum Jaref = ctx->Jaref[i];
-      mjtNum D = ctx->efc_D[i];
-      mjtNum DJ0 = D*Jaref;
-      mjtNum* quad = ctx->quad + 3*i;
-      quad[0] = 0.5*(Jaref*DJ0);
-      quad[1] = Jv*DJ0;
-      quad[2] = 0.5*(Jv*D*Jv);
+  // fold alpha-invariant equality rows directly into quadGauss[1..2] once per linesearch
+  if (ne > 0) {
+    mjtNum4 vhalf = v4_splat(0.5);
+    mjtNum4 eq1_v = v4_splat(0), eq2_v = v4_splat(0);
+    int i = 0;
+    for (; i + 4 <= ne; i += 4) {
+      mjtNum4 vj0 = v4_load(ctx->Jaref + i);
+      mjtNum4 vjv = v4_load(ctx->Jv + i);
+      mjtNum4 vd  = v4_load(ctx->efc_D + i);
+      eq1_v = v4_add(eq1_v, v4_mul(vjv, v4_mul(vd, vj0)));
+      eq2_v = v4_add(eq2_v, v4_mul(vhalf, v4_mul(v4_mul(vjv, vd), vjv)));
     }
+    qg1 += v4_sum(eq1_v);
+    qg2 += v4_sum(eq2_v);
+    for (; i < ne; i++) {
+      mjtNum Jv = ctx->Jv[i];
+      mjtNum D = ctx->efc_D[i];
+      qg1 += Jv*(D*ctx->Jaref[i]);
+      qg2 += 0.5*(Jv*D*Jv);
+    }
+  }
+  ctx->quadGauss[1] = qg1;
+  ctx->quadGauss[2] = qg2;
+
+  // fast path: no elliptic cones (unilateral rows are evaluated directly from Jaref, Jv, efc_D)
+  if (!ctx->is_elliptic) {
     return;
   }
 
-  // process constraints
-  for (int i=0; i < nefc; i++) {
+  // 4-wide batched preparation for contiguous dim=3 elliptic contacts
+  PrimalPrepareElliptic4(ctx);
+
+  // process remaining elliptic cones outside 4-wide dim=3 span
+  for (int i = ctx->efc_cone_start; i < nefc; i++) {
+    if (i == ctx->efc_cone3_start) {
+      i = ctx->efc_cone3_end;
+      if (i >= nefc) {
+        break;
+      }
+    }
+    if (ctx->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
+      continue;
+    }
+
     // pointers to numeric data
     const mjtNum* Jv = ctx->Jv + i;
     const mjtNum* Jaref = ctx->Jaref + i;
     const mjtNum* D = ctx->efc_D + i;
-
-    // pointer to this quadratic
     mjtNum* quad = ctx->quad + 3*i;
 
-    // init with scalar quadratic
+    // init with normal row quadratic
     mjtNum DJ0 = D[0]*Jaref[0];
     quad[0] = Jaref[0]*DJ0;
     quad[1] = Jv[0]*DJ0;
     quad[2] = Jv[0]*D[0]*Jv[0];
 
-    // elliptic cone: extra processing
-    if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
-      // extract contact info
-      const mjContact* con = ctx->contact + ctx->efc_id[i];
-      int dim = con->dim;
-      mjtNum UU = 0, mu = con->mu;
-      const mjtNum* friction = con->friction;
+    // extract contact info
+    const mjContact* con = ctx->contact + ctx->efc_id[i];
+    int dim = con->dim;
+    mjtNum UU = 0, mu = con->mu;
+    const mjtNum* friction = con->friction;
 
-      // complete vector quadratic (for bottom zone) and tangential norm at alpha=0
-      for (int j=1; j < dim; j++) {
-        mjtNum DJj = D[j]*Jaref[j];
-        quad[0] += Jaref[j]*DJj;
-        quad[1] += Jv[j]*DJj;
-        quad[2] += Jv[j]*D[j]*Jv[j];
-        mjtNum Uj = Jaref[j]*friction[j-1];
-        UU += Uj*Uj;
-      }
-
-      // store cone quantities in quad[3-6], using the fact that dim>=3
-      quad[3] = Jaref[0]*mu;
-      quad[4] = Jv[0]*mu;
-      quad[5] = mju_sqrt(UU);
-      quad[6] = D[0] / ((mu*mu) * (1 + (mu*mu)));
-
-      // advance to next constraint
-      i += (dim-1);
+    // complete vector quadratic (for bottom zone) and tangential norm at alpha=0
+    for (int j=1; j < dim; j++) {
+      mjtNum DJj = D[j]*Jaref[j];
+      quad[0] += Jaref[j]*DJj;
+      quad[1] += Jv[j]*DJj;
+      quad[2] += Jv[j]*D[j]*Jv[j];
+      mjtNum Uj = Jaref[j]*friction[j-1];
+      UU += Uj*Uj;
     }
 
-    // apply scaling
+    // store cone quantities in quad[3-6], using the fact that dim>=3
+    quad[3] = Jaref[0]*mu;
+    quad[4] = Jv[0]*mu;
+    quad[5] = mju_sqrt(UU);
+    quad[6] = D[0] / ((mu*mu) * (1 + (mu*mu)));
+
+    // apply scaling and advance to next constraint
     quad[0] *= 0.5;
     quad[2] *= 0.5;
+    i += (dim-1);
   }
 }
 
@@ -2150,6 +2272,202 @@ static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu,
 }
 
 
+// branchless 4-wide evaluation for unilateral prefix [ne+nf, efc_cone_start)
+//  uses factored difference-of-squares cost to avoid cancellation on active-set crossings
+static void PrimalEvalUnilateral(const mjPrimalContext* ctx, mjtNum alpha,
+                                 mjtNum* qg1, mjtNum* qg2, mjtNum* cost, mjtNum deriv[2]) {
+  int u0 = ctx->ne + ctx->nf;
+  int nuni = ctx->efc_cone_start - u0;
+  if (nuni <= 0) {
+    return;
+  }
+
+  const mjtNum* Jaref_u = ctx->Jaref + u0;
+  const mjtNum* Jv_u = ctx->Jv + u0;
+  const mjtNum* D_u = ctx->efc_D + u0;
+  int k = 0;
+
+  if (nuni >= 4) {
+    mjtNum qg_d0 = 0.25 * (2*alpha*(*qg2) + (*qg1));
+    mjtNum4 valpha = v4_splat(alpha);
+    mjtNum4 vhalf = v4_splat(0.5);
+    mjtNum4 vzero = v4_splat(0);
+    mjtNum4 acc_c = vzero;
+    mjtNum4 acc_d0 = v4_splat(qg_d0);
+    mjtNum4 acc_d1 = vzero;
+
+    for (; k + 4 <= nuni; k += 4) {
+      mjtNum4 vstart = v4_load(Jaref_u + k);
+      mjtNum4 vjv    = v4_load(Jv_u + k);
+      mjtNum4 vd     = v4_load(D_u + k);
+      mjtNum4 vstep  = v4_mul(valpha, vjv);
+      mjtNum4 vx     = v4_add(vstart, vstep);
+      mjtMask4 m_s   = v4_cmplt(vstart, vzero);
+      mjtMask4 m_x   = v4_cmplt(vx, vzero);
+
+      mjtNum4 vdjv = v4_mul(vd, vjv);
+      acc_d0 = v4_add(acc_d0, v4_select(m_x, v4_mul(vx, vdjv), vzero));
+      acc_d1 = v4_add(acc_d1, v4_select(m_x, v4_mul(vjv, vdjv), vzero));
+
+      // cost delta = 0.5*d*va*vb: step*(start+x) if both active, x^2 if entering, -start^2 if leaving
+      mjtNum4 va = v4_select(m_x, v4_select(m_s, vstep, vx), v4_sub(vzero, vstart));
+      mjtNum4 vb = v4_select(m_x, v4_select(m_s, v4_add(vstart, vx), vx), vstart);
+      mjtMask4 m_any = v4_or(m_s, m_x);
+      acc_c = v4_add(acc_c, v4_select(m_any, v4_mul(vhalf, v4_mul(vd, v4_mul(va, vb))), vzero));
+    }
+
+    *cost += v4_sum(acc_c) + alpha*(alpha*(*qg2) + (*qg1));
+    deriv[0] += v4_sum(acc_d0);
+    deriv[1] += v4_sum(acc_d1) + 2*(*qg2);
+    *qg1 = 0;
+    *qg2 = 0;
+  }
+
+  for (; k < nuni; k++) {
+    mjtNum start = Jaref_u[k];
+    mjtNum jv = Jv_u[k];
+    mjtNum d = D_u[k];
+    mjtNum step = alpha*jv;
+    mjtNum x = start + step;
+    if (x < 0) {
+      mjtNum djv = d*jv;
+      deriv[0] += x*djv;
+      deriv[1] += jv*djv;
+      *cost += (start < 0) ? 0.5*d*step*(start + x) : 0.5*d*x*x;
+    } else if (start < 0) {
+      *cost -= 0.5*d*start*start;
+    }
+  }
+}
+
+
+// 4-wide batched evaluation for contiguous dim=3 elliptic cones [efc_cone3_start, efc_cone3_end)
+static void PrimalEvalElliptic4(const mjPrimalContext* ctx, mjtNum alpha,
+                                mjtNum* cost, mjtNum deriv[2]) {
+  if (ctx->efc_cone3_start >= ctx->efc_cone3_end) {
+    return;
+  }
+
+  mjtNum4 valpha = v4_splat(alpha);
+  mjtNum4 vzero = v4_splat(0);
+  mjtNum4 acc_cost = vzero, acc_d0 = vzero, acc_d1 = vzero;
+
+  for (int i = ctx->efc_cone3_start; i < ctx->efc_cone3_end; i += 12) {
+    const mjtNum* w = ctx->quad + 3*i;
+
+    mjtNum4 J0, J1, J2, K0, K1, K2;
+    v4_load4x3(ctx->Jaref + i, &J0, &J1, &J2);
+    v4_load4x3(ctx->Jv + i, &K0, &K1, &K2);
+    (void)J0;  // J0 already scaled into CONE4_U0
+
+    // normal (N) and tangential (W1, W2, T) cone coordinates at alpha
+    mjtNum4 vf0 = v4_load(w + CONE4_F0);
+    mjtNum4 vf1 = v4_load(w + CONE4_F1);
+    mjtNum4 vU1 = v4_mul(J1, vf0);
+    mjtNum4 vV1 = v4_mul(K1, vf0);
+    mjtNum4 vW1 = v4_add(vU1, v4_mul(valpha, vV1));
+
+    mjtNum4 vU2 = v4_mul(J2, vf1);
+    mjtNum4 vV2 = v4_mul(K2, vf1);
+    mjtNum4 vW2 = v4_add(vU2, v4_mul(valpha, vV2));
+
+    mjtNum4 vmu = v4_load(w + CONE4_MU);
+    mjtNum4 vU0 = v4_load(w + CONE4_U0);
+    mjtNum4 vV0 = v4_mul(K0, vmu);
+    mjtNum4 vN  = v4_add(vU0, v4_mul(valpha, vV0));
+
+    mjtNum4 vTsqr = v4_add(v4_mul(vW1, vW1), v4_mul(vW2, vW2));
+    mjtNum4 vT = v4_sqrt(vTsqr);
+    mjtNum4 vT0 = v4_load(w + CONE4_T0);
+
+    // zone masks at alpha=0 and alpha (for T >= 0 and mu >= 0, U >= mu*T covers T == 0)
+    mjtMask4 m_top0 = v4_cmpge(vU0, v4_mul(vmu, vT0));
+    mjtMask4 m_bot0 = v4_andnot(m_top0, v4_or(v4_cmple(vT0, vzero),
+                                              v4_cmple(v4_add(v4_mul(vmu, vU0), vT0), vzero)));
+    mjtMask4 m_mid0 = v4_not(v4_or(m_top0, m_bot0));
+
+    mjtMask4 m_top = v4_cmpge(vN, v4_mul(vmu, vT));
+    mjtMask4 m_bot = v4_andnot(m_top, v4_or(v4_cmple(vTsqr, vzero),
+                                            v4_cmple(v4_add(v4_mul(vmu, vN), vT), vzero)));
+    mjtMask4 m_mid = v4_not(v4_or(m_top, m_bot));
+
+    // bottom-zone quadratic cost delta and derivatives
+    mjtNum4 vq1 = v4_load(w + CONE4_Q1);
+    mjtNum4 vq2 = v4_load(w + CONE4_Q2);
+    mjtNum4 vdq = v4_mul(valpha, v4_add(v4_mul(valpha, vq2), vq1));
+    mjtNum4 vc  = v4_select(v4_and(m_bot0, m_bot), vdq, vzero);
+    mjtNum4 v2q2 = v4_add(vq2, vq2);
+    mjtNum4 vd0 = v4_select(m_bot, v4_add(v4_mul(valpha, v2q2), vq1), vzero);
+    mjtNum4 vd1 = v4_select(m_bot, v2q2, vzero);
+
+    // middle -> middle: factored cost delta avoiding sqrt cancellation
+    mjtMask4 m_mid0_mid = v4_and(m_mid0, m_mid);
+    if (v4_any(m_mid0_mid)) {
+      mjtNum4 vDm = v4_load(w + CONE4_DM);
+      mjtNum4 vTsqr_delta = v4_add(v4_mul(v4_mul(valpha, vV1), v4_add(vU1, vW1)),
+                                   v4_mul(v4_mul(valpha, vV2), v4_add(vU2, vW2)));
+      mjtNum4 safe_sum = v4_select(m_mid0_mid, v4_add(vT, vT0), v4_splat(1));
+      mjtNum4 vT_delta = v4_div(v4_select(m_mid0_mid, vTsqr_delta, vzero), safe_sum);
+      mjtNum4 vr_delta = v4_sub(v4_mul(valpha, vV0), v4_mul(vmu, vT_delta));
+      mjtNum4 vr0 = v4_sub(vU0, v4_mul(vmu, vT0));
+      mjtNum4 vc_mid = v4_mul(v4_splat(0.5),
+                              v4_mul(vDm, v4_mul(vr_delta, v4_add(v4_add(vr0, vr0), vr_delta))));
+      vc = v4_add(vc, v4_select(m_mid0_mid, vc_mid, vzero));
+    }
+
+    // zone crossing: exact cost delta for all 6 transitions between {top, mid, bot}
+    mjtMask4 m_cross = v4_or(v4_xor(m_top0, m_top), v4_xor(m_bot0, m_bot));
+    if (v4_any(m_cross)) {
+      mjtNum4 vq0  = v4_load(w + CONE4_Q0);
+      mjtNum4 vDm  = v4_load(w + CONE4_DM);
+      mjtNum4 vhalf = v4_splat(0.5);
+      mjtNum4 bnd0 = v4_add(v4_mul(vmu, vU0), vT0);
+      mjtNum4 gap0 = v4_mul(vhalf, v4_mul(vDm, v4_mul(bnd0, bnd0)));
+      mjtNum4 bnd  = v4_add(v4_mul(vmu, vN), vT);
+      mjtNum4 gap  = v4_mul(vhalf, v4_mul(vDm, v4_mul(bnd, bnd)));
+      mjtNum4 vr0  = v4_sub(vU0, v4_mul(vmu, vT0));
+      mjtNum4 vr   = v4_sub(vN, v4_mul(vmu, vT));
+      mjtNum4 cm0  = v4_mul(vhalf, v4_mul(vDm, v4_mul(vr0, vr0)));
+      mjtNum4 cm   = v4_mul(vhalf, v4_mul(vDm, v4_mul(vr, vr)));
+
+      vc = v4_add(vc, v4_select(v4_and(m_mid0, m_bot), v4_add(vdq, gap0), vzero));
+      vc = v4_add(vc, v4_select(v4_and(m_bot0, m_mid), v4_sub(vdq, gap), vzero));
+      vc = v4_add(vc, v4_select(v4_and(m_top0, m_bot), v4_add(vdq, vq0), vzero));
+      vc = v4_add(vc, v4_select(v4_and(m_top0, m_mid), cm, vzero));
+      vc = v4_sub(vc, v4_select(v4_and(m_mid0, m_top), cm0, vzero));
+      vc = v4_sub(vc, v4_select(v4_and(m_bot0, m_top), vq0, vzero));
+    }
+    acc_cost = v4_add(acc_cost, vc);
+
+    // middle-zone derivatives (skip division if no lane is in middle zone)
+    if (v4_any(m_mid)) {
+      mjtNum4 vDm    = v4_load(w + CONE4_DM);
+      mjtNum4 safe_T = v4_select(m_mid, vT, v4_splat(1));
+      mjtNum4 vTinv  = v4_select(m_mid, v4_div(v4_splat(1), safe_T), vzero);
+      mjtNum4 vWV    = v4_add(v4_mul(vW1, vV1), v4_mul(vW2, vV2));
+      mjtNum4 What1  = v4_mul(vW1, vTinv);
+      mjtNum4 What2  = v4_mul(vW2, vTinv);
+      mjtNum4 d01    = v4_sub(v4_mul(What1, vV2), v4_mul(What2, vV1));
+      mjtNum4 det    = v4_mul(d01, d01);
+      mjtNum4 vT1    = v4_mul(vWV, vTinv);
+      mjtNum4 vNT    = v4_mul(vN, vTinv);
+      mjtNum4 dNmT   = v4_sub(vV0, v4_mul(vmu, vT1));
+      mjtNum4 mid_d0 = v4_mul(vDm, v4_mul(v4_sub(vN, v4_mul(vmu, vT)), dNmT));
+      mjtNum4 mid_d1 = v4_mul(vDm, v4_sub(v4_mul(dNmT, dNmT),
+                                          v4_mul(v4_sub(vNT, vmu), v4_mul(vmu, det))));
+      vd0 = v4_add(vd0, v4_select(m_mid, mid_d0, vzero));
+      vd1 = v4_add(vd1, v4_select(m_mid, mid_d1, vzero));
+    }
+    acc_d0 = v4_add(acc_d0, vd0);
+    acc_d1 = v4_add(acc_d1, vd1);
+  }
+
+  *cost += v4_sum(acc_cost);
+  deriv[0] += v4_sum(acc_d0);
+  deriv[1] += v4_sum(acc_d1);
+}
+
+
 // evaluate shifted linesearch cost: cost(alpha) - cost(0), and derivatives
 static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
   int ne = ctx->ne, nf = ctx->nf, nefc = ctx->nefc;
@@ -2158,14 +2476,8 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
   mjtNum cost = 0, alpha = p->alpha;
   mjtNum deriv[2] = {0, 0};
 
-  // init quad with Gauss, shifted: drop quadGauss[0]
-  mjtNum quadTotal[3] = {0, ctx->quadGauss[1], ctx->quadGauss[2]};
-
-  // equality: shifted quad (skip quad[0])
-  for (int i=0; i < ne; i++) {
-    quadTotal[1] += ctx->quad[3*i+1];
-    quadTotal[2] += ctx->quad[3*i+2];
-  }
+  // init quad with Gauss + equality (already folded in PrimalPrepare), shifted: drop quadGauss[0]
+  mjtNum qg1 = ctx->quadGauss[1], qg2 = ctx->quadGauss[2];
 
   // friction: compute cost(alpha) - cost(0) directly
   for (int i=ne; i < ne + nf; i++) {
@@ -2197,24 +2509,22 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
     }
   }
 
-  // limit and contact: fast path when no elliptic contacts exist
-  if (!ctx->is_elliptic) {
-    for (int i=ne + nf; i < nefc; i++) {
-      mjtNum start = ctx->Jaref[i];
-      mjtNum x = start + alpha*ctx->Jv[i];
-      mjtNum cost0 = start < 0 ? ctx->quad[3*i] : 0;
+  // unilateral prefix [ne+nf, efc_cone_start)
+  PrimalEvalUnilateral(ctx, alpha, &qg1, &qg2, &cost, deriv);
 
-      if (x < 0) {
-        quadTotal[0] += ctx->quad[3*i] - cost0;
-        quadTotal[1] += ctx->quad[3*i+1];
-        quadTotal[2] += ctx->quad[3*i+2];
-      } else {
-        cost -= cost0;
+  // elliptic cones
+  if (ctx->is_elliptic) {
+    // 4-wide batched evaluation for contiguous dim=3 elliptic cones
+    PrimalEvalElliptic4(ctx, alpha, &cost, deriv);
+
+    // general path for remaining / non-dim3 constraints
+    for (int i = ctx->efc_cone_start; i < nefc; i++) {
+      if (i == ctx->efc_cone3_start) {
+        i = ctx->efc_cone3_end;
+        if (i >= nefc) {
+          break;
+        }
       }
-    }
-  } else {
-    // general path with elliptic cones
-    for (int i=ne + nf; i < nefc; i++) {
       if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {       // elliptic cone
         // extract contact info
         const mjContact* con = ctx->contact + ctx->efc_id[i];
@@ -2303,26 +2613,28 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
       } else {                                                  // inequality
         // search point
         mjtNum start = ctx->Jaref[i];
-        mjtNum x = start + alpha*ctx->Jv[i];
-        mjtNum cost0 = start < 0 ? ctx->quad[3*i] : 0;
+        mjtNum jv = ctx->Jv[i];
+        mjtNum d = ctx->efc_D[i];
+        mjtNum step = alpha*jv;
+        mjtNum x = start + step;
 
         // active
         if (x < 0) {
-          // shifted quad: add quad[1], quad[2] and (quad[0] - cost0)
-          quadTotal[0] += ctx->quad[3*i] - cost0;
-          quadTotal[1] += ctx->quad[3*i+1];
-          quadTotal[2] += ctx->quad[3*i+2];
-        } else {
-          cost -= cost0;
+          mjtNum djv = d*jv;
+          deriv[0] += x*djv;
+          deriv[1] += jv*djv;
+          cost += (start < 0) ? 0.5*d*step*(start + x) : 0.5*d*x*x;
+        } else if (start < 0) {
+          cost -= 0.5*d*start*start;
         }
       }
     }
   }
 
-  // add total quadratic (quadTotal[0] contains only shifted residuals)
-  cost += alpha*alpha*quadTotal[2] + alpha*quadTotal[1] + quadTotal[0];
-  deriv[0] += 2*alpha*quadTotal[2] + quadTotal[1];
-  deriv[1] += 2*quadTotal[2];
+  // add remaining Gauss + equality quadratic
+  cost += alpha*alpha*qg2 + alpha*qg1;
+  deriv[0] += 2*alpha*qg2 + qg1;
+  deriv[1] += 2*qg2;
 
   // check for convexity; SHOULD NOT OCCUR
   if (deriv[1] <= 0) {
