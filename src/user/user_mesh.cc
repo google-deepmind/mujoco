@@ -756,6 +756,11 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
   CopyFromSpec();
   mjCCache* cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
 
+  // check maxhullvert
+  if (maxhullvert_ != -1 && maxhullvert_ < 4) {
+    throw mjCError(this, "maxhullvert must be larger than 3");
+  }
+
   Clock::time_point t0 = Clock::now();
 
   // load file
