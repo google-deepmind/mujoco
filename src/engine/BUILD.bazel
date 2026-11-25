@@ -793,7 +793,6 @@ cc_library(
         ":engine_memory",
         ":engine_util_errmem",
         ":engine_util_misc",
-        ":engine_util_sparse",
         "//:libmujoco_hdrs",
     ],
 )

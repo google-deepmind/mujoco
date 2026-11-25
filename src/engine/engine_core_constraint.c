@@ -2389,7 +2389,7 @@ void mj_regularizeConstraint(const mjModel* m, mjData* d, int flg_AR) {
   }
 
   // refresh island copies of R and D
-  if (d->nisland) {
+  if (d->nisland && d->iefc_D != d->efc_D) {
     mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, nefc);
     mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, nefc);
   }
@@ -3306,7 +3306,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     mj_makeImpedance(m, d);
 
     // re-gather island D/R
-    if (d->nisland) {
+    if (d->nisland && d->iefc_D != d->efc_D) {
       mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, d->nefc);
       mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, d->nefc);
     }

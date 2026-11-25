@@ -25,7 +25,6 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "engine/engine_util_sparse.h"
 
 #ifdef MEMORY_SANITIZER
   #include <sanitizer/msan_interface.h>
@@ -41,17 +40,53 @@ static int arenaAllocIsland(const mjModel* m, mjData* d) {
 #undef MJ_D
 #define MJ_D(n) d->n
 
-#define X(type, name, nr, nc)                                                 \
-  d->name = mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
-  if (!d->name) {                                                             \
-    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                               \
-    mj_clearEfc(d);                                                           \
-    return 0;                                                                 \
+  // check for single-island aliasing opportunities
+  int single_efc = (d->nisland == 1 && d->nefc > 0);
+  int all_dofs = (d->nisland == 1 && d->nidof == m->nv);
+
+  // efc fields aliased directly to global buffers when nisland == 1
+#define IS_SINGLE_EFC_ALIAS(field)                                   \
+  (offsetof(mjData, field) == offsetof(mjData, map_iefc2efc)      || \
+   offsetof(mjData, field) == offsetof(mjData, iefc_type)         || \
+   offsetof(mjData, field) == offsetof(mjData, iefc_id)           || \
+   offsetof(mjData, field) == offsetof(mjData, iefc_frictionloss) || \
+   offsetof(mjData, field) == offsetof(mjData, iefc_D)            || \
+   offsetof(mjData, field) == offsetof(mjData, iefc_R)            || \
+   offsetof(mjData, field) == offsetof(mjData, iefc_aref)         || \
+   offsetof(mjData, field) == offsetof(mjData, iefc_force))
+
+#define X(type, name, nr, nc)                                                      \
+  if (!((single_efc && IS_SINGLE_EFC_ALIAS(name)) ||                               \
+        (all_dofs && offsetof(mjData, name) == offsetof(mjData, map_idof2dof)))) { \
+    d->name = mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), _Alignof(type));    \
+    if (!d->name) {                                                                \
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);                                  \
+      mj_clearEfc(d);                                                              \
+      return 0;                                                                    \
+    }                                                                              \
   }
 
   MJDATA_ARENA_POINTERS_ISLAND
 
 #undef X
+#undef IS_SINGLE_EFC_ALIAS
+
+  // single island: alias identity maps and efc arrays directly into global arena buffers
+  if (single_efc) {
+    d->map_iefc2efc      = d->map_efc2iefc;
+    d->iefc_type         = d->efc_type;
+    d->iefc_id           = d->efc_id;
+    d->iefc_frictionloss = d->efc_frictionloss;
+    d->iefc_D            = d->efc_D;
+    d->iefc_R            = d->efc_R;
+    d->iefc_aref         = d->efc_aref;
+    d->iefc_force        = d->efc_force;
+  }
+
+  // single island with all dofs: alias idof map directly to dof map
+  if (all_dofs) {
+    d->map_idof2dof      = d->map_dof2idof;
+  }
 
 #undef MJ_M
 #define MJ_M(n) n
@@ -63,8 +98,8 @@ static int arenaAllocIsland(const mjModel* m, mjData* d) {
 
 //-------------------------- union-find and flood-fill  --------------------------------------------
 
-// find the canonical root of an active tree and compress its path
-int mj_dsuRoot(int* parent, int tree) {
+// inline path-compressing root lookup
+static inline int dsuRoot(int* parent, int tree) {
   int root = tree;
   while (parent[root] != root) {
     root = parent[root];
@@ -80,8 +115,14 @@ int mj_dsuRoot(int* parent, int tree) {
 }
 
 
-// activate and union two incident trees; -1 denotes a static endpoint
-void mj_dsuMerge(int* parent, int tree1, int tree2) {
+// find the canonical root of an active tree and compress its path
+int mj_dsuRoot(int* parent, int tree) {
+  return dsuRoot(parent, tree);
+}
+
+
+// inline activation and union of two incident trees; -1 denotes a static endpoint
+static inline void dsuMerge(int* parent, int tree1, int tree2) {
   if (tree1 == -1 && tree2 == -1) {
     mjERROR("self-incidence of the static tree");  // SHOULD NOT OCCUR
     return;
@@ -95,13 +136,19 @@ void mj_dsuMerge(int* parent, int tree1, int tree2) {
 
   if (parent[tree1] == parent[tree2]) return;
 
-  int root1 = mj_dsuRoot(parent, tree1);
-  int root2 = mj_dsuRoot(parent, tree2);
+  int root1 = dsuRoot(parent, tree1);
+  int root2 = dsuRoot(parent, tree2);
   if (root1 < root2) {
     parent[root2] = root1;
   } else if (root2 < root1) {
     parent[root1] = root2;
   }
+}
+
+
+// activate and union two incident trees; -1 denotes a static endpoint
+void mj_dsuMerge(int* parent, int tree1, int tree2) {
+  dsuMerge(parent, tree1, tree2);
 }
 
 
@@ -326,7 +373,12 @@ static int unionContactTrees(const mjModel* m, const mjData* d, int* parent,
       tree2 = -1;
     }
     if (tree1 >= 0) {
-      mj_dsuMerge(parent, tree1, tree2);
+      if (tree2 < 0 || tree1 == tree2) {
+        // activate single dynamic tree
+        if (parent[tree1] == -1) parent[tree1] = tree1;
+      } else {
+        dsuMerge(parent, tree1, tree2);
+      }
     }
     return tree1;
   }
@@ -345,9 +397,9 @@ static int unionContactTrees(const mjModel* m, const mjData* d, int* parent,
     }
     if (tree1 < 0) {
       tree1 = tree2;
-      mj_dsuMerge(parent, tree1, -1);
+      if (parent[tree1] == -1) parent[tree1] = tree1;
     } else {
-      mj_dsuMerge(parent, tree1, tree2);
+      dsuMerge(parent, tree1, tree2);
     }
   }
 
@@ -368,40 +420,49 @@ static void unionTendonTrees(const mjModel* m, const mjData* d, int* parent, int
     if (tree1 < 0) {
       tree1 = tree2;
     } else if (tree1 != tree2) {
-      mj_dsuMerge(parent, tree1, tree2);
+      dsuMerge(parent, tree1, tree2);
     }
   }
 }
 
 
 // activate and union all trees with direct incidence in a constraint
-static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* parent,
-                                        int* efc_tree, int* err_i) {
+static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* restrict parent,
+                                        int* restrict efc_tree, int* err_i) {
   int nefc = d->nefc;
+  const int* restrict efc_type_arr = d->efc_type;
+  const int* restrict efc_id_arr = d->efc_id;
+  const mjContact* restrict contact = d->contact;
   int efc_type = -1;
   int efc_id = -1;
 
   // iterate over constraints and union incident trees
   for (int i=0; i < nefc; i++) {
     // row i is still in the same constraint: skip it
-    if (i > 0 && efc_type == d->efc_type[i] && efc_id == d->efc_id[i]) {
+    if (i > 0 && efc_type == efc_type_arr[i] && efc_id == efc_id_arr[i]) {
       // unless it is a flex equality, where the tree pattern changes per dof
       if (!isFlexEquality(m, efc_type, efc_id)) {
         efc_tree[i] = efc_tree[i-1];
         continue;
       }
     }
-    efc_type = d->efc_type[i];
-    efc_id = d->efc_id[i];
+    efc_type = efc_type_arr[i];
+    efc_id = efc_id_arr[i];
 
-    // contact: union the trees of its bodies
+    // contact: union the trees of its bodies and fill all contiguous rows of this contact
     if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
         efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
         efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
-      efc_tree[i] = unionContactTrees(m, d, parent, d->contact + efc_id);
-      if (efc_tree[i] < 0) {
+      int tree = unionContactTrees(m, d, parent, contact + efc_id);
+      if (tree < 0) {
         *err_i = efc_id;
         return "contact %d is between two static bodies";
+      }
+      efc_tree[i] = tree;
+
+      // fill remaining contiguous rows of the same contact
+      while (i + 1 < nefc && efc_id_arr[i+1] == efc_id && efc_type_arr[i+1] == efc_type) {
+        efc_tree[++i] = tree;
       }
       continue;
     }
@@ -423,10 +484,10 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
 
       // activate a singleton or union all trees in a multi-tree constraint
       if (tree2 == -2) {
-        mj_dsuMerge(parent, tree1, -1);
+        if (parent[tree1] == -1) parent[tree1] = tree1;
       } else {
         while (tree2 != -2) {
-          mj_dsuMerge(parent, tree1, tree2);
+          dsuMerge(parent, tree1, tree2);
           tree1 = tree2;
           tree2 = treeNext(m, d, i, &iter);
         }
@@ -435,6 +496,11 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
       *err_i = i;
       return "no tree found for constraint %d";
     }
+  }
+
+  // multi-tree metric couplings only merge distinct dynamic trees; nothing to union for <= 1 tree
+  if (m->ntree < 2) {
+    return NULL;
   }
 
   // flexes with metric terms couple all their vertices (nodes for interpolated flexes) without
@@ -469,7 +535,7 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
       if (tree1 < 0) {
         tree1 = tree2;
       } else {
-        mj_dsuMerge(parent, tree1, tree2);
+        dsuMerge(parent, tree1, tree2);
       }
     }
     if (mj_rodHasTwist(m, f)) {
@@ -486,7 +552,7 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
         if (tree1 < 0) {
           tree1 = tree2;
         } else {
-          mj_dsuMerge(parent, tree1, tree2);
+          dsuMerge(parent, tree1, tree2);
         }
       }
     }
@@ -495,7 +561,7 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
   // passive flex contacts (exclude == 4) also carry metric terms without efc rows: union the
   // awake trees of their bodies so two flexes (or a flex and a rigid body) coupled by passive
   // contact share one island
-  if (mj_isMetric(m)) {
+  if (m->nflex && mj_isMetric(m)) {
     for (int i=0; i < d->ncon; i++) {
       const mjContact* con = d->contact + i;
       if (con->exclude != 4) {
@@ -514,7 +580,7 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
         if (tree1 < 0) {
           tree1 = tree2;
         } else {
-          mj_dsuMerge(parent, tree1, tree2);
+          dsuMerge(parent, tree1, tree2);
         }
       }
     }
@@ -565,7 +631,7 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
       }
       if (tree1 >= 0 && tree2 >= 0 && tree1 != tree2 &&
           d->tree_awake[tree1] && d->tree_awake[tree2]) {
-        mj_dsuMerge(parent, tree1, tree2);
+        dsuMerge(parent, tree1, tree2);
       }
     }
   }
@@ -623,139 +689,200 @@ void mj_island(const mjModel* m, mjData* d) {
   int nisland = d->nisland;
 
 
-  // ------------------------------------- trees ---------------------------------------------------
+  // ------------------------------------- trees & degrees of freedom ------------------------------
 
-  // copy tree_island from stack to arena
-  mju_copyInt(d->tree_island, tree_island, ntree);
+  // single island containing all dofs: all maps are identity
+  if (nisland == 1 && nidof == nv) {
+    // trees
+    mju_zeroInt(d->tree_island, ntree);
+    d->island_ntree[0] = ntree;
+    d->island_itreeadr[0] = 0;
+    int* restrict map_itree2tree = d->map_itree2tree;
+    for (int i=0; i < ntree; i++) {
+      map_itree2tree[i] = i;
+    }
 
-  // compute island_ntree, number of trees per island
-  mju_zeroInt(d->island_ntree, nisland);
-  for (int i=0; i < ntree; i++) {
-    int island = tree_island[i];
-    if (island >= 0) {
-      d->island_ntree[island]++;
+    // degrees of freedom
+    mju_zeroInt(d->dof_island, nv);
+    d->island_nv[0] = nv;
+    d->island_idofadr[0] = 0;
+    d->island_dofadr[0] = 0;
+    int* restrict map_dof2idof = d->map_dof2idof;
+    for (int i=0; i < nv; i++) {
+      map_dof2idof[i] = i;
     }
   }
 
-  // compute island_itreeadr (cumsum of island_ntree)
-  d->island_itreeadr[0] = 0;
-  for (int i=1; i < nisland; i++) {
-    d->island_itreeadr[i] = d->island_itreeadr[i-1] + d->island_ntree[i-1];
-  }
-  int last_tree = d->island_itreeadr[nisland-1] + d->island_ntree[nisland-1];
+  // multiple islands or unconstrained dofs
+  else {
+    // copy tree_island from stack to arena
+    mju_copyInt(d->tree_island, tree_island, ntree);
 
-  // compute map_itree2tree
-  int* island_ntree2 = mjSTACKALLOC(d, nisland + 1, int);  // last elem counts unconstrained trees
-  mju_zeroInt(island_ntree2, nisland + 1);
-  for (int i=0; i < ntree; i++) {
-    int island = tree_island[i];
-    if (island >= 0) {
-      d->map_itree2tree[d->island_itreeadr[island] + island_ntree2[island]++] = i;
-    } else {
-      d->map_itree2tree[last_tree + island_ntree2[nisland]++] = i;
-    }
-  }
-
-  // SHOULD NOT OCCUR
-  if (!mju_compare(island_ntree2, d->island_ntree, nisland)) mjERROR("island_ntree miscount");
-  if (last_tree + island_ntree2[nisland] != ntree) mjERROR("miscount of unconstrained trees");
-
-
-  // ------------------------------------- degrees of freedom --------------------------------------
-
-  // compute dof_island, island_nv
-  mju_zeroInt(d->island_nv, nisland);
-  for (int i=0; i < nv; i++) {
-    // assign DOFs to islands
-    int island = tree_island[m->dof_treeid[i]];  // -1 if unconstrained
-    d->dof_island[i] = island;
-
-    // increment island_nv
-    if (island >= 0) {
-      d->island_nv[island]++;
-    }
-  }
-
-  // compute island_idofadr (cumsum of island_nv)
-  d->island_idofadr[0] = 0;
-  for (int i=1; i < nisland; i++) {
-    d->island_idofadr[i] = d->island_idofadr[i-1] + d->island_nv[i-1];
-  }
-
-  // compute dof <-> idof maps
-  int* island_nv2 = mjSTACKALLOC(d, nisland + 1, int);  // last element counts unconstrained DOFs
-  mju_zeroInt(island_nv2, nisland + 1);
-  for (int dof=0; dof < nv; dof++) {
-    int island = d->dof_island[dof];
-    int idof;
-    if (island >= 0) {
-      // constrained dof
-      idof = d->island_idofadr[island] + island_nv2[island]++;
-    } else {
-      // unconstrained dof
-      idof = nidof + island_nv2[nisland]++;
+    // compute island_ntree and island_nv (number of trees and DOFs per island)
+    int* restrict island_ntree = d->island_ntree;
+    int* restrict island_nv = d->island_nv;
+    const int* restrict tree_dofadr = m->tree_dofadr;
+    const int* restrict tree_dofnum = m->tree_dofnum;
+    mju_zeroInt(island_ntree, nisland);
+    mju_zeroInt(island_nv, nisland);
+    for (int i=0; i < ntree; i++) {
+      int island = tree_island[i];
+      if (island >= 0) {
+        island_ntree[island]++;
+        island_nv[island] += tree_dofnum[i];
+      }
     }
 
-    d->map_dof2idof[dof] = idof;
-    d->map_idof2dof[idof] = dof;  // only the first nidof elements of map_idof2dof are in some island
-  }
+    // compute island_itreeadr and island_idofadr (cumsum of island_ntree and island_nv)
+    int* restrict island_itreeadr = d->island_itreeadr;
+    int* restrict island_idofadr = d->island_idofadr;
+    island_itreeadr[0] = 0;
+    island_idofadr[0] = 0;
+    for (int i=1; i < nisland; i++) {
+      island_itreeadr[i] = island_itreeadr[i-1] + island_ntree[i-1];
+      island_idofadr[i] = island_idofadr[i-1] + island_nv[i-1];
+    }
+    int last_tree = island_itreeadr[nisland-1] + island_ntree[nisland-1];
 
-  // SHOULD NOT OCCUR
-  if (!mju_compare(island_nv2, d->island_nv, nisland)) mjERROR("island_nv miscount");
-  if (nidof + island_nv2[nisland] != nv) mjERROR("miscount of unconstrained dofs");
+    // compute map_itree2tree, dof_island, and dof <-> idof maps in tree blocks
+    int* restrict tree_cursor = mjSTACKALLOC(d, nisland+1, int);  // last elem: unconstrained trees
+    int* restrict dof_cursor = mjSTACKALLOC(d, nisland+1, int);   // last elem: unconstrained DOFs
+    mju_copyInt(tree_cursor, island_itreeadr, nisland);
+    tree_cursor[nisland] = last_tree;
+    mju_copyInt(dof_cursor, island_idofadr, nisland);
+    dof_cursor[nisland] = nidof;
 
-  // compute island_dofadr (used for visualization)
-  for (int i=0; i < nisland; i++) {
-    d->island_dofadr[i] = d->map_idof2dof[d->island_idofadr[i]];
+    int* restrict map_itree2tree = d->map_itree2tree;
+    int* restrict dof_island = d->dof_island;
+    int* restrict map_dof2idof = d->map_dof2idof;
+    int* restrict map_idof2dof = d->map_idof2dof;
+    for (int t=0; t < ntree; t++) {
+      // append tree to its island (or unconstrained tail)
+      int island = tree_island[t];
+      int slot = island >= 0 ? island : nisland;
+      map_itree2tree[tree_cursor[slot]++] = t;
+
+      // assign tree dofs to island and populate dof <-> idof maps
+      int adr = tree_dofadr[t];
+      int num = tree_dofnum[t];
+      int idof0 = dof_cursor[slot];
+      dof_cursor[slot] = idof0 + num;
+      for (int k=0; k < num; k++) {
+        dof_island[adr+k] = island;
+        map_dof2idof[adr+k] = idof0 + k;
+        map_idof2dof[idof0+k] = adr + k;  // only the first nidof elements are in some island
+      }
+    }
+
+    // verify unconstrained counts
+    if (tree_cursor[nisland] != ntree) {
+      mjERROR("miscount of unconstrained trees");  // SHOULD NOT OCCUR
+    }
+    if (dof_cursor[nisland] != nv) {
+      mjERROR("miscount of unconstrained dofs");  // SHOULD NOT OCCUR
+    }
+
+    // compute island_dofadr (used for visualization)
+    for (int i=0; i < nisland; i++) {
+      d->island_dofadr[i] = map_idof2dof[island_idofadr[i]];
+    }
   }
 
 
   // ------------------------------------- constraints ---------------------------------------------
 
-  // compute efc_island, island_{ne,nf,nefc}
-  mju_zeroInt(d->island_ne, nisland);
-  mju_zeroInt(d->island_nf, nisland);
-  mju_zeroInt(d->island_nefc, nisland);
-  for (int i=0; i < nefc; i++) {
-    d->efc_island[i] = tree_island[efc_tree[i]];
-    int island = d->efc_island[i];
-    d->island_nefc[island]++;
-    switch (d->efc_type[i]) {
-      case mjCNSTR_EQUALITY:
-        d->island_ne[island]++;
-        break;
-      case mjCNSTR_FRICTION_DOF:
-      case mjCNSTR_FRICTION_TENDON:
-        d->island_nf[island]++;
-        break;
-      default:
-        break;
+  // single island: all constraints are in island 0, maps are identity, iefc_* aliased to efc_*
+  if (nisland == 1) {
+    mju_zeroInt(d->efc_island, nefc);
+    d->island_ne[0] = d->ne;
+    d->island_nf[0] = d->nf;
+    d->island_nefc[0] = nefc;
+    d->island_iefcadr[0] = 0;
+
+    // identity constraint map
+    int* restrict map_efc2iefc = d->map_efc2iefc;
+    for (int c=0; c < nefc; c++) {
+      map_efc2iefc[c] = c;
     }
   }
 
-  // compute island_iefcadr (cumsum of island_nefc)
-  d->island_iefcadr[0] = 0;
-  for (int i=1; i < nisland; i++) {
-    d->island_iefcadr[i] = d->island_iefcadr[i-1] + d->island_nefc[i-1];
-  }
+  // multiple islands
+  else {
+    // compute efc_island, island_{ne,nf,nefc}
+    int ne = d->ne, nf = d->nf;
+    int* restrict efc_island = d->efc_island;
+    int* restrict island_ne = d->island_ne;
+    int* restrict island_nf = d->island_nf;
+    int* restrict island_nefc = d->island_nefc;
+    mju_zeroInt(island_ne, nisland);
+    mju_zeroInt(island_nf, nisland);
+    mju_zeroInt(island_nefc, nisland);
 
-  // compute efc <-> iefc maps
-  int* island_nefc2 = island_nv2;  // reuse island_nv2
-  mju_zeroInt(island_nefc2, nisland);
-  for (int c=0; c < nefc; c++) {
-    int island = d->efc_island[c];
-    int ic = d->island_iefcadr[island] + island_nefc2[island]++;
-    d->map_efc2iefc[c] = ic;
-    d->map_iefc2efc[ic] = c;
-    d->iefc_type[ic] = d->efc_type[c];
-    d->iefc_id[ic] = d->efc_id[c];
-    d->iefc_frictionloss[ic] = d->efc_frictionloss[c];
-    d->iefc_D[ic] = d->efc_D[c];
-    d->iefc_R[ic] = d->efc_R[c];
-  }
+    // equality constraints: island_ne and island_nefc
+    for (int i=0; i < ne; i++) {
+      int island = tree_island[efc_tree[i]];
+      efc_island[i] = island;
+      island_ne[island]++;
+      island_nefc[island]++;
+    }
 
-  // SHOULD NOT OCCUR
-  if (!mju_compare(island_nefc2, d->island_nefc, nisland)) mjERROR("island_nefc miscount");
+    // friction constraints: island_nf and island_nefc
+    for (int i=ne; i < ne+nf; i++) {
+      int island = tree_island[efc_tree[i]];
+      efc_island[i] = island;
+      island_nf[island]++;
+      island_nefc[island]++;
+    }
+
+    // remaining constraints (limits and contacts): island_nefc
+    for (int i=ne+nf; i < nefc; i++) {
+      int island = tree_island[efc_tree[i]];
+      efc_island[i] = island;
+      island_nefc[island]++;
+    }
+
+    // compute island_iefcadr (cumsum of island_nefc)
+    int* restrict island_iefcadr = d->island_iefcadr;
+    island_iefcadr[0] = 0;
+    for (int i=1; i < nisland; i++) {
+      island_iefcadr[i] = island_iefcadr[i-1] + island_nefc[i-1];
+    }
+
+    // compute efc <-> iefc maps
+    int* restrict efc_cursor = mjSTACKALLOC(d, nisland, int);
+    mju_copyInt(efc_cursor, island_iefcadr, nisland);
+    int* restrict map_efc2iefc = d->map_efc2iefc;
+    int* restrict map_iefc2efc = d->map_iefc2efc;
+    for (int c=0; c < nefc; c++) {
+      int ic = efc_cursor[efc_island[c]]++;
+      map_efc2iefc[c] = ic;
+      map_iefc2efc[ic] = c;
+    }
+
+    // gather efc arrays into island order (sequential writes)
+    int* restrict iefc_type = d->iefc_type;
+    int* restrict iefc_id = d->iefc_id;
+    const int* restrict efc_type = d->efc_type;
+    const int* restrict efc_id = d->efc_id;
+    for (int ic=0; ic < nefc; ic++) {
+      int c = map_iefc2efc[ic];
+      iefc_type[ic] = efc_type[c];
+      iefc_id[ic] = efc_id[c];
+    }
+
+    // gather frictionloss (or zero if no friction constraints)
+    if (nf) {
+      mju_gather(d->iefc_frictionloss, d->efc_frictionloss, map_iefc2efc, nefc);
+    } else {
+      mju_zero(d->iefc_frictionloss, nefc);
+    }
+
+    // gather D and R (metric integrators compute and refresh them in mj_regularizeConstraint)
+    if (!mj_isMetric(m)) {
+      mju_gather(d->iefc_D, d->efc_D, map_iefc2efc, nefc);
+      mju_gather(d->iefc_R, d->efc_R, map_iefc2efc, nefc);
+    }
+  }
 
   mj_freeStack(d);
 }

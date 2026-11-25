@@ -1252,17 +1252,36 @@ static void fwdConstraint(const mjModel* m, mjData* d, mjtSolver solver, int flg
     case mjSOL_NEWTON:
       // copy inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
       nidof = d->nidof;
-      mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
-      mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
-      mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
-      mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
+      if (nisland == 1 && nidof == nv) {
+        mju_copy(d->ifrc_smooth,     d->qfrc_smooth,     nv);
+        mju_copy(d->iacc_smooth,     d->qacc_smooth,     nv);
+        mju_copy(d->iacc,            d->qacc,            nv);
+      } else {
+        mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
+        mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
+        mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
+      }
+
+      // gather efc_aref unless single-island aliasing shares the buffer
+      if (d->iefc_aref != d->efc_aref) {
+        mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
+      }
 
       mju_dispatch(m, d, solveIslandTask, NULL, nisland);
 
       // copy back solver outputs (scatter dofs since ni <= nv)
-      mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
-      mju_scatter(d->qfrc_constraint, d->ifrc_constraint, d->map_idof2dof, nidof);
-      mju_gather(d->efc_force, d->iefc_force, d->map_efc2iefc, nefc);
+      if (nisland == 1 && nidof == nv) {
+        mju_copy(d->qacc,            d->iacc,            nv);
+        mju_copy(d->qfrc_constraint, d->ifrc_constraint, nv);
+      } else {
+        mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
+        mju_scatter(d->qfrc_constraint, d->ifrc_constraint, d->map_idof2dof, nidof);
+      }
+
+      // gather efc_force unless single-island aliasing shares the buffer
+      if (d->efc_force != d->iefc_force) {
+        mju_gather(d->efc_force, d->iefc_force, d->map_efc2iefc, nefc);
+      }
       break;
     }
 

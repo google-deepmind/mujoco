@@ -32,7 +32,6 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::NotNull;
 using ::testing::Pointwise;
@@ -1157,6 +1156,99 @@ TEST_F(IslandTest, PGSIsland) {
 
   mj_deleteData(d);
   mj_deleteModel(m);
+}
+
+// single-island fast path must preserve all island fields, mj_copyData,
+// diagexact, and discrete regularization for both full-dof and partial-dof
+// cases
+TEST_F(IslandTest, SingleIslandFastPathAndCopy) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <worldbody>
+    <geom type="plane" size="2 2 .1"/>
+    <body pos="0 0 .09">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1"/>
+    </body>
+    <body pos="1 0 1">
+      <freejoint/>
+      <geom type="sphere" size=".1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+  char error[1024] = {};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  for (mjtIntegrator integrator : {mjINT_EULER, mjINT_DISCRETE}) {
+    for (int diagexact : {0, 1}) {
+      model->opt.integrator = integrator;
+      if (diagexact) {
+        model->opt.enableflags |= mjENBL_DIAGEXACT;
+      } else {
+        model->opt.enableflags &= ~mjENBL_DIAGEXACT;
+      }
+
+      MjDataPtr d_island = MakeData(model);
+      MjDataPtr d_mono = MakeData(model);
+
+      model->opt.disableflags &= ~mjDSBL_ISLAND;
+      mj_forward(model.get(), d_island.get());
+      ASSERT_EQ(d_island->nisland, 1);
+      ASSERT_GT(d_island->nefc, 0);
+      ASSERT_EQ(d_island->nidof, 6);  // second body is unconstrained
+
+      // verify mj_copyData preserves aliased arena pointers and values
+      MjDataPtr d_copy(mj_copyData(nullptr, model.get(), d_island.get()));
+      ASSERT_THAT(d_copy.get(), NotNull());
+      EXPECT_EQ(AsVector(d_copy->iefc_type, d_copy->nefc),
+                AsVector(d_island->efc_type, d_island->nefc));
+      EXPECT_EQ(AsVector(d_copy->iefc_D, d_copy->nefc),
+                AsVector(d_island->efc_D, d_island->nefc));
+      EXPECT_EQ(AsVector(d_copy->iefc_R, d_copy->nefc),
+                AsVector(d_island->efc_R, d_island->nefc));
+      EXPECT_EQ(AsVector(d_copy->iefc_force, d_copy->nefc),
+                AsVector(d_island->efc_force, d_island->nefc));
+      EXPECT_EQ(AsVector(d_copy->map_iefc2efc, d_copy->nefc),
+                AsVector(d_island->map_efc2iefc, d_island->nefc));
+
+      // compare against monolithic solve
+      model->opt.disableflags |= mjDSBL_ISLAND;
+      mj_forward(model.get(), d_mono.get());
+      EXPECT_THAT(
+          AsVector(d_island->qacc, model->nv),
+          Pointwise(MjNear(1e-12, 1e-5), AsVector(d_mono->qacc, model->nv)));
+      EXPECT_THAT(AsVector(d_island->efc_force, d_island->nefc),
+                  Pointwise(MjNear(1e-12, 1e-5),
+                            AsVector(d_mono->efc_force, d_mono->nefc)));
+    }
+  }
+
+  // full-dof single-island case (nidof == nv)
+  static constexpr char xml_full[] = R"(
+<mujoco>
+  <worldbody>
+    <geom type="plane" size="2 2 .1"/>
+    <body pos="0 0 .09">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+  MjModelPtr m_full = LoadModelFromString(xml_full, error, sizeof(error));
+  ASSERT_THAT(m_full.get(), NotNull()) << error;
+  MjDataPtr d_full = MakeData(m_full);
+  mj_forward(m_full.get(), d_full.get());
+  ASSERT_EQ(d_full->nisland, 1);
+  ASSERT_EQ(d_full->nidof, m_full->nv);
+  MjDataPtr d_full_copy(mj_copyData(nullptr, m_full.get(), d_full.get()));
+  ASSERT_THAT(d_full_copy.get(), NotNull());
+  EXPECT_EQ(AsVector(d_full_copy->map_idof2dof, m_full->nv),
+            AsVector(d_full->map_dof2idof, m_full->nv));
+  EXPECT_EQ(AsVector(d_full_copy->iefc_force, d_full_copy->nefc),
+            AsVector(d_full->efc_force, d_full->nefc));
 }
 
 }  // namespace
