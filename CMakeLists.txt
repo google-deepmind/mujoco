@@ -167,6 +167,7 @@ add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/xml/mjz)
+add_subdirectory(src/xml/mjdb)
 add_subdirectory(src/batch)
 
 add_subdirectory(src/render/noop)

@@ -47,4 +47,5 @@ mujoco_test(
 )
 add_dependencies(xml_write_read_test actuator sensor sdf_plugin)
 
+add_subdirectory(mjdb)
 add_subdirectory(mjz)

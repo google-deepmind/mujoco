@@ -226,6 +226,7 @@ cc_library(
         "//plugin/gmsh_decoder",
         "//plugin/obj_decoder",
         "//plugin/stl_decoder",
+        "//src/xml/mjdb:mjdb_provider",
         "//src/xml/mjz:mjz_archive_provider",
         "//src/xml/mjz:mjz_decoder",
         "//src/xml/mjz:mjz_encoder",
