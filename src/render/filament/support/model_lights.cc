@@ -100,6 +100,7 @@ static void SetLightColorAndIntensity(mjrfLight* light, const mjModel* model,
 
 ModelLights::ModelLights(mjrfScene* scene, ModelResources* model_resources)
     : scene_(scene), model_resources_(model_resources) {
+  mjv_defaultOption(&vopts_);
   const mjModel* model = model_resources->GetModel();
   shadowsize_ = model->vis.quality.shadowsize;
   fallback_head_light_intensity_ =
@@ -233,6 +234,10 @@ void ModelLights::UpdateShadowMapSize() {
   }
 }
 
+void ModelLights::SetOptions(const mjvOption& opt) {
+  vopts_ = opt;
+}
+
 void ModelLights::Update(const mjData* data) {
   UpdateShadowMapSize();
   if (data == nullptr) {
@@ -244,9 +249,10 @@ void ModelLights::Update(const mjData* data) {
     total_light_intensity += model->light_intensity[i];
   }
 
+  const float3 offset = ReadFloat3(vopts_.offset);
   for (int i = 0; i < model->nlight; ++i) {
     mjrfLight* light = lights_[i].get();
-    const float3 pos = ReadFloat3(data->light_xpos, i);
+    const float3 pos = ReadFloat3(data->light_xpos, i) + offset;
     const float3 dir = ReadFloat3(data->light_xdir, i);
     mjrf_setLightPose(light, pos.v, dir.v);
 

@@ -115,23 +115,40 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
                               std::span<const mjvGeom> extra_geoms) {
   Clear();
 
+  const float3 offset = vis_option
+                            ? float3{vis_option->offset[0],
+                                     vis_option->offset[1],
+                                     vis_option->offset[2]}
+                            : float3{0.0f, 0.0f, 0.0f};
   const int nstack = model_->vis.quality.numstacks;
   const int nslice = model_->vis.quality.numslices;
   const int nquad = model_->vis.quality.numquads;
 
   // For decor rendering, we go through the mjvScene. Ideally, we would only
   // update the mjvGeoms in the scene, but the API is not capable of that.
-  mjv_updateScene(model_, data, vis_option, perturb, camera, mjCAT_ALL,
+  // With an offset, pass a copy of `camera`: mjv_updateScene would otherwise
+  // overwrite a tracking camera's lookat with a point that ignores the offset.
+  mjvCamera camera_copy;
+  mjvCamera* scene_camera = camera;
+  if (camera != nullptr && offset != float3{0.0f, 0.0f, 0.0f}) {
+    camera_copy = *camera;
+    scene_camera = &camera_copy;
+  }
+  mjv_updateScene(model_, data, vis_option, perturb, scene_camera, mjCAT_ALL,
                   &mjv_scene_);
   const int num_extra_geoms =
       std::min<int>(extra_geoms.size(), mjv_scene_.maxgeom - mjv_scene_.ngeom);
   for (int i = 0; i < num_extra_geoms; ++i) {
-    mjv_scene_.geoms[mjv_scene_.ngeom] = extra_geoms[i];
-    mjv_scene_.geoms[mjv_scene_.ngeom].category = mjCAT_DECOR;
+    mjvGeom& dst = mjv_scene_.geoms[mjv_scene_.ngeom];
+    dst = extra_geoms[i];
+    dst.category = mjCAT_DECOR;
+    dst.pos[0] += offset.x;
+    dst.pos[1] += offset.y;
+    dst.pos[2] += offset.z;
     ++mjv_scene_.ngeom;
   }
 
-  if (draw_text_at_fn) {
+  if (draw_text_at_fn && camera != nullptr) {
     ProjectLabels(mjv_camera2GLCamera(model_, data, camera), viewport,
                   std::move(draw_text_at_fn));
   }
@@ -179,7 +196,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
           mjrf_setRenderablePose(vertex.get(), mjv_scene_.flexvert + 3 * v,
-                                      rot);
+                                 rot);
           mjrf_addSceneRenderable(scene_, vertex.get());
           decorations_.push_back(std::move(vertex));
         }

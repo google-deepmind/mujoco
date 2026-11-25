@@ -451,6 +451,12 @@ void InitRenderFilament(pybind11::module_& m) {
     },
     py::arg("data"));
     cls.def(
+        "set_options",
+        [](ModelLights& self, const MjvOptionWrapper& opt) {
+          self.SetOptions(*opt.get());
+        },
+        py::arg("opt"));
+    cls.def(
         "get_light",
         [](ModelLights& self, int index) -> std::optional<PyLight> {
           mjrfLight* light = self.GetLight(index);

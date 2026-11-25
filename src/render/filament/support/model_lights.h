@@ -33,6 +33,9 @@ class ModelLights {
   // Updates the state of the lights in the scene.
   void Update(const mjData* data = nullptr);
 
+  // Sets the visualization options for lights, applied on the next Update().
+  void SetOptions(const mjvOption& opt);
+
   // Returns the light with the given index in the mjModel.
   mjrfLight* GetLight(int index);
 
@@ -54,6 +57,7 @@ class ModelLights {
 
   mjrfScene* scene_ = nullptr;
   ModelResources* model_resources_ = nullptr;
+  mjvOption vopts_;
 
   UniquePtr<mjrfLight> fallback_ibl_{nullptr, nullptr};
   UniquePtr<mjrfTexture> fallback_ibl_texture_{nullptr, nullptr};

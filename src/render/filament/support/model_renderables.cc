@@ -260,9 +260,10 @@ void ModelRenderables::Update(const mjData* data) {
 
   mjrfContext* ctx = model_resources_->GetContext();
   const mjModel* model = model_resources_->GetModel();
+  const float3 offset = ReadFloat3(vopts_.offset);
 
   for (int i = 0; i < model->ngeom; ++i) {
-    const float3 pos = ReadFloat3(data->geom_xpos, i);
+    const float3 pos = ReadFloat3(data->geom_xpos, i) + offset;
     const mat3f mat = ReadMat3(data->geom_xmat, i);
     mjrf_setRenderablePose(geoms_[i].get(), pos.v, mat.asArray());
 
@@ -284,6 +285,7 @@ void ModelRenderables::Update(const mjData* data) {
       pos = ReadFloat3(meshpos);
       mat = ReadMat3(meshmat);
     }
+    pos += offset;
     mjrf_setRenderablePose(sites_[i].get(), pos.v, mat.asArray());
 
     mjrfMaterial material = GetMaterial(mjOBJ_SITE, i, data);
@@ -301,6 +303,9 @@ void ModelRenderables::Update(const mjData* data) {
             mjrf_setRenderableMesh(flexes_[i][k].get(), mesh.get(),
                                    slices[k].elem_offset, slices[k].elem_count);
           }
+          // The mesh is built in simulation coordinates.
+          mjrf_setRenderablePose(flexes_[i][k].get(), offset.v,
+                                 mat3f().asArray());
           mjrfMaterial material =
               GetMaterial(mjOBJ_FLEX, i, data, slices[k].matid);
           mjrf_setRenderableMaterial(flexes_[i][k].get(), &material);
@@ -354,8 +359,10 @@ void ModelRenderables::Update(const mjData* data) {
           const int e = j + edgeadr;
           const int idx0 = model->flex_edge[2 * e];
           const int idx1 = model->flex_edge[2 * e + 1];
-          const float3 v0 = ReadFloat3(data->flexvert_xpos, vertadr + idx0);
-          const float3 v1 = ReadFloat3(data->flexvert_xpos, vertadr + idx1);
+          const float3 v0 =
+              ReadFloat3(data->flexvert_xpos, vertadr + idx0) + offset;
+          const float3 v1 =
+              ReadFloat3(data->flexvert_xpos, vertadr + idx1) + offset;
           const int k = edge_elem(j, idx0, idx1);
           if (is_box && k >= 0) {
             const float len = length(v1 - v0);
@@ -382,6 +389,8 @@ void ModelRenderables::Update(const mjData* data) {
     auto mesh = CreateSkinMesh(ctx, model, data, i);
     mjrf_setRenderableMesh(skins_[i].get(), mesh.get(), 0, 0);
     skin_meshes_[i] = std::move(mesh);
+    // The mesh is built in simulation coordinates.
+    mjrf_setRenderablePose(skins_[i].get(), offset.v, mat3f().asArray());
 
     mjrfMaterial material = GetMaterial(mjOBJ_SKIN, i, data);
     mjrf_setRenderableMaterial(skins_[i].get(), &material);
@@ -649,8 +658,9 @@ void ModelRenderables::UpdateSliderCranks(const mjData* data, int actuator_id) {
 
   const int crank_id = model->actuator_trnid[2 * actuator_id];
   const int slider_id = model->actuator_trnid[2 * actuator_id + 1];
-  const float3 crank_pos = ReadFloat3(data->site_xpos, crank_id);
-  const float3 slider_pos = ReadFloat3(data->site_xpos, slider_id);
+  const float3 offset = ReadFloat3(vopts_.offset);
+  const float3 crank_pos = ReadFloat3(data->site_xpos, crank_id) + offset;
+  const float3 slider_pos = ReadFloat3(data->site_xpos, slider_id) + offset;
 
   const float3 vec = crank_pos - slider_pos;
 
@@ -764,11 +774,12 @@ void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
     }
   }
 
+  const float3 offset = ReadFloat3(vopts_.offset);
   for (int i = 0; i < point_cache_.size(); i += 2) {
     mjrfRenderable* renderable = segments[i / 2].get();
     const float width = point_cache_[i].w;
-    const float3 p0 = point_cache_[i + 0].xyz;
-    const float3 p1 = point_cache_[i + 1].xyz;
+    const float3 p0 = point_cache_[i + 0].xyz + offset;
+    const float3 p1 = point_cache_[i + 1].xyz + offset;
     Connect(renderable, p0, p1, width);
     mjrf_setRenderableMaterial(renderable, &material);
   }

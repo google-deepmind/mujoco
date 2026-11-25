@@ -58,11 +58,11 @@ void ModelScene::Sync(const mjModel* model, mjData* data, mjrRect viewport,
     mjrf_setSceneMsaa(scene_, offsamples_);
   }
 
-  model_lights_->Update(data);
-
   if (vis_options) {
+    model_lights_->SetOptions(*vis_options);
     model_renderables_->SetOptions(*vis_options);
   }
+  model_lights_->Update(data);
   if (perturb && perturb->select > 0) {
     model_renderables_->MarkAsSelected(mjOBJ_BODY, perturb->select);
   } else if (perturb && perturb->flexselect >= 0) {
