@@ -17,20 +17,34 @@ limitations under the License.
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>MuJoCo Web Viewer</title>
     <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
     <style>
+      html,
       body {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
         margin: 0;
         overflow: hidden;
         background: #1a1a2e;
+        overscroll-behavior: none;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
       }
       canvas {
         width: 100vw;
         height: 100vh;
         height: 100dvh;
         display: block;
+        touch-action: none;
       }
     </style>
   </head>
@@ -63,7 +77,69 @@ limitations under the License.
       // cache (40 MiB on the default 320 MiB cache), which a full 64 MiB chunk
       // below already exceeds, and the rest of the user's browsing can evict
       // entries at any time.
-      const MODEL_CACHE_BYTES = 256 * 1024 * 1024;
+      function isMemoryConstrainedDevice() {
+        const nav = typeof navigator !== "undefined" ? navigator : null;
+        if (
+          nav &&
+          nav.userAgentData &&
+          typeof nav.userAgentData.mobile === "boolean" &&
+          nav.userAgentData.mobile
+        ) {
+          return true;
+        }
+        const ua = (nav && nav.userAgent) || "";
+        if (
+          /iPad|iPhone|iPod|Android|Mobile|Windows Phone|IEMobile|Opera Mini/i.test(
+            ua
+          )
+        ) {
+          return true;
+        }
+        if (nav && nav.platform === "MacIntel" && nav.maxTouchPoints > 1) {
+          return true;
+        }
+        const coarseOrNoHover = Boolean(
+          window.matchMedia &&
+            (window.matchMedia("(hover: none)").matches ||
+              window.matchMedia("(pointer: coarse)").matches)
+        );
+        const minDim = Math.min(
+          (window.screen && window.screen.width) || window.innerWidth || 0,
+          (window.screen && window.screen.height) || window.innerHeight || 0
+        );
+        return coarseOrNoHover && minDim > 0 && minDim < 768;
+      }
+      const IS_MEMORY_CONSTRAINED = isMemoryConstrainedDevice();
+
+      // Pre-allocate WebAssembly linear memory (paired with -sIMPORTED_MEMORY=1
+      // -sINITIAL_MEMORY=128mb) so desktop browsers reserve a 3 GiB contiguous
+      // block upfront while mobile browsers stay safely below their per-tab
+      // address-space ceilings. Every candidate >= 128 MiB avoids LinkError.
+      function createWasmMemory() {
+        const MB_PAGES = 16; // 1 MiB = 16 * 64 KiB WebAssembly pages
+        const candidates = IS_MEMORY_CONSTRAINED
+          ? [
+              { initial: 256 * MB_PAGES, maximum: 768 * MB_PAGES },
+              { initial: 192 * MB_PAGES, maximum: 512 * MB_PAGES },
+              { initial: 128 * MB_PAGES, maximum: 256 * MB_PAGES },
+            ]
+          : [
+              { initial: 3072 * MB_PAGES, maximum: 65536 },
+              { initial: 1024 * MB_PAGES, maximum: 65536 },
+              { initial: 256 * MB_PAGES, maximum: 65536 },
+              { initial: 128 * MB_PAGES, maximum: 65536 },
+            ];
+        for (const spec of candidates) {
+          try {
+            return new WebAssembly.Memory(spec);
+          } catch (e) {
+            console.warn("[wasm] WebAssembly.Memory fallback:", spec, e);
+          }
+        }
+        return undefined;
+      }
+
+      const MODEL_CACHE_BYTES = (IS_MEMORY_CONSTRAINED ? 64 : 256) * 1024 * 1024;
       const modelCache = new Map(); // crc32 -> Uint8Array; insertion order = LRU order
       let modelCacheBytes = 0;
       let currentModelCrc = 0;
@@ -139,7 +215,7 @@ limitations under the License.
       // has the bundle.
       async function fetchModelChunked(crc, job) {
         const CHUNK = 64 * 1024 * 1024; // 64 MiB per request
-        const PARALLEL = 6; // concurrent fetches
+        const PARALLEL = IS_MEMORY_CONSTRAINED ? 2 : 6; // concurrent fetches
         const MAX_RETRIES = 3; // per-chunk retry limit
         const RETRY_DELAY = 500; // ms between retries
         try {
@@ -404,8 +480,22 @@ limitations under the License.
       }
 
       var Module = {
+        wasmMemory: createWasmMemory(),
         canvas: (() => {
           const canvas = document.getElementById("canvas");
+          // Suppress iOS Safari's proprietary GestureEvent page zoom and pinch
+          // browser zoom even when CSS touch-action is bypassed.
+          const preventBrowserZoom = (e) => e.preventDefault();
+          canvas.addEventListener("gesturestart", preventBrowserZoom, { passive: false });
+          canvas.addEventListener("gesturechange", preventBrowserZoom, { passive: false });
+          canvas.addEventListener("gestureend", preventBrowserZoom, { passive: false });
+          canvas.addEventListener(
+            "touchmove",
+            (e) => {
+              if (e.touches.length > 1) e.preventDefault();
+            },
+            { passive: false },
+          );
           return canvas;
         })(),
         locateFile: function (path, prefix) {
@@ -507,23 +597,100 @@ limitations under the License.
       };
       // Set only the CSS size; SDL owns canvas.width/height. Use whole
       // pixels: a fractional size (100vw/100vh under display scaling) makes
-      // the streamed UI relayout — and visibly flicker — every frame.
-      function fitCanvas() {
+      // the streamed UI relayout — and visibly flicker — every frame. Prefer
+      // visualViewport so mobile URL/tab toolbars never clip the bottom role
+      // bar, and synthesize a window "resize" event when visualViewport
+      // changes so SDL2's Emscripten_HandleResize updates WebGL and ImGui.
+      let lastCanvasW = 0;
+      let lastCanvasH = 0;
+      function fitCanvas(e) {
         const vv = window.visualViewport;
-        const useVisualViewport = vv && Math.abs(vv.scale - 1) < 0.01;
-        const width = useVisualViewport ? vv.width : window.innerWidth;
-        const height = useVisualViewport ? vv.height : window.innerHeight;
-        Module.canvas.style.width = Math.floor(width) + "px";
-        Module.canvas.style.height = Math.floor(height) + "px";
+        const w = Math.max(1, Math.floor(vv ? vv.width : window.innerWidth));
+        const h = Math.max(1, Math.floor(vv ? vv.height : window.innerHeight));
+        if (vv && (vv.offsetLeft !== 0 || vv.offsetTop !== 0)) {
+          window.scrollTo(0, 0);
+        }
+        Module.canvas.style.transform =
+          vv && (vv.offsetLeft || vv.offsetTop)
+            ? `translate(${Math.round(vv.offsetLeft)}px, ${Math.round(vv.offsetTop)}px)`
+            : "";
+        if (w !== lastCanvasW || h !== lastCanvasH) {
+          lastCanvasW = w;
+          lastCanvasH = h;
+          Module.canvas.style.width = w + "px";
+          Module.canvas.style.height = h + "px";
+          if (e && e.target !== window) {
+            window.dispatchEvent(new Event("resize"));
+          }
+        }
       }
       fitCanvas();
       window.addEventListener("resize", fitCanvas);
       window.visualViewport?.addEventListener("resize", fitCanvas);
+      window.visualViewport?.addEventListener("scroll", fitCanvas);
+
+      // SDL2's SDL_touch.c locks single-finger mouse synthesis onto the first
+      // touch's identifier until SDL_SendTouch(..., SDL_FALSE) runs. Mobile
+      // Safari/Chrome may hide or blur a tab mid-touch without firing
+      // touchcancel, which would permanently break single-finger taps because
+      // iOS monotonically increments Touch.identifier. Synthesize touchcancel
+      // for any active touches whenever the page blurs or hides.
+      const activeTouches = new Map();
+      function syncActiveTouches(e) {
+        const remaining = new Set();
+        for (const t of e.touches) {
+          remaining.add(t.identifier);
+          activeTouches.set(t.identifier, t);
+        }
+        for (const id of activeTouches.keys()) {
+          if (!remaining.has(id)) {
+            activeTouches.delete(id);
+          }
+        }
+      }
+      function cancelActiveTouches() {
+        if (activeTouches.size === 0) return;
+        const list = [...activeTouches.values()];
+        activeTouches.clear();
+        let ev = null;
+        if (typeof TouchEvent === "function") {
+          try {
+            const candidate = new TouchEvent("touchcancel", {
+              bubbles: true,
+              cancelable: false,
+              touches: [],
+              targetTouches: [],
+              changedTouches: list,
+            });
+            if (candidate.changedTouches && candidate.changedTouches.length === list.length) {
+              ev = candidate;
+            }
+          } catch (_) {}
+        }
+        if (!ev) {
+          ev = new Event("touchcancel", { bubbles: true, cancelable: false });
+          ev.touches = [];
+          ev.targetTouches = [];
+          ev.changedTouches = list;
+        }
+        Module.canvas.dispatchEvent(ev);
+      }
+      for (const type of ["touchstart", "touchmove", "touchend", "touchcancel"]) {
+        Module.canvas.addEventListener(type, syncActiveTouches, {
+          capture: true,
+          passive: true,
+        });
+      }
+      window.addEventListener("blur", cancelActiveTouches);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) cancelActiveTouches();
+      });
 
       // Release the WebGL context on pagehide so Chrome's GPU process
       // immediately frees VRAM across page reloads instead of retaining
       // detached contexts until V8 garbage-collects the old document.
       window.addEventListener("pagehide", () => {
+        cancelActiveTouches();
         const gl =
           Module.canvas.getContext("webgl2") ||
           Module.canvas.getContext("webgl");

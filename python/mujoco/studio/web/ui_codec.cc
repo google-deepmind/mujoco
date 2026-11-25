@@ -29,6 +29,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 namespace mujoco::studio::netui {
 namespace {
@@ -97,6 +98,15 @@ static_assert(offsetof(WireDrawCommand, idx_offset) == 12);
 static_assert(offsetof(WireDrawCommand, elem_count) == 16);
 static_assert(offsetof(WireDrawCommand, clip_rect) == 20);
 static_assert(std::is_trivially_copyable_v<WireDrawCommand>);
+static_assert(sizeof(HitRegion) == 32);
+static_assert(std::is_trivially_copyable_v<HitRegion>);
+
+struct WireHitRegionsHeader {
+  uint32_t count = 0;
+  uint32_t reserved = 0;
+};
+static_assert(sizeof(WireHitRegionsHeader) == 8);
+static_assert(std::is_trivially_copyable_v<WireHitRegionsHeader>);
 
 bool AllFinite(const float* values, size_t count) {
   for (size_t i = 0; i < count; ++i) {
@@ -129,8 +139,7 @@ uint16_t QuantizePos(float offset) {
 // window's draw list can be matched across frames.
 uint64_t HashOwnerName(const char* name) {
   if (name == nullptr) return 1;
-  const uint64_t hash =
-      std::hash<std::string_view>()(std::string_view(name));
+  const uint64_t hash = std::hash<std::string_view>()(std::string_view(name));
   return hash == 0 ? 1 : hash;
 }
 
@@ -456,8 +465,7 @@ void SerializeDrawData(const ImDrawData* draw_data, int mouse_cursor,
     // Choose the first vertex position as the local origin (`ref_pos`) and
     // size the 8-byte-aligned sections for the list header, vertices, indices,
     // and draw commands.
-    const uint32_t vert_count =
-        static_cast<uint32_t>(cmd_list->VtxBuffer.Size);
+    const uint32_t vert_count = static_cast<uint32_t>(cmd_list->VtxBuffer.Size);
     const uint32_t idx_count = static_cast<uint32_t>(cmd_list->IdxBuffer.Size);
     const float ref_x = vert_count > 0 ? cmd_list->VtxBuffer[0].pos.x : 0.0f;
     const float ref_y = vert_count > 0 ? cmd_list->VtxBuffer[0].pos.y : 0.0f;
@@ -539,23 +547,80 @@ void SerializeDrawData(const ImDrawData* draw_data, int mouse_cursor,
 
     out->lists.push_back(std::move(serialized));
   }
+
+  // 3. Record interactive window hit regions and popup state from the current
+  //    Dear ImGui context when serializing its live draw data, so the browser
+  //    can hit-test remote UI (including transparent windows like the view
+  //    gizmo and dockspace passthrough holes) without triangle scanning.
+  ImGuiContext* ctx = ImGui::GetCurrentContext();
+  if (ctx != nullptr && draw_data == ImGui::GetDrawData() &&
+      (ctx->IO.ConfigFlags & ImGuiConfigFlags_NoMouse) == 0) {
+    out->has_open_popup = ctx->OpenPopupStack.Size > 0 ||
+                          ImGui::GetTopMostPopupModal() != nullptr;
+    const ImVec2 padding_regular = ctx->Style.TouchExtraPadding;
+    const ImVec2 padding_for_resize =
+        ImMax(ctx->Style.TouchExtraPadding,
+              ImVec2(ctx->Style.WindowBorderHoverPadding,
+                     ctx->Style.WindowBorderHoverPadding));
+    for (int i = 0; i < ctx->Windows.Size; ++i) {
+      const ImGuiWindow* window = ctx->Windows[i];
+      if (!window->Active || window->Hidden) continue;
+      if (window->IsFallbackWindow && !window->WriteAccessed) continue;
+      if ((window->Flags & ImGuiWindowFlags_NoMouseInputs) != 0) continue;
+      const ImVec2 hit_padding =
+          (window->Flags &
+           (ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize))
+              ? padding_regular
+              : padding_for_resize;
+      ImRect rect = window->OuterRectClipped;
+      rect.Expand(hit_padding);
+      if (!(rect.Min.x < rect.Max.x && rect.Min.y < rect.Max.y)) continue;
+      HitRegion region;
+      region.rect[0] = rect.Min.x;
+      region.rect[1] = rect.Min.y;
+      region.rect[2] = rect.Max.x;
+      region.rect[3] = rect.Max.y;
+      if (window->HitTestHoleSize.x != 0) {
+        const float hx =
+            window->Pos.x + static_cast<float>(window->HitTestHoleOffset.x);
+        const float hy =
+            window->Pos.y + static_cast<float>(window->HitTestHoleOffset.y);
+        region.hole[0] = hx;
+        region.hole[1] = hy;
+        region.hole[2] = hx + static_cast<float>(window->HitTestHoleSize.x);
+        region.hole[3] = hy + static_cast<float>(window->HitTestHoleSize.y);
+      }
+      if (!AllFinite(region.rect, 4) || !AllFinite(region.hole, 4)) continue;
+      out->hit_regions.push_back(region);
+    }
+  }
 }
 
 Bytes EncodeDrawFrame(const SerializedFrame& frame, uint64_t frame_index,
                       const SerializedFrame* prev_frame) {
   const bool compress = (prev_frame != nullptr);
+  const bool has_hit_regions = !frame.hit_regions.empty();
 
   // 1. Give up on frames the decoder would reject for their unpacked size
   //    (which also keeps every list size below 2^32), and reserve space for the
   //    outer frame header and per-list headers/payloads.
-  uint64_t unpacked_bytes_total = sizeof(DrawFrame);
-  size_t reserve_bytes =
-      sizeof(DrawFrame) + frame.lists.size() * sizeof(WireListHeader);
+  const uint64_t hit_regions_bytes =
+      has_hit_regions ? sizeof(WireHitRegionsHeader) +
+                            static_cast<uint64_t>(frame.hit_regions.size()) *
+                                sizeof(HitRegion)
+                      : 0;
+  uint64_t unpacked_bytes_total = sizeof(DrawFrame) + hit_regions_bytes;
+  size_t reserve_bytes = sizeof(DrawFrame) +
+                         frame.lists.size() * sizeof(WireListHeader) +
+                         static_cast<size_t>(hit_regions_bytes);
   for (const SerializedList& list : frame.lists) {
     unpacked_bytes_total += list.bytes.size();
     reserve_bytes += compress ? 2 * kChunkBytes : list.bytes.size();
   }
   if (unpacked_bytes_total > kMaxMessageBytes) return {};
+  for (const HitRegion& region : frame.hit_regions) {
+    if (!AllFinite(region.rect, 4) || !AllFinite(region.hole, 4)) return {};
+  }
   Bytes out;
   out.reserve(reserve_bytes);
   out.resize(sizeof(DrawFrame), std::byte{0});
@@ -584,6 +649,16 @@ Bytes EncodeDrawFrame(const SerializedFrame& frame, uint64_t frame_index,
     std::memcpy(out.data() + list_hdr_offset, &list_hdr, sizeof(list_hdr));
   }
 
+  if (has_hit_regions) {
+    WireHitRegionsHeader hit_hdr;
+    hit_hdr.count = static_cast<uint32_t>(frame.hit_regions.size());
+    hit_hdr.reserved = 0;
+    AppendBytes(reinterpret_cast<const std::byte*>(&hit_hdr), sizeof(hit_hdr),
+                &out);
+    AppendBytes(reinterpret_cast<const std::byte*>(frame.hit_regions.data()),
+                frame.hit_regions.size() * sizeof(HitRegion), &out);
+  }
+
   // RLE block headers can make a compressed frame larger than its lists.
   if (out.size() > kMaxMessageBytes) return {};
 
@@ -591,7 +666,10 @@ Bytes EncodeDrawFrame(const SerializedFrame& frame, uint64_t frame_index,
   //    metadata.
   DrawFrame hdr;
   hdr.header.size = static_cast<uint32_t>(out.size());
-  hdr.header.flags = compress ? DrawFrame::kCompressed : 0;
+  hdr.header.flags = static_cast<uint16_t>(
+      (compress ? DrawFrame::kCompressed : 0) |
+      (has_hit_regions ? DrawFrame::kHasHitRegions : 0) |
+      (frame.has_open_popup ? DrawFrame::kHasOpenPopup : 0));
   hdr.header.kind = MessageKind::kDrawFrame;
   hdr.header.version = kCodecVersion;
   hdr.frame_index = frame_index;
@@ -614,8 +692,7 @@ bool DecodeDrawFrame(BytesView message, SerializedFrame* prev_frame,
   if (prev_frame == nullptr || prev_frame_index == nullptr || out == nullptr) {
     return false;
   }
-  if (message.size() < sizeof(DrawFrame) ||
-      message.size() > kMaxMessageBytes ||
+  if (message.size() < sizeof(DrawFrame) || message.size() > kMaxMessageBytes ||
       (message.size() % kChunkBytes) != 0) {
     return false;
   }
@@ -623,14 +700,21 @@ bool DecodeDrawFrame(BytesView message, SerializedFrame* prev_frame,
   // 2. Parse and validate the outer DrawFrame header and sequence continuity.
   DrawFrame hdr;
   std::memcpy(&hdr, message.data(), sizeof(hdr));
+  constexpr uint16_t kAllowedFlags = DrawFrame::kCompressed |
+                                     DrawFrame::kHasHitRegions |
+                                     DrawFrame::kHasOpenPopup;
   if (hdr.header.kind != MessageKind::kDrawFrame ||
       hdr.header.version != kCodecVersion ||
       hdr.header.size != message.size() ||
-      (hdr.header.flags & ~DrawFrame::kCompressed) != 0) {
+      (hdr.header.flags & ~kAllowedFlags) != 0) {
     return false;
   }
 
   const bool compressed = (hdr.header.flags & DrawFrame::kCompressed) != 0;
+  const bool has_hit_regions =
+      (hdr.header.flags & DrawFrame::kHasHitRegions) != 0;
+  const bool has_open_popup =
+      (hdr.header.flags & DrawFrame::kHasOpenPopup) != 0;
   if (compressed) {
     if (*prev_frame_index == 0 || hdr.frame_index != *prev_frame_index + 1) {
       if (request_keyframe != nullptr) *request_keyframe = true;
@@ -656,6 +740,7 @@ bool DecodeDrawFrame(BytesView message, SerializedFrame* prev_frame,
   next_serialized.display_pos[1] = hdr.display_pos[1];
   next_serialized.display_size[0] = hdr.display_size[0];
   next_serialized.display_size[1] = hdr.display_size[1];
+  next_serialized.has_open_popup = has_open_popup;
   next_serialized.lists.reserve(hdr.list_count);
 
   DecodedFrame next_out;
@@ -664,6 +749,7 @@ bool DecodeDrawFrame(BytesView message, SerializedFrame* prev_frame,
   next_out.display_pos[1] = hdr.display_pos[1];
   next_out.display_size[0] = hdr.display_size[0];
   next_out.display_size[1] = hdr.display_size[1];
+  next_out.has_open_popup = has_open_popup;
   next_out.lists.resize(hdr.list_count);
 
   // 4. Reconstruct and unpack each draw list, enforcing a cumulative unpacked
@@ -691,8 +777,7 @@ bool DecodeDrawFrame(BytesView message, SerializedFrame* prev_frame,
 
     SerializedList serialized_list;
     serialized_list.group_id = list_hdr.group_id;
-    const BytesView payload =
-        message.subspan(byte_pos, list_hdr.payload_bytes);
+    const BytesView payload = message.subspan(byte_pos, list_hdr.payload_bytes);
     if (compressed) {
       const Bytes* prev_bytes =
           FindMatchingListBytes(prev_frame, list_hdr.group_id, i);
@@ -714,7 +799,43 @@ bool DecodeDrawFrame(BytesView message, SerializedFrame* prev_frame,
     next_serialized.lists.push_back(std::move(serialized_list));
   }
 
-  // 5. Reject messages with unconsumed trailing bytes, then commit the decoded
+  // 5. Decode optional interactive window hit regions.
+  if (has_hit_regions) {
+    if (message.size() - byte_pos < sizeof(WireHitRegionsHeader)) {
+      if (compressed && request_keyframe != nullptr) *request_keyframe = true;
+      return false;
+    }
+    WireHitRegionsHeader hit_hdr;
+    std::memcpy(&hit_hdr, message.data() + byte_pos, sizeof(hit_hdr));
+    byte_pos += sizeof(WireHitRegionsHeader);
+    if (hit_hdr.reserved != 0 ||
+        hit_hdr.count > (message.size() - byte_pos) / sizeof(HitRegion)) {
+      if (compressed && request_keyframe != nullptr) *request_keyframe = true;
+      return false;
+    }
+    const uint64_t hit_bytes =
+        sizeof(WireHitRegionsHeader) +
+        static_cast<uint64_t>(hit_hdr.count) * sizeof(HitRegion);
+    if (unpacked_bytes_total + hit_bytes > kMaxMessageBytes) {
+      if (compressed && request_keyframe != nullptr) *request_keyframe = true;
+      return false;
+    }
+    unpacked_bytes_total += hit_bytes;
+    next_out.hit_regions.resize(hit_hdr.count);
+    for (uint32_t i = 0; i < hit_hdr.count; ++i) {
+      HitRegion region;
+      std::memcpy(&region, message.data() + byte_pos, sizeof(region));
+      byte_pos += sizeof(region);
+      if (!AllFinite(region.rect, 4) || !AllFinite(region.hole, 4)) {
+        if (compressed && request_keyframe != nullptr) *request_keyframe = true;
+        return false;
+      }
+      next_out.hit_regions[i] = region;
+    }
+    next_serialized.hit_regions = next_out.hit_regions;
+  }
+
+  // 6. Reject messages with unconsumed trailing bytes, then commit the decoded
   //    frame and updated reference state.
   if (byte_pos != message.size()) {
     if (compressed && request_keyframe != nullptr) *request_keyframe = true;

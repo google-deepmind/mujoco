@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <sstream>
@@ -599,6 +600,46 @@ void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect, const ch
     }
   }
   EndOverlay();
+}
+
+void StripUnconsumedTouchMousePress() {
+  ImGuiContext* ctx = ImGui::GetCurrentContext();
+  if (ctx == nullptr || ctx->IO.MouseDown[ImGuiMouseButton_Left]) {
+    return;
+  }
+  int dst = 0;
+  for (int src = 0; src < ctx->InputEventsQueue.Size; ++src) {
+    const ImGuiInputEvent& ev = ctx->InputEventsQueue[src];
+    if (ev.Type == ImGuiInputEventType_MouseButton &&
+        ev.MouseButton.Button == ImGuiMouseButton_Left) {
+      continue;
+    }
+    if (dst != src) {
+      ctx->InputEventsQueue[dst] = ev;
+    }
+    ++dst;
+  }
+  ctx->InputEventsQueue.resize(dst);
+}
+
+bool HitTestImGuiWindows(ImVec2 pos) {
+  ImGuiContext* ctx = ImGui::GetCurrentContext();
+  if (ctx == nullptr) {
+    return false;
+  }
+  const ImGuiContext& g = *ctx;
+  if (g.IO.ConfigFlags & ImGuiConfigFlags_NoMouse) {
+    return false;
+  }
+  if (g.OpenPopupStack.Size > 0 || ImGui::GetTopMostPopupModal() != nullptr) {
+    return true;
+  }
+  if (!std::isfinite(pos.x) || !std::isfinite(pos.y)) {
+    return false;
+  }
+  ImGuiWindow* hovered = nullptr;
+  ImGui::FindHoveredWindowEx(pos, /*find_first_and_in_any_viewport=*/true, &hovered, nullptr);
+  return hovered != nullptr;
 }
 
 }  // namespace mujoco::studio

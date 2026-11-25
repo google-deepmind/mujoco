@@ -87,12 +87,13 @@ class RoleWindow {
   void UpdateTransitions(const SessionView& view, double now);
   void DrawBar(const SessionView& view, SessionActions& actions,
                GuiTheme* theme);
-  void DrawDownloading(const SessionView& view);
+  void DrawDownloading(const SessionView& view, bool compact);
   void DrawRoleChip(const SessionView& view);
-  void DrawCameraToken(const SessionView& view, SessionActions& actions);
+  void DrawCameraToken(const SessionView& view, SessionActions& actions,
+                       bool compact);
   void DrawCapacityToken(const SessionView& view, SessionActions& actions);
   void DrawActions(const SessionView& view, SessionActions& actions,
-                   GuiTheme* theme);
+                   GuiTheme* theme, bool compact);
   void DrawThemeButton(GuiTheme* theme);
   void DrawDataRate(const SessionView& view);
   void DrawFpsCapToken(const SessionView& view, SessionActions& actions);

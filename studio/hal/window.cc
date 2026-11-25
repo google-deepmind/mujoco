@@ -15,6 +15,7 @@
 #include "studio/hal/window.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstddef>
 #include <span>
 #include <string>
@@ -24,10 +25,12 @@
 #include <SDL_error.h>
 #include <SDL_events.h>
 #include <SDL_hints.h>
+#include <SDL_mouse.h>
 #include <SDL_render.h>
 #include <SDL_stdinc.h>
 #include <SDL_surface.h>
 #include <SDL_syswm.h>
+#include <SDL_touch.h>
 #include <SDL_version.h>
 #include <SDL_video.h>
 #include <backends/imgui_impl_sdl2.h>
@@ -35,6 +38,8 @@
 #include <mujoco/mujoco.h>
 #include "studio/hal/graphics_mode.h"
 #include "studio/ux/fonts.h"
+#include "studio/ux/imgui_widgets.h"
+#include "studio/ux/touch_gesture.h"
 
 // Because X11/Xlib.h defines Status.
 #ifdef Status
@@ -214,21 +219,133 @@ std::string Window::GetDropFile() {
   return tmp;
 }
 
+bool Window::IsDirectTouch(SDL_TouchID touch_id) const {
+  if (touch_id == SDL_MOUSE_TOUCHID) {
+    return false;
+  }
+  if (direct_touch_check_ != nullptr) {
+    return direct_touch_check_(touch_id);
+  }
+  return SDL_GetTouchDeviceType(touch_id) == SDL_TOUCH_DEVICE_DIRECT;
+}
+
 Window::Status Window::NewFrame() {
+  // Drain SDL events in two passes: SDL pushes synthesized touch-mouse events
+  // (SDL_TOUCH_MOUSEID) ahead of SDL_FINGER* events, so Pass 1 updates the
+  // multi-touch state machine before Pass 2 forwards events to Dear ImGui.
+  event_buffer_.clear();
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
-    ImGui_ImplSDL2_ProcessEvent(&event);
+    event_buffer_.push_back(event);
+  }
 
-    if (event.type == SDL_QUIT) {
+  ImGuiIO& io = ImGui::GetIO();
+  touch_gesture_.BeginFrame(static_cast<float>(width_), static_cast<float>(height_));
+  bool lost_focus_this_frame = false;
+  for (const SDL_Event& ev : event_buffer_) {
+    if (ev.type == SDL_QUIT || ev.type == SDL_APP_WILLENTERBACKGROUND) {
+      touch_gesture_.Reset();
+      lost_focus_this_frame = true;
       should_exit_ = true;
-    } else if (event.type == SDL_APP_WILLENTERBACKGROUND) {
-      should_exit_ = true;
-    } else if (event.type == SDL_WINDOWEVENT) {
-      if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+    } else if (ev.type == SDL_WINDOWEVENT) {
+      if (ev.window.event == SDL_WINDOWEVENT_RESIZED ||
+          ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+        // Refresh logical size mid-pass so subsequent SDL_FINGER* events in
+        // this same frame map to updated coordinates; drawable size is polled
+        // unconditionally after the event loop.
+        SDL_GetWindowSize(sdl_window_, &width_, &height_);
+        touch_gesture_.SetWindowSize(static_cast<float>(width_), static_cast<float>(height_));
+      } else if (ev.window.event == SDL_WINDOWEVENT_CLOSE) {
         should_exit_ = true;
+      } else if (ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST ||
+                 ev.window.event == SDL_WINDOWEVENT_HIDDEN) {
+        touch_gesture_.Reset();
+        lost_focus_this_frame = true;
+        if (ev.window.event == SDL_WINDOWEVENT_HIDDEN) {
+          io.AddFocusEvent(false);
+        }
+      } else if (ev.window.event == SDL_WINDOWEVENT_SHOWN) {
+        io.AddFocusEvent(true);
       }
-    } else if (event.type == SDL_DROPFILE) {
-      drop_file_ = event.drop.file;
+    } else if (ev.type == SDL_DROPFILE) {
+      drop_file_ = ev.drop.file;
+    } else if (ev.type == SDL_FINGERDOWN || ev.type == SDL_FINGERMOTION ||
+               ev.type == SDL_FINGERUP) {
+      // Only consume direct touchscreens; indirect devices (e.g. macOS Cocoa
+      // trackpads) already deliver scroll/zoom via SDL_MOUSEWHEEL.
+      if (IsDirectTouch(ev.tfinger.touchId)) {
+        if (ev.type == SDL_FINGERDOWN) {
+          touch_gesture_.OnFingerDown(ev.tfinger.fingerId, ev.tfinger.x, ev.tfinger.y);
+        } else if (ev.type == SDL_FINGERMOTION) {
+          touch_gesture_.OnFingerMotion(ev.tfinger.fingerId, ev.tfinger.x, ev.tfinger.y);
+        } else {
+          touch_gesture_.OnFingerUp(ev.tfinger.fingerId);
+        }
+      }
+    }
+  }
+  touch_gesture_.EndFrame();
+
+  const bool suppress_touch_mouse = touch_gesture_.SuppressTouchMouse() || lost_focus_this_frame;
+  bool released_touch_mouse = false;
+  bool flush_cancel_without_trickle = false;
+  if (suppress_touch_mouse && touch_mouse_left_down_) {
+    SDL_Event release{};
+    release.type = SDL_MOUSEBUTTONUP;
+    release.button.windowID = SDL_GetWindowID(sdl_window_);
+    release.button.button = SDL_BUTTON_LEFT;
+    release.button.state = SDL_RELEASED;
+    if (!io.MouseDown[ImGuiMouseButton_Left]) {
+      // Frame N Finger 1 press was held back in ImGui's InputEventsQueue by
+      // touch input trickling and never reached io.MouseDown[0]. Strip the
+      // queued press before clearing ImGui_ImplSDL2's button mask so no
+      // spurious press/double-click fires on Frame N+1.
+      StripUnconsumedTouchMousePress();
+      ImGui_ImplSDL2_ProcessEvent(&release);
+      if (lost_focus_this_frame) {
+        io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+        released_touch_mouse = true;
+        flush_cancel_without_trickle = true;
+      }
+    } else {
+      // Finger 1 was already down in io.MouseDown[0]: move off-screen and
+      // release atomically (with input trickling disabled for this frame) so
+      // ButtonBehavior cancels cleanly in both local ImGui and remote Studio UI.
+      io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+      io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+      ImGui_ImplSDL2_ProcessEvent(&release);
+      released_touch_mouse = true;
+      flush_cancel_without_trickle = true;
+    }
+    touch_mouse_left_down_ = false;
+  }
+
+  for (const SDL_Event& ev : event_buffer_) {
+    if (suppress_touch_mouse) {
+      if (ev.type == SDL_MOUSEMOTION && ev.motion.which == SDL_TOUCH_MOUSEID) {
+        continue;
+      }
+      if ((ev.type == SDL_MOUSEBUTTONDOWN || ev.type == SDL_MOUSEBUTTONUP) &&
+          ev.button.which == SDL_TOUCH_MOUSEID) {
+        continue;
+      }
+    }
+    if (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.which == SDL_TOUCH_MOUSEID &&
+        ev.button.button == SDL_BUTTON_LEFT) {
+      touch_mouse_left_down_ = true;
+    } else if (ev.type == SDL_MOUSEBUTTONUP && ev.button.which == SDL_TOUCH_MOUSEID &&
+               ev.button.button == SDL_BUTTON_LEFT) {
+      touch_mouse_left_down_ = false;
+    }
+    ImGui_ImplSDL2_ProcessEvent(&ev);
+  }
+
+  if (touch_gesture_.state().active && !released_touch_mouse) {
+    const TouchGestureState& gesture = touch_gesture_.state();
+    if (io.MousePos.x != gesture.origin_x || io.MousePos.y != gesture.origin_y) {
+      io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+      io.AddMousePosEvent(gesture.origin_x, gesture.origin_y);
     }
   }
 
@@ -238,7 +355,12 @@ Window::Status Window::NewFrame() {
   UpdateDrawableSize();
 
   ImGui_ImplSDL2_NewFrame();
+  const bool prev_trickle = io.ConfigInputTrickleEventQueue;
+  if (flush_cancel_without_trickle) {
+    io.ConfigInputTrickleEventQueue = false;
+  }
   ImGui::NewFrame();
+  io.ConfigInputTrickleEventQueue = prev_trickle;
 
   return should_exit_ ? kQuitting : kRunning;
 }

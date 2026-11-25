@@ -223,6 +223,66 @@ TEST_F(CameraControlTest, WheelZoomsExceptTheFlyCamera) {
   ExpectSameCamera(camera_, expected);
 }
 
+TEST_F(CameraControlTest, PinchZoomsTumbleAndDolliesFlyCamera) {
+  constexpr float kPinch = 0.6f;
+  CameraInput input = Drag(0, 0);
+  input.pinch_zoom = kPinch;
+
+  const mjvCamera expected_tumble = Moved({{mjMOUSE_ZOOM, 0, kPinch / 3.0f}});
+  const mjtNum initial_distance = camera_.distance;
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_,
+                                  /*fly_camera=*/false, input));
+  ExpectSameCamera(camera_, expected_tumble);
+  EXPECT_LT(camera_.distance, initial_distance);
+
+  mjv_defaultFreeCamera(model_, &camera_);
+  const mjvCamera expected_fly = Moved({{mjMOUSE_MOVE_H_REL, 0, model_->stat.extent * kPinch}});
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_,
+                                  /*fly_camera=*/true, input));
+  ExpectSameCamera(camera_, expected_fly);
+}
+
+TEST_F(CameraControlTest, TwoFingerPanMovesInPlaneShiftPicks) {
+  CameraInput input = Drag(0, 0);
+  input.pan_dx = kDx;
+  input.pan_dy = kDy;
+  const mjvCamera expected_v = Moved({{mjMOUSE_MOVE_V, kDx, kDy}});
+
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_,
+                                  /*fly_camera=*/false, input));
+  ExpectSameCamera(camera_, expected_v);
+
+  mjv_defaultFreeCamera(model_, &camera_);
+  input.shift = true;
+  const mjvCamera expected_h = Moved({{mjMOUSE_MOVE_H, kDx, kDy}});
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_,
+                                  /*fly_camera=*/false, input));
+  ExpectSameCamera(camera_, expected_h);
+
+  // Portrait viewports (< 1:1) scale pan_dy by 1 / aspect_ratio, matching right drag.
+  constexpr float kPortraitAspect = 0.5f;
+  mjv_defaultFreeCamera(model_, &camera_);
+  input.shift = false;
+  input.aspect_ratio = kPortraitAspect;
+  const mjvCamera expected_portrait = Moved({{mjMOUSE_MOVE_V, kDx, kDy / kPortraitAspect}});
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_,
+                                  /*fly_camera=*/false, input));
+  ExpectSameCamera(camera_, expected_portrait);
+}
+
+TEST_F(CameraControlTest, PinchAndPanWithoutFocusMoveNothing) {
+  CameraInput input;
+  input.pinch_zoom = 0.5f;
+  input.pan_dx = kDx;
+  input.pan_dy = kDy;
+  input.mouse_focus = false;
+  const mjvCamera unmoved = camera_;
+
+  EXPECT_FALSE(MoveCameraWithMouse(model_, &camera_,
+                                   /*fly_camera=*/false, input));
+  ExpectSameCamera(camera_, unmoved);
+}
+
 TEST_F(CameraControlTest, KeysFlyFasterWhileHeldAndResetOnRelease) {
   CameraInput input;
   input.keyboard_focus = true;

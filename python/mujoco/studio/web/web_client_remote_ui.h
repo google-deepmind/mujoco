@@ -110,6 +110,12 @@ class RemoteUi {
     return remote_draw_data_.Valid ? &remote_draw_data_ : nullptr;
   }
 
+  // Returns true if `pos` (in logical pixels) falls inside the remote UI screen
+  // area and hits any interactive remote ImGui window (respecting passthrough
+  // holes) or open popup from the latest decoded DrawFrame. Used for zero-RTT
+  // touch hit-testing before applying local camera drags or pinches.
+  bool HitTest(ImVec2 pos) const;
+
   // Returns the bytes received since the last call and resets the counter.
   uint64_t ConsumeByteCount() {
     uint64_t bytes = bytes_accum_;

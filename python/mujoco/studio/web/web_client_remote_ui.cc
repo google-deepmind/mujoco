@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -645,6 +646,35 @@ void RemoteUi::Shutdown() {
   ResetSessionState();
   socket_.reset();
   last_state_ = ReadyState::kDisconnected;
+}
+
+bool RemoteUi::HitTest(ImVec2 pos) const {
+  if (!last_decoded_frame_.has_value() || !std::isfinite(pos.x) ||
+      !std::isfinite(pos.y)) {
+    return false;
+  }
+  if (screen_area_[0] > 0.0f && screen_area_[1] > 0.0f &&
+      (pos.x < 0.0f || pos.y < 0.0f || pos.x >= screen_area_[0] ||
+       pos.y >= screen_area_[1])) {
+    return false;
+  }
+  const netui::DecodedFrame& frame = *last_decoded_frame_;
+  if (frame.has_open_popup) {
+    return true;
+  }
+  for (const netui::HitRegion& region : frame.hit_regions) {
+    if (pos.x < region.rect[0] || pos.x >= region.rect[2] ||
+        pos.y < region.rect[1] || pos.y >= region.rect[3]) {
+      continue;
+    }
+    if (region.hole[2] > region.hole[0] && region.hole[3] > region.hole[1] &&
+        pos.x >= region.hole[0] && pos.x < region.hole[2] &&
+        pos.y >= region.hole[1] && pos.y < region.hole[3]) {
+      continue;
+    }
+    return true;
+  }
+  return false;
 }
 
 }  // namespace mujoco::studio

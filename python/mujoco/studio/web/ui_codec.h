@@ -91,8 +91,8 @@ struct Input {
     if (key_offset < 0 || key_offset >= static_cast<int>(kMaxKeys)) {
       return false;
     }
-    return (keys_down[key_offset / 64] &
-            (uint64_t{1} << (key_offset % 64))) != 0;
+    return (keys_down[key_offset / 64] & (uint64_t{1} << (key_offset % 64))) !=
+           0;
   }
 
   void SetKeyDown(int key_offset, bool down = true) {
@@ -162,6 +162,11 @@ struct Clipboard {
 struct DrawFrame {
   // MessageHeader::flags bits.
   static constexpr uint16_t kCompressed = 1u << 0;
+  // Trailing 8-byte-aligned block of interactive window HitRegions follows the
+  // draw lists: `{uint32_t count, uint32_t reserved}` then `count` HitRegions.
+  static constexpr uint16_t kHasHitRegions = 1u << 1;
+  // True when an ImGui popup or modal is open in this frame (captures input).
+  static constexpr uint16_t kHasOpenPopup = 1u << 2;
 
   MessageHeader header{sizeof(DrawFrame), 0, MessageKind::kDrawFrame,
                        kCodecVersion};
@@ -170,6 +175,15 @@ struct DrawFrame {
   uint32_t list_count = 0;
   float display_pos[2] = {};
   float display_size[2] = {};
+};
+
+// Interactive window hit region in ImGui screen coordinates: outer bounds
+// [min_x, min_y, max_x, max_y] (including resize border padding) and an
+// optional passthrough hole (empty when hole[2] <= hole[0] || hole[3] <=
+// hole[1], e.g. for a dockspace central node).
+struct HitRegion {
+  float rect[4] = {};
+  float hole[4] = {};
 };
 
 // Quantized vertex: position relative to the draw list's `ref_pos` in exact
@@ -218,6 +232,8 @@ struct DecodedFrame {
   float display_pos[2] = {};
   float display_size[2] = {};
   std::vector<DrawList> lists;
+  std::vector<HitRegion> hit_regions;
+  bool has_open_popup = false;
 };
 
 // Canonical byte representation of a single window's draw list (padded to an
@@ -233,6 +249,8 @@ struct SerializedFrame {
   float display_pos[2] = {};
   float display_size[2] = {};
   std::vector<SerializedList> lists;
+  std::vector<HitRegion> hit_regions;
+  bool has_open_popup = false;
 
   void Clear() {
     mouse_cursor = 0;
@@ -241,6 +259,8 @@ struct SerializedFrame {
     display_size[0] = 0.0f;
     display_size[1] = 0.0f;
     lists.clear();
+    hit_regions.clear();
+    has_open_popup = false;
   }
 };
 

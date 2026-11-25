@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -30,6 +31,7 @@
 #include "absl/log/check.h"
 #include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "studio/ux/gui.h"
 #include "state_payload.h"
 #include "ui_codec.h"
 #include "web_client_websocket.h"
@@ -116,6 +118,11 @@ class RemoteUiTest : public ::testing::Test {
  protected:
   RemoteUiTest() : context_(ImGui::CreateContext()), remote_ui_(callbacks_) {
     ImGui::SetCurrentContext(context_);
+    ImGuiIO& io = ImGui::GetIO();
+    unsigned char* font_pixels = nullptr;
+    int font_w = 0, font_h = 0;
+    io.Fonts->GetTexDataAsAlpha8(&font_pixels, &font_w, &font_h);
+    io.Fonts->SetTexID(static_cast<ImTextureID>(1));
     remote_ui_.SetScreenArea(1920.0f, 1080.0f);
   }
 
@@ -453,6 +460,117 @@ TEST_F(RemoteUiTest,
   ASSERT_EQ(draw_data->CmdLists.Size, 1);
   EXPECT_EQ(draw_data->CmdLists[0], list0);
   EXPECT_EQ(draw_data->CmdLists[0]->CmdBuffer.Size, 0);
+}
+
+TEST_F(RemoteUiTest,
+       HitTestsVisibleWindowGeometryAndMissesPassthroughViewport) {
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(100.0f, 80.0f)));
+
+  RegisterDummyTexture(/*tex_id=*/1);
+  remote_ui_.SetScreenArea(640.0f, 480.0f);
+
+  // Window1 occupies [10..260, 10..160]; the rest of [0..640, 0..480] is open
+  // 3D viewport with no background geometry.
+  const netui::SerializedFrame frame = RenderSerializedFrame("Panel content");
+  remote_ui_.ProcessDrawFrameMessage(
+      netui::EncodeDrawFrame(frame, /*frame_index=*/1));
+
+  EXPECT_TRUE(remote_ui_.HitTest(ImVec2(100.0f, 80.0f)));
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(450.0f, 300.0f)));
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(2.0f, 2.0f)));
+
+  // Clamping screen_area_ shrinks each command's ClipRect on rebuild, so
+  // geometry past the clamped area is no longer hit.
+  remote_ui_.SetScreenArea(120.0f, 80.0f);
+  remote_ui_.ProcessDrawFrameMessage(
+      netui::EncodeDrawFrame(frame, /*frame_index=*/2));
+  EXPECT_TRUE(remote_ui_.HitTest(ImVec2(60.0f, 50.0f)));
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(200.0f, 120.0f)));
+
+  // Non-finite coordinates must never false-positive.
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  const float inf = std::numeric_limits<float>::infinity();
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(nan, 50.0f)));
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(60.0f, nan)));
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(inf, 50.0f)));
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(60.0f, -inf)));
+
+  // NoMouseInputs overlays are excluded from hit regions, while open popups
+  // capture anywhere within screen_area_.
+  {
+    remote_ui_.SetScreenArea(640.0f, 480.0f);
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(640.0f, 480.0f);
+    ImGui::NewFrame();
+    ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(200.0f, 100.0f), ImGuiCond_Always);
+    ImGui::Begin("PassiveOverlay", nullptr,
+                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoInputs);
+    ImGui::TextUnformatted("HUD");
+    ImGui::End();
+    ImGui::Render();
+    netui::SerializedFrame passive_frame;
+    netui::SerializeDrawData(ImGui::GetDrawData(), ImGuiMouseCursor_Arrow,
+                             &passive_frame);
+    remote_ui_.ProcessDrawFrameMessage(
+        netui::EncodeDrawFrame(passive_frame, /*frame_index=*/3));
+    EXPECT_FALSE(remote_ui_.HitTest(ImVec2(60.0f, 50.0f)));
+
+    passive_frame.has_open_popup = true;
+    remote_ui_.ProcessDrawFrameMessage(
+        netui::EncodeDrawFrame(passive_frame, /*frame_index=*/4));
+    EXPECT_TRUE(remote_ui_.HitTest(ImVec2(450.0f, 300.0f)));
+    EXPECT_FALSE(remote_ui_.HitTest(ImVec2(450.0f, 500.0f)));
+  }
+
+  remote_ui_.Shutdown();
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(60.0f, 50.0f)));
+}
+
+TEST_F(RemoteUiTest, HitTestsUnhoveredViewGizmoDiscBetweenAxisBubbles) {
+  RegisterDummyTexture(/*tex_id=*/1);
+  remote_ui_.SetScreenArea(390.0f, 812.0f);
+
+  char err[256] = "";
+  mjSpec* spec = mj_parseXMLString("<mujoco/>", nullptr, err, sizeof(err));
+  ASSERT_NE(spec, nullptr) << err;
+  mjModel* model = mj_compile(spec, nullptr);
+  mj_deleteSpec(spec);
+  ASSERT_NE(model, nullptr);
+  mjData* data = mj_makeData(model);
+  ASSERT_NE(data, nullptr);
+  mj_forward(model, data);
+
+  ImGuiIO& io = ImGui::GetIO();
+  io.DisplaySize = ImVec2(390.0f, 812.0f);
+  io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);  // Unhovered (touch pre-tap state).
+  ImGui::NewFrame();
+
+  mjvCamera cam{};
+  mjv_defaultCamera(&cam);
+  int cam_idx = -1;
+  ViewGizmoAnimation anim{};
+  const ImVec4 workspace(0.0f, 0.0f, 390.0f, 812.0f);
+  ViewGizmoGui(model, data, cam, cam_idx, anim, workspace);
+
+  ImGui::Render();
+  netui::SerializedFrame frame;
+  netui::SerializeDrawData(ImGui::GetDrawData(), ImGuiMouseCursor_Arrow,
+                           &frame);
+  ASSERT_FALSE(frame.lists.empty());
+  remote_ui_.ProcessDrawFrameMessage(
+      netui::EncodeDrawFrame(frame, /*frame_index=*/1));
+
+  // ViewGizmo sits in the top-right corner of workspace (margin=8,
+  // half_extent=49): center = (390 - 8 - 49, 8 + 49) = (333, 57), radius = 49.
+  // Point (302, 26) is inside the disc (dist = 43.8 < 49) in the empty
+  // quadrant between axis bubbles.
+  EXPECT_TRUE(remote_ui_.HitTest(ImVec2(302.0f, 26.0f)));
+  // Outside the disc (top-left of screen) must miss.
+  EXPECT_FALSE(remote_ui_.HitTest(ImVec2(100.0f, 100.0f)));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 TEST_F(RemoteUiTest, SocketHandshakeReceiveAndInputRoundTrip) {

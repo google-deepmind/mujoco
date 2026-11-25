@@ -78,13 +78,12 @@ if(EMSCRIPTEN)
     -sMIN_WEBGL_VERSION=2
     -sMAX_WEBGL_VERSION=2
     -sSTACK_SIZE=32mb
-    # INITIAL_MEMORY=3072mb reserves a 3GB contiguous virtual address block upfront. This means
-    # large models do not fail dynamic memory.grow calls due to browser heap fragmentation. OS
-    # lazy page allocation for anonymous virtual memory means reserving 3GB of virtual address
-    # space consumes much less physical RAM when loading small XML models. Therefore, reducing
-    # INITIAL_MEMORY is not necessary for small models. For models that don't fit in 32-bit
-    # address space (~4GB) we can switch to 64-bit WASM.
-    -sINITIAL_MEMORY=3072mb
+    # Pre-import WebAssembly.Memory from index.html (-sIMPORTED_MEMORY=1) so a single WASM binary
+    # can reserve 3 GiB of contiguous address space upfront on desktop browsers (avoiding heap
+    # fragmentation on large models) while allocating a smaller 128..512 MiB arena on iOS WebKit,
+    # where reserving 3 GiB upfront exceeds the tab's Jetsam address-space ceiling.
+    -sIMPORTED_MEMORY=1
+    -sINITIAL_MEMORY=128mb
     -sMAXIMUM_MEMORY=4gb
     -fexceptions
     # Filament's GL backend calls glGetError() on every draw call via even in non-debug builds

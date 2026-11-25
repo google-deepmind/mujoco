@@ -1,3 +1,17 @@
+html,
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
 #loadingOverlay {
   position: fixed;
   top: 0;
@@ -143,5 +157,7 @@
 #canvas {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   display: block;
+  touch-action: none;
 }

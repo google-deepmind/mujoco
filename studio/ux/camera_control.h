@@ -38,6 +38,11 @@ struct CameraInput {
   float aspect_ratio = 1.0f;
   // Mouse wheel motion this frame.
   float mouse_wheel = 0;
+  // Multi-touch pinch log-scale ln(span_curr / span_prev); >0 zooms in.
+  float pinch_zoom = 0;
+  // Multi-touch 2-finger midpoint pan, as a fraction of the view's width/height.
+  float pan_dx = 0;
+  float pan_dy = 0;
 
   // Mouse button states, as ButtonState flags.
   int left_button = 0;
@@ -69,11 +74,14 @@ struct CameraInput {
 // opposite key). Without a context, there is no input.
 CameraInput ReadImGuiCameraInput();
 
-// Moves the camera with mouse drags and the wheel as Studio maps them, and
-// returns whether it moved:
+// Moves the camera with mouse drags, the wheel, and multi-touch gestures as
+// Studio maps them, and returns whether it moved:
 //   - left drag orbits around the lookat point, or turns the fly camera;
 //   - middle drag and the wheel zoom, except in the fly camera;
-//   - right drag moves in the vertical plane, or the horizontal one with Shift.
+//   - right drag and two-finger pan move in the vertical plane, or the
+//     horizontal one with Shift;
+//   - two-finger pinch zooms towards/away from the lookat point, or dollies the
+//     fly camera along its forward axis.
 // Ctrl drags are left to perturbation and move nothing.
 bool MoveCameraWithMouse(const mjModel* m, mjvCamera* cam, bool fly_camera,
                          const CameraInput& input);

@@ -15,6 +15,7 @@
 #include "studio/ux/imgui_widgets.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstddef>
 #include <cstring>
 #include <limits>
@@ -289,6 +290,181 @@ TEST(DrawTextAtTest, RendersBehindDockedPanelsMenuAndStatusBars) {
   }
 
   ImGui::DestroyContext();
+}
+
+class ImGuiTouchWidgetsTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ctx_ = ImGui::CreateContext();
+    ImGui::SetCurrentContext(ctx_);
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.DisplaySize = ImVec2(390.0f, 844.0f);
+    unsigned char* pixels = nullptr;
+    int w = 0, h = 0;
+    io.Fonts->GetTexDataAsRGBA32(&pixels, &w, &h);
+    io.Fonts->SetTexID(static_cast<ImTextureID>(1));
+  }
+
+  void TearDown() override {
+    ImGui::DestroyContext(ctx_);
+    ctx_ = nullptr;
+  }
+
+  ImGuiContext* ctx_ = nullptr;
+};
+
+TEST_F(ImGuiTouchWidgetsTest, StripUnconsumedTouchMousePressPreventsTrickledClickAndDoubleClick) {
+  ImGuiIO& io = ImGui::GetIO();
+  ASSERT_TRUE(io.ConfigInputTrickleEventQueue);
+
+  // Establish a widget window at [20..220, 20..120].
+  ImGui::NewFrame();
+  ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_Always);
+  ImGui::SetNextWindowSize(ImVec2(200.0f, 100.0f), ImGuiCond_Always);
+  ImGui::Begin("Panel", nullptr, ImGuiWindowFlags_NoTitleBar);
+  ImGui::Button("Action", ImVec2(120.0f, 40.0f));
+  ImGui::End();
+  ImGui::Render();
+
+  // Simulate a completed quick tap first so LastClickedTime is populated: an
+  // unstripped press on the ensuing 1->2 pinch would trigger DoubleClicked!
+  io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+  io.AddMousePosEvent(300.0f, 500.0f);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  ImGui::NewFrame();
+  ImGui::EndFrame();  // Trickled move.
+  ImGui::NewFrame();
+  EXPECT_TRUE(ImGui::IsMouseClicked(ImGuiMouseButton_Left));
+  ImGui::EndFrame();  // Trickled press.
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  ImGui::NewFrame();
+  ImGui::EndFrame();  // Release.
+
+  // Frame N (0 -> 1): Finger 1 touches down at (60, 50) over the "Action"
+  // button. Because TouchScreen moved from (300, 500) -> (60, 50), ImGui's
+  // trickle queue processes MousePos and leaves MouseButton(0, true) queued.
+  io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+  io.AddMousePosEvent(60.0f, 50.0f);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  ImGui::NewFrame();
+  EXPECT_FALSE(io.MouseDown[ImGuiMouseButton_Left]);
+  EXPECT_FALSE(ImGui::IsMouseClicked(ImGuiMouseButton_Left));
+  ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_Always);
+  ImGui::SetNextWindowSize(ImVec2(200.0f, 100.0f), ImGuiCond_Always);
+  ImGui::Begin("Panel", nullptr, ImGuiWindowFlags_NoTitleBar);
+  EXPECT_FALSE(ImGui::Button("Action", ImVec2(120.0f, 40.0f)));
+  ImGui::End();
+  ImGui::Render();
+
+  // Frame N+1 (1 -> 2): Second finger lands immediately at (340, 550), so
+  // midpoint origin is (200, 300). Stripping the unconsumed press prevents any
+  // click or double-click and places MousePos at origin on this same frame.
+  StripUnconsumedTouchMousePress();
+  io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+  io.AddMousePosEvent(200.0f, 300.0f);
+  ImGui::NewFrame();
+  EXPECT_FALSE(io.MouseDown[ImGuiMouseButton_Left]);
+  EXPECT_FALSE(ImGui::IsMouseClicked(ImGuiMouseButton_Left));
+  EXPECT_FALSE(ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left));
+  EXPECT_FLOAT_EQ(io.MousePos.x, 200.0f);
+  EXPECT_FLOAT_EQ(io.MousePos.y, 300.0f);
+  ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_Always);
+  ImGui::SetNextWindowSize(ImVec2(200.0f, 100.0f), ImGuiCond_Always);
+  ImGui::Begin("Panel", nullptr, ImGuiWindowFlags_NoTitleBar);
+  EXPECT_FALSE(ImGui::Button("Action", ImVec2(120.0f, 40.0f)));
+  ImGui::End();
+  ImGui::Render();
+}
+
+TEST_F(ImGuiTouchWidgetsTest, AtomicOffscreenCancelAndHitTestImGuiWindowsRespectPanelsAndDockHole) {
+  ImGuiIO& io = ImGui::GetIO();
+
+  auto draw_ui = [](bool* button_clicked, bool open_popup = false) {
+    // Full-screen passthrough dockspace (like Studio's main workspace).
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->Pos);
+    ImGui::SetNextWindowSize(vp->Size);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::Begin("Dockspace", nullptr,
+                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                     ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus);
+    ImGui::PopStyleVar();
+    const ImGuiID dock_id = ImGui::GetID("RootDock");
+    ImGui::DockSpace(dock_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGui::End();
+
+    // Floating local panel at [20..220, 20..120].
+    ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(200.0f, 100.0f), ImGuiCond_Always);
+    ImGui::Begin("DisconnectLikePanel", nullptr, ImGuiWindowFlags_NoTitleBar);
+    *button_clicked = ImGui::Button("Steal", ImVec2(100.0f, 40.0f));
+    if (open_popup) {
+      ImGui::OpenPopup("TestPopup");
+    }
+    if (ImGui::BeginPopup("TestPopup")) {
+      ImGui::TextUnformatted("Popup content");
+      ImGui::EndPopup();
+    }
+    ImGui::End();
+  };
+
+  bool clicked = false;
+  // Warm up layout.
+  ImGui::NewFrame();
+  draw_ui(&clicked);
+  ImGui::Render();
+
+  // Finger 1 presses and holds on "Steal" at (50, 45) across two frames so
+  // io.MouseDown[0] is true and "Steal" is ActiveId.
+  io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+  io.AddMousePosEvent(50.0f, 45.0f);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  ImGui::NewFrame();
+  draw_ui(&clicked);
+  ImGui::Render();
+  ImGui::NewFrame();
+  ASSERT_TRUE(io.MouseDown[ImGuiMouseButton_Left]);
+  draw_ui(&clicked);
+  ImGui::Render();
+  EXPECT_FALSE(clicked);
+
+  // Frame N+2 (1 -> 2 over the panel): park cursor at (-FLT_MAX, -FLT_MAX) and
+  // release left button with trickling disabled for this frame (matching
+  // Window::NewFrame).
+  io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  const bool prev_trickle = io.ConfigInputTrickleEventQueue;
+  io.ConfigInputTrickleEventQueue = false;
+  ImGui::NewFrame();
+  io.ConfigInputTrickleEventQueue = prev_trickle;
+
+  // Even though io.WantCaptureMouse is now false (cursor is off-screen),
+  // HitTestImGuiWindows accurately identifies the panel vs passthrough hole,
+  // and ignores ImGui's unused "Debug##Default" fallback window at [60..460,
+  // 60..460] that NewFrame() transiently activates before EndFrame() hides it!
+  EXPECT_FALSE(io.MouseDown[ImGuiMouseButton_Left]);
+  EXPECT_FALSE(io.WantCaptureMouse);
+  EXPECT_TRUE(HitTestImGuiWindows(ImVec2(80.0f, 60.0f)));  // Inside panel.
+  EXPECT_FALSE(
+      HitTestImGuiWindows(ImVec2(250.0f, 250.0f)));  // Inside Debug##Default rect, outside panels.
+  EXPECT_FALSE(HitTestImGuiWindows(ImVec2(250.0f, 500.0f)));  // Dockspace hole.
+  EXPECT_FALSE(HitTestImGuiWindows(ImVec2(std::numeric_limits<float>::quiet_NaN(), 50.0f)));
+
+  draw_ui(&clicked);
+  ImGui::Render();
+  // Button release happened off-screen, so the click was cancelled cleanly!
+  EXPECT_FALSE(clicked);
+
+  // When a popup is open, HitTestImGuiWindows captures everywhere.
+  ImGui::NewFrame();
+  draw_ui(&clicked, /*open_popup=*/true);
+  ImGui::Render();
+  ImGui::NewFrame();
+  EXPECT_TRUE(HitTestImGuiWindows(ImVec2(250.0f, 500.0f)));
+  draw_ui(&clicked);
+  ImGui::Render();
 }
 
 }  // namespace

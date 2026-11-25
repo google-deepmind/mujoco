@@ -1005,6 +1005,7 @@ build_studio_wasm() {
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
             -DMUJOCO_BUILD_STUDIO=ON \
             -DMUJOCO_USE_FILAMENT=ON \
+            -DMUJOCO_WASM_THREADS=OFF \
             -DMUJOCO_BUILD_TESTS_WASM=OFF \
             -DMUJOCO_NATIVE_BUILD_DIR:PATH="${host_dir}" \
             ${CCACHE_ARGS} \

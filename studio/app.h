@@ -194,6 +194,7 @@ class App {
     // Controls.
     int speed_index = 0;
     float cam_speed = kMinFlySpeed;
+    bool pinch_mouse_focus = false;
 
     // Spec editing.
     SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;

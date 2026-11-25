@@ -67,6 +67,7 @@
 #include "studio/ux/picture_gui.h"
 #include "studio/ux/plugin.h"
 #include "studio/ux/status_bar.h"
+#include "studio/ux/touch_gesture.h"
 
 namespace mujoco::studio {
 
@@ -879,11 +880,35 @@ void App::HandleWindowEvents() {
 
 void App::HandleMouseEvents() {
   auto& io = ImGui::GetIO();
-  if (io.WantCaptureMouse) {
-    return;
+  const TouchGestureState& touch = window_->GetTouchGesture();
+  if (touch.active) {
+    if (touch.just_started) {
+      const ImVec2 origin(touch.origin_x, touch.origin_y);
+      tmp_.pinch_mouse_focus = !io.WantCaptureMouse && !HitTestImGuiWindows(origin);
+    }
+  } else {
+    tmp_.pinch_mouse_focus = false;
   }
 
   if (!has_model() || !has_data()) {
+    return;
+  }
+
+  if (touch.active) {
+    perturb_.active = 0;
+    if (tmp_.pinch_mouse_focus && io.DisplaySize.x > 0 && io.DisplaySize.y > 0) {
+      CameraInput camera_input{};
+      camera_input.mouse_focus = true;
+      camera_input.aspect_ratio = window_->GetDrawableAspectRatio();
+      camera_input.pinch_zoom = touch.pinch_log_scale;
+      camera_input.pan_dx = touch.pan_dx_px / io.DisplaySize.x;
+      camera_input.pan_dy = touch.pan_dy_px / io.DisplaySize.y;
+      MoveCameraWithMouse(model(), &camera_, tmp_.camera_idx == kFreeCameraIdx, camera_input);
+    }
+    return;
+  }
+
+  if (io.WantCaptureMouse) {
     return;
   }
 
@@ -929,7 +954,8 @@ void App::HandleMouseEvents() {
     }
   }
 
-  // Camera drags and wheel (Ctrl drags are left to the perturbation above).
+  // Camera drags and wheel (Ctrl drags are left to the perturbation above;
+  // multi-touch gestures are handled before mouse capture above).
   MoveCameraWithMouse(model(), &camera_, tmp_.camera_idx == kFreeCameraIdx, ReadImGuiCameraInput());
 
   // Left double click.

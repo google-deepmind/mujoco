@@ -326,30 +326,29 @@ TEST_F(UiCodecTest, MissingReferenceFrameRequestsKeyframeWithoutMutatingState) {
   bool request_keyframe = false;
 
   // Delta frame before any keyframe -> rejected + requests keyframe.
-  EXPECT_FALSE(DecodeDrawFrame(msg2_delta, &prev, &prev_idx, &out,
-                               &request_keyframe));
+  EXPECT_FALSE(
+      DecodeDrawFrame(msg2_delta, &prev, &prev_idx, &out, &request_keyframe));
   EXPECT_TRUE(request_keyframe);
   EXPECT_EQ(prev_idx, 0u);
 
   // Keyframe 1 succeeds, then skipping frame 2 to frame 3 requests keyframe and
   // preserves frame 1 as the last valid reference.
-  ASSERT_TRUE(
-      DecodeDrawFrame(msg1, &prev, &prev_idx, &out, &request_keyframe));
+  ASSERT_TRUE(DecodeDrawFrame(msg1, &prev, &prev_idx, &out, &request_keyframe));
   EXPECT_FALSE(request_keyframe);
   EXPECT_EQ(prev_idx, 1u);
   const SerializedFrame prev_before = prev;
   const DecodedFrame out_before = out;
 
-  EXPECT_FALSE(DecodeDrawFrame(msg3_delta, &prev, &prev_idx, &out,
-                               &request_keyframe));
+  EXPECT_FALSE(
+      DecodeDrawFrame(msg3_delta, &prev, &prev_idx, &out, &request_keyframe));
   EXPECT_TRUE(request_keyframe);
   EXPECT_EQ(prev_idx, 1u);
   ExpectSameSerialized(prev, prev_before);
   ExpectSameDecoded(out, out_before);
 
   // Frame 2 still decodes cleanly against preserved frame 1!
-  EXPECT_TRUE(DecodeDrawFrame(msg2_delta, &prev, &prev_idx, &out,
-                              &request_keyframe));
+  EXPECT_TRUE(
+      DecodeDrawFrame(msg2_delta, &prev, &prev_idx, &out, &request_keyframe));
   EXPECT_FALSE(request_keyframe);
   EXPECT_EQ(prev_idx, 2u);
 }
@@ -441,8 +440,8 @@ TEST_F(UiCodecTest, RejectsTruncatedMisalignedAndCorruptedWireFrames) {
     std::memcpy(bad.data() + kWireVertCountOffset, &bogus_verts, 4);
     SerializedFrame fresh_prev;
     uint64_t fresh_idx = 0;
-    EXPECT_FALSE(DecodeDrawFrame(bad, &fresh_prev, &fresh_idx, &out,
-                                 &request_keyframe));
+    EXPECT_FALSE(
+        DecodeDrawFrame(bad, &fresh_prev, &fresh_idx, &out, &request_keyframe));
   }
 }
 
@@ -513,10 +512,9 @@ TEST_F(UiCodecTest, RejectsDrawFrameHeadersThatAreNotOneValidFrame) {
   };
   expect_rejected(
       [](DrawFrame& hdr, Bytes&) { hdr.header.kind = MessageKind::kTexture; });
-  expect_rejected([](DrawFrame& hdr, Bytes&) {
-    hdr.header.version = kCodecVersion + 1;
-  });
-  expect_rejected([](DrawFrame& hdr, Bytes&) { hdr.header.flags |= 1u << 1; });
+  expect_rejected(
+      [](DrawFrame& hdr, Bytes&) { hdr.header.version = kCodecVersion + 1; });
+  expect_rejected([](DrawFrame& hdr, Bytes&) { hdr.header.flags |= 1u << 3; });
   expect_rejected([](DrawFrame& hdr, Bytes&) { hdr.list_count = 0xFFFFFFFFu; });
   expect_rejected([](DrawFrame& hdr, Bytes&) { hdr.list_count += 1; });
   expect_rejected([](DrawFrame& hdr, Bytes&) {
@@ -725,20 +723,20 @@ TEST(TextureTest, EncodeAndDecodeTextureCheckPayloadSizeForActionAndFormat) {
   Texture hdr;
   BytesView payload;
 
-  ASSERT_TRUE(DecodeTexture(TextureMessage(Action::kCreate, Format::kRgba8, 4,
-                                           2, 4 * 2 * 4),
-                            &hdr, &payload));
+  ASSERT_TRUE(DecodeTexture(
+      TextureMessage(Action::kCreate, Format::kRgba8, 4, 2, 4 * 2 * 4), &hdr,
+      &payload));
   EXPECT_EQ(hdr.tex_id, 3u);
   EXPECT_EQ(payload.size(), 32u);
-  EXPECT_TRUE(DecodeTexture(
-      TextureMessage(Action::kUpdate, Format::kAlpha8, 3, 5, 15), &hdr,
-      &payload));
+  EXPECT_TRUE(
+      DecodeTexture(TextureMessage(Action::kUpdate, Format::kAlpha8, 3, 5, 15),
+                    &hdr, &payload));
   EXPECT_TRUE(DecodeTexture(
       TextureMessage(Action::kCreate, Format::kCustom, 640, 480, 100), &hdr,
       &payload));
-  EXPECT_TRUE(DecodeTexture(
-      TextureMessage(Action::kDestroy, Format::kRgba8, 0, 0, 0), &hdr,
-      &payload));
+  EXPECT_TRUE(
+      DecodeTexture(TextureMessage(Action::kDestroy, Format::kRgba8, 0, 0, 0),
+                    &hdr, &payload));
 
   // EncodeTexture rejects non-zero flags and invalid action/format/size
   // combinations before writing to the wire.
@@ -751,21 +749,21 @@ TEST(TextureTest, EncodeAndDecodeTextureCheckPayloadSizeForActionAndFormat) {
 
   // Payload sizes that disagree with the dimensions, including a 65535 x 65535
   // RGBA texture whose byte count overflows a 32-bit size_t.
-  EXPECT_FALSE(DecodeTexture(
-      TextureMessage(Action::kCreate, Format::kRgba8, 4, 2, 31), &hdr,
-      &payload));
+  EXPECT_FALSE(
+      DecodeTexture(TextureMessage(Action::kCreate, Format::kRgba8, 4, 2, 31),
+                    &hdr, &payload));
   EXPECT_FALSE(DecodeTexture(
       TextureMessage(Action::kCreate, Format::kRgba8, 0xFFFF, 0xFFFF, 4), &hdr,
       &payload));
-  EXPECT_FALSE(DecodeTexture(
-      TextureMessage(Action::kCreate, Format::kRgba8, 0, 2, 0), &hdr,
-      &payload));
+  EXPECT_FALSE(
+      DecodeTexture(TextureMessage(Action::kCreate, Format::kRgba8, 0, 2, 0),
+                    &hdr, &payload));
   EXPECT_FALSE(DecodeTexture(
       TextureMessage(Action::kCreate, Format::kCustom, 640, 480, 0), &hdr,
       &payload));
-  EXPECT_FALSE(DecodeTexture(
-      TextureMessage(Action::kDestroy, Format::kRgba8, 0, 0, 8), &hdr,
-      &payload));
+  EXPECT_FALSE(
+      DecodeTexture(TextureMessage(Action::kDestroy, Format::kRgba8, 0, 0, 8),
+                    &hdr, &payload));
   // Unknown action and format.
   EXPECT_FALSE(DecodeTexture(
       TextureMessage(static_cast<Action>(7), Format::kRgba8, 1, 1, 4), &hdr,
@@ -780,9 +778,9 @@ TEST(TextureTest, EncodeAndDecodeTextureCheckPayloadSizeForActionAndFormat) {
   Bytes bad_size = TextureMessage(Action::kCreate, Format::kRgba8, 1, 1, 4);
   bad_size.push_back(std::byte{0});
   EXPECT_FALSE(DecodeTexture(bad_size, &hdr, &payload));
-  EXPECT_FALSE(DecodeTexture(
-      TextureMessage(Action::kCreate, Format::kRgba8, 1, 1, 4), nullptr,
-      &payload));
+  EXPECT_FALSE(
+      DecodeTexture(TextureMessage(Action::kCreate, Format::kRgba8, 1, 1, 4),
+                    nullptr, &payload));
 }
 
 TEST(InputTest, KeyBitmaskHelpersHandleBoundsAndRoundTrip) {
@@ -841,9 +839,9 @@ TEST(ClipboardTest, OpenUrlFlagRoundTripsAndKeepsTextPure) {
   EXPECT_FALSE(open_url);
   EXPECT_EQ(out, "\x01OPEN_URL:not a url");
 
-  ASSERT_TRUE(DecodeClipboard(
-      EncodeClipboard("https://mujoco.org", /*open_url=*/true), &out,
-      &open_url));
+  ASSERT_TRUE(
+      DecodeClipboard(EncodeClipboard("https://mujoco.org", /*open_url=*/true),
+                      &out, &open_url));
   EXPECT_TRUE(open_url);
   EXPECT_EQ(out, "https://mujoco.org");
 }
@@ -871,6 +869,58 @@ TEST(ClipboardTest, IsOpenableUrlAllowsOnlyHttpAndHttps) {
   EXPECT_FALSE(IsOpenableUrl(" https://mujoco.org"));
   EXPECT_FALSE(IsOpenableUrl("mujoco.org"));
   EXPECT_FALSE(IsOpenableUrl(""));
+}
+
+TEST(DrawFrameTest, HitRegionsAndOpenPopupRoundTripAndValidate) {
+  SerializedFrame frame;
+  frame.display_size[0] = 640.0f;
+  frame.display_size[1] = 480.0f;
+  frame.has_open_popup = true;
+  HitRegion panel;
+  panel.rect[0] = 10.0f;
+  panel.rect[1] = 20.0f;
+  panel.rect[2] = 210.0f;
+  panel.rect[3] = 180.0f;
+  HitRegion dock;
+  dock.rect[0] = 0.0f;
+  dock.rect[1] = 0.0f;
+  dock.rect[2] = 640.0f;
+  dock.rect[3] = 480.0f;
+  dock.hole[0] = 220.0f;
+  dock.hole[1] = 24.0f;
+  dock.hole[2] = 640.0f;
+  dock.hole[3] = 448.0f;
+  frame.hit_regions = {panel, dock};
+
+  const Bytes wire = EncodeDrawFrame(frame, /*frame_index=*/1);
+  ASSERT_FALSE(wire.empty());
+
+  SerializedFrame prev;
+  uint64_t prev_idx = 0;
+  DecodedFrame decoded;
+  bool need_keyframe = false;
+  ASSERT_TRUE(
+      DecodeDrawFrame(wire, &prev, &prev_idx, &decoded, &need_keyframe));
+  EXPECT_FALSE(need_keyframe);
+  EXPECT_TRUE(decoded.has_open_popup);
+  ASSERT_EQ(decoded.hit_regions.size(), 2u);
+  EXPECT_FLOAT_EQ(decoded.hit_regions[0].rect[0], 10.0f);
+  EXPECT_FLOAT_EQ(decoded.hit_regions[0].rect[3], 180.0f);
+  EXPECT_FLOAT_EQ(decoded.hit_regions[1].hole[0], 220.0f);
+  EXPECT_FLOAT_EQ(decoded.hit_regions[1].hole[3], 448.0f);
+
+  // Non-finite hit region coordinates are rejected by both encoder and decoder.
+  SerializedFrame bad_frame = frame;
+  bad_frame.hit_regions[0].rect[2] = std::numeric_limits<float>::quiet_NaN();
+  EXPECT_TRUE(EncodeDrawFrame(bad_frame, /*frame_index=*/2).empty());
+
+  Bytes corrupted = wire;
+  // Flip the reserved field after DrawFrame header to non-zero.
+  const uint32_t bad_reserved = 1;
+  std::memcpy(corrupted.data() + sizeof(DrawFrame) + sizeof(uint32_t),
+              &bad_reserved, sizeof(bad_reserved));
+  EXPECT_FALSE(
+      DecodeDrawFrame(corrupted, &prev, &prev_idx, &decoded, &need_keyframe));
 }
 
 }  // namespace

@@ -15,6 +15,7 @@
 #include "web_client_local_ui.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
@@ -65,21 +66,57 @@ float UiScale() {
   return (dpi_scale > 0.0f ? dpi_scale : 1.0f) * ImGui::GetIO().FontGlobalScale;
 }
 
-// Draws one DISCONNECTED window centred in the canvas above bottom_inset;
-// empty lines are skipped.
+// Draws one DISCONNECTED window centred in the canvas above bottom_inset,
+// capped and word-wrapped to fit narrow smartphone viewports cleanly on the
+// very first frame. Empty lines are skipped.
 void DrawDisconnectWindow(const char* window_id,
                           std::initializer_list<const char*> lines,
                           float bottom_inset) {
   const ImGuiIO& io = ImGui::GetIO();
-  ImGui::SetNextWindowPos(
-      ImVec2(io.DisplaySize.x * 0.5f, (io.DisplaySize.y - bottom_inset) * 0.5f),
-      ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+  const ImGuiStyle& style = ImGui::GetStyle();
+  const float scale = UiScale();
+  const float max_w =
+      std::min(520.0f * scale,
+               std::max(160.0f * scale, io.DisplaySize.x - 24.0f * scale));
+  const float pad_x = 2.0f * style.WindowPadding.x;
+  const float max_text_w = std::max(60.0f * scale, max_w - pad_x);
+
+  float content_w =
+      std::min(max_text_w, ImGui::CalcTextSize("DISCONNECTED").x * 1.6f);
+  float content_h = std::ceil(ImGui::GetFontSize() * 1.6f);
+  for (const char* line : lines) {
+    if (line == nullptr || line[0] == '\0') {
+      continue;
+    }
+    const ImVec2 sz = ImGui::CalcTextSize(line, nullptr, false, max_text_w);
+    content_w = std::max(content_w, std::min(sz.x, max_text_w));
+    content_h += style.ItemSpacing.y + sz.y;
+  }
+  const float win_w = std::min(max_w, std::ceil(content_w + pad_x));
+  const float win_h = std::ceil(content_h + 2.0f * style.WindowPadding.y);
+  const float pos_x = std::floor((io.DisplaySize.x - win_w) * 0.5f);
+  const float pos_y =
+      std::floor((io.DisplaySize.y - bottom_inset - win_h) * 0.5f);
+
+  ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Always);
+  ImGui::SetNextWindowSize(ImVec2(win_w, win_h), ImGuiCond_Always);
   ImGui::Begin(window_id, nullptr,
                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
+                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                   ImGuiWindowFlags_NoSavedSettings);
   CenteredBanner("DISCONNECTED", ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+  const float wrap_w = std::max(1.0f, ImGui::GetContentRegionAvail().x);
   for (const char* line : lines) {
-    if (line[0] != '\0') CenteredLine(line, nullptr);
+    if (line == nullptr || line[0] == '\0') {
+      continue;
+    }
+    if (ImGui::CalcTextSize(line).x <= wrap_w) {
+      CenteredLine(line, nullptr);
+    } else {
+      ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + wrap_w);
+      ImGui::TextUnformatted(line);
+      ImGui::PopTextWrapPos();
+    }
   }
   ImGui::End();
 }
@@ -154,9 +191,8 @@ void DisconnectNotice::Draw(int server_close_code,
   }
   DrawDisconnectWindow(
       "##disconnected",
-      {"Viewer server is not reachable: the Python script may",
-       "have stopped. This page reconnects automatically if the",
-       "viewer comes back."},
+      {"Viewer server is not reachable: the Python script may have stopped.",
+       "This page reconnects automatically if the viewer comes back."},
       bottom_inset);
 }
 
@@ -186,24 +222,27 @@ void RoleWindow::DrawBar(const SessionView& view, SessionActions& actions,
                          GuiTheme* theme) {
   const ImGuiIO& io = ImGui::GetIO();
   const float bar_h = BarHeight();
+  const bool compact = io.DisplaySize.x < Px(560.0f);
   ImGui::SetNextWindowPos(ImVec2(0.0f, io.DisplaySize.y - bar_h),
                           ImGuiCond_Always);
   ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, bar_h), ImGuiCond_Always);
 
   // Push FramePadding first: GetFrameHeight() depends on it, and the
   // vertical window padding must centre the frames actually drawn.
-  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(Px(6.0f), Px(2.0f)));
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                      ImVec2(Px(compact ? 4.0f : 6.0f), Px(2.0f)));
   const float border = 1.0f;
   const float vpad = std::floor(
       std::max(0.0f, (bar_h - 2.0f * border - ImGui::GetFrameHeight()) * 0.5f));
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, border);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0f, 1.0f));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(Px(8.0f), vpad));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                      ImVec2(Px(compact ? 6.0f : 8.0f), vpad));
   // Without borders, a table puts a cell padding on each side of the gap
   // between columns and (with NoPadOuterX) none at its outer edges.
   ImGui::PushStyleVar(ImGuiStyleVar_CellPadding,
-                      ImVec2(Px(kClusterGap) * 0.5f, 0.0f));
+                      ImVec2(Px(compact ? 6.0f : kClusterGap) * 0.5f, 0.0f));
 
   // Opaque whatever the theme's window alpha: the scene is rendered right
   // up to the bar (and, at a fractional DPI scale, a pixel under it) and
@@ -219,27 +258,32 @@ void RoleWindow::DrawBar(const SessionView& view, SessionActions& actions,
                    ImGuiWindowFlags_NoSavedSettings |
                    ImGuiWindowFlags_NoBringToFrontOnFocus);
   if (view.is_downloading) {
-    DrawDownloading(view);
+    DrawDownloading(view, compact);
   } else if (ImGui::BeginTable("##RoleBarTable", 2,
                                ImGuiTableFlags_NoPadOuterX)) {
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableNextColumn();
+    // On narrow portrait screens (< 560 scaled px), omit secondary telemetry
+    // and shorten button/camera labels so the role chip, camera mode, and
+    // control actions fit within 350-360 px without clipping.
     DrawRoleChip(view);
     if (view.role == SessionRole::kSpectating) {
       StatusSeparatorGui();
-      DrawCameraToken(view, actions);
-    } else if (view.role == SessionRole::kControlling) {
+      DrawCameraToken(view, actions, compact);
+    } else if (!compact && view.role == SessionRole::kControlling) {
       StatusSeparatorGui();
       DrawCapacityToken(view, actions);
     }
-    StatusSeparatorGui();
-    DrawDataRate(view);
-    StatusSeparatorGui();
-    DrawFpsCapToken(view, actions);
+    if (!compact) {
+      StatusSeparatorGui();
+      DrawDataRate(view);
+      StatusSeparatorGui();
+      DrawFpsCapToken(view, actions);
+    }
 
     ImGui::TableNextColumn();
-    DrawActions(view, actions, theme);
+    DrawActions(view, actions, theme, compact);
     ImGui::EndTable();
   }
   ImGui::End();
@@ -248,7 +292,7 @@ void RoleWindow::DrawBar(const SessionView& view, SessionActions& actions,
   ImGui::PopStyleVar(6);
 }
 
-void RoleWindow::DrawDownloading(const SessionView& view) {
+void RoleWindow::DrawDownloading(const SessionView& view, bool compact) {
   const bool done_downloading =
       view.total_bytes > 0 && view.bytes_downloaded >= view.total_bytes;
   StatusDot(PaletteFor(theme_).neutral, scale_);
@@ -258,20 +302,31 @@ void RoleWindow::DrawDownloading(const SessionView& view) {
     ImGui::TextColored(PaletteFor(theme_).neutral, "Parsing model...");
     return;
   }
-  ImGui::TextUnformatted("Downloading model");
-  ImGui::SameLine(0.0f, Px(10.0f));
+  ImGui::TextUnformatted(compact ? "Downloading" : "Downloading model");
+  const float gap = Px(compact ? 8.0f : 10.0f);
+  ImGui::SameLine(0.0f, gap);
   const float progress = view.total_bytes > 0
                              ? static_cast<float>(view.bytes_downloaded) /
                                    static_cast<float>(view.total_bytes)
                              : 0.0f;
   char buf[32];
   snprintf(buf, sizeof(buf), "%.0f%%", progress * 100.0f);
-  ImGui::ProgressBar(progress, ImVec2(Px(220.0f), 0.0f), buf);
+  char retry_buf[48] = "";
+  float retry_reserve = 0.0f;
   if (view.retry_count > 0) {
-    ImGui::SameLine(0.0f, Px(10.0f));
+    snprintf(retry_buf, sizeof(retry_buf),
+             compact ? "Retry %d..." : "Retrying chunk (%d)...",
+             view.retry_count);
+    retry_reserve = ImGui::CalcTextSize(retry_buf).x + gap;
+  }
+  const float avail = ImGui::GetContentRegionAvail().x - retry_reserve;
+  const float bar_w =
+      std::min(Px(220.0f), std::max(Px(48.0f), std::floor(avail)));
+  ImGui::ProgressBar(progress, ImVec2(bar_w, 0.0f), buf);
+  if (view.retry_count > 0) {
+    ImGui::SameLine(0.0f, gap);
     ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(PaletteFor(theme_).attention, "Retrying chunk (%d)...",
-                       view.retry_count);
+    ImGui::TextColored(PaletteFor(theme_).attention, "%s", retry_buf);
   }
 }
 
@@ -300,16 +355,19 @@ void RoleWindow::DrawRoleChip(const SessionView& view) {
 // TODO(matijak): Use the studio camera-selection UI here in future, so
 // a spectator can also pick any camera defined in the model.
 void RoleWindow::DrawCameraToken(const SessionView& view,
-                                 SessionActions& actions) {
+                                 SessionActions& actions, bool compact) {
   static constexpr const char* kModes[] = {"Tumble", "WASD", "Controller"};
+  static constexpr const char* kCompactModes[] = {"Tumble", "WASD", "Follow"};
   constexpr int kNumModes = 3;
+  const char* const* preview_modes = compact ? kCompactModes : kModes;
   float widest = 0.0f;
-  for (const char* mode : kModes) {
-    widest = std::max(widest, ImGui::CalcTextSize(mode).x);
+  for (int i = 0; i < kNumModes; ++i) {
+    widest = std::max(widest, ImGui::CalcTextSize(preview_modes[i]).x);
   }
-  ImGui::SetNextItemWidth(widest + 2.0f * ImGui::GetStyle().FramePadding.x);
+  ImGui::SetNextItemWidth(
+      std::ceil(widest + 2.0f * ImGui::GetStyle().FramePadding.x));
   const int current = std::clamp(view.camera_mode, 0, kNumModes - 1);
-  if (ImGui::BeginCombo("##camera", kModes[current],
+  if (ImGui::BeginCombo("##camera", preview_modes[current],
                         ImGuiComboFlags_NoArrowButton)) {
     for (int i = 0; i < kNumModes; ++i) {
       if (ImGui::Selectable(kModes[i], i == current)) {
@@ -318,9 +376,11 @@ void RoleWindow::DrawCameraToken(const SessionView& view,
     }
     ImGui::EndCombo();
   }
-  ImGui::SameLine(0.0f, Px(4.0f));
-  ImGui::AlignTextToFramePadding();
-  ImGui::TextDisabled("camera");
+  if (!compact) {
+    ImGui::SameLine(0.0f, Px(4.0f));
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled("camera");
+  }
 }
 
 // The controller's "3/[16] spectators": the count, then the limit as an
@@ -394,15 +454,22 @@ void RoleWindow::DrawFpsCapToken(const SessionView& view,
 }
 
 void RoleWindow::DrawActions(const SessionView& view, SessionActions& actions,
-                             GuiTheme* theme) {
-  const ImVec2 size(ImGui::CalcTextSize(kButtonWidthText).x +
-                        2.0f * ImGui::GetStyle().FramePadding.x + Px(8.0f),
-                    0.0f);
+                             GuiTheme* theme, bool compact) {
+  const float pad_x = 2.0f * ImGui::GetStyle().FramePadding.x;
+  const float btn_w = std::ceil(
+      compact ? (ImGui::CalcTextSize("Request").x + pad_x)
+              : (ImGui::CalcTextSize(kButtonWidthText).x + pad_x + Px(8.0f)));
+  const ImVec2 size(btn_w, 0.0f);
+  const ImVec2 steal_size =
+      compact ? ImVec2(std::ceil(ImGui::CalcTextSize("Steal").x + pad_x), 0.0f)
+              : size;
+  const float gap = Px(compact ? 4.0f : kStealGap);
   if (view.role == SessionRole::kSpectating) {
     // The queue is told in the tooltips: the amber dot is the only inline
     // cue that this page is in it.
     char queue_line[96];
-    if (TintedButton("Steal control", &PaletteFor(theme_).danger, size)) {
+    if (TintedButton(compact ? "Steal" : "Steal control",
+                     &PaletteFor(theme_).danger, steal_size)) {
       transitions_.ExpectToast("You took control", ImGui::GetTime());
       actions.StealControl();
     }
@@ -422,9 +489,10 @@ void RoleWindow::DrawActions(const SessionView& view, SessionActions& actions,
           "Take control immediately\nfrom the current controller.%s",
           queue_line);
     }
-    ImGui::SameLine(0.0f, Px(kStealGap));
+    ImGui::SameLine(0.0f, gap);
     if (view.queue_pos == 0) {
-      if (TintedButton("Request control", nullptr, size)) {
+      if (TintedButton(compact ? "Request" : "Request control", nullptr,
+                       size)) {
         // A steal the server ignored is moot now.
         transitions_.ClearExpectedToast();
         actions.RequestControl();
@@ -438,7 +506,7 @@ void RoleWindow::DrawActions(const SessionView& view, SessionActions& actions,
       }
       ImGui::SetItemTooltip("Join the queue for control.\n%s", queue_line);
     } else {
-      if (TintedButton("Cancel request", nullptr, size)) {
+      if (TintedButton(compact ? "Cancel" : "Cancel request", nullptr, size)) {
         transitions_.ClearExpectedToast();
         actions.LeaveQueue();
       }
@@ -461,9 +529,9 @@ void RoleWindow::DrawActions(const SessionView& view, SessionActions& actions,
       ImGui::TextColored(PaletteFor(theme_).attention, "%d waiting",
                          view.queue_len);
       ImGui::SetItemTooltip("Spectators waiting for control.");
-      ImGui::SameLine(0.0f, Px(10.0f));
+      ImGui::SameLine(0.0f, Px(compact ? 6.0f : 10.0f));
     }
-    if (TintedButton("Release control", nullptr, size)) {
+    if (TintedButton(compact ? "Release" : "Release control", nullptr, size)) {
       transitions_.ExpectToast(view.queue_len > 0
                                    ? "Control passed to the next in queue"
                                    : "You released control",
@@ -473,7 +541,7 @@ void RoleWindow::DrawActions(const SessionView& view, SessionActions& actions,
   } else {
     ImGui::Dummy(size);  // Connecting: keep the cluster's width.
   }
-  ImGui::SameLine(0.0f, Px(kStealGap));
+  ImGui::SameLine(0.0f, gap);
   DrawThemeButton(theme);
 }
 
@@ -482,8 +550,8 @@ void RoleWindow::DrawActions(const SessionView& view, SessionActions& actions,
 void RoleWindow::DrawThemeButton(GuiTheme* theme) {
   static constexpr GuiTheme kThemes[] = {GuiTheme::kLight, GuiTheme::kDark,
                                          GuiTheme::kClassic};
-  ImGui::SetNextItemWidth(ImGui::CalcTextSize(ICON_FA_PAINT_BRUSH).x +
-                          2.0f * ImGui::GetStyle().FramePadding.x);
+  ImGui::SetNextItemWidth(std::ceil(ImGui::CalcTextSize(ICON_FA_PAINT_BRUSH).x +
+                                    2.0f * ImGui::GetStyle().FramePadding.x));
   if (ImGui::BeginCombo("##theme", ICON_FA_PAINT_BRUSH,
                         ImGuiComboFlags_NoArrowButton)) {
     for (GuiTheme item : kThemes) {
@@ -535,6 +603,9 @@ void RoleWindow::DrawToast(const SessionView& view, double now) {
   const float y = ImGui::GetFrameHeight() + 10.0f + 26.0f * drop;
   ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, y), ImGuiCond_Always,
                           ImVec2(0.5f, 0.0f));
+  ImGui::SetNextWindowSizeConstraints(
+      ImVec2(0.0f, 0.0f),
+      ImVec2(std::max(160.0f, io.DisplaySize.x - 24.0f), FLT_MAX));
   ImGui::SetNextWindowBgAlpha(0.92f * alpha);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 6.0f));

@@ -175,6 +175,17 @@ var Module = {
       },
       false,
     );
+    const preventBrowserZoom = (e) => e.preventDefault();
+    canvas.addEventListener("gesturestart", preventBrowserZoom, { passive: false });
+    canvas.addEventListener("gesturechange", preventBrowserZoom, { passive: false });
+    canvas.addEventListener("gestureend", preventBrowserZoom, { passive: false });
+    canvas.addEventListener(
+      "touchmove",
+      (e) => {
+        if (e.touches.length > 1) e.preventDefault();
+      },
+      { passive: false },
+    );
     return canvas;
   })(),
   setStatus(text) { },
@@ -294,18 +305,100 @@ var Module = {
     requestAnimationFrame(Module.animate);
   },
 };
-/** Ensures the canvas matches the window size on load and when resized. */
-function fitCanvas() {
+// Size the canvas to the visible viewport (accounting for mobile browser
+// toolbars) in whole CSS pixels, and notify SDL2 when visualViewport changes.
+let lastCanvasW = 0;
+let lastCanvasH = 0;
+/**
+ * Resizes the canvas to match the visible viewport in whole CSS pixels.
+ * @param {!Event=} e
+ */
+function fitCanvas(e) {
   const vv = window.visualViewport;
-  const useVisualViewport = vv && Math.abs(vv.scale - 1) < 0.01;
-  const width = useVisualViewport ? vv.width : window.innerWidth;
-  const height = useVisualViewport ? vv.height : window.innerHeight;
-  Module.canvas.style.width = Math.floor(width) + "px";
-  Module.canvas.style.height = Math.floor(height) + "px";
+  const w = Math.max(1, Math.floor(vv ? vv.width : window.innerWidth));
+  const h = Math.max(1, Math.floor(vv ? vv.height : window.innerHeight));
+  if (vv && (vv.offsetLeft !== 0 || vv.offsetTop !== 0)) {
+    window.scrollTo(0, 0);
+  }
+  Module.canvas.style.transform =
+    vv && (vv.offsetLeft || vv.offsetTop)
+      ? `translate(${Math.round(vv.offsetLeft)}px, ${Math.round(vv.offsetTop)}px)`
+      : '';
+  if (w !== lastCanvasW || h !== lastCanvasH) {
+    lastCanvasW = w;
+    lastCanvasH = h;
+    Module.canvas.style.width = w + 'px';
+    Module.canvas.style.height = h + 'px';
+    if (e && e.target !== window) {
+      window.dispatchEvent(new Event('resize'));
+    }
+  }
 }
 fitCanvas();
-window.addEventListener("resize", fitCanvas);
-window.visualViewport?.addEventListener("resize", fitCanvas);
+window.addEventListener('resize', fitCanvas);
+window.visualViewport?.addEventListener('resize', fitCanvas);
+window.visualViewport?.addEventListener('scroll', fitCanvas);
+
+// Synthesize touchcancel when the tab blurs or hides mid-touch so SDL2's
+// SDL_touch.c clears its tracked single-finger mouse identifier.
+const activeTouches = new Map();
+/**
+ * Tracks currently active Touch objects on the canvas.
+ * @param {!TouchEvent} e
+ */
+function syncActiveTouches(e) {
+  const remaining = new Set();
+  for (const t of e.touches) {
+    remaining.add(t.identifier);
+    activeTouches.set(t.identifier, t);
+  }
+  for (const id of activeTouches.keys()) {
+    if (!remaining.has(id)) {
+      activeTouches.delete(id);
+    }
+  }
+}
+/**
+ * Dispatches a synthetic touchcancel event for any still-active touches.
+ */
+function cancelActiveTouches() {
+  if (activeTouches.size === 0) return;
+  const list = [...activeTouches.values()];
+  activeTouches.clear();
+  let ev = null;
+  if (typeof TouchEvent === 'function') {
+    try {
+      const candidate = new TouchEvent('touchcancel', {
+        bubbles: true,
+        cancelable: false,
+        touches: [],
+        targetTouches: [],
+        changedTouches: list,
+      });
+      if (candidate.changedTouches && candidate.changedTouches.length === list.length) {
+        ev = candidate;
+      }
+    } catch (_) {}
+  }
+  if (!ev) {
+    ev = new Event('touchcancel', { bubbles: true, cancelable: false });
+    ev.touches = [];
+    ev.targetTouches = [];
+    ev.changedTouches = list;
+  }
+  Module.canvas.dispatchEvent(ev);
+}
+for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) {
+  Module.canvas.addEventListener(type, syncActiveTouches, {
+    capture: true,
+    passive: true,
+  });
+}
+window.addEventListener('blur', cancelActiveTouches);
+window.addEventListener('pagehide', cancelActiveTouches);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) cancelActiveTouches();
+});
 
 function handleFile(file) {
   const reader = new FileReader();

@@ -19,10 +19,13 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include <SDL_events.h>
 #include <SDL_render.h>
 #include <SDL_video.h>
 #include "studio/hal/graphics_mode.h"
+#include "studio/ux/touch_gesture.h"
 
 namespace mujoco::studio {
 
@@ -101,11 +104,18 @@ class Window {
   // Returns the handle to the underlying native window.
   void* GetNativeWindowHandle() { return native_window_; }
 
+  // Returns this frame's direct-touch pinch and two-finger pan state.
+  const TouchGestureState& GetTouchGesture() const { return touch_gesture_.state(); }
+
  private:
+  friend struct WindowTestPeer;
+
   void InitOffscreenEglContext();
 
   // Refreshes the drawable size and scale from SDL.
   void UpdateDrawableSize();
+
+  bool IsDirectTouch(SDL_TouchID touch_id) const;
 
   int width_ = 0;
   int height_ = 0;
@@ -118,6 +128,10 @@ class Window {
   SDL_Renderer* sdl_renderer_ = nullptr;
   bool should_exit_ = false;
   std::string drop_file_;
+  TouchGestureTracker touch_gesture_;
+  std::vector<SDL_Event> event_buffer_;
+  bool touch_mouse_left_down_ = false;
+  bool (*direct_touch_check_)(SDL_TouchID) = nullptr;
 };
 
 }  // namespace mujoco::studio

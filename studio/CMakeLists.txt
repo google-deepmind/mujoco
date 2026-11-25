@@ -75,6 +75,8 @@ target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
         ux/status_bar.h
         ux/theme.cc
         ux/theme.h
+        ux/touch_gesture.cc
+        ux/touch_gesture.h
         ux/well_tempered.h
 )
 
