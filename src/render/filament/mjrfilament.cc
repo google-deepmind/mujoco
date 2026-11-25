@@ -204,7 +204,7 @@ void mjrf_defaultShadowOpts(mjrfShadowOpts* opts) {
 
 void mjrf_defaultMaterialOpts(mjrfMaterialOpts* opts) {
   std::memset(opts, 0, sizeof(mjrfMaterialOpts));
-  opts->rgb_color_type = mjCOLORSPACE_SRGB;
+  opts->rgb_color_type = mjCOLORSPACE_LINEAR;
   opts->enable_textures = true;
 }
 
@@ -608,7 +608,7 @@ void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model) {
   // to match the classic renderer or not.
   auto& headlight = model->vis.headlight;
 
-  float headlight_base_intensity = 100'000.f;
+  float headlight_base_intensity = 150'000.f;
   read(headlight_base_intensity, "filament.fallback.head_light_intensity");
   const float headlight_strength =
       (headlight.diffuse[0] + headlight.diffuse[1] + headlight.diffuse[2]) /

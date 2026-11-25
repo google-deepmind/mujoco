@@ -390,20 +390,11 @@ void SceneView::Render(filament::Renderer* renderer,
   SetupCamera(request, camera_);
   camera_->setFocusDistance(focus_distance_);
 
-  // Aim the headlight along this request's camera. Filament re-gathers the
-  // scene's lights for each render() call, so requests batched into one frame
-  // each see their own headlight.
-  if (request.headlight) {
-    const float3 forward = ReadFloat3(request.camera.forward);
-    // Sit slightly behind the eye to avoid clipping artifacts.
-    const float3 position = ReadFloat3(request.camera.pos) - 0.05f * forward;
-    headlight_->SetTransform(position, forward);
-    headlight_->SetColor(ReadFloat3(request.headlight_color));
-    headlight_->SetIntensity(request.headlight_intensity);
-    headlight_->Enable();
-  } else {
-    headlight_->Disable();
-  }
+  // Aim the headlight along this request's camera. Sit it slightly behind the
+  // eye to avoid clipping artifacts.
+  const float3 forward = ReadFloat3(request.camera.forward);
+  const float3 position = ReadFloat3(request.camera.pos) - 0.05f * forward;
+  headlight_->SetTransform(position, forward);
 
   // with a skybox, center the horizon disks of infinite planes beneath the
   // camera and place the haze on the nearest plane below it
@@ -560,35 +551,6 @@ float4 SceneView::GetHazeColor() const {
 void SceneView::Configure(const mjModel* model) {
   mjrfRenderOpts opts;
   mjrf_modelRenderOpts(&opts, model);
-
-  // The new RenderOpts struct uses slightly different defaults. For now, we're
-  // going to preserve the old defaults if the user hasn't configured these
-  // options. We will remove this logic, but it will affect rendering so we
-  // need to be mindful of how we deploy it.
-  if (mj_name2id(model, mjOBJ_NUMERIC, "filament.cg.shadows") < 0) {
-    opts.color_grading.shadows[3] = 1.0f;
-  }
-  if (mj_name2id(model, mjOBJ_NUMERIC, "filament.cg.midtones") < 0) {
-    opts.color_grading.midtones[3] = 1.0f;
-  }
-  if (mj_name2id(model, mjOBJ_NUMERIC, "filament.cg.highlights") < 0) {
-    opts.color_grading.highlights[3] = 1.0f;
-  }
-  if (mj_name2id(model, mjOBJ_TEXT, "filament.cg.tone_mapping") < 0) {
-    opts.color_grading.tone_mapper = mjTONE_MAPPER_PBR_NEUTRAL;
-  }
-  if (mj_name2id(model, mjOBJ_TEXT, "filament.cg.output_color_space") < 0) {
-    opts.color_grading.output_color_space = mjCOLORSPACE_SRGB;
-  }
-  if (mj_name2id(model, mjOBJ_TEXT, "filament.ao.quality") < 0) {
-    opts.ambient_occlusion.quality = mjQUALITY_ULTRA;
-  }
-  if (mj_name2id(model, mjOBJ_TEXT, "filament.ao.low_pass_filter") < 0) {
-    opts.ambient_occlusion.low_pass_filter = mjQUALITY_ULTRA;
-  }
-  if (mj_name2id(model, mjOBJ_TEXT, "filament.ao.upsampling") < 0) {
-    opts.ambient_occlusion.upsampling = mjQUALITY_ULTRA;
-  }
 
   main_view_->setPostProcessingEnabled(opts.post_processing);
 

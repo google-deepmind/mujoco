@@ -82,6 +82,8 @@ and effects available in the Filament runtime and comes with a slight performanc
 You can find an example of using the Filament renderer in the :ref:`render.cc <saRender>` sample and, specifically, in
 the ``RenderFilament()`` function.
 
+.. _reFilamentFallbackLighting:
+
 .. admonition:: Light intensity switches the lighting model
    :class: tip
 
@@ -253,8 +255,7 @@ RAII ``UniquePtr`` wrappers), which is also exposed in Python under ``mujoco.mjr
   :ref:`mjrfTexture` resources from an :ref:`mjModel`, and supports re-uploading modified assets dynamically.
 - ``ModelLights``: Populates and updates the scene's :ref:`mjrfLight` instances from :ref:`mjModel` and :ref:`mjData`,
   and automatically configures fallback environment and directional lighting when a model does not define photometric
-  light intensities. Since the headlight belongs to the render request, ``GetHeadlightIntensity()`` reports the
-  intensity that the application should pass in :ref:`mjrfRenderRequest`.
+  light intensities.
 - ``ModelRenderables``: Creates persistent :ref:`mjrfRenderable` entities for all model geoms, sites, skins, flexes, and
   spatial tendons. Calling ``Update(data)`` updates their poses, sizes, and dynamic material properties in place from
   :ref:`mjData` without constructing an :ref:`mjvScene`, while ``SetOptions(opt)`` applies group and category visibility
@@ -350,16 +351,20 @@ These defaults are set by the following :ref:`custom flags<reFlags>`:
      - Description
    * - ``fallback.environment_light_intensity``
      - real
-     - 5000
+     - 30000
      - Intensity of the fallback environment light.
    * - ``fallback.scene_light_intensity``
      - real
-     - 80000
+     - 120000
      - Total intensity distributed among the model's lights.
    * - ``fallback.head_light_intensity``
      - real
-     - 40000
+     - 150000
      - Intensity of the :ref:`headlight<visual-headlight>`, in lux.
+   * - ``fallback.environment_light_diffuse_scale``
+     - real
+     - 0.2
+     - Scale factor applied to the diffuse component of the fallback environment light.
 
 .. _reFlags:
 

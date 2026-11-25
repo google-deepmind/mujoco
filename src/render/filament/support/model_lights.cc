@@ -111,6 +111,9 @@ ModelLights::ModelLights(mjrfScene* scene, ModelResources* model_resources)
   fallback_environment_light_intensity_ =
       ReadElement(model, "filament.fallback.environment_light_intensity",
                   fallback_environment_light_intensity_);
+  fallback_environment_light_diffuse_scale_ =
+      ReadElement(model, "filament.fallback.environment_light_diffuse_scale",
+                  fallback_environment_light_diffuse_scale_);
   Prepare();
 }
 
@@ -196,6 +199,7 @@ void ModelLights::Prepare() {
     params.type = mjLIGHT_IMAGE;
     params.texture = fallback_ibl_texture_.get();
     params.intensity = fallback_environment_light_intensity_;
+    params.image_diffuse_scale = fallback_environment_light_diffuse_scale_;
     fallback_ibl_ = CreateLight(ctx, params);
     mjrf_addSceneLight(scene_, fallback_ibl_.get());
 

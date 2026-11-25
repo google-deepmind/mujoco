@@ -83,7 +83,7 @@
     <camera name="hero" quat="0.724077 0.611092 -0.206267 -0.244404" pos="-2.736 -3.024 1.152" />
     <camera name="wide" quat="0.788205 0.615412 0 0" pos="0.144 -4.896 1.44" />
     <camera name="sit" quat="0.75774 0.652556 0 0" pos="-0.144 -2.592 0.864" />
-    <light intensity="15000" type="image" texture="ibl" />
+    <light intensity="20000" type="image" texture="ibl" />
 
     <frame euler="0 0 20">
 

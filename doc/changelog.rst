@@ -87,6 +87,59 @@ Rendering
      Set ``global/fovy`` back to an angle in degrees (the default is 45); the view height then follows the camera
      distance.
 
+   - Fixed some Filament-specific rendering options that were not working as intended. **These changes will affect the
+     way all models are rendered by the Filament renderer.**
+
+     - The principal fix was to interpret material RGBA color values as linear colors instead of sRGB colors. This
+       ensures that material colors defined in the model will match any texture colors also defined in the model. For
+       example, the following two materials now appear identical (whereas previously they would not):
+
+       .. code-block:: xml
+
+         <texture name="tex" rgb1="0.1 0.2 0.3" builtin="flat" />
+         <material texture="tex" />
+         <material rgba="0.1 0.2 0.3 1.0" />
+
+       Because the above change can affect any model, other long-standing issues with the default rendering settings
+       were fixed in the same release, so that their impact is concentrated in a single release.
+
+     - The tonal ranges for shadows, midtones, and highlights have been updated to a neutral weight. Previously, the
+       weights were incorrectly set to 1.0, resulting in oversaturated colors. As a result, scenes may now appear
+       darker and light intensities may need to be increased to compensate.
+
+     - The tone mapping and output color spaces for scenes without physical lights are now set to linear space instead
+       of sRGB. (Recall that scenes without physical lights are rendered using a fallback lighting model :ref:`as
+       described here<reFilamentFallbackLighting>`.) Before this change, you may have noticed that such scenes appeared
+       "washed out" when rendered with the filament renderer compared to the classic renderer. To compensate for the
+       darker scenes in these scenarios, the default intensity of the headlight and environment light has also been
+       adjusted.
+
+     - The quality levels of the ambient occlusion settings have been reduced to match filament's recommended defaults.
+       This change is less likely to be noticed visually and was included to improve performance.
+
+     **Migration:** Add the following to your model to revert back to previous defaults:
+
+     .. code-block:: xml
+
+        <custom>
+           <text name="filament.material.base_color_type" data="srgb" />
+           <text name="filament.cg.output_color_space"    data="srgb" />
+           <text name="filament.cg.tone_mapping"          data="pbr_neutral" />
+           <text name="filament.ao.quality"               data="ultra" />
+           <text name="filament.ao.low_pass_filter"       data="ultra" />
+           <text name="filament.ao.upsampling"            data="ultra" />
+           <numeric name="filament.cg.shadows"            data="1 1 1 1" />
+           <numeric name="filament.cg.midtones"           data="1 1 1 1" />
+           <numeric name="filament.cg.highlights"         data="1 1 1 1" />
+           <numeric name="filament.fallback.head_light_intensity" data="100000" />
+           <numeric name="filament.fallback.scene_light_intensity" data="80000" />
+           <numeric name="filament.fallback.environment_light_intensity" data="5000" />
+           <numeric name="filament.fallback.environment_light_diffuse_scale" data="1" />
+        </custom>
+
+     Note that the ``cg.output_color_space``, ``cg.tone_mapping``, and all the ``fallback`` settings are only needed for
+     scenes without physical lights.
+
 - Added :ref:`mjGEOM_DISC<mjtGeom>` rendering-only geom type for flat double-sided discs and annuli
   (``size = [r_out, r_in, 0]``).
 - Fixed Filament planar reflections leaking geometry behind or crossing the mirror plane by clipping the reflection
