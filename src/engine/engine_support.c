@@ -24,8 +24,8 @@
 #include "engine/engine_collision_driver.h"
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
-#include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
@@ -452,58 +452,37 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 void mj_applyFT(const mjModel* m, mjData* d,
                 const mjtNum force[3], const mjtNum torque[3],
                 const mjtNum point[3], int body, mjtNum* qfrc_target) {
-  int nv = m->nv;
-
-  // allocate local variables
-  mj_markStack(d);
-  mjtNum* jacp = force ? mjSTACKALLOC(d, 3*nv, mjtNum) : NULL;
-  mjtNum* jacr = torque ? mjSTACKALLOC(d, 3*nv, mjtNum) : NULL;
-  mjtNum* qforce = mjSTACKALLOC(d, nv, mjtNum);
-
   // make sure body is in range
   if (body < 0 || body >= m->nbody) {
     mjERROR("invalid body %d", body);
+    return;
   }
 
-  // sparse case
-  if (mj_isSparse(m)) {
-    // construct chain and sparse Jacobians
-    int* chain = mjSTACKALLOC(d, nv, int);
-    int NV = mj_bodyChain(m, body, chain);
-    mj_jacSparse(m, d, jacp, jacr, point, body, NV, chain, /*flg_skipcommon=*/0);
+  // body_weldid is the nearest ancestor with DOFs (or world/mocap), so
+  // body_dofnum[b] == 0 means there are no ancestor DOFs
+  int b = m->body_weldid[body];
+  if (!m->nv || (!force && !torque) || m->body_dofnum[b] == 0) {
+    return;
+  }
 
-    // compute J'*f and accumulate
+  mjtNum offset[3];
+  if (force) {
+    mji_sub3(offset, point, d->subtree_com + 3*m->body_rootid[body]);
+  }
+
+  // backward pass over ancestor DOFs (matches mj_jac + mju_mulMatTVec)
+  for (int da=m->body_dofadr[b]+m->body_dofnum[b]-1; da >= 0; da=m->dof_parentid[da]) {
+    const mjtNum* cdof = d->cdof + 6*da;
     if (force) {
-      mju_mulMatTVec(qforce, jacp, force, 3, NV);
-      for (int i=0; i < NV; i++) {
-        qfrc_target[chain[i]] += qforce[i];
-      }
+      mjtNum jacp[3];
+      mji_cross(jacp, cdof, offset);
+      mji_addTo3(jacp, cdof+3);
+      qfrc_target[da] += mju_dot3(jacp, force);
     }
     if (torque) {
-      mju_mulMatTVec(qforce, jacr, torque, 3, NV);
-      for (int i=0; i < NV; i++) {
-        qfrc_target[chain[i]] += qforce[i];
-      }
+      qfrc_target[da] += mju_dot3(cdof, torque);
     }
   }
-
-  // dense case
-  else {
-    // compute Jacobians
-    mj_jac(m, d, jacp, jacr, point, body);
-
-    // compute J'*f and accumulate
-    if (force) {
-      mju_mulMatTVec(qforce, jacp, force, 3, nv);
-      mju_addTo(qfrc_target, qforce, nv);
-    }
-    if (torque) {
-      mju_mulMatTVec(qforce, jacr, torque, 3, nv);
-      mju_addTo(qfrc_target, qforce, nv);
-    }
-  }
-
-  mj_freeStack(d);
 }
 
 

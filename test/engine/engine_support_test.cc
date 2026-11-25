@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <random>
 #include <string>
 #include <string_view>
@@ -1296,6 +1297,125 @@ TEST_F(SupportTest, ActuatorDisabledMacroGroupBounds) {
   m->actuator_group[0] = 30;
   EXPECT_EQ(mjACTUATORDISABLED(0), 1);
   EXPECT_EQ(mjACTUATORDISABLED(0), mj_actuatorDisabled(m, 0));
+}
+
+TEST_F(SupportTest, ApplyFTZeroAllocMatchesDenseJacobian) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="fixed_world" pos="0.1 0.2 0.3">
+        <geom type="sphere" size="0.05"/>
+      </body>
+      <body name="mocap_body" mocap="true" pos="-0.2 0.4 0.1">
+        <geom type="sphere" size="0.05"/>
+      </body>
+      <body name="root" pos="0.2 -0.1 0.5">
+        <freejoint/>
+        <geom type="capsule" fromto="0 0 0 0.2 0.1 0.3" size="0.04"/>
+        <body name="branch_a" pos="0.2 0.1 0.3">
+          <joint type="ball"/>
+          <geom type="sphere" size="0.05"/>
+          <body name="welded_leaf" pos="0.15 -0.05 0.1">
+            <geom type="box" size="0.03 0.04 0.05"/>
+          </body>
+        </body>
+        <body name="branch_b" pos="-0.1 0.2 0.15">
+          <joint type="hinge" axis="0 1 0"/>
+          <joint type="slide" axis="1 0 0"/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(kXml);
+  ASSERT_THAT(model.get(), NotNull());
+  mjModel* m = model.get();
+  MjDataPtr data = MakeData(model);
+  mjData* d = data.get();
+
+  for (int i = 0; i < m->nq; ++i) {
+    d->qpos[i] = static_cast<mjtNum>(0.15 * (i + 1));
+  }
+  mj_normalizeQuat(m, d->qpos);
+  mj_forward(m, d);
+
+  const int nv = m->nv;
+  vector<mjtNum> jacp(3 * nv);
+  vector<mjtNum> jacr(3 * nv);
+  vector<mjtNum> qforce(nv);
+  const mjtNum point[3] = {0.37, -0.42, 0.89};
+  const mjtNum forces[3][3] = {
+      {1.25, -2.5, 0.75},
+      {0.0, 3.125, 0.0},
+      {0.0, 0.0, 0.0},
+  };
+  const mjtNum torques[3][3] = {
+      {-0.625, 1.125, -2.25},
+      {1.75, 0.0, -0.5},
+      {0.0, 0.0, 0.0},
+  };
+
+  for (int jacobian_mode : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = jacobian_mode;
+    for (int body = 0; body < m->nbody; ++body) {
+      for (int c = 0; c < 5; ++c) {
+        const mjtNum* f = (c == 3 || c == 4) ? nullptr : forces[c % 3];
+        const mjtNum* t = (c == 2 || c == 4) ? nullptr : torques[c % 3];
+        const mjtNum* pt = (c == 3 || c == 4) ? nullptr : point;
+
+        vector<mjtNum> actual(nv);
+        vector<mjtNum> expected(nv);
+        for (int j = 0; j < nv; ++j) {
+          actual[j] = expected[j] = static_cast<mjtNum>(0.3 * j - 1.1);
+        }
+
+        size_t pstack_before = d->pstack;
+        mj_applyFT(m, d, f, t, pt, body, actual.data());
+        EXPECT_EQ(d->pstack, pstack_before);
+
+        if (f || t) {
+          mj_jac(m, d, f ? jacp.data() : nullptr, t ? jacr.data() : nullptr,
+                 point, body);
+          if (f) {
+            mju_mulMatTVec(qforce.data(), jacp.data(), f, 3, nv);
+            mju_addTo(expected.data(), qforce.data(), nv);
+          }
+          if (t) {
+            mju_mulMatTVec(qforce.data(), jacr.data(), t, 3, nv);
+            mju_addTo(expected.data(), qforce.data(), nv);
+          }
+        }
+
+        for (int j = 0; j < nv; ++j) {
+          EXPECT_MJTNUM_EQ(actual[j], expected[j])
+              << "mode=" << jacobian_mode << " body=" << body << " case=" << c
+              << " dof=" << j;
+        }
+      }
+    }
+  }
+
+  // Non-finite cdof multiplied by zero force/torque still propagates NaN.
+  const int leaf_body = mj_name2id(m, mjOBJ_BODY, "welded_leaf");
+  ASSERT_GE(leaf_body, 0);
+  const int weld_body = m->body_weldid[leaf_body];
+  const int last_dof =
+      m->body_dofadr[weld_body] + m->body_dofnum[weld_body] - 1;
+  const mjtNum saved_cdof = d->cdof[6 * last_dof];
+  d->cdof[6 * last_dof] = std::numeric_limits<mjtNum>::quiet_NaN();
+  const mjtNum zero_vec[3] = {0.0, 0.0, 0.0};
+
+  vector<mjtNum> nan_force_out(nv, 0.0);
+  mj_applyFT(m, d, zero_vec, nullptr, point, leaf_body, nan_force_out.data());
+  EXPECT_TRUE(std::isnan(nan_force_out[last_dof]));
+
+  vector<mjtNum> nan_torque_out(nv, 0.0);
+  mj_applyFT(m, d, nullptr, zero_vec, nullptr, leaf_body,
+             nan_torque_out.data());
+  EXPECT_TRUE(std::isnan(nan_torque_out[last_dof]));
+
+  d->cdof[6 * last_dof] = saved_cdof;
 }
 
 }  // namespace
