@@ -224,7 +224,7 @@ class App {
     };
     FileDialog file_dialog = FileDialog_None;
     std::string last_path[NumFileDialogs];
-    char filename[1000] = "";
+    std::string filename;
   };
 
   // Requests that the model be loaded from the given file at the next update.

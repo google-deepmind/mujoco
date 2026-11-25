@@ -20,12 +20,19 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
+#include <utility>
+
+#ifdef __linux__
+  #include <sys/stat.h>
+#endif
 
 #include "testing/base/public/gunit.h"
 #include <SDL_events.h>
@@ -66,6 +73,12 @@ struct AppTestPeer {
   }
   static mjsElement* curr_element(const App& app) { return app.tmp_.curr_element; }
   static void set_curr_element(App& app, mjsElement* element) { app.tmp_.curr_element = element; }
+  static void OpenLoadFileDialog(App& app, std::string path) {
+    std::unique_lock<std::mutex> lock(app.physics_mutex_);
+    app.tmp_.last_path[App::UiTempState::FileDialog_Load] = std::move(path);
+    app.tmp_.file_dialog = App::UiTempState::FileDialog_Load;
+  }
+  static const std::string& file_dialog_filename(const App& app) { return app.tmp_.filename; }
 };
 
 namespace {
@@ -611,6 +624,69 @@ TEST(AppTest, DirectTouchSupportsOneFingerOrbitTwoFingerPanTwistAndPickTolerance
   step_frame();
   double_tap_at(ImGuiMouseSource_TouchScreen, 210.0f, 400.0f);
   EXPECT_EQ(perturb->select, far_visible_body);
+}
+
+TEST(AppTest, FileDialogHandlesPathsLongerThan1000Bytes) {
+  setenv("SDL_VIDEODRIVER", "dummy", 1);
+
+  App::Config config;
+  config.width = 640;
+  config.height = 480;
+  config.ini_path = std::string(::testing::TempDir()) + "/file_dialog_long_path_mujoco.ini";
+  config.gfx_mode = GraphicsMode::FilamentOpenGlSoftware;
+  App app(config);
+  app.InitEmptyModel();
+
+  Window* window = AppTestPeer::window(app);
+  ASSERT_NE(window, nullptr);
+
+  // Path exceeding the legacy 1000-byte fixed buffer size.
+  const std::string long_initial_path = "/tmp/" + std::string(1500, 'x') + "/model.xml";
+  AppTestPeer::OpenLoadFileDialog(app, long_initial_path);
+
+  const auto step_gui_frame = [&]() {
+    app.Update();
+    app.BuildGui();
+    ImGui::Render();
+    window->EndFrame();
+  };
+
+  // Frame 1 opens the FileDialog popup and copies `last_path` into `tmp_.filename`.
+  step_gui_frame();
+  EXPECT_EQ(AppTestPeer::file_dialog_filename(app), long_initial_path);
+
+#ifdef __linux__
+  // Frame 2 invokes OpenFileDialog (zenity on Linux) and copies `res.path` into `tmp_.filename`.
+  const std::filesystem::path bin_dir =
+      std::filesystem::path(::testing::TempDir()) / "app_test_fake_zenity";
+  std::filesystem::remove_all(bin_dir);
+  std::filesystem::create_directories(bin_dir);
+
+  const std::string long_selected_path = "/tmp/" + std::string(1010, 'y') + ".xml";
+  const std::filesystem::path script = bin_dir / "zenity";
+  {
+    std::ofstream out(script);
+    out << "#!/bin/sh\n"
+        << "printf '%s\\n' '" << long_selected_path << "'\n";
+  }
+  chmod(script.c_str(), 0755);
+
+  const char* old_path = std::getenv("PATH");
+  std::optional<std::string> saved_path =
+      old_path ? std::optional<std::string>(old_path) : std::nullopt;
+  const std::string new_path = bin_dir.string() + (old_path ? ":" + std::string(old_path) : "");
+  setenv("PATH", new_path.c_str(), 1);
+
+  step_gui_frame();
+
+  if (saved_path.has_value()) {
+    setenv("PATH", saved_path->c_str(), 1);
+  } else {
+    unsetenv("PATH");
+  }
+
+  EXPECT_EQ(AppTestPeer::file_dialog_filename(app), long_selected_path);
+#endif  // __linux__
 }
 
 }  // namespace

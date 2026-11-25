@@ -2424,8 +2424,7 @@ void App::FileDialogGui() {
     }
 
     if (res.status != DialogResult::kError) {
-      strncpy(tmp_.filename, res.path.c_str(), res.path.size());
-      tmp_.filename[res.path.size()] = 0;
+      tmp_.filename = res.path;
     }
     if (res.status != DialogResult::kPending) {
       tmp_.file_dialog = UiTempState::FileDialog_None;
@@ -2436,9 +2435,7 @@ void App::FileDialogGui() {
   }
 
   if (!ImGui::IsPopupOpen("FileDialog") && tmp_.file_dialog != UiTempState::FileDialog_None) {
-    const std::string& src = tmp_.last_path[tmp_.file_dialog];
-    strncpy(tmp_.filename, src.c_str(), src.size());
-    tmp_.filename[src.size()] = 0;
+    tmp_.filename = tmp_.last_path[tmp_.file_dialog];
     ImGui::OpenPopup("FileDialog");
     window_->DisableWindowResizing();
   }
