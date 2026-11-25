@@ -2385,5 +2385,121 @@ TEST_F(CoreConstraintTest, DenseContactMatchesSparseExact) {
   }
 }
 
+TEST_F(CoreConstraintTest, MakeImpedanceCacheAndEdgeCases) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="5 5 .1"/>
+      <body pos="0 0 .0996">
+        <joint type="slide" axis="0 0 1" limited="true" range="0 1"
+               frictionloss="0.5"/>
+        <geom name="s1" type="sphere" size=".1" mass="1"
+              friction="1 0.005 0.0001"/>
+      </body>
+      <body pos="0.5 0 .0992">
+        <joint type="slide" axis="0 0 1" limited="true" range="0 1"
+               frictionloss="0.5"/>
+        <geom name="s2" type="sphere" size=".1" mass="1"
+              friction="0.8 0.01 0.002"/>
+      </body>
+      <body pos="1.0 0 .095">
+        <freejoint/>
+        <geom name="s3" type="sphere" size=".1" mass="1"
+              friction="1 0.005 0.0001"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+
+  // spheres take priority over the floor so their solref/solimp are used as-is
+  m->geom_priority[1] = m->geom_priority[2] = m->geom_priority[3] = 1;
+
+  // s2 uses direct solref (stiffness, damping)
+  m->geom_solref[2 * mjNREF + 0] = -1000;
+  m->geom_solref[2 * mjNREF + 1] = -50;
+
+  // vary solimp power, midpoint and width across geoms to exercise cache hits
+  // and misses: s1 interior x <= mid (power 2), s2 interior x > mid (power 3),
+  // s3 interior with power 1 (wider width keeps it unsaturated)
+  m->geom_solimp[1 * mjNIMP + 3] = 0.5;
+  m->geom_solimp[1 * mjNIMP + 4] = 2.0;
+  m->geom_solimp[2 * mjNIMP + 3] = 0.3;
+  m->geom_solimp[2 * mjNIMP + 4] = 3.0;
+  m->geom_solimp[3 * mjNIMP + 2] = 0.01;
+  m->geom_solimp[3 * mjNIMP + 3] = 0.5;
+  m->geom_solimp[3 * mjNIMP + 4] = 1.0;
+
+  // exercise condim 1/3/4/6, pyramidal/elliptic, euler/discrete, impratio 1 vs
+  // 5, power 1/2/3, midpoint 0.5 vs 0.3, and direct vs standard solref
+  for (int integrator : {mjINT_EULER, mjINT_DISCRETE}) {
+    m->opt.integrator = integrator;
+    for (int cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+      m->opt.cone = cone;
+      for (mjtNum impratio : {1.0, 5.0}) {
+        m->opt.impratio = impratio;
+        for (int condim : {1, 3, 4, 6}) {
+          for (int g = 0; g < m->ngeom; g++) {
+            m->geom_condim[g] = condim;
+          }
+          MjDataPtr d = MakeData(m);
+          mj_forward(m.get(), d.get());
+          ASSERT_GE(d->ncon, 3);
+          for (int i = 0; i < d->nefc; i++) {
+            EXPECT_GT(d->efc_R[i], 0);
+            EXPECT_NEAR(d->efc_D[i], 1 / d->efc_R[i],
+                        MjTol(1e-12, 1e-5) * d->efc_D[i]);
+            EXPECT_FALSE(mju_isBad(d->efc_diagA[i]));
+            for (int k = 0; k < 4; k++) {
+              EXPECT_FALSE(mju_isBad(d->efc_KBIP[4 * i + k]));
+            }
+          }
+          if (condim > 1 && cone == mjCONE_ELLIPTIC) {
+            for (int c = 0; c < d->ncon; c++) {
+              const mjContact& con = d->contact[c];
+              int adr = con.efc_address;
+              ASSERT_GE(adr, 0);
+              mjtNum f0 = con.friction[0];
+              EXPECT_NEAR(con.mu,
+                          f0 * mju_sqrt(d->efc_R[adr + 1] / d->efc_R[adr]),
+                          MjTol(1e-12, 1e-5) * (1 + con.mu));
+              for (int j = 1; j < condim - 1; j++) {
+                mjtNum fj = con.friction[j];
+                mjtNum expected_R = d->efc_R[adr + 1] * f0 * f0 / (fj * fj);
+                EXPECT_NEAR(d->efc_R[adr + j + 1], expected_R,
+                            MjTol(1e-11, 1e-4) * expected_R);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // mixed-sign solref on two consecutive constraints must NOT be cached: both
+  // must emit warnings and fall back to default solref
+  m->opt.integrator = mjINT_EULER;
+  m->opt.cone = mjCONE_ELLIPTIC;
+  for (int g = 0; g < m->ngeom; g++) {
+    m->geom_condim[g] = 3;
+  }
+  m->geom_solref[1 * mjNREF + 0] = -10;
+  m->geom_solref[1 * mjNREF + 1] = 1;
+  m->geom_solref[2 * mjNREF + 0] = -10;
+  m->geom_solref[2 * mjNREF + 1] = 1;
+  m->geom_priority[1] = 1;
+  m->geom_priority[2] = 1;
+
+  EXPECT_CALL(mock_warning_handler,
+              Warn(::testing::HasSubstr("mixed solref format")))
+      .Times(2)
+      .WillRepeatedly(::testing::Return());
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+}
+
 }  // namespace
 }  // namespace mujoco
