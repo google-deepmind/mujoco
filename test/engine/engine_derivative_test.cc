@@ -830,7 +830,7 @@ TEST_F(DerivativeTest, StepSkipEulerPolyDamping) {
       </body>
     </worldbody>
     <actuator>
-      <motor joint="j1" damping="0 1.5"/>
+      <dcmotor joint="j1" motorconst="0" resistance="1" input="none" damping="0 1.5"/>
     </actuator>
   </mujoco>
   )";
@@ -842,27 +842,84 @@ TEST_F(DerivativeTest, StepSkipEulerPolyDamping) {
   d->qvel[0] = 1.3;
   d->qvel[1] = -0.9;
 
-  int nv = m->nv;
-  int ndx = 2 * nv;
-  mjtNum eps = MjTol(1e-6, 1e-3);
-  vector<mjtNum> A(ndx * ndx);
-  mjd_transitionFD(m.get(), d.get(), eps, /*flg_centered=*/1, A.data(), nullptr,
-                   nullptr, nullptr);
+  for (int clear_dof_poly : {0, 1}) {
+    if (clear_dof_poly) mju_zero(m->dof_dampingpoly, mjNPOLY * m->nv);
+    int nv = m->nv;
+    int ndx = 2 * nv;
+    mjtNum eps = MjTol(1e-6, 1e-3);
+    vector<mjtNum> A(ndx * ndx);
+    mjd_transitionFD(m.get(), d.get(), eps, /*flg_centered=*/1, A.data(),
+                     nullptr, nullptr, nullptr);
 
-  for (int j = 0; j < nv; j++) {
+    for (int j = 0; j < nv; j++) {
+      MjDataPtr dp = MakeData(m), dm = MakeData(m);
+      mj_copyData(dp.get(), m.get(), d.get());
+      mj_copyData(dm.get(), m.get(), d.get());
+      dp->qvel[j] += eps;
+      dm->qvel[j] -= eps;
+      mj_step(m.get(), dp.get());
+      mj_step(m.get(), dm.get());
+      for (int r = 0; r < nv; r++) {
+        mjtNum dq = (dp->qpos[r] - dm->qpos[r]) / (2 * eps);
+        mjtNum dv = (dp->qvel[r] - dm->qvel[r]) / (2 * eps);
+        EXPECT_NEAR(A[r * ndx + nv + j], dq, MjTol(1e-8, 1e-3));
+        EXPECT_NEAR(A[(nv + r) * ndx + nv + j], dv, MjTol(1e-8, 1e-3));
+      }
+    }
+  }
+}
+
+// mj_stepSkip refactorizes implicit/implicitfast when a thermal dcmotor has
+// input="none" (m->nu == 0 < m->nactuator)
+TEST_F(DerivativeTest, StepSkipImplicitThermalNoControl) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.05">
+      <flag warmstart="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="j" type="slide"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="j" motorconst="2" resistance="1" input="none"
+               thermal="1 1 0 0.01 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->nu, 0);
+  ASSERT_EQ(m->nactuator, 1);
+  ASSERT_EQ(m->na, 1);
+
+  for (int integrator : {mjINT_IMPLICIT, mjINT_IMPLICITFAST}) {
+    m->opt.integrator = integrator;
+    MjDataPtr d = MakeData(m);
+    d->qvel[0] = 2.0;
+    d->act[0] = 100.0;
+
+    int ndx = 2 * m->nv + m->na;
+    mjtNum eps = MjTol(1e-6, 1e-3);
+    vector<mjtNum> A(ndx * ndx);
+    mjd_transitionFD(m.get(), d.get(), eps, /*flg_centered=*/1, A.data(),
+                     nullptr, nullptr, nullptr);
+
     MjDataPtr dp = MakeData(m), dm = MakeData(m);
     mj_copyData(dp.get(), m.get(), d.get());
     mj_copyData(dm.get(), m.get(), d.get());
-    dp->qvel[j] += eps;
-    dm->qvel[j] -= eps;
+    dp->act[0] += eps;
+    dm->act[0] -= eps;
     mj_step(m.get(), dp.get());
     mj_step(m.get(), dm.get());
-    for (int r = 0; r < nv; r++) {
-      mjtNum dq = (dp->qpos[r] - dm->qpos[r]) / (2 * eps);
-      mjtNum dv = (dp->qvel[r] - dm->qvel[r]) / (2 * eps);
-      EXPECT_NEAR(A[r * ndx + nv + j], dq, MjTol(1e-8, 1e-3));
-      EXPECT_NEAR(A[(nv + r) * ndx + nv + j], dv, MjTol(1e-8, 1e-3));
-    }
+    mjtNum dq = (dp->qpos[0] - dm->qpos[0]) / (2 * eps);
+    mjtNum dv = (dp->qvel[0] - dm->qvel[0]) / (2 * eps);
+    EXPECT_NEAR(A[2], dq, MjTol(1e-8, 1e-3));
+    EXPECT_NEAR(A[ndx + 2], dv, MjTol(1e-8, 1e-3));
   }
 }
 

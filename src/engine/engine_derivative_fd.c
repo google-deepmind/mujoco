@@ -137,7 +137,7 @@ static int eulerDampDependsOnVel(const mjModel* m) {
   }
 
   // check joint actuator damping polynomial
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < m->nactuator; i++) {
     mjtTrn trntype = m->actuator_trntype[i];
     if (trntype == mjTRN_JOINT || trntype == mjTRN_JOINTINPARENT) {
       mjtNum gear = m->actuator_gear[6*m->actuator_outadr[i]];
@@ -184,7 +184,7 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
   case mjINT_IMPLICITFAST: {
     int skipfactor = (skipstage > mjSTAGE_VEL) ||
                      (skipstage == mjSTAGE_VEL &&
-                      (mjDISABLED(mjDSBL_ACTUATION) || !m->nu));
+                      (mjDISABLED(mjDSBL_ACTUATION) || !m->nactuator));
     mj_implicitSkip(m, d, skipfactor);
     break;
   }
