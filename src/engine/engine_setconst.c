@@ -66,23 +66,7 @@ static void mj_setM0(mjModel* m, mjData* d) {
 
 // helper function to get the tree id of a wrap object
 static int GetWrapBodyTreeId(const mjModel* m, int wrap_index) {
-  int bodyid = -1;
-  int objid = m->wrap_objid[wrap_index];
-  switch ((mjtWrap)m->wrap_type[wrap_index]) {
-  case mjWRAP_JOINT:
-    bodyid = m->jnt_bodyid[objid];
-    break;
-  case mjWRAP_SITE:
-    bodyid = m->site_bodyid[objid];
-    break;
-  case mjWRAP_SPHERE:
-  case mjWRAP_CYLINDER:
-    bodyid = m->geom_bodyid[objid];
-    break;
-  case mjWRAP_PULLEY:
-  case mjWRAP_NONE:
-    break;
-  }
+  int bodyid = mj_wrapBodyId(m, wrap_index);
   return (bodyid != -1) ? m->body_treeid[bodyid] : -1;
 }
 
@@ -829,23 +813,27 @@ static void makeTendonSparse(mjModel* m) {
       }
       rownnz[i] = num;
     } else {
-      // spatial tendon: collect used dofs from wrap object bodies
+      // spatial tendon: find lowest common ancestor of all wrap object bodies
+      int lca = -1;
+      for (int j = 0; j < num; j++) {
+        int bodyid = mj_wrapBodyId(m, adr + j);
+        if (bodyid >= 0) {
+          lca = lca < 0 ? bodyid : mj_bodyLCA(m, lca, bodyid);
+        }
+      }
+      if (lca < 0) {
+        lca = 0;
+      }
+
+      // collect used dofs from wrap object bodies up to lca (exclusive)
       int nnz = 0;
       for (int j = 0; j < num; j++) {
-        int type = m->wrap_type[adr + j];
+        int bodyid = mj_wrapBodyId(m, adr + j);
 
-        // get body id from site or geom wrap object
-        int bodyid = -1;
-        if (type == mjWRAP_SITE) {
-          bodyid = m->site_bodyid[m->wrap_objid[adr + j]];
-        } else if (type == mjWRAP_SPHERE || type == mjWRAP_CYLINDER) {
-          bodyid = m->geom_bodyid[m->wrap_objid[adr + j]];
-        }
-
-        // walk up the body tree, collecting used dofs
-        if (bodyid > 0) {
+        // walk up the body tree to lca, collecting used dofs
+        if (bodyid > lca) {
           int bid = bodyid;
-          while (bid > 0) {
+          while (bid > lca) {
             int bdofadr = m->body_dofadr[bid];
             int bdofnum = m->body_dofnum[bid];
             for (int k = 0; k < bdofnum; k++) {

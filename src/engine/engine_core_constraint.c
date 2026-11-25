@@ -1025,8 +1025,8 @@ void mj_Jdotv(const mjModel* m, mjData* d, mjtNum* result) {
           // sparse: translational and rotational
           mjtNum* jacr1 = (type == mjEQ_WELD) ? jacrdot1 : NULL;
           mjtNum* jacr2 = (type == mjEQ_WELD) ? jacrdot2 : NULL;
-          mj_jacDotSparse(m, d, jacdot1, jacr1, pos1, body1, NV, chain);
-          mj_jacDotSparse(m, d, jacdot2, jacr2, pos2, body2, NV, chain);
+          mj_jacDotSparse(m, d, jacdot1, jacr1, pos1, body1, NV, chain, /*flg_skipcommon=*/0);
+          mj_jacDotSparse(m, d, jacdot2, jacr2, pos2, body2, NV, chain, /*flg_skipcommon=*/0);
 
           // translational jdv = jacDot * qvel
           mju_dotSparseX3(jdv1, jdv1+1, jdv1+2, jacdot1, jacdot1+NV, jacdot1+2*NV,

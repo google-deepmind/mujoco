@@ -29,6 +29,13 @@ Engine
   rank-``(dim - 1)`` factors (~5–30% faster elliptic Newton solves). Thanks to :github:user:`adenzler-nvidia`
   for proposing the optimization in :doc:`MJWarp <mjwarp/index>` pull request
   `1879 <https://github.com/google-deepmind/mujoco_warp/pull/1879>`__.
+- Optimized :ref:`spatial tendon<tendon-spatial>` Jacobian computation (:ref:`mj_tendon`) and sparsity
+  (``mjModel.ten_J_colind``) by stopping ancestor walks at the endpoints' lowest common ancestor, skipping shared
+  ancestor DOFs whose contributions cancel (~7–22% faster stepping on MyoSuite musculoskeletal models). Thanks to
+  :github:user:`kaibohex` for identifying the opportunity in :doc:`MJWarp <mjwarp/index>` issue
+  `1733 <https://github.com/google-deepmind/mujoco_warp/issues/1733>`__ and to :github:user:`vishalkotak` for the
+  implementation in :doc:`MJWarp <mjwarp/index>` pull request
+  `2014 <https://github.com/google-deepmind/mujoco_warp/pull/2014>`__.
 
 Deformables
 ^^^^^^^^^^^

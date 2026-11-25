@@ -1117,7 +1117,8 @@ TEST_F(JacobianTest, JacDotSparse) {
     std::vector<mjtNum> jacp_sparse(3 * NV);
     std::vector<mjtNum> jacr_sparse(3 * NV);
     mj_jacDotSparse(model.get(), data.get(), jacp_sparse.data(),
-                    jacr_sparse.data(), point, bodyid, NV, chain.data());
+                    jacr_sparse.data(), point, bodyid, NV, chain.data(),
+                    /*flg_skipcommon=*/0);
 
     // expand sparse to dense and compare
     std::vector<mjtNum> jacp_expanded(3 * nv, 0);

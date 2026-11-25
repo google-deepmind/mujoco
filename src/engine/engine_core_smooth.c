@@ -854,11 +854,11 @@ void mj_tendon(const mjModel* m, mjData* d) {
           mji_sub3(dif, wpnt+3*k+3, wpnt+3*k);
           mju_normalize3(dif);
 
-          // get endpoint Jacobians, subtract
+          // get endpoint Jacobians, subtract (shared ancestor dofs cancel when dotted with dif)
           int NV = mj_jacDifPair(m, d, chain,
                                  wbody[k], wbody[k+1], wpnt+3*k, wpnt+3*k+3,
                                  jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1,
-                                 /*skipcommon=*/0);
+                                 /*flg_skipcommon=*/1);
 
           // no dofs: skip
           if (!NV) {
@@ -992,13 +992,13 @@ mjtNum mj_tendonDot(const mjModel* m, mjData* d, int id, const mjtNum* vec) {
 
       // sparse
       if (issparse) {
-        // construct merged chain
-        int NV = mj_mergeChain(m, chain, wbody[0], wbody[1], /*flg_skipcommon=*/0);
+        // construct merged chain (shared ancestor dofs cancel in J and Jdot)
+        int NV = mj_mergeChain(m, chain, wbody[0], wbody[1], /*flg_skipcommon=*/1);
 
         if (NV) {
           // get endpoint JacobianDots, subtract
-          mj_jacDotSparse(m, d, jac1, 0, wpnt, wbody[0], NV, chain);
-          mj_jacDotSparse(m, d, jac2, 0, wpnt+3, wbody[1], NV, chain);
+          mj_jacDotSparse(m, d, jac1, 0, wpnt, wbody[0], NV, chain, /*flg_skipcommon=*/1);
+          mj_jacDotSparse(m, d, jac2, 0, wpnt+3, wbody[1], NV, chain, /*flg_skipcommon=*/1);
           mju_sub(jacdif, jac2, jac1, 3*NV);
 
           // chain rule, first term: Jdot += d/dt(jac2 - jac1) * dpnt
@@ -1009,8 +1009,8 @@ mjtNum mj_tendonDot(const mjModel* m, mjData* d, int id, const mjtNum* vec) {
           }
 
           // get endpoint Jacobians, subtract
-          mj_jacSparse(m, d, jac1, 0, wpnt, wbody[0], NV, chain, /*flg_skipcommon=*/0);
-          mj_jacSparse(m, d, jac2, 0, wpnt+3, wbody[1], NV, chain, /*flg_skipcommon=*/0);
+          mj_jacSparse(m, d, jac1, 0, wpnt, wbody[0], NV, chain, /*flg_skipcommon=*/1);
+          mj_jacSparse(m, d, jac2, 0, wpnt+3, wbody[1], NV, chain, /*flg_skipcommon=*/1);
           mju_sub(jacdif, jac2, jac1, 3*NV);
 
           // chain rule, second term: Jdot += (jac2 - jac1) * d/dt(dpnt)

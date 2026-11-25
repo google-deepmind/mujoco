@@ -184,7 +184,10 @@ TEST_F(CoreSmoothTest, TendonJdot) {
       mj_forward(m, d);
 
       // get current J for the tendon
-      vector<mjtNum> ten_J(d->ten_J, d->ten_J + nv);
+      vector<mjtNum> ten_J(nv);
+      int zero = 0;
+      mju_sparse2dense(ten_J.data(), d->ten_J, 1, nv, m->ten_J_rownnz, &zero,
+                       m->ten_J_colind);
 
       // compute finite-differenced Jdot
       mjtNum h = MjTol(1e-7, 5e-4);
@@ -192,7 +195,9 @@ TEST_F(CoreSmoothTest, TendonJdot) {
       mj_kinematics(m, d);
       mj_comPos(m, d);
       mj_tendon(m, d);
-      vector<mjtNum> ten_Jh(d->ten_J, d->ten_J + nv);
+      vector<mjtNum> ten_Jh(nv);
+      mju_sparse2dense(ten_Jh.data(), d->ten_J, 1, nv, m->ten_J_rownnz, &zero,
+                       m->ten_J_colind);
       mju_subFrom(ten_Jh.data(), ten_J.data(), nv);
       mju_scl(ten_Jh.data(), ten_Jh.data(), 1.0 / h, nv);
 
@@ -206,6 +211,190 @@ TEST_F(CoreSmoothTest, TendonJdot) {
     mj_deleteData(d);
     mj_deleteModel(m);
   }
+}
+
+TEST_F(CoreSmoothTest, SpatialTendonSharedAncestors) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="s_world" pos="0 0 2"/>
+      <body name="base" pos="0 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+        <body name="upper">
+          <joint axis="0 1 0"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -.3" size=".03"/>
+          <site name="s_upper" pos=".05 0 0"/>
+          <site name="s_upper2" pos="-.05 0 -.1"/>
+          <body name="lower" pos="0 0 -.3">
+            <joint axis="1 0 0"/>
+            <geom name="wrap_cylinder" type="cylinder" size=".08 .05" zaxis="0 1 0"/>
+            <site name="side" pos=".15 0 0"/>
+            <body name="hand" pos="0 0 -.3">
+              <joint type="ball"/>
+              <geom size=".03"/>
+              <site name="s_hand" pos=".05 0 0"/>
+            </body>
+          </body>
+        </body>
+        <body name="other" pos=".2 0 0">
+          <joint axis="0 0 1"/>
+          <geom name="wrap_far" size=".01" pos="0 .5 0"/>
+          <site name="s_other" pos="0 .1 0"/>
+        </body>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="serial">
+        <site site="s_upper"/>
+        <site site="s_hand"/>
+      </spatial>
+      <spatial name="branch">
+        <site site="s_hand"/>
+        <site site="s_other"/>
+      </spatial>
+      <spatial name="wrap_hit">
+        <site site="s_upper"/>
+        <geom geom="wrap_cylinder" sidesite="side"/>
+        <site site="s_hand"/>
+      </spatial>
+      <spatial name="wrap_miss">
+        <site site="s_upper"/>
+        <geom geom="wrap_far"/>
+        <site site="s_hand"/>
+      </spatial>
+      <spatial name="world">
+        <site site="s_world"/>
+        <site site="s_hand"/>
+      </spatial>
+      <spatial name="same_body" limited="true" range="0 .05" frictionloss="1">
+        <site site="s_upper"/>
+        <site site="s_upper2"/>
+      </spatial>
+      <spatial name="pulley">
+        <site site="s_upper"/>
+        <site site="s_hand"/>
+        <pulley divisor="2"/>
+        <site site="s_hand"/>
+        <site site="s_other"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <motor tendon="same_body"/>
+      <motor tendon="serial"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjModel* m = model.get();
+  mjData* d = mj_makeData(m);
+
+  // DOFs: base[0..5], upper[6], lower[7], hand[8..10], other[11]
+  ASSERT_EQ(m->nv, 12);
+  ASSERT_EQ(m->ntendon, 7);
+  EXPECT_EQ(m->nJten, 37);
+  EXPECT_EQ(m->nJmom, 4);
+
+  auto colind_of = [m](int t) {
+    int adr = m->ten_J_rowadr[t];
+    int nnz = m->ten_J_rownnz[t];
+    return std::vector<int>(m->ten_J_colind + adr, m->ten_J_colind + adr + nnz);
+  };
+
+  EXPECT_THAT(colind_of(0), ElementsAre(7, 8, 9, 10));
+  EXPECT_THAT(colind_of(1), ElementsAre(6, 7, 8, 9, 10, 11));
+  EXPECT_THAT(colind_of(2), ElementsAre(7, 8, 9, 10));
+  EXPECT_THAT(colind_of(3), ElementsAre(6, 7, 8, 9, 10, 11));
+  EXPECT_THAT(colind_of(4), ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+  EXPECT_THAT(colind_of(5), ElementsAre());
+  EXPECT_THAT(colind_of(6), ElementsAre(6, 7, 8, 9, 10, 11));
+
+  // perturb all joints (including floating base rotation and ball joint)
+  d->qpos[0] = 0.2;
+  d->qpos[1] = -0.15;
+  d->qpos[2] = 1.1;
+  mjtNum qbase[4] = {0.9, 0.3, -0.2, 0.25};
+  mju_normalize4(qbase);
+  mju_copy4(d->qpos + 3, qbase);
+  d->qpos[7] = 0.35;
+  d->qpos[8] = -0.4;
+  mjtNum qball[4] = {0.85, -0.2, 0.35, 0.3};
+  mju_normalize4(qball);
+  mju_copy4(d->qpos + 9, qball);
+  d->qpos[13] = 0.25;
+
+  mj_forward(m, d);
+
+  // confirm wrap_hit wraps its cylinder and wrap_miss misses its sphere
+  EXPECT_GT(d->ten_wrapnum[2], 2);
+  EXPECT_EQ(d->ten_wrapnum[3], 2);
+
+  // unpack analytic sparse ten_J to dense (ntendon x nv)
+  std::vector<mjtNum> ten_J(m->ntendon * m->nv);
+  mju_sparse2dense(ten_J.data(), d->ten_J, m->ntendon, m->nv, m->ten_J_rownnz,
+                   m->ten_J_rowadr, m->ten_J_colind);
+
+  // compare analytic ten_J against central finite differences of ten_length
+  const mjtNum eps = MjTol(1e-6, 1e-3);
+  std::vector<mjtNum> qpos0(d->qpos, d->qpos + m->nq);
+  std::vector<mjtNum> dq(m->nv, 0);
+  std::vector<mjtNum> len_plus(m->ntendon);
+  std::vector<mjtNum> len_minus(m->ntendon);
+
+  for (int j = 0; j < m->nv; j++) {
+    dq[j] = eps;
+    mju_copy(d->qpos, qpos0.data(), m->nq);
+    mj_integratePos(m, d->qpos, dq.data(), 1);
+    mj_kinematics(m, d);
+    mj_comPos(m, d);
+    mj_tendon(m, d);
+    mju_copy(len_plus.data(), d->ten_length, m->ntendon);
+
+    mju_copy(d->qpos, qpos0.data(), m->nq);
+    mj_integratePos(m, d->qpos, dq.data(), -1);
+    mj_kinematics(m, d);
+    mj_comPos(m, d);
+    mj_tendon(m, d);
+    mju_copy(len_minus.data(), d->ten_length, m->ntendon);
+    dq[j] = 0;
+
+    for (int t = 0; t < m->ntendon; t++) {
+      mjtNum fd = (len_plus[t] - len_minus[t]) / (2 * eps);
+      EXPECT_NEAR(ten_J[t * m->nv + j], fd, MjTol(1e-7, 1e-3))
+          << "tendon=" << t << " dof=" << j;
+    }
+  }
+
+  // verify sparse mj_tendonDot (flg_skipcommon=1) matches dense mj_tendonDot
+  // with non-zero shared-ancestor velocities on all non-wrapping tendons
+  mju_copy(d->qpos, qpos0.data(), m->nq);
+  for (int j = 0; j < m->nv; j++) {
+    d->qvel[j] = 0.3 * (j % 3 - 1) + 0.1 * j;
+  }
+  mj_forward(m, d);
+  for (int t : {0, 1, 4, 5, 6}) {
+    m->opt.jacobian = mjJAC_DENSE;
+    mjtNum dot_dense = mj_tendonDot(m, d, t, d->qvel);
+    m->opt.jacobian = mjJAC_SPARSE;
+    mjtNum dot_sparse = mj_tendonDot(m, d, t, d->qvel);
+    EXPECT_NEAR(dot_sparse, dot_dense, MjTol(1e-12, 1e-5)) << "tendon=" << t;
+  }
+
+  // verify stepping succeeds cleanly with active constraints and actuators on
+  // same_body (rownnz == 0) under both dense and sparse Jacobians
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = sparsity;
+    mju_copy(d->qpos, qpos0.data(), m->nq);
+    mju_zero(d->qvel, m->nv);
+    d->ctrl[0] = 1.0;
+    d->ctrl[1] = -0.5;
+    mj_step(m, d);
+  }
+
+  mj_deleteData(d);
 }
 
 static const char* const kTen_offtree =

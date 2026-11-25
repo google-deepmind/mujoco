@@ -188,6 +188,38 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
 }
 
 
+// lowest common ancestor of two bodies
+int mj_bodyLCA(const mjModel* m, int b1, int b2) {
+  while (b1 != b2) {
+    if (b1 > b2) {
+      b1 = m->body_parentid[b1];
+    } else {
+      b2 = m->body_parentid[b2];
+    }
+  }
+  return b1;
+}
+
+
+// body id of a wrap object, or -1 if none
+int mj_wrapBodyId(const mjModel* m, int wrap_index) {
+  int objid = m->wrap_objid[wrap_index];
+  switch ((mjtWrap)m->wrap_type[wrap_index]) {
+  case mjWRAP_JOINT:
+    return m->jnt_bodyid[objid];
+  case mjWRAP_SITE:
+    return m->site_bodyid[objid];
+  case mjWRAP_SPHERE:
+  case mjWRAP_CYLINDER:
+    return m->geom_bodyid[objid];
+  case mjWRAP_PULLEY:
+  case mjWRAP_NONE:
+    return -1;
+  }
+  return -1;
+}
+
+
 //-------------------------- Jacobians -------------------------------------------------------------
 
 // compute 3/6-by-nv Jacobian of global point attached to given body
@@ -1242,7 +1274,7 @@ void mj_jacDot(const mjModel* m, const mjData* d,
 // compute 3/6-by-NV sparse Jacobian time derivative of global point attached to given body
 void mj_jacDotSparse(const mjModel* m, const mjData* d,
                      mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                     int NV, const int* chain) {
+                     int NV, const int* chain, int flg_skipcommon) {
   mjtNum offset[3];
   mjtNum pvel[6];
 
@@ -1278,8 +1310,12 @@ void mj_jacDotSparse(const mjModel* m, const mjData* d,
       ci--;
     }
 
-    // dof not in chain: SHOULD NOT OCCUR
+    // dof not in chain: skip if shared dofs are excluded, otherwise SHOULD NOT OCCUR
     if (ci < 0 || chain[ci] != da) {
+      if (flg_skipcommon) {
+        da = m->dof_parentid[da];
+        continue;
+      }
       mjERROR("dof index %d not found in chain", da);
     }
 

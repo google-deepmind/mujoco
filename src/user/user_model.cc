@@ -1281,12 +1281,32 @@ void mjCModel::ComputeSparseSizes() {
         continue;
       }
 
+      // find lowest common ancestor of all wrap object bodies
+      int lca = -1;
+      for (const auto* wrap : tendon->path) {
+        int bodyid = GetBodyIdFromWrap(wrap);
+        if (bodyid >= 0) {
+          if (lca < 0) {
+            lca = bodyid;
+          } else {
+            while (lca != bodyid) {
+              if (lca > bodyid) {
+                lca = bodies_[lca]->GetParent()->id;
+              } else {
+                bodyid = bodies_[bodyid]->GetParent()->id;
+              }
+            }
+          }
+        }
+      }
+      if (lca < 0) { lca = 0; }
+
       std::fill(dof_bitmap.begin(), dof_bitmap.end(), false);
       for (const auto* wrap : tendon->path) {
         int bodyid = GetBodyIdFromWrap(wrap);
-        if (bodyid > 0) {
+        if (bodyid > lca) {
           mjCBody* b = bodies_[bodyid];
-          while (b && b->id > 0) {
+          while (b && b->id > lca) {
             for (const auto* jnt : b->joints) {
               for (int k = 0; k < jnt->nv(); k++) { dof_bitmap[jnt->dofadr_ + k] = true; }
             }
@@ -3404,18 +3424,20 @@ int mjCModel::CountTendonDofs(const mjModel* m, int id) {
 
   if (m->tendon_type[id] == mjTENDON_FIXED) { return num; }
 
+  // find lowest common ancestor of all wrap object bodies
+  int lca = -1;
+  for (int j = 0; j < num; j++) {
+    int bodyid = mj_wrapBodyId(m, adr + j);
+    if (bodyid >= 0) { lca = lca < 0 ? bodyid : mj_bodyLCA(m, lca, bodyid); }
+  }
+  if (lca < 0) { lca = 0; }
+
   std::fill(dof_used.begin(), dof_used.end(), false);
   for (int j = 0; j < num; j++) {
-    int type   = m->wrap_type[adr + j];
-    int bodyid = -1;
-    if (type == mjWRAP_SITE) {
-      bodyid = m->site_bodyid[m->wrap_objid[adr + j]];
-    } else if (type == mjWRAP_SPHERE || type == mjWRAP_CYLINDER) {
-      bodyid = m->geom_bodyid[m->wrap_objid[adr + j]];
-    }
-    if (bodyid > 0) {
+    int bodyid = mj_wrapBodyId(m, adr + j);
+    if (bodyid > lca) {
       int bid = bodyid;
-      while (bid > 0) {
+      while (bid > lca) {
         int bdofadr = m->body_dofadr[bid];
         int bdofnum = m->body_dofnum[bid];
         for (int k = 0; k < bdofnum; k++) { dof_used[bdofadr + k] = true; }

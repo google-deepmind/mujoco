@@ -51,6 +51,12 @@ int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
 // get body chain
 int mj_bodyChain(const mjModel* m, int body, int* chain);
 
+// lowest common ancestor of two bodies
+int mj_bodyLCA(const mjModel* m, int b1, int b2);
+
+// body id of a wrap object, or -1 if none
+int mj_wrapBodyId(const mjModel* m, int wrap_index);
+
 
 //-------------------------- Jacobians -------------------------------------------------------------
 
@@ -95,7 +101,7 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
 // compute 3/6-by-NV sparse Jacobian time derivative of global point attached to given body
 MJAPI void mj_jacDotSparse(const mjModel* m, const mjData* d,
                            mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                           int NV, const int* chain);
+                           int NV, const int* chain, int flg_skipcommon);
 
 // dense or sparse Jacobian difference for two body points: pos2 - pos1, global
 MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
