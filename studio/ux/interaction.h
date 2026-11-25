@@ -16,6 +16,7 @@
 #define MUJOCO_STUDIO_UX_INTERACTION_H_
 
 #include <mujoco/mujoco.h>
+#include "studio/sim/batch_view.h"
 
 namespace mujoco::studio {
 
@@ -71,6 +72,12 @@ PickResult Pick(const mjModel* m, const mjData* d, const mjrCamera& camera, floa
 // using the unmodified mjv_camera2GLCamera projection for `camera`.
 PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera, float x, float y,
                 float aspect_ratio, const mjvOption* vis_options, float tolerance = 0.0f);
+
+// Like Pick, but across all visible simulations in `batch`. If `sim` is
+// non-null, writes the hit simulation index (or -1 on a miss).
+PickResult PickBatch(mjModel* m, const mjData* d, mjData* scratch_data, const BatchView& batch,
+                     const mjvCamera* camera, float x, float y, float aspect_ratio,
+                     const mjvOption* vis_options, int* sim);
 
 // Indices for cameras that are not defined in the model.
 static constexpr int kTumbleCameraIdx = -3;

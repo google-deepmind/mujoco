@@ -15,11 +15,16 @@
 #include "studio/ux/interaction.h"
 
 #include <array>
+#include <cstddef>
 #include <limits>
 #include <memory>
+#include <vector>
 
 #include "testing/base/public/gunit.h"
 #include <mujoco/mujoco.h>
+#include "studio/sim/batch_view.h"
+#include "studio/sim/batched_model.h"
+#include "studio/sim/model_holder.h"
 
 namespace mujoco::studio {
 namespace {
@@ -802,6 +807,340 @@ TEST(InteractionTest, PickToleranceStaticFallbackPrefersClosestDepthAndIgnoresNa
   const float nan = std::numeric_limits<float>::quiet_NaN();
   const PickResult nan_picked = Pick(m.get(), d.get(), view_cam, 0.5f, 0.5f, 1.0f, &opt, nan);
   EXPECT_EQ(nan_picked.geom, ground_geom);
+}
+
+// An infinite floor and a free box at z = 2 whose x is the single slide joint,
+// plus a top-down orthographic fixed camera spanning world X in [-2, +10].
+constexpr const char* kSceneXml = R"xml(
+<mujoco>
+  <statistic extent="1.5" center="0 0 1"/>
+  <worldbody>
+    <camera name="top" pos="4 0 6" xyaxes="1 0 0 0 1 0"
+            projection="orthographic" fovy="12"/>
+    <geom name="floor" type="plane" size="0 0 1"/>
+    <body name="box" pos="0 0 2">
+      <joint name="slide_x" type="slide" axis="1 0 0"/>
+      <geom name="box" type="box" size="0.1 0.1 0.1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)xml";
+
+class PickBatchTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    char error[256] = "";
+    mjSpec* spec = mj_parseXMLString(kSceneXml, nullptr, error, sizeof(error));
+    ASSERT_NE(spec, nullptr) << error;
+    holder_ = ModelHolder::FromSpec(spec);
+    ASSERT_TRUE(holder_->ok()) << holder_->error();
+    m_ = holder_->model();
+    d_ = holder_->data();
+    scratch_data_.reset(mj_makeData(m_));
+    box_body_ = mj_name2id(m_, mjOBJ_BODY, "box");
+    floor_ = mj_name2id(m_, mjOBJ_GEOM, "floor");
+    box_ = mj_name2id(m_, mjOBJ_GEOM, "box");
+    mjv_defaultOption(&opt_);
+    mjv_defaultFreeCamera(m_, &camera_);
+    camera_.distance = 2.0;
+    camera_.azimuth = 90.0;  // Looking along -y, x to the right.
+    camera_.elevation = -20.0;
+
+    // Three simulations in a row along x, one slide unit apart; sim 0 active at
+    // the origin, simulation w's box at local x = w.
+    for (int w = 0; w < 3; ++w) {
+      offsets_.push_back(3.0f * w);
+      offsets_.push_back(0.0f);
+      offsets_.push_back(0.0f);
+      states_.push_back(w);  // qpos (mjSTATE_QPOS has nq = 1 entries).
+    }
+    batch_.nsim = 3;
+    batch_.active_sim = 0;
+    batch_.offsets = offsets_.data();
+    batch_.state_sig = mjSTATE_QPOS;
+    batch_.states = states_.data();
+    mj_forward(m_, d_);
+  }
+
+  // Aims the camera's lookat at `point` in simulation `w` and picks the center.
+  PickResult PickAt(int w, double x, double y, double z, int* sim) {
+    camera_.lookat[0] = x + offsets_[3 * w];
+    camera_.lookat[1] = y + offsets_[3 * w + 1];
+    camera_.lookat[2] = z + offsets_[3 * w + 2];
+    return PickBatch(m_, d_, scratch_data_.get(), batch_, &camera_, 0.5f, 0.5f, 1.0f, &opt_, sim);
+  }
+
+  std::unique_ptr<ModelHolder> holder_;
+  mjModel* m_ = nullptr;
+  mjData* d_ = nullptr;
+  std::unique_ptr<mjData, void (*)(mjData*)> scratch_data_{nullptr, mj_deleteData};
+  std::vector<float> offsets_;
+  std::vector<mjtNum> states_;
+  BatchView batch_;
+  mjvCamera camera_{};
+  mjvOption opt_{};
+  int box_body_ = -1;
+  int floor_ = -1;
+  int box_ = -1;
+};
+
+TEST_F(PickBatchTest, HitsOtherSimInItsOwnCoordinates) {
+  int sim = -1;
+  PickResult picked = PickAt(2, 2.0, 0.0, 2.0, &sim);
+  EXPECT_EQ(sim, 2);
+  EXPECT_EQ(picked.body, box_body_);
+  EXPECT_NEAR(picked.point[0], 2.0, 0.15);
+  EXPECT_NEAR(picked.point[2], 2.0, 0.15);
+}
+
+TEST_F(PickBatchTest, OtherSimsInfinitePlaneIsNotPicked) {
+  // Bare floor inside sim 2's cell: the one floor is picked, for sim 0.
+  camera_.elevation = -90.0;
+  int sim = -1;
+  PickResult picked = PickAt(2, 0.8, 0.8, 0.0, &sim);
+  EXPECT_EQ(sim, 0);
+  EXPECT_EQ(picked.geom, floor_);
+  // And the model is left as it was.
+  EXPECT_GE(m_->geom_rgba[4 * floor_ + 3], 1.0f);
+}
+
+TEST_F(PickBatchTest, AppliesPerSimModelFieldsAndRestoresActive) {
+  // Sim 1's box is five times bigger; aim 0.35 off its center, which the
+  // base size would miss.
+  std::vector<mjtNum> geom_size(3 * 3 * m_->ngeom);
+  for (int w = 0; w < 3; ++w) {
+    for (int i = 0; i < 3 * m_->ngeom; ++i) {
+      geom_size[w * 3 * m_->ngeom + i] = m_->geom_size[i];
+    }
+  }
+  for (int i = 0; i < 3; ++i) {
+    geom_size[1 * 3 * m_->ngeom + 3 * box_ + i] = 0.5;
+  }
+  BatchedModelField fields[1] = {
+      {"geom_size", geom_size.data(), static_cast<size_t>(3 * m_->ngeom) * sizeof(mjtNum)}};
+  batch_.model_fields = fields;
+
+  camera_.elevation = 0.0;
+  int sim = -1;
+  PickResult picked = PickAt(1, 1.35, 0.0, 2.0, &sim);
+  EXPECT_EQ(sim, 1);
+  EXPECT_EQ(picked.body, box_body_);
+  // Active simulation's again.
+  EXPECT_NEAR(m_->geom_size[3 * box_], 0.1, 1e-6);
+}
+
+TEST_F(PickBatchTest, OthersHiddenPicksActiveSimOnly) {
+  batch_.others_hidden = true;
+  int sim = -1;
+  PickResult picked = PickAt(2, 2.0, 0.0, 2.0, &sim);
+  EXPECT_EQ(sim, 0);
+  EXPECT_EQ(picked.geom, floor_);  // Sim 0's floor behind sim 2's box.
+  batch_.others_hidden = false;
+  EXPECT_EQ(PickAt(2, 2.0, 0.0, 2.0, &sim).body, box_body_);
+  EXPECT_EQ(sim, 2);
+}
+
+TEST_F(PickBatchTest, FixedCameraPicksAcrossBatch) {
+  const int top_cam = mj_name2id(m_, mjOBJ_CAMERA, "top");
+  ASSERT_GE(top_cam, 0);
+  camera_.type = mjCAMERA_FIXED;
+  camera_.fixedcamid = top_cam;
+
+  // Orthographic camera at x = 4 with fovy = 12 maps world_x = 4 + (2*x - 1)*6:
+  // sim 0 at world_x = 0 (x = 1/6), sim 1 at world_x = 4 (x = 0.5), and sim 2
+  // at world_x = 8 (x = 5/6). PickResult::point is in the hit simulation's
+  // local (un-offset) frame.
+  int sim = -1;
+  PickResult p0 = PickBatch(m_, d_, scratch_data_.get(), batch_, &camera_, 1.0f / 6.0f, 0.5f, 1.0f,
+                            &opt_, &sim);
+  EXPECT_EQ(sim, 0);
+  EXPECT_EQ(p0.body, box_body_);
+  EXPECT_NEAR(p0.point[0], 0.0, 1e-4);
+
+  PickResult p1 =
+      PickBatch(m_, d_, scratch_data_.get(), batch_, &camera_, 0.5f, 0.5f, 1.0f, &opt_, &sim);
+  EXPECT_EQ(sim, 1);
+  EXPECT_EQ(p1.body, box_body_);
+  EXPECT_NEAR(p1.point[0], 1.0, 1e-4);
+
+  PickResult p2 = PickBatch(m_, d_, scratch_data_.get(), batch_, &camera_, 5.0f / 6.0f, 0.5f, 1.0f,
+                            &opt_, &sim);
+  EXPECT_EQ(sim, 2);
+  EXPECT_EQ(p2.body, box_body_);
+  EXPECT_NEAR(p2.point[0], 2.0, 1e-4);
+
+  // Also works when active_sim == -1.
+  batch_.active_sim = -1;
+  PickResult p2_no_active = PickBatch(m_, d_, scratch_data_.get(), batch_, &camera_, 5.0f / 6.0f,
+                                      0.5f, 1.0f, &opt_, &sim);
+  EXPECT_EQ(sim, 2);
+  EXPECT_EQ(p2_no_active.body, box_body_);
+  EXPECT_NEAR(p2_no_active.point[0], 2.0, 1e-4);
+}
+
+TEST_F(PickBatchTest, PicksInitiallyAsleepBodiesButNotOtherSimsStaticGeoms) {
+  constexpr const char* kSleepXml = R"xml(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <statistic extent="1.5" center="0 0 1"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="0 0 1"/>
+      <geom name="pillar" type="box" pos="0 0 2" size="0.1 0.1 0.1"/>
+      <body name="sleeper" pos="0 0 2" sleep="init">
+        <joint name="slide_x" type="slide" axis="1 0 0"/>
+        <geom name="sleeper_box" type="box" size="0.1 0.1 0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )xml";
+
+  char error[256] = "";
+  mjSpec* spec = mj_parseXMLString(kSleepXml, nullptr, error, sizeof(error));
+  ASSERT_NE(spec, nullptr) << error;
+  holder_ = ModelHolder::FromSpec(spec);
+  ASSERT_TRUE(holder_->ok()) << holder_->error();
+  m_ = holder_->model();
+  d_ = holder_->data();
+  scratch_data_.reset(mj_makeData(m_));
+  mj_forward(m_, d_);
+
+  const int pillar = mj_name2id(m_, mjOBJ_GEOM, "pillar");
+  const int sleeper = mj_name2id(m_, mjOBJ_BODY, "sleeper");
+  ASSERT_GE(pillar, 0);
+  ASSERT_GE(sleeper, 0);
+
+  const float offsets[6] = {0.0f, 0.0f, 0.0f, 3.0f, 0.0f, 0.0f};
+  const mjtNum states[2] = {0.0, 0.8};
+  std::vector<mjtNum> geom_pos(2 * 3 * m_->ngeom, 0.0);
+  for (int w = 0; w < 2; ++w) {
+    for (int i = 0; i < 3 * m_->ngeom; ++i) {
+      geom_pos[w * 3 * m_->ngeom + i] = m_->geom_pos[i];
+    }
+  }
+  geom_pos[1 * 3 * m_->ngeom + 3 * pillar + 0] = -0.8;
+
+  BatchedModelField fields[1] = {
+      {"geom_pos", geom_pos.data(), static_cast<size_t>(3 * m_->ngeom) * sizeof(mjtNum)},
+  };
+
+  BatchView batch;
+  batch.nsim = 2;
+  batch.active_sim = 0;
+  batch.offsets = offsets;
+  batch.state_sig = mjSTATE_QPOS;
+  batch.states = states;
+  batch.model_fields = fields;
+
+  mjv_defaultFreeCamera(m_, &camera_);
+  camera_.distance = 2.0;
+  camera_.azimuth = 90.0;
+  camera_.elevation = 0.0;
+
+  // Sim 1's shifted static world geom at local x = -0.8 (world x = 2.2) is
+  // not drawn, so it is not picked.
+  camera_.lookat[0] = 3.0 - 0.8;
+  camera_.lookat[1] = 0.0;
+  camera_.lookat[2] = 2.0;
+  int sim = 7;
+  PickResult miss_pillar =
+      PickBatch(m_, d_, scratch_data_.get(), batch, &camera_, 0.5f, 0.5f, 1.0f, &opt_, &sim);
+  EXPECT_EQ(sim, -1);
+  EXPECT_LT(miss_pillar.dist, 0);
+
+  // Hit sim 1's sleep="init" dynamic body at qpos = +0.8 (world x = 3.8).
+  camera_.lookat[0] = 3.0 + 0.8;
+  PickResult hit_sleeper =
+      PickBatch(m_, d_, scratch_data_.get(), batch, &camera_, 0.5f, 0.5f, 1.0f, &opt_, &sim);
+  EXPECT_EQ(sim, 1);
+  EXPECT_EQ(hit_sleeper.body, sleeper);
+}
+
+TEST_F(PickBatchTest, WithoutAnActiveSimEveryRowIsPickedAndTheModelKept) {
+  // (m, d) is not a row: the three rows are all "others", and a hit on (m, d)
+  // reports sim -1. Sim 1's box is enlarged through a field; afterwards the
+  // model holds its own size again, not sim 0's row.
+  batch_.active_sim = -1;
+  std::vector<mjtNum> geom_size(3 * 3 * m_->ngeom);
+  for (int w = 0; w < 3; ++w) {
+    for (int i = 0; i < 3 * m_->ngeom; ++i) {
+      geom_size[w * 3 * m_->ngeom + i] = m_->geom_size[i];
+    }
+  }
+  for (int i = 0; i < 3; ++i) {
+    geom_size[1 * 3 * m_->ngeom + 3 * box_ + i] = 0.5;
+  }
+  BatchedModelField fields[1] = {
+      {"geom_size", geom_size.data(), static_cast<size_t>(3 * m_->ngeom) * sizeof(mjtNum)}};
+  batch_.model_fields = fields;
+  m_->geom_size[3 * box_] = 0.2;  // The model's own, unlike any row.
+
+  camera_.elevation = 0.0;
+  int sim = -1;
+  EXPECT_EQ(PickAt(1, 1.35, 0.0, 2.0, &sim).body, box_body_);
+  EXPECT_EQ(sim, 1);
+  EXPECT_EQ(PickAt(2, 2.0, 0.0, 2.0, &sim).body, box_body_);
+  EXPECT_EQ(sim, 2);
+  camera_.elevation = -90.0;
+  sim = 7;
+  EXPECT_EQ(PickAt(2, 0.8, 0.8, 0.0, &sim).geom, floor_);
+  EXPECT_EQ(sim, -1);
+  EXPECT_NEAR(m_->geom_size[3 * box_], 0.2, 1e-6);
+}
+
+TEST_F(PickBatchTest, MissSetsSimToMinusOneAndAllowsNullSim) {
+  PickResult hit_null_sim = PickAt(2, 2.0, 0.0, 2.0, nullptr);
+  EXPECT_EQ(hit_null_sim.body, box_body_);
+
+  // Aim into empty sky above all boxes and the floor.
+  camera_.elevation = 45.0;
+  int sim = 7;
+  PickResult miss = PickAt(0, 0.0, 0.0, 5.0, &sim);
+  EXPECT_LT(miss.dist, 0);
+  EXPECT_EQ(sim, -1);
+  EXPECT_LT(PickAt(0, 0.0, 0.0, 5.0, nullptr).dist, 0);
+
+  // Also check the early-return path when others_hidden is set.
+  batch_.others_hidden = true;
+  sim = 7;
+  PickResult solo_miss = PickAt(0, 0.0, 0.0, 5.0, &sim);
+  EXPECT_LT(solo_miss.dist, 0);
+  EXPECT_EQ(sim, -1);
+}
+
+TEST_F(PickBatchTest, PicksPosedActiveSimAtItsGridCell) {
+  // Make sim 2 active at offsets_[2] = (6, 0, 0): its local box at (2, 0, 2)
+  // sits at world (8, 0, 2).
+  batch_.active_sim = 2;
+  d_->qpos[0] = 2.0;
+  mj_forward(m_, d_);
+
+  int sim = -1;
+  PickResult picked = PickAt(2, 2.0, 0.0, 2.0, &sim);
+  EXPECT_EQ(sim, 2);
+  EXPECT_EQ(picked.body, box_body_);
+  EXPECT_NEAR(picked.point[0], 2.0, 0.15);
+  EXPECT_NEAR(picked.point[1], 0.0, 0.15);
+  EXPECT_NEAR(picked.point[2], 2.0, 0.15);
+
+  // Sim 0 (now passive at the origin) is still picked at (0, 0, 2).
+  PickResult hit0 = PickAt(0, 0.0, 0.0, 2.0, &sim);
+  EXPECT_EQ(sim, 0);
+  EXPECT_EQ(hit0.body, box_body_);
+  EXPECT_NEAR(hit0.point[0], 0.0, 0.15);
+
+  // Fixed camera on posed active sim sees active sim 2's box at local x = 2
+  // (camera center is local x = 4, span [-2, 10] -> x = 1/3).
+  const int top_cam = mj_name2id(m_, mjOBJ_CAMERA, "top");
+  ASSERT_GE(top_cam, 0);
+  camera_.type = mjCAMERA_FIXED;
+  camera_.fixedcamid = top_cam;
+  PickResult fixed_hit = PickBatch(m_, d_, scratch_data_.get(), batch_, &camera_, 1.0f / 3.0f, 0.5f,
+                                   1.0f, &opt_, &sim);
+  EXPECT_EQ(sim, 2);
+  EXPECT_EQ(fixed_hit.body, box_body_);
+  EXPECT_NEAR(fixed_hit.point[0], 2.0, 1e-4);
 }
 
 }  // namespace

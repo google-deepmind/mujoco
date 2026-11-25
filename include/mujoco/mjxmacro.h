@@ -289,7 +289,21 @@
     int na = m->na;                         \
     int nu = m->nu;                         \
     int nmocap = m->nmocap;                 \
-    int nplastic = m->nplastic;
+    int nplastic = m->nplastic;             \
+    (void)nuser_body;                       \
+    (void)nuser_jnt;                        \
+    (void)nuser_geom;                       \
+    (void)nuser_site;                       \
+    (void)nuser_cam;                        \
+    (void)nuser_tendon;                     \
+    (void)nuser_actuator;                   \
+    (void)nuser_sensor;                     \
+    (void)nq;                               \
+    (void)nv;                               \
+    (void)na;                               \
+    (void)nu;                               \
+    (void)nmocap;                           \
+    (void)nplastic;
 
 // macro for annotating that an array size in an X macro is a member of mjModel
 // by default this macro does nothing, but users can redefine it as necessary

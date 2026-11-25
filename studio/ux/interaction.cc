@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <utility>
 #include <vector>
 
@@ -24,6 +25,8 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_vis_interact.h"
 #include "engine/engine_vis_visualize.h"
+#include "studio/sim/batch_view.h"
+#include "studio/sim/batched_model.h"
 
 namespace mujoco::studio {
 
@@ -520,13 +523,16 @@ static PickResult PickSkin(const mjModel* m, const mjtNum ray_pos[3], const mjtN
   return result;
 }
 
-static PickResult PickSingleRay(const mjModel* m, const mjData* d, const mjrCamera& camera, float x,
-                                float y, float aspect_ratio, const mjvOption* vis_options,
-                                const std::vector<PreparedSkin>& prepared_skins) {
-  mjtNum ray_pos[3];
-  mjtNum ray_dir[3];
-  MakePickRay(ray_pos, ray_dir, camera, x, 1.0f - y, aspect_ratio);
+static void FwdKinematicsAll(mjModel* m, mjData* d) {
+  const int enableflags = m->opt.enableflags;
+  m->opt.enableflags &= ~mjENBL_SLEEP;
+  mj_fwdKinematics(m, d);
+  m->opt.enableflags = enableflags;
+}
 
+static PickResult PickRay(const mjModel* m, const mjData* d, const mjtNum ray_pos[3],
+                          const mjtNum ray_dir[3], const mjvOption* vis_options,
+                          const std::vector<PreparedSkin>& prepared_skins) {
   PickResult results[3];
   results[0] = PickGeom(m, d, ray_pos, ray_dir, vis_options);
   results[1] = PickFlex(m, d, ray_pos, ray_dir, vis_options);
@@ -542,6 +548,15 @@ static PickResult PickSingleRay(const mjModel* m, const mjData* d, const mjrCame
     }
   }
   return best_result;
+}
+
+static PickResult PickSingleRay(const mjModel* m, const mjData* d, const mjrCamera& camera, float x,
+                                float y, float aspect_ratio, const mjvOption* vis_options,
+                                const std::vector<PreparedSkin>& prepared_skins) {
+  mjtNum ray_pos[3];
+  mjtNum ray_dir[3];
+  MakePickRay(ray_pos, ray_dir, camera, x, 1.0f - y, aspect_ratio);
+  return PickRay(m, d, ray_pos, ray_dir, vis_options, prepared_skins);
 }
 
 static bool IsNonPlaneHit(const mjModel* m, const PickResult& hit) {
@@ -616,10 +631,108 @@ PickResult Pick(const mjModel* m, const mjData* d, const mjrCamera& camera, floa
   }
   return center;
 }
-
 PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera, float x, float y,
                 float aspect_ratio, const mjvOption* vis_options, float tolerance) {
   return Pick(m, d, mjv_camera2GLCamera(m, d, camera), x, y, aspect_ratio, vis_options, tolerance);
+}
+
+static void ToSimLocalRay(const mjtNum ray_pos[3], const mjtNum ray_dir[3], const BatchView& batch,
+                          int sim_idx, mjtNum local_pos[3], mjtNum local_dir[3]) {
+  local_pos[0] = ray_pos[0] - batch.offsets[3 * sim_idx + 0];
+  local_pos[1] = ray_pos[1] - batch.offsets[3 * sim_idx + 1];
+  local_pos[2] = ray_pos[2] - batch.offsets[3 * sim_idx + 2];
+  mju_copy3(local_dir, ray_dir);
+}
+
+// Uses `scratch_data` to pose the other simulations and the ViewCamera
+// projection for `camera`. On a hit, `*sim` receives the hit simulation's index
+// (or `batch.active_sim` when `(m, d)` is hit) and `PickResult::point` is
+// returned in the hit simulation's local (un-offset) frame rather than scene
+// world coordinates.
+PickResult PickBatch(mjModel* m, const mjData* d, mjData* scratch_data, const BatchView& batch,
+                     const mjvCamera* camera, float x, float y, float aspect_ratio,
+                     const mjvOption* vis_options, int* sim) {
+  mjtNum ray_pos[3];
+  mjtNum ray_dir[3];
+  MakePickRay(ray_pos, ray_dir, ViewCamera(m, d, camera, aspect_ratio), x, 1.0f - y, aspect_ratio);
+
+  const bool has_active = batch.active_sim >= 0 && batch.active_sim < batch.nsim;
+  const bool active_posed = has_active && batch.offsets != nullptr;
+
+  // Fixed and tracking cameras are defined in the active simulation's local
+  // frame; lift their pick ray into scene world space so all sims share one
+  // ray frame.
+  if (active_posed && camera->type != mjCAMERA_FREE) {
+    ray_pos[0] += batch.offsets[3 * batch.active_sim + 0];
+    ray_pos[1] += batch.offsets[3 * batch.active_sim + 1];
+    ray_pos[2] += batch.offsets[3 * batch.active_sim + 2];
+  }
+
+  mjtNum active_ray_pos[3] = {ray_pos[0], ray_pos[1], ray_pos[2]};
+  mjtNum active_ray_dir[3] = {ray_dir[0], ray_dir[1], ray_dir[2]};
+  if (active_posed) {
+    ToSimLocalRay(ray_pos, ray_dir, batch, batch.active_sim, active_ray_pos, active_ray_dir);
+  }
+
+  PickResult best =
+      PickRay(m, d, active_ray_pos, active_ray_dir, vis_options, PrepareSkins(m, d, vis_options));
+  int hit_sim = (best.dist >= 0) ? (has_active ? batch.active_sim : -1) : -1;
+  if (batch.nsim <= (has_active ? 1 : 0) || batch.others_hidden || batch.states == nullptr ||
+      batch.offsets == nullptr || scratch_data == nullptr) {
+    if (sim != nullptr) {
+      *sim = hit_sim;
+    }
+    return best;
+  }
+  const int state_size = mj_stateSize(m, batch.state_sig);
+  if (state_size <= 0) {
+    if (sim != nullptr) {
+      *sim = hit_sim;
+    }
+    return best;
+  }
+
+  // The other simulations are drawn without their static geometry, so they
+  // are picked without it too; only (m, d)'s static geometry is picked.
+  mjvOption others_options = *vis_options;
+  others_options.flags[mjVIS_STATIC] = 0;
+  // Saves the model's own fields when it is not a row of the batch.
+  std::vector<std::byte> own_fields;
+  if (!has_active && !batch.model_fields.empty()) {
+    SaveBatchedModelFields(m, batch.model_fields, &own_fields);
+  }
+
+  for (int i = 0; i < batch.nsim; ++i) {
+    if (i == batch.active_sim) {
+      continue;
+    }
+    if (!batch.model_fields.empty()) {
+      ApplyBatchedModelFields(m, batch.model_fields, i);
+    }
+    mj_setState(m, scratch_data, batch.states + i * state_size, batch.state_sig);
+    FwdKinematicsAll(m, scratch_data);
+    mjtNum ray_pos_i[3];
+    mjtNum ray_dir_i[3];
+    ToSimLocalRay(ray_pos, ray_dir, batch, i, ray_pos_i, ray_dir_i);
+    PickResult picked = PickRay(m, scratch_data, ray_pos_i, ray_dir_i, &others_options,
+                                PrepareSkins(m, scratch_data, &others_options));
+    if (picked.dist >= 0 && (best.dist < 0 || picked.dist < best.dist)) {
+      best = picked;
+      hit_sim = i;
+    }
+  }
+
+  if (!batch.model_fields.empty()) {
+    if (has_active) {
+      ApplyBatchedModelFields(m, batch.model_fields, batch.active_sim);
+    } else {
+      RestoreBatchedModelFields(m, batch.model_fields, own_fields);
+    }
+  }
+  if (sim != nullptr) {
+    *sim = hit_sim;
+  }
+  return best;
 }
 
 int SetCamera(const mjModel* m, mjvCamera* camera, int request_idx) {
