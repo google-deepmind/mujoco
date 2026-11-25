@@ -1046,6 +1046,61 @@ Notes
   :ref:`mesh<body-geom-mesh>` or :ref:`heightfield <body-geom-hfield>`.
 - **Scaling**: Rendering scales linearly with resolution (total pixel count) and camera count.
 
+.. _mjwDeterminism:
+
+Determinism
+===========
+
+By default, GPU execution in MJWarp is non-deterministic (:attr:`DeterminismType.NONE <mujoco_warp.DeterminismType.NONE>`)
+for maximum throughput, as parallel threads allocate contacts, constraints, and atomic reductions in non-deterministic
+order. Bitwise run-to-run reproducibility on GPU can be configured via
+:attr:`Option.deterministic <mujoco_warp.Option.deterministic>` using
+:class:`mjw.DeterminismType <mujoco_warp.DeterminismType>`:
+
+- ``NONE``: Default non-deterministic execution for maximum throughput.
+- ``CONTACTS``: Canonical GPU sorting of detected contacts (``Data.contact``).
+- ``CONSTRAINT``: Canonical GPU sorting of constraint rows (``Data.efc``) and dependent constraint indices.
+- ``ATOMICS``: Deterministic floating-point atomic reductions and ordered counter reservations across kernels.
+- ``ALL``: ``CONTACTS | CONSTRAINT | ATOMICS`` for bitwise run-to-run reproducible GPU simulation.
+
+Setting ``m.opt.deterministic = True`` enables :attr:`DeterminismType.ALL <mujoco_warp.DeterminismType.ALL>` (``False``
+sets :attr:`DeterminismType.NONE <mujoco_warp.DeterminismType.NONE>`), or individual flags can be combined as a bitmask:
+
+.. code-block:: python
+
+  m = mjw.put_model(mjm)
+  m.opt.deterministic = True  # shorthand for mjw.DeterminismType.ALL
+
+  # or enable specific stages
+  m.opt.deterministic = mjw.DeterminismType.CONTACTS | mjw.DeterminismType.CONSTRAINT
+
+  with wp.ScopedCapture() as capture:
+    mjw.step(m, d)
+
+Command-line tools (`testspeed`_, ``mjwarp-viewer``) accept ``--override="opt.deterministic=True"`` or a bitmask such as
+``--override="opt.deterministic=CONTACTS|CONSTRAINT"``. For batch rendering of deformable :ref:`flex <deformable-flex>`
+meshes, pass ``deterministic=True`` to :func:`mjw.create_render_context <mujoco_warp.create_render_context>` to enable
+deterministic flex BVH vertex-normal accumulation during context creation (:func:`mjw.refit_bvh <mujoco_warp.refit_bvh>`
+uses ``m.opt.deterministic``).
+
+.. rubric:: Scope and performance
+
+- **Overhead**: Contact and constraint sorting and deterministic atomics add GPU memory and kernel overhead, so
+  ``DeterminismType.NONE`` remains the default.
+- **Reproducibility guarantees**: ``DeterminismType.ALL`` provides bitwise run-to-run reproducibility on the same GPU
+  with the same ``nworld`` (including :ref:`CUDA graph capture <mjwGC>` and replay), provided contact and constraint
+  buffers do not :ref:`overflow <mjwOverflow>`. Changing ``nworld`` or the GPU architecture can change thread scheduling
+  and reduction grouping. CPU execution (``wp.set_device("cpu")``) is deterministic by default.
+
+.. admonition:: Warmstart state
+  :class: note
+
+  Solver warmstarting stores primal accelerations in :attr:`Data.qacc_warmstart <mujoco_warp.Data.qacc_warmstart>`. When
+  resetting worlds or replaying states for bitwise reproducibility, reset or restore ``qacc_warmstart`` alongside
+  ``qpos`` and ``qvel`` (e.g., via :func:`mjw.reset_data <mujoco_warp.reset_data>` or
+  :func:`mjw.set_state <mujoco_warp.set_state>` with :ref:`mjSTATE_INTEGRATION <mjtState>`), unless warmstarts are
+  :ref:`disabled <option-flag-warmstart>`.
+
 .. _mjwFAQ:
 
 Frequently Asked Questions
@@ -1120,12 +1175,9 @@ reinforcement learning example.
 
 **Is MJWarp on GPU deterministic?**
 
-No. There may be ordering or *small* numerical differences between results computed by different executions of the same
-code. This is characteristic of non-deterministic atomic operations on GPU. Set device to CPU with
-``wp.set_device("cpu")`` for deterministic results.
-
-Developments for deterministic results on GPU are tracked in this
-`GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/562>`__.
+Not by default, to maximize GPU throughput, though bitwise run-to-run reproducibility on GPU can be enabled by setting
+``m.opt.deterministic = True`` (:attr:`DeterminismType.ALL <mujoco_warp.DeterminismType.ALL>`). See
+:ref:`Determinism <mjwDeterminism>` for configuration options and trade-offs.
 
 **How are orientations represented?**
 
@@ -1293,7 +1345,8 @@ Additional MJWarp-only options are available:
 - ``run_collision_detection``: use collision detection routine
 - ``contact_sensor_maxmatch``: maximum number of contacts for contact sensor matching criteria
 - ``warn_overflow``: warn if simulation overflow is encountered
-- ``deterministic``: bitmask for deterministic execution (:class:`mjw.DeterminismType <mujoco_warp.DeterminismType>`)
+- ``deterministic``: bitmask for :ref:`deterministic execution <mjwDeterminism>`
+  (:class:`mjw.DeterminismType <mujoco_warp.DeterminismType>`)
 
 .. admonition:: Fluid model
   :class: note
