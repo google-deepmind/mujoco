@@ -864,6 +864,119 @@ int mju_cholFactorSymbolicBlocked(int* restrict L_colind, int* restrict L_rownnz
 }
 
 
+// load width (3 or 4) consecutive elements
+static mjALWAYS_INLINE mjtNum4 cholLoad(const mjtNum* p, int width) {
+  return width == 4 ? v4_load(p) : v4_load3(p);
+}
+
+
+// store width (3 or 4) consecutive elements
+static mjALWAYS_INLINE void cholStore(mjtNum* p, mjtNum4 v, int width) {
+  if (width == 4) {
+    v4_store(p, v);
+  } else {
+    v4_store3(p, v);
+  }
+}
+
+
+// broadcast ns x batch update weights into SIMD vectors (ns, batch are compile-time constants)
+static mjALWAYS_INLINE
+void cholSplatScales(int ns, int batch, mjtNum4 s4[3][4], mjtNum s[3][4]) {
+  for (int t=0; t < ns; t++) {
+    for (int b=0; b < batch; b++) {
+      s4[t][b] = v4_splat(s[t][b]);
+    }
+  }
+}
+
+
+// update width (3 or 4) consecutive elements of ns target rows from batch descendant rows
+//   scalar equivalent: dptr[t][dst+k] -= sum_b s[t][b] * p[b][src+k],  for k < width
+static mjALWAYS_INLINE
+void cholUpdateStepSIMD(int ns, int batch, int width,
+                        mjtNum* restrict dptr0, mjtNum* restrict dptr1, mjtNum* restrict dptr2,
+                        int dst,
+                        const mjtNum* restrict p0, const mjtNum* restrict p1,
+                        const mjtNum* restrict p2, const mjtNum* restrict p3,
+                        int src, mjtNum4 s4[3][4]) {
+  mjtNum* restrict dptr[3] = {dptr0, dptr1, dptr2};
+  const mjtNum* restrict p[4] = {p0, p1, p2, p3};
+
+  // load target rows
+  mjtNum4 a[3];
+  for (int t=0; t < ns; t++) {
+    a[t] = cholLoad(dptr[t]+dst, width);
+  }
+
+  // subtract weighted descendant rows
+  for (int b=0; b < batch; b++) {
+    mjtNum4 v = cholLoad(p[b]+src, width);
+    for (int t=0; t < ns; t++) {
+      a[t] = v4_sub(a[t], v4_mul(s4[t][b], v));
+    }
+  }
+
+  // store target rows
+  for (int t=0; t < ns; t++) {
+    cholStore(dptr[t]+dst, a[t], width);
+  }
+}
+
+
+// update one element of ns target rows from batch descendant rows (scalar cholUpdateStepSIMD)
+static mjALWAYS_INLINE
+void cholUpdateStepScalar(int ns, int batch,
+                          mjtNum* restrict dptr0, mjtNum* restrict dptr1, mjtNum* restrict dptr2,
+                          int dst,
+                          const mjtNum* restrict p0, const mjtNum* restrict p1,
+                          const mjtNum* restrict p2, const mjtNum* restrict p3,
+                          int src, mjtNum s[3][4]) {
+  mjtNum* restrict dptr[3] = {dptr0, dptr1, dptr2};
+  const mjtNum* restrict p[4] = {p0, p1, p2, p3};
+
+  // gather descendant values
+  mjtNum v[4];
+  for (int b=0; b < batch; b++) {
+    v[b] = p[b][src];
+  }
+
+  // subtract weighted descendant values from each target row
+  for (int t=0; t < ns; t++) {
+    mjtNum a = dptr[t][dst];
+    for (int b=0; b < batch; b++) {
+      a -= s[t][b] * v[b];
+    }
+    dptr[t][dst] = a;
+  }
+}
+
+
+// contiguous update of ns target rows from batch descendant rows (ns, batch compile-time constants)
+static mjALWAYS_INLINE
+void cholContigUpdate(int ns, int batch, int n,
+                      mjtNum* restrict dptr0, mjtNum* restrict dptr1, mjtNum* restrict dptr2,
+                      const mjtNum* restrict p0, const mjtNum* restrict p1,
+                      const mjtNum* restrict p2, const mjtNum* restrict p3,
+                      mjtNum s[3][4]) {
+  // 4-wide SIMD loop
+  int i = 0;
+  if (n >= 4) {
+    mjtNum4 s4[3][4];
+    cholSplatScales(ns, batch, s4, s);
+
+    for (; i <= n-4; i += 4) {
+      cholUpdateStepSIMD(ns, batch, 4, dptr0, dptr1, dptr2, i, p0, p1, p2, p3, i, s4);
+    }
+  }
+
+  // scalar remainder
+  for (; i < n; i++) {
+    cholUpdateStepScalar(ns, batch, dptr0, dptr1, dptr2, i, p0, p1, p2, p3, i, s);
+  }
+}
+
+
 // suffix update of ns target rows from batch descendant rows (ns, batch are compile-time constants)
 static mjALWAYS_INLINE
 void cholSuffixUpdate(int ns, int batch, int nlead,
@@ -872,17 +985,7 @@ void cholSuffixUpdate(int ns, int batch, int nlead,
                       const mjtNum* restrict p2, const mjtNum* restrict p3,
                       mjtNum s[3][4]) {
   // leading columns shared by all ns rows
-  for (int i=0; i < nlead; i++) {
-    mjtNum v[4] = {p0[i], (batch >= 2) ? p1[i] : 0,
-                   (batch >= 3) ? p2[i] : 0, (batch >= 4) ? p3[i] : 0};
-    for (int b=0; b < batch; b++) dptr0[i] -= s[0][b] * v[b];
-    if (ns >= 2) {
-      for (int b=0; b < batch; b++) dptr1[i] -= s[1][b] * v[b];
-    }
-    if (ns >= 3) {
-      for (int b=0; b < batch; b++) dptr2[i] -= s[2][b] * v[b];
-    }
-  }
+  cholContigUpdate(ns, batch, nlead, dptr0, dptr1, dptr2, p0, p1, p2, p3, s);
 
   // triangular tail: column nlead+u is present in rows t <= ns-2-u
   for (int u=0; u < ns-1; u++) {
@@ -907,22 +1010,36 @@ void cholMappedUpdate(int ns, int batch, int nlead, int L_nnz,
                       const mjtNum* restrict p2, const mjtNum* restrict p3,
                       mjtNum s[3][4]) {
   // leading columns shared by all ns rows at identical pos_map[colptr[i]]
-  for (int i=0; i < nlead; i++) {
-    int pos = pos_map[colptr[i]];
-    mjtNum v[4] = {p0[i], (batch >= 2) ? p1[i] : 0,
-                   (batch >= 3) ? p2[i] : 0, (batch >= 4) ? p3[i] : 0};
-    mjtNum a0 = dptr0[pos];
-    for (int b=0; b < batch; b++) a0 -= s[0][b] * v[b];
-    dptr0[pos] = a0;
-    if (ns >= 2) {
-      mjtNum a1 = dptr1[pos];
-      for (int b=0; b < batch; b++) a1 -= s[1][b] * v[b];
-      dptr1[pos] = a1;
-    }
-    if (ns >= 3) {
-      mjtNum a2 = dptr2[pos];
-      for (int b=0; b < batch; b++) a2 -= s[2][b] * v[b];
-      dptr2[pos] = a2;
+  if (nlead >= 4 && pos_map[colptr[nlead-1]] == pos_map[colptr[0]] + nlead - 1) {
+    // entire leading segment is contiguous in pos_map
+    int pos0 = pos_map[colptr[0]];
+    cholContigUpdate(ns, batch, nlead, dptr0+pos0, (ns >= 2) ? dptr1+pos0 : NULL,
+                     (ns >= 3) ? dptr2+pos0 : NULL, p0, p1, p2, p3, s);
+  } else {
+    // scan pos_map for 4-wide and 3-wide contiguous runs, else update a single column
+    mjtNum4 s4[3][4];
+    cholSplatScales(ns, batch, s4, s);
+    int i = 0;
+    while (i < nlead) {
+      int pos = pos_map[colptr[i]];
+
+      // 4-wide contiguous run (pos_map is strictly ascending, so all 4 are consecutive)
+      if (i + 4 <= nlead && pos_map[colptr[i+3]] == pos + 3) {
+        cholUpdateStepSIMD(ns, batch, 4, dptr0, dptr1, dptr2, pos, p0, p1, p2, p3, i, s4);
+        i += 4;
+      }
+
+      // 3-wide contiguous run (e.g. 3-DOF flex vertex blocks)
+      else if (i + 3 <= nlead && pos_map[colptr[i+2]] == pos + 2) {
+        cholUpdateStepSIMD(ns, batch, 3, dptr0, dptr1, dptr2, pos, p0, p1, p2, p3, i, s4);
+        i += 3;
+      }
+
+      // single column
+      else {
+        cholUpdateStepScalar(ns, batch, dptr0, dptr1, dptr2, pos, p0, p1, p2, p3, i, s);
+        i++;
+      }
     }
   }
 
@@ -1221,11 +1338,14 @@ int cholFactorSupernode(
       for (int t=s+1; t < ns; t++) {
         s_st[t] = (row_s[L_nnz-1-t] *= L_rr_inv);
       }
-      for (int i=0; i < n_off; i++) {
-        mjtNum l_si = (row_s[i] *= L_rr_inv);
-        if (s + 1 < ns) Lptr_s[s+1][i] -= s_st[s+1] * l_si;
-        if (s + 2 < ns) Lptr_s[s+2][i] -= s_st[s+2] * l_si;
+
+      // scale off-diagonal entries of row s, eliminate them from the remaining supernode rows
+      mju_scl(row_s, row_s, L_rr_inv, n_off);
+      for (int t=s+1; t < ns; t++) {
+        mju_addToScl(Lptr_s[t], row_s, -s_st[t], n_off);
       }
+
+      // update remaining supernode diagonal block
       for (int t=s+1; t < ns; t++) {
         for (int u=t; u < ns; u++) {
           Lptr_s[t][L_nnz-1-u] -= s_st[t] * s_st[u];
@@ -1283,10 +1403,7 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
       if (deficient) {
         mju_zero(Lptr, L_nnz-1);
       } else {
-        mjtNum L_rr_inv = 1.0 / L_rr;
-        for (int i=0; i < L_nnz-1; i++) {
-          Lptr[i] = Hptr[i] * L_rr_inv;
-        }
+        mju_scl(Lptr, Hptr, 1.0 / L_rr, L_nnz-1);
       }
       Lptr[L_nnz-1] = L_rr;
       continue;
