@@ -3482,6 +3482,47 @@ TEST_F(MjGjkTest, CylinderOnBoxAtRest) {
   EXPECT_NEAR(data->qacc[0], 0.0, MjTol(1e-12, 1e-5));
 }
 
+// A single support vertex can still belong to a parallel contact edge.
+TEST_F(MjGjkTest, CylinderParallelEdgeFromSingleSupportVertex) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="cylinder" size="1 1"/>
+      <geom type="box" size="1 1 0.5" pos="1.6 1.6 0"/>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjCCDObj cylinder, box;
+  mjc_initCCDObj(&cylinder, model.get(), data.get(), 0, 0);
+  mjc_initCCDObj(&box, model.get(), data.get(), 1, 0);
+  cylinder.nsupp = box.nsupp = 1;
+  cylinder.suppind[0] = box.suppind[0] = 0;
+  const mjtNum radial = mju_sqrt(0.5);
+  const mjtNum support[3] = {0.6, 0.6, -0.5};
+  for (int i = 0; i < 3; ++i) {
+    box.suppvert[i] = support[i];
+  }
+  cylinder.suppvert[0] = radial;
+  cylinder.suppvert[1] = radial;
+  cylinder.suppvert[2] = -1;
+
+  std::vector<mjtNum> x1(12, 0), x2(12, 0), dist(4, 0);
+  x1[0] = x1[1] = radial;
+  x2[0] = x2[1] = 0.6;
+  dist[0] = -mju_sqrt(2)*(radial - 0.6);
+  auto buffer = std::vector<uint8_t>(mjc_ccdSize(16, 3, kMaxIterations));
+  ASSERT_EQ(mjc_multicontact(&cylinder, &box, x1.data(), x2.data(), dist.data(),
+                             4, 3, 16, buffer.data()), 2);
+  EXPECT_NEAR(x1[2], -0.5, kTolerance);
+  EXPECT_NEAR(x1[5], 0.5, kTolerance);
+  EXPECT_NEAR(x2[2], -0.5, kTolerance);
+  EXPECT_NEAR(x2[5], 0.5, kTolerance);
+  EXPECT_EQ(dist[0], dist[1]);
+}
+
 TEST_F(MjGjkTest, CylinderParallelBoxAndMeshEdgeContacts) {
   constexpr char kBoxXml[] = R"(
   <mujoco>

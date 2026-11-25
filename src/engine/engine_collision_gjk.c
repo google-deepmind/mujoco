@@ -2580,6 +2580,37 @@ static int parallelCylinderEdgeContacts(const mjCCDObj* cylinder, const mjtNum* 
 }
 
 
+// Try the true edges adjacent to the convex support vertices, not only the
+// edge represented by the simplex. Keep the witness and overlap checks above
+// so unrelated incident edges do not generate extra contacts.
+static int recoverParallelCylinderEdgeContacts(
+    const mjCCDObj* cylinder, mjCCDObj* convex, const int* indices,
+    int nvertices, mjtNum* x_cylinder, mjtNum* x_convex, mjtNum* dist,
+    int nconmax, mjtNum* directions, mjtNum* endverts) {
+  if (nconmax < 2) {
+    return 0;
+  }
+
+  for (int i = 0; i < nvertices; ++i) {
+    int vi[3] = {indices[i], indices[i], indices[i]};
+    mjtNum vertex[9] = {0};
+    int nedges = geomEdgeNormals(directions, endverts, 1, convex,
+                                 vertex, vi, x_convex);
+    mjtNum vertices[6];
+    copy3(vertices, vertex);
+    for (int j = 0; j < nedges; ++j) {
+      copy3(vertices + 3, endverts + 3*j);
+      if (parallelCylinderEdgeContacts(cylinder, vertices, x_cylinder,
+                                       x_convex, x_cylinder, x_convex,
+                                       dist, nconmax, 2)) {
+        return 2;
+      }
+    }
+  }
+  return 0;
+}
+
+
 // compute multiple contacts from GJK/EPA support vertices, assuming 1 initial contact in x1, x2
 // return number of contacts
 int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjtNum* dist,
@@ -2635,23 +2666,6 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
     nface2 = simplexDim(triface2i, triface2);
   }
 
-  // A cylinder side and a parallel convex edge share a contact segment. The
-  // cylinder support simplex can collapse to a vertex on some platforms, so
-  // detect the side from the radial witness rather than its simplex dimension.
-  if (obj1->geom_type == mjGEOM_CYLINDER &&
-      (obj2->geom_type == mjGEOM_BOX || obj2->geom_type == mjGEOM_MESH)) {
-    if (parallelCylinderEdgeContacts(obj1, triface2, x1, x2, x1, x2, dist,
-                                    nconmax, nface2)) {
-      return 2;
-    }
-  } else if (obj2->geom_type == mjGEOM_CYLINDER &&
-             (obj1->geom_type == mjGEOM_BOX || obj1->geom_type == mjGEOM_MESH)) {
-    if (parallelCylinderEdgeContacts(obj2, triface1, x2, x1, x2, x1, dist,
-                                    nconmax, nface1)) {
-      return 2;
-    }
-  }
-
   uint8_t* ptr = buffer;
   int* idx1 = (int*)ptr;           ptr += align8(sizeof(int) * nmeshdegmax);
   int* idx2 = (int*)ptr;           ptr += align8(sizeof(int) * nmeshdegmax);
@@ -2662,6 +2676,22 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
   mjtNum* face1 = (mjtNum*)ptr;    ptr += align8(sizeof(mjtNum) * 3 * npolygonmax);
   mjtNum* face2 = (mjtNum*)ptr;    ptr += align8(sizeof(mjtNum) * 3 * npolygonmax);
   mjtNum* polygon = (mjtNum*)ptr;  // buffer for polygonClip
+
+  // Recover actual convex edges incident to the support vertices. A platform
+  // can return one vertex or a face diagonal instead of the contact edge.
+  if (obj1->geom_type == mjGEOM_CYLINDER &&
+      (obj2->geom_type == mjGEOM_BOX || obj2->geom_type == mjGEOM_MESH)) {
+    if (recoverParallelCylinderEdgeContacts(obj1, obj2, triface2i, nface2,
+                                            x1, x2, dist, nconmax, edge, endverts)) {
+      return 2;
+    }
+  } else if (obj2->geom_type == mjGEOM_CYLINDER &&
+             (obj1->geom_type == mjGEOM_BOX || obj1->geom_type == mjGEOM_MESH)) {
+    if (recoverParallelCylinderEdgeContacts(obj2, obj1, triface1i, nface1,
+                                            x2, x1, dist, nconmax, edge, endverts)) {
+      return 2;
+    }
+  }
 
   int nnorms1 = 0, nnorms2 = 0;
 
