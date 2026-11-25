@@ -27,6 +27,7 @@
 #include "engine/engine_inline.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_simd.h"
 #include "engine/engine_sleep.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -494,44 +495,40 @@ void mj_camlight(const mjModel* m, mjData* d) {
 
 // update dynamic BVH; leaf aabbs must be updated before call
 void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
-  mj_markStack(d);
-  int* modified = mjSTACKALLOC(d, bvhnum, int);
-  mju_zeroInt(modified, bvhnum);
-
-  // mark leafs as modified
-  for (int i=0; i < bvhnum; i++) {
-    if (m->bvh_nodeid[bvhadr+i] >= 0) {
-      modified[i] = 1;
-    }
+  if (bvhnum <= 1) {
+    return;
   }
+
+  mj_markStack(d);
+  const int* nodeid = m->bvh_nodeid + bvhadr;
+  const int* child = m->bvh_child + 2*bvhadr;
+  mjtNum* bvh = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic);
+  mjtNum* bmin = mjSTACKALLOC(d, 4*bvhnum, mjtNum);
+  mjtNum* bmax = mjSTACKALLOC(d, 4*bvhnum, mjtNum);
+  mjtNum4 half = v4_splat(0.5);
 
   // update non-leafs in backward pass (parents come before children)
   for (int i=bvhnum-1; i >= 0; i--) {
-    if (m->bvh_nodeid[bvhadr+i] < 0) {
-      int child1 = m->bvh_child[2*(bvhadr+i)];
-      int child2 = m->bvh_child[2*(bvhadr+i)+1];
+    mjtNum* aabb = bvh + 6*i;
+    if (nodeid[i] >= 0) {
+      // leaf: unpack (center, size) into scratch (min, max)
+      mjtNum4 c = v4_load3(aabb);
+      mjtNum4 s = v4_load3(aabb+3);
+      v4_store(bmin+4*i, v4_sub(c, s));
+      v4_store(bmax+4*i, v4_add(c, s));
+    } else {
+      int child1 = child[2*i];
+      int child2 = child[2*i+1];
 
-      // update if either child is modified
-      if (modified[child1] || modified[child2]) {
-        mjtNum* aabb = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic + i);
-        const mjtNum* aabb1 = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic + child1);
-        const mjtNum* aabb2 = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic + child2);
+      // compute new (min, max)
+      mjtNum4 lo = v4_min(v4_load(bmin+4*child1), v4_load(bmin+4*child2));
+      mjtNum4 hi = v4_max(v4_load(bmax+4*child1), v4_load(bmax+4*child2));
+      v4_store(bmin+4*i, lo);
+      v4_store(bmax+4*i, hi);
 
-        // compute new (min, max)
-        mjtNum xmin[3], xmax[3];
-        for (int k=0; k < 3; k++) {
-          xmin[k] = mju_min(aabb1[k] - aabb1[k+3], aabb2[k] - aabb2[k+3]);
-          xmax[k] = mju_max(aabb1[k] + aabb1[k+3], aabb2[k] + aabb2[k+3]);
-        }
-
-        // convert to (center, size)
-        for (int k=0; k < 3; k++) {
-          aabb[k]   = 0.5*(xmax[k]+xmin[k]);
-          aabb[k+3] = 0.5*(xmax[k]-xmin[k]);
-        }
-
-        modified[i] = 1;
-      }
+      // convert to (center, size)
+      v4_store3(aabb, v4_mul(half, v4_add(hi, lo)));
+      v4_store3(aabb+3, v4_mul(half, v4_sub(hi, lo)));
     }
   }
 

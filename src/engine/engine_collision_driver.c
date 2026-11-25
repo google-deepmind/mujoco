@@ -35,11 +35,13 @@
 #include "engine/engine_inline.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_simd.h"
 #include "engine/engine_sleep.h"
 #include "engine/engine_sort.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
 
@@ -296,14 +298,15 @@ static int hasPlane(const mjModel* m, int body) {
 
 
 // filter contact based on global AABBs
-static int filterBox(const mjtNum aabb1[6], const mjtNum aabb2[6], mjtNum margin) {
-  if (aabb1[0]+aabb1[3]+margin < aabb2[0]-aabb2[3]) return 1;
-  if (aabb1[1]+aabb1[4]+margin < aabb2[1]-aabb2[4]) return 1;
-  if (aabb1[2]+aabb1[5]+margin < aabb2[2]-aabb2[5]) return 1;
-  if (aabb2[0]+aabb2[3]+margin < aabb1[0]-aabb1[3]) return 1;
-  if (aabb2[1]+aabb2[4]+margin < aabb1[1]-aabb1[4]) return 1;
-  if (aabb2[2]+aabb2[5]+margin < aabb1[2]-aabb1[5]) return 1;
-  return 0;
+static inline int filterBox(const mjtNum aabb1[6], const mjtNum aabb2[6], mjtNum margin) {
+  mjtNum4 c1 = v4_load3(aabb1);
+  mjtNum4 s1 = v4_load3(aabb1+3);
+  mjtNum4 c2 = v4_load3(aabb2);
+  mjtNum4 s2 = v4_load3(aabb2+3);
+  mjtNum4 m = v4_splat(margin);
+  mjtMask4 sep = v4_or(v4_cmplt(v4_add(v4_add(c1, s1), m), v4_sub(c2, s2)),
+                       v4_cmplt(v4_add(v4_add(c2, s2), m), v4_sub(c1, s1)));
+  return (v4_movemask(sep) & 7) != 0;
 }
 
 
@@ -1628,20 +1631,21 @@ static void addPair(const mjModel* m, int bf1, int bf2,
 // helper structure for SAP sorting
 struct _mjtSAP {
   float value;
-  int id_ismax;
+  int id;
 };
 typedef struct _mjtSAP mjtSAP;
 
 
 
 // comparison function for SAP
-static inline int SAPcmp(mjtSAP* obj1, mjtSAP* obj2, void* context) {
+static inline int SAPcmp(const mjtSAP* obj1, const mjtSAP* obj2, void* context) {
+  (void) context;
   if (obj1->value < obj2->value) {
     return -1;
-  } else if (obj1->value == obj2->value) {
-    return (obj1->id_ismax & 0x10000) - (obj2->id_ismax & 0x10000);
-  } else {
+  } else if (obj1->value > obj2->value) {
     return 1;
+  } else {
+    return 0;
   }
 }
 
@@ -1649,37 +1653,61 @@ static inline int SAPcmp(mjtSAP* obj1, mjtSAP* obj2, void* context) {
 mjSORT(SAPsort, mjtSAP, SAPcmp);
 
 
+// sort per-box SAP hits by sweep insertion rank and finalize (id1, id2) pairs
+static inline void sapFinishOrdered(mjPacked32* pair, int start, int end, int id2) {
+  for (int k=start+1; k < end; k++) {
+    mjPacked32 tmp = pair[k];
+    int p = k - 1;
+    while (p >= start && pair[p].hi > tmp.hi) {
+      pair[p+1] = pair[p];
+      p--;
+    }
+    pair[p+1] = tmp;
+  }
+  for (int k=start; k < end; k++) {
+    pair[k].hi = pair[k].lo;
+    pair[k].lo = (uint16_t)id2;
+  }
+}
+
+
 // given list of axis-aligned bounding boxes in AAMM (min[3], max[3]) format,
 // return number of pairs that can collide, using sweep-and-prune along
 // specified x axis (0, 1 or 2). If active is non-NULL, pairs where neither
-// entry is active are skipped. If more than maxpair overlaps exist, only the
-// first maxpair are written to pair[] and maxpair + 1 is returned.
+// entry is active are skipped. When ordered is non-zero (with active == NULL),
+// hits for each box are emitted in sweep insertion order. If more than maxpair
+// overlaps exist, only the first maxpair are written to pair[] and maxpair + 1
+// is returned.
 static int mj_SAP(mjData* d, const mjtNum* aamm, const mjtByte* active, int n, int axis_x,
-                  mjPacked32* pair, int maxpair) {
+                  int ordered, mjPacked32* pair, int maxpair) {
   // check inputs
-  if (n >= 0x10000 || axis_x < 0 || axis_x > 2 || maxpair < 1) {
+  if (n < 0 || n >= 0x10000 || axis_x < 0 || axis_x > 2 || maxpair < 1) {
     return -1;
   }
+  if (n < 2) {
+    return 0;
+  }
 
-  // allocate sort buffer
-  mjtSAP* sortbuf = mjSTACKALLOC(d, 2*n, mjtSAP);    // sorted min and max values projected onto x axis
-  mjtSAP* activebuf = mjSTACKALLOC(d, 2*n, mjtSAP);  // list of all AAMMs currently intersecting the sweep plane
+  mj_markStack(d);
 
   // get AAMM pointers for primary "x" axis
   const mjtNum* x_min = aamm + n*(axis_x + 0);
   const mjtNum* x_max = aamm + n*(axis_x + 3);
 
-  // init sortbuf with specified axis
+  // init sortbuf with primary axis min values
+  mjtSAP* sortbuf = mjSTACKALLOC(d, n, mjtSAP);
   for (int i=0; i < n; i++) {
-    sortbuf[2*i].id_ismax = i;
-    sortbuf[2*i].value = (float)x_min[i];
-    sortbuf[2*i+1].id_ismax = i + 0x10000;
-    sortbuf[2*i+1].value = (float)x_max[i];
+    sortbuf[i].value = (float)x_min[i];
+    sortbuf[i].id = i;
   }
 
   // sort along specified axis
-  mjtSAP* buf = mjSTACKALLOC(d, 2*n, mjtSAP);
-  SAPsort(sortbuf, buf, 2*n, NULL);
+  {
+    mj_markStack(d);
+    mjtSAP* buf = mjSTACKALLOC(d, n, mjtSAP);
+    SAPsort(sortbuf, buf, n, NULL);
+    mj_freeStack(d);
+  }
 
   // define the other two axes
   int axis_y, axis_z;
@@ -1700,58 +1728,131 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, const mjtByte* active, int n, i
   const mjtNum* z_min = aamm + n*(axis_z + 0);
   const mjtNum* z_max = aamm + n*(axis_z + 3);
 
+  // contiguous SoA active interval arrays (unordered, swap-removed on expiration)
+  float* act_xmax = mjSTACKALLOC(d, n, float);
+  mjtNum* act_ymin = mjSTACKALLOC(d, n, mjtNum);
+  mjtNum* act_ymax = mjSTACKALLOC(d, n, mjtNum);
+  mjtNum* act_zmin = mjSTACKALLOC(d, n, mjtNum);
+  mjtNum* act_zmax = mjSTACKALLOC(d, n, mjtNum);
+  uint32_t* act_id = mjSTACKALLOC(d, n, uint32_t);
+  int keep_order = ordered && !active;
+
   // sweep and prune
   int cnt = 0;    // size of active list
   int npair = 0;  // number of pairs added
-  for (int i=0; i < 2*n; i++) {
-    // min value: collide with all in list, add
-    if (!(sortbuf[i].id_ismax & 0x10000)) {
-      for (int j=0; j < cnt; j++) {
-        // get ids: no need to mask ismax because activebuf entries never have the ismax bit,
-        // and sortbuf[i].id_ismax is tested above
-        int id1 = activebuf[j].id_ismax;
-        int id2 = sortbuf[i].id_ismax;
-        if (active && !active[id1] && !active[id2]) {
+  for (int i=0; i < n; i++) {
+    float x2_min = sortbuf[i].value;
+    int id2 = sortbuf[i].id;
+    float x2_max = (float)x_max[id2];
+    if (x2_max < x2_min) {
+      continue;
+    }
+
+    uint32_t passive2 = (active && !active[id2]) ? 0x10000u : 0u;
+    int npair0 = npair;
+    mjtNum y2_min = y_min[id2];
+    mjtNum y2_max = y_max[id2];
+    mjtNum z2_min = z_min[id2];
+    mjtNum z2_max = z_max[id2];
+
+    int j = 0;
+    mjtFloat4 vx2_min = f4_splat(x2_min);
+    mjtNum4 vy2_min = v4_splat(y2_min);
+    mjtNum4 vy2_max = v4_splat(y2_max);
+    mjtNum4 vz2_min = v4_splat(z2_min);
+    mjtNum4 vz2_max = v4_splat(z2_max);
+    while (j + 4 <= cnt) {
+      int exp_mask = f4_movemask(f4_cmplt(f4_load(act_xmax+j), vx2_min));
+      if (exp_mask) {
+        int k = j + mju_ctz64((uint64_t)exp_mask);
+        cnt--;
+        if (k < cnt) {
+          act_xmax[k] = act_xmax[cnt];
+          act_ymin[k] = act_ymin[cnt];
+          act_ymax[k] = act_ymax[cnt];
+          act_zmin[k] = act_zmin[cnt];
+          act_zmax[k] = act_zmax[cnt];
+          act_id[k] = act_id[cnt];
+        }
+        continue;
+      }
+
+      mjtMask4 sep_y = v4_or(v4_cmpgt(v4_load(act_ymin+j), vy2_max),
+                             v4_cmpgt(vy2_min, v4_load(act_ymax+j)));
+      mjtMask4 sep_z = v4_or(v4_cmpgt(v4_load(act_zmin+j), vz2_max),
+                             v4_cmpgt(vz2_min, v4_load(act_zmax+j)));
+      int hit_mask = (~v4_movemask(v4_or(sep_y, sep_z))) & 0xF;
+      while (hit_mask) {
+        int bit = mju_ctz64((uint64_t)hit_mask);
+        hit_mask &= hit_mask - 1;
+        uint32_t raw = act_id[j+bit];
+        if (passive2 && (raw & 0x10000u)) {
           continue;
         }
-
-        // use the other two axes to prune if possible
-        if (y_min[id1] > y_max[id2] ||
-            y_min[id2] > y_max[id1] ||
-            z_min[id1] > z_max[id2] ||
-            z_min[id2] > z_max[id1]) {
-          continue;
-        }
-
-        // add pair, check buffer size
         if (npair >= maxpair) {
+          if (keep_order) {
+            sapFinishOrdered(pair, npair0, npair, id2);
+          }
+          mj_freeStack(d);
           return maxpair + 1;
         }
-        pair[npair].hi = id1;
-        pair[npair].lo = id2;
+        pair[npair].hi = keep_order ? (uint16_t)(raw >> 16) : (uint16_t)(raw & 0xFFFFu);
+        pair[npair].lo = keep_order ? (uint16_t)(raw & 0xFFFFu) : (uint16_t)id2;
         npair++;
       }
-
-      // add to list
-      activebuf[cnt] = sortbuf[i];
-      cnt++;
+      j += 4;
     }
 
-    // max value: remove corresponding min value from list
-    else {
-      int toremove = sortbuf[i].id_ismax & 0xFFFF;
-      for (int j=0; j < cnt; j++) {
-        if (activebuf[j].id_ismax == toremove) {
-          if (j < cnt-1) {
-            memmove(activebuf+j, activebuf+j+1, sizeof(mjtSAP)*(cnt-1-j));
-          }
-          cnt--;
-          break;
+    // scalar tail
+    while (j < cnt) {
+      if (act_xmax[j] < x2_min) {
+        cnt--;
+        if (j < cnt) {
+          act_xmax[j] = act_xmax[cnt];
+          act_ymin[j] = act_ymin[cnt];
+          act_ymax[j] = act_ymax[cnt];
+          act_zmin[j] = act_zmin[cnt];
+          act_zmax[j] = act_zmax[cnt];
+          act_id[j] = act_id[cnt];
         }
+        continue;
       }
+
+      uint32_t raw = act_id[j];
+      if (!(passive2 && (raw & 0x10000u)) &&
+          !(act_ymin[j] > y2_max ||
+            y2_min > act_ymax[j] ||
+            act_zmin[j] > z2_max ||
+            z2_min > act_zmax[j])) {
+        if (npair >= maxpair) {
+          if (keep_order) {
+            sapFinishOrdered(pair, npair0, npair, id2);
+          }
+          mj_freeStack(d);
+          return maxpair + 1;
+        }
+        pair[npair].hi = keep_order ? (uint16_t)(raw >> 16) : (uint16_t)(raw & 0xFFFFu);
+        pair[npair].lo = keep_order ? (uint16_t)(raw & 0xFFFFu) : (uint16_t)id2;
+        npair++;
+      }
+      j++;
     }
+
+    if (keep_order && npair > npair0) {
+      sapFinishOrdered(pair, npair0, npair, id2);
+    }
+
+    // add current box to active list
+    act_xmax[cnt] = x2_max;
+    act_ymin[cnt] = y2_min;
+    act_ymax[cnt] = y2_max;
+    act_zmin[cnt] = z2_min;
+    act_zmax[cnt] = z2_max;
+    act_id[cnt] = (uint32_t)id2 | (keep_order ? ((uint32_t)i << 16) : passive2);
+    cnt++;
   }
 
+  mj_freeStack(d);
   return npair;
 }
 
@@ -1926,7 +2027,7 @@ static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int ma
       int maxsappair = ncollide*(ncollide-1)/2;
       mjPacked32* sappair = mjSTACKALLOC(d, maxsappair, mjPacked32);
       const mjtByte* sap_active = (nactive < ncollide) ? active : NULL;
-      int nsappair = mj_SAP(d, aamm, sap_active, ncollide, 0, sappair, maxsappair);
+      int nsappair = mj_SAP(d, aamm, sap_active, ncollide, 0, 0, sappair, maxsappair);
       if (nsappair < 0) {
         mjERROR("SAP failed");
       }
@@ -2646,7 +2747,7 @@ static void mj_collideFlexSAPPairs(const mjModel* m, mjData* d, mjcPairArena* ar
   // call SAP; hard limit on number of pairs to avoid out-of-memory
   int maxsappair = mjMIN(nactive*(nactive-1)/2, 1000000);
   mjPacked32* sappair = mjSTACKALLOC(d, maxsappair, mjPacked32);
-  int nsappair = mj_SAP(d, aamm, NULL, nactive, axis, sappair, maxsappair);
+  int nsappair = mj_SAP(d, aamm, NULL, nactive, axis, 1, sappair, maxsappair);
   if (nsappair < 0) {
     mjERROR("SAP failed");
   }

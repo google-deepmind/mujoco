@@ -2600,5 +2600,84 @@ TEST_F(CoreSmoothTest, SliderCrankAfterOrientationActuatorUsesOwnCranklength) {
   // -rod = -0.5.
   EXPECT_MJTNUM_EQ(data->actuator_length[model->actuator_outadr[sc]], -0.5);
 }
+
+TEST_F(CoreSmoothTest, DynamicBVHRefitMatchesLeafBounds) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="v0" pos="0 0 0.2">
+        <freejoint/>
+        <geom size="0.01"/>
+      </body>
+      <body name="v1" pos="0.1 0 0.2">
+        <freejoint/>
+        <geom size="0.01"/>
+      </body>
+      <flexcomp name="cloth" type="grid" dim="2" count="5 5 1"
+                spacing="0.05 0.05 0.05" pos="0 0 0.5" radius="0.004" mass="1">
+        <edge equality="true"/>
+        <contact selfcollide="bvh"/>
+      </flexcomp>
+    </worldbody>
+    <deformable>
+      <flex name="single" dim="1" radius="0.005" body="v0 v1" element="0 1">
+        <edge stiffness="5" damping="0.1"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  // Deform joints and run kinematics + flex BVH refit
+  for (int i = 0; i < m->nv; ++i) {
+    d->qvel[i] = 0.25 * std::sin(0.7 * i + 0.3);
+  }
+  mj_integratePos(m, d->qpos, d->qvel, 0.05);
+  mj_kinematics(m, d);
+  mj_flex(m, d);
+
+  ASSERT_EQ(m->nflex, 2);
+  int single_id = mj_name2id(m, mjOBJ_FLEX, "single");
+  int cloth_id = mj_name2id(m, mjOBJ_FLEX, "cloth");
+  EXPECT_EQ(m->flex_bvhnum[single_id], 1);
+  EXPECT_GT(m->flex_bvhnum[cloth_id], 1);
+
+  for (int f = 0; f < m->nflex; ++f) {
+    int bvhadr = m->flex_bvhadr[f];
+    int bvhnum = m->flex_bvhnum[f];
+    ASSERT_GE(bvhadr, 0);
+    const mjtNum* bvh = d->bvh_aabb_dyn + 6 * (bvhadr - m->nbvhstatic);
+
+    // Compute exact leaf subtree [lo, hi] bounds for every node
+    std::vector<mjtNum> lo(3 * bvhnum), hi(3 * bvhnum);
+    for (int i = bvhnum - 1; i >= 0; --i) {
+      if (m->bvh_nodeid[bvhadr + i] >= 0) {
+        for (int k = 0; k < 3; ++k) {
+          lo[3 * i + k] = bvh[6 * i + k] - bvh[6 * i + 3 + k];
+          hi[3 * i + k] = bvh[6 * i + k] + bvh[6 * i + 3 + k];
+        }
+      } else {
+        int c1 = m->bvh_child[2 * (bvhadr + i)];
+        int c2 = m->bvh_child[2 * (bvhadr + i) + 1];
+        ASSERT_GT(c1, i);
+        ASSERT_GT(c2, i);
+        for (int k = 0; k < 3; ++k) {
+          lo[3 * i + k] = std::min(lo[3 * c1 + k], lo[3 * c2 + k]);
+          hi[3 * i + k] = std::max(hi[3 * c1 + k], hi[3 * c2 + k]);
+          EXPECT_MJTNUM_EQ(bvh[6 * i + k],
+                           0.5 * (hi[3 * i + k] + lo[3 * i + k]));
+          EXPECT_MJTNUM_EQ(bvh[6 * i + 3 + k],
+                           0.5 * (hi[3 * i + k] - lo[3 * i + k]));
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
