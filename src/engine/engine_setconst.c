@@ -1080,13 +1080,13 @@ static void setInertia0(mjModel* m, mjData* d) {
       m->body_invweight0[2*i] = m->body_invweight0[2*i+1] = 0;
     }
 
-    // accelerate simple bodies with no rotations
+    // accelerate simple bodies with no rotations: average diagonal of inv(M), armature included
     else if (m->body_simple[i] == 2) {
-      mjtNum mass = m->body_mass[i];
-      if (!mass) {  // SHOULD NOT OCCUR
+      if (!m->body_mass[i]) {  // SHOULD NOT OCCUR
         mjERROR("moving body %d has 0 mass", i);
       }
-      m->body_invweight0[2*i+0] = 1/mju_max(mjMINVAL, mass);
+      int dofnum = m->body_dofnum[i];
+      m->body_invweight0[2*i+0] = mju_sum(d->qLDiagInv + m->body_dofadr[i], dofnum) / dofnum;
       m->body_invweight0[2*i+1] = 0;
     }
 
@@ -1110,12 +1110,7 @@ static void setInertia0(mjModel* m, mjData* d) {
     // simple body with no rotations: no off-diagonal inertia
     if (m->body_simple[m->jnt_bodyid[i]] == 2) {
       int id = m->jnt_dofadr[i];
-      int bi = m->jnt_bodyid[i];
-      mjtNum mass = m->body_mass[bi];
-      if (!mass) {  // SHOULD NOT OCCUR
-        mjERROR("moving body %d has 0 mass", bi);
-      }
-      m->dof_invweight0[id] = 1/mju_max(mjMINVAL, mass);
+      m->dof_invweight0[id] = d->qLDiagInv[id];
     }
 
     // general joint: full inertia

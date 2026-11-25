@@ -100,6 +100,48 @@ TEST_F(CoreConstraintTest, RestPenetration) {
   }
 }
 
+// penetration at rest of a slider with armature: the impedance is relative to
+// the inertia of the joint, armature included
+TEST_F(CoreConstraintTest, RestPenetrationArmature) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="1 1 1"/>
+      <body pos="0 0 .2">
+        <joint type="slide" axis="0 0 1" armature="9"/>
+        <geom size=".1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
+  ASSERT_EQ(model->body_simple[1], 2);
+  MjDataPtr data = MakeData(model);
+
+  // unconstrained acceleration: gravity * mass / (mass + armature)
+  mjtNum acc = -model->opt.gravity[2] / 10;
+
+  for (const mjtNum impedance : {0.3, 0.9, 0.99}) {
+    for (int i = 0; i < model->ngeom; i++) {
+      model->geom_solimp[i * mjNIMP + 0] = impedance;
+      model->geom_solimp[i * mjNIMP + 1] = impedance;
+      model->geom_solref[i * mjNREF + 0] = -100;
+      model->geom_solref[i * mjNREF + 1] = -10;
+    }
+
+    mj_resetData(model.get(), data.get());
+    while (data->time < 50) {
+      mj_step(model.get(), data.get());
+    }
+    ASSERT_EQ(data->ncon, 1);
+
+    EXPECT_THAT(-data->contact[0].dist,
+                MjNear(acc * (1 - impedance) / 100, 2e-10, 1e-6));
+  }
+}
+
 // surfacevel: conveyor belt drags a box to belt speed
 TEST_F(CoreConstraintTest, SurfaceVelocityConveyor) {
   constexpr char xml[] = R"(
