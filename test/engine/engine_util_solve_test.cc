@@ -3343,5 +3343,85 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicExactMatchesScalar) {
   }
 }
 
+// --------------------------- mju_cholSolve -----------------------------------
+
+using DenseCholSolveTest = MujocoTest;
+
+// verify mju_cholSolve across all n % 4 remainders, in-place aliasing, zero
+// blocks, and strict upper-triangle NaN poisoning
+TEST_F(DenseCholSolveTest, SizesInPlaceAndUpperPoisoned) {
+  std::mt19937_64 rng(123);
+  std::normal_distribution<double> dist(0, 1);
+  const mjtNum nan = std::numeric_limits<mjtNum>::quiet_NaN();
+  const mjtNum eps = MjTol(1e-12, 1e-4);
+
+  // n = 0 must be a safe no-op
+  mju_cholSolve(nullptr, nullptr, nullptr, 0);
+
+  for (int n : {1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 15, 16, 27, 30, 50}) {
+    vector<mjtNum> sqrtH(n * n);
+    vector<mjtNum> A(n * n);
+    vector<mjtNum> L(n * n);
+    vector<mjtNum> b(n);
+    vector<mjtNum> x(n);
+    vector<mjtNum> Ax(n);
+
+    for (int i = 0; i < n * n; i++) sqrtH[i] = dist(rng);
+    mju_mulMatTMat(A.data(), sqrtH.data(), sqrtH.data(), n, n, n);
+    for (int i = 0; i < n; i++) A[i * n + i] += n;
+
+    mju_copy(L.data(), A.data(), n * n);
+    ASSERT_EQ(mju_cholFactor(L.data(), n, 0), n);
+
+    // poison strict upper triangle of L with NaN
+    for (int i = 0; i < n; i++) {
+      for (int j = i + 1; j < n; j++) {
+        L[i * n + j] = nan;
+      }
+    }
+
+    // dense RHS, out-of-place
+    for (int i = 0; i < n; i++) b[i] = dist(rng);
+    mju_cholSolve(x.data(), L.data(), b.data(), n);
+    mju_mulMatVec(Ax.data(), A.data(), x.data(), n, n);
+    EXPECT_THAT(AsVector(Ax.data(), n),
+                Pointwise(MjNear(eps, eps), AsVector(b.data(), n)))
+        << "out-of-place n=" << n;
+
+    // in-place (res == vec) must match out-of-place bit-for-bit
+    vector<mjtNum> x_inplace = b;
+    mju_cholSolve(x_inplace.data(), L.data(), x_inplace.data(), n);
+    EXPECT_EQ(x_inplace, x) << "in-place n=" << n;
+
+    // block-diagonal A (rows 0..3 decoupled from the rest) with zero trailing
+    // RHS: the trailing solution is zero, so the backward pass skips those
+    // blocks while still solving the leading one
+    if (n > 4) {
+      for (int i = 0; i < 4; i++) {
+        for (int j = 4; j < n; j++) {
+          A[i * n + j] = A[j * n + i] = 0;
+        }
+      }
+      mju_copy(L.data(), A.data(), n * n);
+      ASSERT_EQ(mju_cholFactor(L.data(), n, 0), n);
+      for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+          L[i * n + j] = nan;
+        }
+      }
+      std::fill(b.begin(), b.end(), 0);
+      for (int i = 0; i < 4; i++) b[i] = dist(rng);
+      mju_cholSolve(x.data(), L.data(), b.data(), n);
+      mju_mulMatVec(Ax.data(), A.data(), x.data(), n, n);
+      EXPECT_THAT(AsVector(Ax.data(), n),
+                  Pointwise(MjNear(eps, eps), AsVector(b.data(), n)))
+          << "block-diagonal n=" << n;
+      for (int i = 4; i < n; i++) {
+        EXPECT_EQ(x[i], 0) << "block-diagonal n=" << n << " i=" << i;
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

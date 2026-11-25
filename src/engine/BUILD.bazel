@@ -1345,6 +1345,7 @@ cc_library(
     deps = [
         ":engine_crossplatform",
         ":engine_memory",
+        ":engine_simd",
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",

@@ -19,11 +19,12 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_memory.h"
+#include "engine/engine_simd.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
-#include "engine/engine_memory.h"
 
 //---------------------------- dense Cholesky ------------------------------------------------------
 
@@ -70,30 +71,182 @@ int mju_cholFactor(mjtNum* restrict mat, int n, mjtNum mindiag) {
 
 // Cholesky solve
 void mju_cholSolve(mjtNum* res, const mjtNum* restrict mat, const mjtNum* vec, int n) {
+  // nothing to do
+  if (n <= 0) {
+    return;
+  }
+
   // copy if source and destination are different
   if (res != vec) {
     mju_copy(res, vec, n);
   }
 
-  // forward substitution: solve L*res = vec
-  for (int i=0; i < n; i++) {
+  // 4-row blocking parameters (n4 is multiple of 4, rem in 0..3)
+  const mjtNum4 one = v4_splat(1);
+  const size_t sn = n;
+  const int n4 = n & ~3;
+  const int rem = n - n4;
+  mjtNum4 last_inv = one;
+
+  // forward substitution: solve L*res = vec (4-row blocked with parallel diagonal reciprocals)
+  //   scalar equivalent:
+  //     for (int i=0; i < n; i++) {
+  //       if (i) res[i] -= mju_dot(mat+i*n, res, i);
+  //       res[i] /= mat[i*(n+1)];
+  //     }
+  for (int i=0; i < n4; i += 4) {
+    const mjtNum* restrict r0 = mat + (i+0)*sn;
+    const mjtNum* restrict r1 = mat + (i+1)*sn;
+    const mjtNum* restrict r2 = mat + (i+2)*sn;
+    const mjtNum* restrict r3 = mat + (i+3)*sn;
+
+    // diagonal reciprocals overlapped with off-diagonal dot products
+    mjtNum4 inv = v4_div(one, v4_set(r0[i+0], r1[i+1], r2[i+2], r3[i+3]));
+    last_inv = inv;
+
     // off-diagonal
+    mjtNum b[4];
     if (i) {
-      res[i] -= mju_dot(mat+i*n, res, i);
+      mjtNum4 s0 = v4_splat(0), s1 = v4_splat(0), s2 = v4_splat(0), s3 = v4_splat(0);
+      for (int k=0; k < i; k += 4) {
+        mjtNum4 v = v4_load(res+k);
+        s0 = v4_add(s0, v4_mul(v4_load(r0+k), v));
+        s1 = v4_add(s1, v4_mul(v4_load(r1+k), v));
+        s2 = v4_add(s2, v4_mul(v4_load(r2+k), v));
+        s3 = v4_add(s3, v4_mul(v4_load(r3+k), v));
+      }
+
+      // reduce partial sums and subtract from rhs
+      v4_transpose(&s0, &s1, &s2, &s3);
+      mjtNum4 sums = v4_add(v4_add(s0, s2), v4_add(s1, s3));
+      v4_store(b, v4_sub(v4_load(res+i), sums));
+    } else {
+      v4_store(b, v4_load(res+i));
     }
 
-    // diagonal
-    res[i] /= mat[i*(n+1)];
+    // diagonal: solve 4x4 lower-triangular block
+    mjtNum inv_d[4];
+    v4_store(inv_d, inv);
+    mjtNum x0 = b[0] * inv_d[0];
+    mjtNum x1 = (b[1] - r1[i+0]*x0) * inv_d[1];
+    mjtNum x2 = (b[2] - r2[i+0]*x0 - r2[i+1]*x1) * inv_d[2];
+    mjtNum x3 = (b[3] - r3[i+0]*x0 - r3[i+1]*x1 - r3[i+2]*x2) * inv_d[3];
+    v4_store(res+i, v4_set(x0, x1, x2, x3));
+  }
+
+  // forward tail (1..3 rows); reuse diagonal reciprocals in backward tail
+  mjtNum inv_tail[4] = {0, 0, 0, 0};
+  if (rem) {
+    const mjtNum* restrict r0 = mat + (n4+0)*sn;
+    const mjtNum* restrict r1 = rem > 1 ? mat + (n4+1)*sn : NULL;
+    const mjtNum* restrict r2 = rem > 2 ? mat + (n4+2)*sn : NULL;
+
+    // diagonal reciprocals
+    mjtNum4 inv = v4_div(one, v4_set(r0[n4], rem > 1 ? r1[n4+1] : 1, rem > 2 ? r2[n4+2] : 1, 1));
+
+    // off-diagonal
+    mjtNum b0 = res[n4];
+    mjtNum b1 = rem > 1 ? res[n4+1] : 0;
+    mjtNum b2 = rem > 2 ? res[n4+2] : 0;
+    if (n4) {
+      mjtNum4 s0 = v4_splat(0), s1 = v4_splat(0), s2 = v4_splat(0);
+      for (int k=0; k < n4; k += 4) {
+        mjtNum4 v = v4_load(res+k);
+        s0 = v4_add(s0, v4_mul(v4_load(r0+k), v));
+        if (rem > 1) s1 = v4_add(s1, v4_mul(v4_load(r1+k), v));
+        if (rem > 2) s2 = v4_add(s2, v4_mul(v4_load(r2+k), v));
+      }
+      b0 -= v4_sum(s0);
+      if (rem > 1) b1 -= v4_sum(s1);
+      if (rem > 2) b2 -= v4_sum(s2);
+    }
+
+    // diagonal: solve 1..3-row lower-triangular tail
+    v4_store(inv_tail, inv);
+    mjtNum x0 = b0 * inv_tail[0];
+    res[n4] = x0;
+    if (rem > 1) {
+      mjtNum x1 = (b1 - r1[n4]*x0) * inv_tail[1];
+      res[n4+1] = x1;
+      if (rem > 2) {
+        res[n4+2] = (b2 - r2[n4]*x0 - r2[n4+1]*x1) * inv_tail[2];
+      }
+    }
   }
 
   // backward substitution: solve L'*res = res
-  for (int i=n-1; i >= 0; i--) {
-    // diagonal
-    res[i] /= mat[i*(n+1)];
+  //   scalar equivalent:
+  //     for (int i=n-1; i >= 0; i--) {
+  //       res[i] /= mat[i*(n+1)];
+  //       if (i && res[i]) mju_addToScl(res, mat+i*n, -res[i], i);
+  //     }
 
-    // update res[0..i-1] with row i of L
-    if (i && res[i]) {
-      mju_addToScl(res, mat+i*n, -res[i], i);
+  // backward tail (1..3 rows)
+  if (rem) {
+    const mjtNum* restrict r0 = mat + (n4+0)*sn;
+    const mjtNum* restrict r1 = rem > 1 ? mat + (n4+1)*sn : NULL;
+    const mjtNum* restrict r2 = rem > 2 ? mat + (n4+2)*sn : NULL;
+
+    // diagonal: solve 1..3-row upper-triangular tail
+    mjtNum x2 = 0, x1 = 0;
+    if (rem > 2) {
+      x2 = res[n4+2] * inv_tail[2];
+      res[n4+2] = x2;
+    }
+    if (rem > 1) {
+      x1 = (res[n4+1] - (rem > 2 ? r2[n4+1]*x2 : 0)) * inv_tail[1];
+      res[n4+1] = x1;
+    }
+    mjtNum x0 = (res[n4] - (rem > 2 ? r2[n4]*x2 : 0) - (rem > 1 ? r1[n4]*x1 : 0)) * inv_tail[0];
+    res[n4] = x0;
+
+    // update res[0..n4-1] with tail rows of L
+    if (n4 && (x0 || x1 || x2)) {
+      mjtNum4 vx0 = v4_splat(x0), vx1 = v4_splat(x1), vx2 = v4_splat(x2);
+      for (int k=0; k < n4; k += 4) {
+        mjtNum4 r = v4_load(res+k);
+        if (rem > 2) r = v4_sub(r, v4_mul(v4_load(r2+k), vx2));
+        if (rem > 1) r = v4_sub(r, v4_mul(v4_load(r1+k), vx1));
+        r = v4_sub(r, v4_mul(v4_load(r0+k), vx0));
+        v4_store(res+k, r);
+      }
+    }
+  }
+
+  // backward 4-row blocks: software-pipeline diagonal reciprocals across blocks
+  mjtNum4 cur_inv = last_inv;
+  for (int i=n4-4; i >= 0; i -= 4) {
+    const mjtNum* restrict r0 = mat + (i+0)*sn;
+    const mjtNum* restrict r1 = mat + (i+1)*sn;
+    const mjtNum* restrict r2 = mat + (i+2)*sn;
+    const mjtNum* restrict r3 = mat + (i+3)*sn;
+
+    // diagonal: solve 4x4 upper-triangular block
+    mjtNum inv_d[4];
+    v4_store(inv_d, cur_inv);
+    mjtNum x3 = res[i+3] * inv_d[3];
+    mjtNum x2 = (res[i+2] - r3[i+2]*x3) * inv_d[2];
+    mjtNum x1 = (res[i+1] - r3[i+1]*x3 - r2[i+1]*x2) * inv_d[1];
+    mjtNum x0 = (res[i+0] - r3[i+0]*x3 - r2[i+0]*x2 - r1[i+0]*x1) * inv_d[0];
+    v4_store(res+i, v4_set(x0, x1, x2, x3));
+
+    // update res[0..i-1] with rows i..i+3 of L
+    if (i) {
+      // prefetch reciprocals for next block
+      const mjtNum* p0 = mat + (i-4)*sn;
+      cur_inv = v4_div(one, v4_set(p0[i-4], p0[sn+i-3], p0[2*sn+i-2], p0[3*sn+i-1]));
+
+      // subtract scaled rows if any entry is nonzero
+      if (x0 || x1 || x2 || x3) {
+        mjtNum4 vx0 = v4_splat(x0), vx1 = v4_splat(x1);
+        mjtNum4 vx2 = v4_splat(x2), vx3 = v4_splat(x3);
+        for (int k=0; k < i; k += 4) {
+          mjtNum4 r = v4_load(res+k);
+          mjtNum4 t32 = v4_add(v4_mul(v4_load(r3+k), vx3), v4_mul(v4_load(r2+k), vx2));
+          mjtNum4 t10 = v4_add(v4_mul(v4_load(r1+k), vx1), v4_mul(v4_load(r0+k), vx0));
+          v4_store(res+k, v4_sub(r, v4_add(t32, t10)));
+        }
+      }
     }
   }
 }
