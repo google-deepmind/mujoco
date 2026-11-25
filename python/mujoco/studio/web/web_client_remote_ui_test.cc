@@ -977,10 +977,20 @@ TEST_F(RemoteUiTest, PreservesPhysicalModifierKeysUnderMacOsBehaviors) {
   const netui::Input sent = CommandIn<netui::Input>(socket->sent[1]);
   EXPECT_FLOAT_EQ(sent.framebuffer_scale, 2.0f);
   EXPECT_NE(sent.header.flags & netui::Input::kMacOsBehaviors, 0u);
+  EXPECT_EQ(sent.header.flags & netui::Input::kTouchScreen, 0u);
   EXPECT_TRUE(sent.IsImGuiKeyDown(ImGuiKey_LeftSuper));
   EXPECT_TRUE(sent.IsImGuiKeyDown(ImGuiKey_ReservedForModSuper));
   EXPECT_FALSE(sent.IsImGuiKeyDown(ImGuiKey_LeftCtrl));
   EXPECT_FALSE(sent.IsImGuiKeyDown(ImGuiKey_ReservedForModCtrl));
+
+  io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+  io.AddMousePosEvent(100.0f, 100.0f);
+  ImGui::NewFrame();
+  remote_ui_.CaptureAndSendInput();
+  ImGui::EndFrame();
+  ASSERT_EQ(socket->sent.size(), 3u);
+  const netui::Input sent_touch = CommandIn<netui::Input>(socket->sent[2]);
+  EXPECT_NE(sent_touch.header.flags & netui::Input::kTouchScreen, 0u);
 }
 }  // namespace
 }  // namespace mujoco::studio

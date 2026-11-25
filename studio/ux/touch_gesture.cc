@@ -27,6 +27,7 @@ void TouchGestureTracker::BeginFrame(float width, float height) {
   state_.pinch_log_scale = 0.0f;
   state_.pan_dx_px = 0.0f;
   state_.pan_dy_px = 0.0f;
+  state_.twist_angle = 0.0f;
   active_this_frame_ = (mode_ == Mode::kPinchPan);
   state_.active = active_this_frame_;
   suppress_touch_mouse_ = (mode_ == Mode::kPinchPan || mode_ == Mode::kCooldown);
@@ -43,8 +44,12 @@ void TouchGestureTracker::SetWindowSize(float width, float height) {
 TouchGestureTracker::PairMetrics TouchGestureTracker::MeasurePrimaryPair() const {
   const Finger& f0 = fingers_[0];
   const Finger& f1 = fingers_[1];
+  const float dx = f1.x_px - f0.x_px;
+  const float dy = f1.y_px - f0.y_px;
   return {
-      .span = std::hypot(f1.x_px - f0.x_px, f1.y_px - f0.y_px),
+      .dx = dx,
+      .dy = dy,
+      .span = std::hypot(dx, dy),
       .mid_x = 0.5f * (f0.x_px + f1.x_px),
       .mid_y = 0.5f * (f0.y_px + f1.y_px),
   };
@@ -52,6 +57,8 @@ TouchGestureTracker::PairMetrics TouchGestureTracker::MeasurePrimaryPair() const
 
 void TouchGestureTracker::AnchorPrimaryPair() {
   const PairMetrics curr = MeasurePrimaryPair();
+  prev_dx_ = curr.dx;
+  prev_dy_ = curr.dy;
   prev_span_ = curr.span;
   prev_mid_x_ = curr.mid_x;
   prev_mid_y_ = curr.mid_y;
@@ -67,6 +74,13 @@ void TouchGestureTracker::FlushPinchDelta() {
   state_.pinch_log_scale += std::log(clamped_curr / clamped_prev);
   state_.pan_dx_px += curr.mid_x - prev_mid_x_;
   state_.pan_dy_px += curr.mid_y - prev_mid_y_;
+  if (prev_span_ >= kMinPinchSpanPx && curr.span >= kMinPinchSpanPx) {
+    const float cross = prev_dx_ * curr.dy - prev_dy_ * curr.dx;
+    const float dot = prev_dx_ * curr.dx + prev_dy_ * curr.dy;
+    state_.twist_angle += std::atan2(cross, dot);
+  }
+  prev_dx_ = curr.dx;
+  prev_dy_ = curr.dy;
   prev_span_ = curr.span;
   prev_mid_x_ = curr.mid_x;
   prev_mid_y_ = curr.mid_y;
@@ -153,13 +167,16 @@ void TouchGestureTracker::EndFrame() {
     state_.active = true;
   } else {
     state_.active = active_this_frame_ && (state_.just_started || state_.pinch_log_scale != 0.0f ||
-                                           state_.pan_dx_px != 0.0f || state_.pan_dy_px != 0.0f);
+                                           state_.pan_dx_px != 0.0f || state_.pan_dy_px != 0.0f ||
+                                           state_.twist_angle != 0.0f);
   }
 }
 
 void TouchGestureTracker::Reset() {
   fingers_.clear();
   mode_ = Mode::kIdle;
+  prev_dx_ = 0.0f;
+  prev_dy_ = 0.0f;
   prev_span_ = 0.0f;
   prev_mid_x_ = 0.0f;
   prev_mid_y_ = 0.0f;

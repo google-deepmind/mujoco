@@ -322,6 +322,7 @@ bool MoveLocalCamera(const mjModel* model, bool wasd, bool viewer_mouse_focus,
       input.pinch_zoom = touch->pinch_log_scale;
       input.pan_dx = touch->pan_dx_px / rect.z;
       input.pan_dy = touch->pan_dy_px / rect.w;
+      input.twist_angle = touch->twist_angle;
     }
     input.mouse_focus = g_app.pinch_mouse_focus;
   } else {

@@ -381,7 +381,7 @@ bool UnpackSerializedList(const SerializedList& src, DrawList* dst) {
 
 bool HasValidInputFields(const Input& input) {
   constexpr uint16_t kKnownFlags =
-      Input::kRequestKeyframe | Input::kMacOsBehaviors;
+      Input::kRequestKeyframe | Input::kMacOsBehaviors | Input::kTouchScreen;
   return (input.header.flags & ~kKnownFlags) == 0 &&
          input.char_count <= Input::kMaxChars &&
          AllFinite(&input.framebuffer_scale, 1) &&

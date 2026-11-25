@@ -650,7 +650,8 @@ TEST(EncodeDrawFrameTest, ReturnsEmptyForFramesTheDecoderWouldReject) {
 
 TEST(InputTest, EncodeAndDecodeInputAcceptOneValidInputOnly) {
   Input input;
-  input.header.flags = Input::kRequestKeyframe | Input::kMacOsBehaviors;
+  input.header.flags =
+      Input::kRequestKeyframe | Input::kMacOsBehaviors | Input::kTouchScreen;
   input.chars[0] = 'a';
   input.char_count = 1;
   input.mouse_pos[0] = 10.0f;
@@ -662,6 +663,7 @@ TEST(InputTest, EncodeAndDecodeInputAcceptOneValidInputOnly) {
   ASSERT_EQ(encoded.size(), sizeof(Input));
   Input decoded;
   ASSERT_TRUE(DecodeInput(encoded, &decoded));
+  EXPECT_EQ(decoded.header.flags, input.header.flags);
   EXPECT_EQ(decoded.char_count, 1u);
   EXPECT_EQ(decoded.mouse_pos[1], 20.0f);
   // The default "no mouse" position (-FLT_MAX) is finite and accepted.
@@ -678,7 +680,7 @@ TEST(InputTest, EncodeAndDecodeInputAcceptOneValidInputOnly) {
   expect_rejected([](Input& in) { in.header.version = kCodecVersion + 1; });
   expect_rejected([](Input& in) { in.header.size -= 1; });
   expect_rejected([](Input& in) {
-    in.header.flags |= 1u << 2;
+    in.header.flags |= 1u << 3;
     EXPECT_TRUE(EncodeInput(in).empty());
   });
   expect_rejected([](Input& in) {

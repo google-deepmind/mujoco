@@ -591,7 +591,10 @@ void RemoteUi::CaptureAndSendInput() {
       io.DisplayFramebufferScale.x > 0.0f ? io.DisplayFramebufferScale.x : 1.0f;
   input.header.flags =
       (request_keyframe_ ? netui::Input::kRequestKeyframe : 0) |
-      (io.ConfigMacOSXBehaviors ? netui::Input::kMacOsBehaviors : 0);
+      (io.ConfigMacOSXBehaviors ? netui::Input::kMacOsBehaviors : 0) |
+      (io.MouseSource == ImGuiMouseSource_TouchScreen
+           ? netui::Input::kTouchScreen
+           : 0);
 
   // Wheel fields are lifetime running totals so freezing accumulation while a
   // local overlay captures the mouse avoids spurious deltas on release.

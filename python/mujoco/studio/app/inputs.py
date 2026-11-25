@@ -398,6 +398,11 @@ def handle_camera_tracking_mouse_events(
   mouse_x = io.MousePos.x / io.DisplaySize.x
   mouse_y = io.MousePos.y / io.DisplaySize.y
   aspect_ratio = io.DisplaySize.x / io.DisplaySize.y
+  tol = (
+      ux.TOUCH_PICK_TOLERANCE_PX / io.DisplaySize.y
+      if ux.is_touch_screen()
+      else 0.0
+  )
 
   # Right double click.
   if imgui.IsMouseDoubleClicked(imgui.MouseButton.Right):
@@ -410,6 +415,7 @@ def handle_camera_tracking_mouse_events(
         mouse_y,
         aspect_ratio,
         vis_options,
+        tol,
     )
     camera.lookat[:] = picked.point
     if picked.body > 0 and io.KeyCtrl:
@@ -527,6 +533,11 @@ def handle_mouse_events(
   # Left double click.
   if imgui.IsMouseDoubleClicked(imgui.MouseButton.Left):
     view_camera = ux.view_camera(model, data, camera, aspect_ratio)
+    tol = (
+        ux.TOUCH_PICK_TOLERANCE_PX / io.DisplaySize.y
+        if ux.is_touch_screen()
+        else 0.0
+    )
     picked = ux.Pick(
         model,
         data,
@@ -535,6 +546,7 @@ def handle_mouse_events(
         mouse_y,
         aspect_ratio,
         vis_options,
+        tol,
     )
     if picked.body >= 0:
       perturb.select = picked.body

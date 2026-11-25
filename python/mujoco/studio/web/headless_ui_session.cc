@@ -346,6 +346,22 @@ void HeadlessUiSession::ApplyOneInput(const netui::Input& input) {
     }
     io.ConfigMacOSXBehaviors = macos;
   }
+  const bool touch_screen =
+      (input.header.flags & netui::Input::kTouchScreen) != 0;
+  if (touch_screen) {
+    // Match Window's touch double-tap thresholds (hal/window.cc) for direct
+    // touch input so finger drift between taps still registers a double-tap;
+    // leave Dear ImGui's desktop defaults untouched for mouse/trackpad input.
+    io.MouseDoubleClickTime = 0.50f;
+    io.MouseDoubleClickMaxDist = 32.0f;
+    io.MouseSingleClickDelay = 0.60f;
+  } else {
+    io.MouseDoubleClickTime = 0.30f;
+    io.MouseDoubleClickMaxDist = 6.0f;
+    io.MouseSingleClickDelay = 0.50f;
+  }
+  io.AddMouseSourceEvent(touch_screen ? ImGuiMouseSource_TouchScreen
+                                      : ImGuiMouseSource_Mouse);
   io.AddMousePosEvent(input.mouse_pos[0], input.mouse_pos[1]);
   AddInputEvents(io, has_previous_input_ ? &previous_input_ : nullptr, input);
   previous_input_ = input;
@@ -362,8 +378,13 @@ void HeadlessUiSession::ReleaseInput() {
   released.mouse_wheel[1] = previous_input_.mouse_wheel[1];
   ImGuiIO& io = ImGui::GetIO();
   AddInputEvents(io, &previous_input_, released);
-  // Mark the mouse cursor as outside the viewport so hovered widgets clear.
+  // Mark the mouse cursor as outside the viewport so hovered widgets clear,
+  // and restore Dear ImGui's default mouse source and double-click thresholds.
+  io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
   io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+  io.MouseDoubleClickTime = 0.30f;
+  io.MouseDoubleClickMaxDist = 6.0f;
+  io.MouseSingleClickDelay = 0.50f;
   has_previous_input_ = false;
 }
 

@@ -71,6 +71,7 @@ struct Input {
   // MessageHeader::flags bits.
   static constexpr uint16_t kRequestKeyframe = 1u << 0;
   static constexpr uint16_t kMacOsBehaviors = 1u << 1;
+  static constexpr uint16_t kTouchScreen = 1u << 2;
 
   // Fixed capacities sized above Dear ImGui's named key count so the wire ABI
   // stays stable across Dear ImGui updates.

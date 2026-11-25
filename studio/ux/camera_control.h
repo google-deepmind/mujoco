@@ -43,6 +43,8 @@ struct CameraInput {
   // Multi-touch 2-finger midpoint pan, as a fraction of the view's width/height.
   float pan_dx = 0;
   float pan_dy = 0;
+  // Multi-touch 2-finger clockwise twist angle this frame, in radians.
+  float twist_angle = 0;
 
   // Mouse button states, as ButtonState flags.
   int left_button = 0;
@@ -78,10 +80,13 @@ CameraInput ReadImGuiCameraInput();
 // Studio maps them, and returns whether it moved:
 //   - left drag orbits around the lookat point, or turns the fly camera;
 //   - middle drag and the wheel zoom, except in the fly camera;
-//   - right drag and two-finger pan move in the vertical plane, or the
-//     horizontal one with Shift;
+//   - right drag moves in the vertical plane, or the horizontal one with Shift;
+//   - two-finger drag moves in the vertical plane, or the horizontal one with
+//     Shift;
 //   - two-finger pinch zooms towards/away from the lookat point, or dollies the
-//     fly camera along its forward axis.
+//     fly camera along its forward axis;
+//   - two-finger twist (`twist_angle`, from direct touchscreens) rotates
+//     azimuth weighted by `-sin(elevation)` (turntable spin).
 // Ctrl drags are left to perturbation and move nothing.
 bool MoveCameraWithMouse(const mjModel* m, mjvCamera* cam, bool fly_camera,
                          const CameraInput& input);

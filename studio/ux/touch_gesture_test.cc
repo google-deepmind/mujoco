@@ -78,22 +78,26 @@ TEST(TouchGestureTest, CoalescesTwoFingerPinchAndMidpointPanPerFrame) {
   EXPECT_NEAR(tracker.state().pan_dy_px, -25.0f, 1e-4f);
 }
 
-TEST(TouchGestureTest, PureRotationOnPortraitViewportHasZeroPinchZoom) {
+TEST(TouchGestureTest, PureRotationOnPortraitViewportTracksTwistWithZeroPinchZoom) {
   TouchGestureTracker tracker;
   const float cx = 195.0f;
   const float cy = 422.0f;
   const float r = 60.0f;  // Constant 120 px finger span.
+  constexpr float kDegToRad = 3.1415926535f / 180.0f;
 
   // Start horizontal (0 deg).
   tracker.BeginFrame(kPortraitW, kPortraitH);
   tracker.OnFingerDown(1, (cx - r) / kPortraitW, cy / kPortraitH);
   tracker.OnFingerDown(2, (cx + r) / kPortraitW, cy / kPortraitH);
   tracker.EndFrame();
+  EXPECT_FLOAT_EQ(tracker.state().twist_angle, 0.0f);
 
-  // Rotate through 45 deg and 90 deg on a 390x844 portrait screen; normalized
-  // [0, 1] Euclidean distance shrinks by >2x, but pixel span stays 120 px.
-  for (float angle_deg : {30.0f, 45.0f, 60.0f, 90.0f}) {
-    const float rad = angle_deg * (3.1415926535f / 180.0f);
+  // Rotate clockwise through 30, 45, 60, 90, 170, and 190 (-170) deg on a
+  // 390x844 portrait screen; normalized [0, 1] Euclidean distance shrinks by
+  // >2x, but pixel span stays 120 px and twist wraps smoothly across +/-180 deg.
+  float prev_deg = 0.0f;
+  for (float angle_deg : {30.0f, 45.0f, 60.0f, 90.0f, 170.0f, 190.0f, 150.0f}) {
+    const float rad = angle_deg * kDegToRad;
     const float dx = r * std::cos(rad);
     const float dy = r * std::sin(rad);
     tracker.BeginFrame(kPortraitW, kPortraitH);
@@ -103,6 +107,8 @@ TEST(TouchGestureTest, PureRotationOnPortraitViewportHasZeroPinchZoom) {
     EXPECT_NEAR(tracker.state().pinch_log_scale, 0.0f, 1e-5f);
     EXPECT_NEAR(tracker.state().pan_dx_px, 0.0f, 1e-4f);
     EXPECT_NEAR(tracker.state().pan_dy_px, 0.0f, 1e-4f);
+    EXPECT_NEAR(tracker.state().twist_angle, (angle_deg - prev_deg) * kDegToRad, 1e-5f);
+    prev_deg = angle_deg;
   }
 }
 
@@ -181,16 +187,18 @@ TEST(TouchGestureTest, ThreeToTwoFingerLiftReanchorsWithoutJump) {
 TEST(TouchGestureTest, IgnoresDegenerateSmallSpansAndResetsOnFocusLoss) {
   TouchGestureTracker tracker;
 
-  // Two fingers only 4 px apart (< kMinPinchSpanPx = 12 px).
+  // Two fingers only 4 px apart (< kMinPinchSpanPx = 12 px): neither pinch nor
+  // twist is emitted at degenerate spans.
   tracker.BeginFrame(kPortraitW, kPortraitH);
   tracker.OnFingerDown(1, 200.0f / kPortraitW, 400.0f / kPortraitH);
   tracker.OnFingerDown(2, 204.0f / kPortraitW, 400.0f / kPortraitH);
   tracker.EndFrame();
 
   tracker.BeginFrame(kPortraitW, kPortraitH);
-  tracker.OnFingerMotion(2, 208.0f / kPortraitW, 400.0f / kPortraitH);
+  tracker.OnFingerMotion(2, 200.0f / kPortraitW, 408.0f / kPortraitH);
   tracker.EndFrame();
   EXPECT_FLOAT_EQ(tracker.state().pinch_log_scale, 0.0f);
+  EXPECT_FLOAT_EQ(tracker.state().twist_angle, 0.0f);
 
   // Focus loss clears tracked fingers and mouse-suppression state immediately.
   tracker.BeginFrame(kPortraitW, kPortraitH);

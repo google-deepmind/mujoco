@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -27,6 +28,9 @@
 #include <string>
 
 #include "testing/base/public/gunit.h"
+#include <SDL_events.h>
+#include <SDL_stdinc.h>
+#include <SDL_touch.h>
 #include <imgui.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
@@ -37,12 +41,19 @@
 
 namespace mujoco::studio {
 
+struct WindowTestPeer {
+  static void SetDirectTouchCheck(Window& window, bool (*check)(SDL_TouchID)) {
+    window.direct_touch_check_ = check;
+  }
+};
+
 struct AppTestPeer {
   static mjSpec* spec(App& app) { return app.has_spec() ? app.spec() : nullptr; }
   static mjModel* model(App& app) { return app.has_model() ? app.model() : nullptr; }
   static mjData* data(App& app) { return app.has_data() ? app.data() : nullptr; }
   static mjvCamera* camera(App& app) { return &app.camera_; }
   static mjvOption* vis_options(App& app) { return &app.vis_options_; }
+  static mjvPerturb* perturb(App& app) { return &app.perturb_; }
   static Window* window(App& app) { return app.window_.get(); }
   static ModelScene* model_scene(App& app) { return app.model_scene_.get(); }
   static Renderer* renderer(App& app) { return app.renderer_.get(); }
@@ -433,6 +444,173 @@ TEST(AppTest, SceneLabelsCoverFullViewportAndStayBehindUiAfterPortraitToLandscap
     max_vtx_x = std::max(max_vtx_x, labels_list->VtxBuffer[i].pos.x);
   }
   EXPECT_GT(max_vtx_x, 750.0f);
+}
+
+TEST(AppTest, DirectTouchSupportsOneFingerOrbitTwoFingerPanTwistAndPickTolerance) {
+  setenv("SDL_VIDEODRIVER", "dummy", 1);
+
+  App::Config config;
+  config.width = 400;
+  config.height = 800;
+  config.ini_path = std::string(::testing::TempDir()) + "/direct_touch_app_mujoco.ini";
+  config.gfx_mode = GraphicsMode::FilamentOpenGlSoftware;
+  App app(config);
+
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <visual>
+      <global fovy="90"/>
+    </visual>
+    <worldbody>
+      <body name="small_near" pos="-1 0 0">
+        <geom type="sphere" size="0.02"/>
+      </body>
+      <body name="far_visible" pos="1 -0.30 0">
+        <geom type="box" size="0.05 0.21 0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::span<const std::byte> buf(reinterpret_cast<const std::byte*>(kXml), sizeof(kXml) - 1);
+  app.LoadModelFromBuffer(buf, "text/xml", "direct_touch.xml");
+
+  mjModel* model = AppTestPeer::model(app);
+  mjvCamera* camera = AppTestPeer::camera(app);
+  mjvPerturb* perturb = AppTestPeer::perturb(app);
+  Window* window = AppTestPeer::window(app);
+  ASSERT_NE(model, nullptr);
+  ASSERT_NE(window, nullptr);
+  const int small_near_body = mj_name2id(model, mjOBJ_BODY, "small_near");
+  const int far_visible_body = mj_name2id(model, mjOBJ_BODY, "far_visible");
+  ASSERT_GT(small_near_body, 0);
+  ASSERT_GT(far_visible_body, 0);
+
+  // Free camera at (-2, 0, 0) looking along +x (lookat = (0, 0, 0),
+  // distance = 2, azimuth = 0, elevation = 0).
+  camera->type = mjCAMERA_FREE;
+  camera->fixedcamid = -1;
+  camera->lookat[0] = 0.0;
+  camera->lookat[1] = 0.0;
+  camera->lookat[2] = 0.0;
+  camera->distance = 2.0;
+  camera->azimuth = 0.0;
+  camera->elevation = 0.0;
+
+  // Settle initial frame without UI windows at center. Disable input trickling
+  // so synthetic position + button events in the test process on the same
+  // frame.
+  ImGui::GetIO().ConfigInputTrickleEventQueue = false;
+  const auto step_frame = [&]() {
+    app.Update();
+    window->EndFrame();
+  };
+  step_frame();
+
+  // 1. Single-finger drag in the open viewport orbits the camera.
+  ImGui::GetIO().AddMousePosEvent(200.0f, 400.0f);
+  ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  step_frame();
+  ImGui::GetIO().AddMousePosEvent(260.0f, 450.0f);
+  step_frame();
+  EXPECT_NE(camera->azimuth, 0.0);
+  EXPECT_NE(camera->elevation, 0.0);
+  ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  step_frame();
+
+  // 2. Two-finger parallel drag pans `lookat`, and two-finger twist on a
+  // downward-looking camera (`elevation = -60 deg`) spins turntable `azimuth`.
+  camera->azimuth = 0.0;
+  camera->elevation = -60.0;
+  camera->lookat[0] = 0.0;
+  camera->lookat[1] = 0.0;
+  camera->lookat[2] = 0.0;
+
+  constexpr SDL_TouchID kTouchId = 77;
+  WindowTestPeer::SetDirectTouchCheck(*AppTestPeer::window(app),
+                                      [](SDL_TouchID id) { return id == kTouchId; });
+  const auto push_finger = [](Uint32 type, SDL_FingerID finger_id, float x, float y) {
+    SDL_Event ev{};
+    ev.type = type;
+    ev.tfinger.touchId = kTouchId;
+    ev.tfinger.fingerId = finger_id;
+    ev.tfinger.x = x;
+    ev.tfinger.y = y;
+    ASSERT_EQ(SDL_PushEvent(&ev), 1);
+  };
+  push_finger(SDL_FINGERDOWN, 1, 150.0f / 400.0f, 400.0f / 800.0f);
+  push_finger(SDL_FINGERDOWN, 2, 250.0f / 400.0f, 400.0f / 800.0f);
+  step_frame();
+
+  // Parallel translation: pans lookat without changing azimuth or elevation.
+  push_finger(SDL_FINGERMOTION, 1, 190.0f / 400.0f, 430.0f / 800.0f);
+  push_finger(SDL_FINGERMOTION, 2, 290.0f / 400.0f, 430.0f / 800.0f);
+  step_frame();
+  EXPECT_DOUBLE_EQ(camera->azimuth, 0.0);
+  EXPECT_DOUBLE_EQ(camera->elevation, -60.0);
+  EXPECT_NE(camera->lookat[1], 0.0);
+
+  // Pure clockwise 90-degree twist around midpoint (240, 430) with 50 px
+  // radius: increases azimuth by -sin(-60 deg) * 90 deg > 0.
+  push_finger(SDL_FINGERMOTION, 1, 240.0f / 400.0f, 380.0f / 800.0f);
+  push_finger(SDL_FINGERMOTION, 2, 240.0f / 400.0f, 480.0f / 800.0f);
+  step_frame();
+  EXPECT_NEAR(static_cast<double>(camera->azimuth), 90.0 * std::sin(60.0 * mjPI / 180.0), 1e-3);
+  EXPECT_DOUBLE_EQ(camera->elevation, -60.0);
+
+  push_finger(SDL_FINGERUP, 1, 240.0f / 400.0f, 380.0f / 800.0f);
+  push_finger(SDL_FINGERUP, 2, 240.0f / 400.0f, 480.0f / 800.0f);
+  step_frame();
+  step_frame();
+
+  // Restore camera pose for pick assertions.
+  camera->azimuth = 0.0;
+  camera->elevation = 0.0;
+  camera->lookat[0] = 0.0;
+  camera->lookat[1] = 0.0;
+  camera->lookat[2] = 0.0;
+
+  const auto double_tap_at = [&](ImGuiMouseSource source, float x, float y) {
+    ImGui::GetIO().DeltaTime = 0.05f;
+    ImGui::GetIO().AddMouseSourceEvent(source);
+    ImGui::GetIO().AddMousePosEvent(x, y);
+    ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+    step_frame();
+    ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+    step_frame();
+    ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+    step_frame();
+    ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+    step_frame();
+  };
+
+  // 3. Mouse double-click 14 px left of small_near (px = 186, outside its 4 px
+  // radius) uses exact picking and misses.
+  double_tap_at(ImGuiMouseSource_Mouse, 186.0f, 400.0f);
+  EXPECT_EQ(perturb->select, 0);
+
+  // Break click streak away from target, then direct-touch double-tap at the
+  // same pixel (px = 186): selects small_near via touch pick tolerance.
+  ImGui::GetIO().AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+  ImGui::GetIO().AddMousePosEvent(50.0f, 50.0f);
+  ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  step_frame();
+  ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  step_frame();
+  double_tap_at(ImGuiMouseSource_TouchScreen, 186.0f, 400.0f);
+  EXPECT_EQ(perturb->select, small_near_body);
+
+  // 4. Click far away (> MouseDoubleClickMaxDist = 32 px) to break the previous
+  // click streak without wall-clock sleeps, then double-tap at px = 210
+  // (strictly inside far_visible, while only 6 px outside closer small_near):
+  // must prioritize far_visible.
+  ImGui::GetIO().AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+  ImGui::GetIO().AddMousePosEvent(50.0f, 50.0f);
+  ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  step_frame();
+  ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  step_frame();
+  double_tap_at(ImGuiMouseSource_TouchScreen, 210.0f, 400.0f);
+  EXPECT_EQ(perturb->select, far_visible_body);
 }
 
 }  // namespace

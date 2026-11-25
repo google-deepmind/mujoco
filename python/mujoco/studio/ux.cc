@@ -700,6 +700,15 @@ void InitUx(py::module_& m) {
       "Moves the given camera.");
 
   m.attr("MIN_FLY_SPEED") = mujoco::studio::kMinFlySpeed;
+  m.attr("TOUCH_PICK_TOLERANCE_PX") = mujoco::studio::kTouchPickTolerancePx;
+  m.def(
+      "is_touch_screen",
+      []() {
+        return ImGui::GetCurrentContext() != nullptr &&
+               ImGui::GetIO().MouseSource == ImGuiMouseSource_TouchScreen;
+      },
+      "Returns True when Dear ImGui's current mouse input source is a direct "
+      "touchscreen.");
 
   m.def(
       "view_camera",
@@ -798,13 +807,15 @@ void InitUx(py::module_& m) {
       [](const mujoco::python::MjModelWrapper& model,
          const mujoco::python::MjDataWrapper& data,
          const mujoco::python::MjvGLCameraWrapper& cam, float x, float y,
-         float aspect_ratio, const mujoco::python::MjvOptionWrapper& opt) {
+         float aspect_ratio, const mujoco::python::MjvOptionWrapper& opt,
+         float tolerance) {
         py::gil_scoped_release no_gil;
         return mujoco::studio::Pick(model.get(), data.get(), *cam.get(), x, y,
-                                    aspect_ratio, opt.get());
+                                    aspect_ratio, opt.get(), tolerance);
       },
       py::arg("model"), py::arg("data"), py::arg("cam"), py::arg("x"),
       py::arg("y"), py::arg("aspect_ratio"), py::arg("opt"),
+      py::arg("tolerance") = 0.0f,
       "Picks object under cursor using an explicit GL camera.");
 
   m.def(
@@ -812,14 +823,15 @@ void InitUx(py::module_& m) {
       [](const mujoco::python::MjModelWrapper& model,
          const mujoco::python::MjDataWrapper& data,
          const mujoco::python::MjvCameraWrapper& cam, float x, float y,
-         float aspect_ratio, const mujoco::python::MjvOptionWrapper& opt) {
+         float aspect_ratio, const mujoco::python::MjvOptionWrapper& opt,
+         float tolerance) {
         py::gil_scoped_release no_gil;
         return mujoco::studio::Pick(model.get(), data.get(), cam.get(), x, y,
-                                    aspect_ratio, opt.get());
+                                    aspect_ratio, opt.get(), tolerance);
       },
       py::arg("model"), py::arg("data"), py::arg("cam"), py::arg("x"),
       py::arg("y"), py::arg("aspect_ratio"), py::arg("opt"),
-      "Picks object under cursor.");
+      py::arg("tolerance") = 0.0f, "Picks object under cursor.");
 
   m.def(
       "camera_to_string",

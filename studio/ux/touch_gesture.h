@@ -20,7 +20,8 @@
 
 namespace mujoco::studio {
 
-// Snapshot of multi-touch pinch and two-finger pan state for the current frame.
+// Snapshot of multi-touch pinch, two-finger pan, and twist state for the
+// current frame.
 struct TouchGestureState {
   bool active = false;        // True while 2+ fingers are down (PinchPan).
   bool just_started = false;  // True on the frame the gesture entered PinchPan.
@@ -29,6 +30,7 @@ struct TouchGestureState {
   float pinch_log_scale = 0.0f;  // ln(span_curr / span_prev); >0 zooms in.
   float pan_dx_px = 0.0f;        // Midpoint delta this frame (logical pixels).
   float pan_dy_px = 0.0f;
+  float twist_angle = 0.0f;  // Clockwise 2-finger angle delta (radians).
 };
 
 // Tracks direct-touch contacts in isotropic logical window pixels, coalescing
@@ -80,6 +82,8 @@ class TouchGestureTracker {
   };
 
   struct PairMetrics {
+    float dx = 0.0f;
+    float dy = 0.0f;
     float span = 0.0f;
     float mid_x = 0.0f;
     float mid_y = 0.0f;
@@ -93,6 +97,8 @@ class TouchGestureTracker {
   float width_ = 0.0f;
   float height_ = 0.0f;
   std::vector<Finger> fingers_;
+  float prev_dx_ = 0.0f;
+  float prev_dy_ = 0.0f;
   float prev_span_ = 0.0f;
   float prev_mid_x_ = 0.0f;
   float prev_mid_y_ = 0.0f;

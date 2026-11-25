@@ -695,5 +695,50 @@ TEST_F(HeadlessUiSessionTest, AppliesFramebufferScaleAndMacOsModifierSwap) {
   EXPECT_FALSE(ImGui::IsKeyDown(ImGuiKey_LeftSuper));
   EndFrame("Linux");
 }
+
+TEST_F(HeadlessUiSessionTest, TracksTouchScreenSourceAndDoubleClickThresholds) {
+  StartSession();
+
+  // Mouse client keeps Dear ImGui default mouse source and double-click
+  // thresholds.
+  netui::Input mouse_input;
+  mouse_input.screen_size[0] = 1280;
+  mouse_input.screen_size[1] = 720;
+  mouse_input.mouse_pos[0] = 100.0f;
+  mouse_input.mouse_pos[1] = 100.0f;
+  ASSERT_TRUE(PushInput(mouse_input));
+  BeginFrame();
+  ImGuiIO& io = ImGui::GetIO();
+  EXPECT_EQ(io.MouseSource, ImGuiMouseSource_Mouse);
+  EXPECT_FLOAT_EQ(io.MouseDoubleClickTime, 0.30f);
+  EXPECT_FLOAT_EQ(io.MouseDoubleClickMaxDist, 6.0f);
+  EXPECT_FLOAT_EQ(io.MouseSingleClickDelay, 0.50f);
+  EndFrame("Mouse");
+
+  // Direct touch input switches ImGui's MouseSource to TouchScreen and uses
+  // touch double-tap thresholds.
+  netui::Input touch_input;
+  touch_input.screen_size[0] = 390;
+  touch_input.screen_size[1] = 844;
+  touch_input.mouse_pos[0] = 200.0f;
+  touch_input.mouse_pos[1] = 300.0f;
+  touch_input.header.flags = netui::Input::kTouchScreen;
+  ASSERT_TRUE(PushInput(touch_input));
+  BeginFrame();
+  EXPECT_EQ(io.MouseSource, ImGuiMouseSource_TouchScreen);
+  EXPECT_FLOAT_EQ(io.MouseDoubleClickTime, 0.50f);
+  EXPECT_FLOAT_EQ(io.MouseDoubleClickMaxDist, 32.0f);
+  EXPECT_FLOAT_EQ(io.MouseSingleClickDelay, 0.60f);
+  EndFrame("TouchScreen");
+
+  // Ending the session restores Mouse source and desktop defaults.
+  session_.EndSession();
+  BeginFrame();
+  EXPECT_EQ(io.MouseSource, ImGuiMouseSource_Mouse);
+  EXPECT_FLOAT_EQ(io.MouseDoubleClickTime, 0.30f);
+  EXPECT_FLOAT_EQ(io.MouseDoubleClickMaxDist, 6.0f);
+  EXPECT_FLOAT_EQ(io.MouseSingleClickDelay, 0.50f);
+  EndFrame("Disconnected");
+}
 }  // namespace
 }  // namespace mujoco::studio

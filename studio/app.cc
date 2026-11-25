@@ -903,6 +903,7 @@ void App::HandleMouseEvents() {
       camera_input.pinch_zoom = touch.pinch_log_scale;
       camera_input.pan_dx = touch.pan_dx_px / io.DisplaySize.x;
       camera_input.pan_dy = touch.pan_dy_px / io.DisplaySize.y;
+      camera_input.twist_angle = touch.twist_angle;
       MoveCameraWithMouse(model(), &camera_, tmp_.camera_idx == kFreeCameraIdx, camera_input);
     }
     return;
@@ -958,11 +959,15 @@ void App::HandleMouseEvents() {
   // multi-touch gestures are handled before mouse capture above).
   MoveCameraWithMouse(model(), &camera_, tmp_.camera_idx == kFreeCameraIdx, ReadImGuiCameraInput());
 
+  const bool is_touch = io.MouseSource == ImGuiMouseSource_TouchScreen;
+  const float pick_tol =
+      (is_touch && io.DisplaySize.y > 0.0f) ? (kTouchPickTolerancePx / io.DisplaySize.y) : 0.0f;
+
   // Left double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
     const mjrCamera view_camera = ViewCamera(model(), data(), &camera_, aspect_ratio);
     PickResult picked =
-        Pick(model(), data(), view_camera, mouse_x, mouse_y, aspect_ratio, &vis_options_);
+        Pick(model(), data(), view_camera, mouse_x, mouse_y, aspect_ratio, &vis_options_, pick_tol);
     if (picked.body >= 0) {
       perturb_.select = picked.body;
       perturb_.flexselect = picked.flex;
@@ -994,7 +999,7 @@ void App::HandleMouseEvents() {
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
     const mjrCamera view_camera = ViewCamera(model(), data(), &camera_, aspect_ratio);
     PickResult picked =
-        Pick(model(), data(), view_camera, mouse_x, mouse_y, aspect_ratio, &vis_options_);
+        Pick(model(), data(), view_camera, mouse_x, mouse_y, aspect_ratio, &vis_options_, pick_tol);
     mju_copy3(camera_.lookat, picked.point);
     if (picked.body > 0 && io.KeyCtrl) {
       // Switch camera to tracking mode and track the selected body.

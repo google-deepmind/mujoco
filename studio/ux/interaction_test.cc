@@ -15,6 +15,7 @@
 #include "studio/ux/interaction.h"
 
 #include <array>
+#include <limits>
 #include <memory>
 
 #include "testing/base/public/gunit.h"
@@ -389,8 +390,9 @@ TEST(InteractionTest, PickWithViewCameraMatchesPortraitFovWhileMjvOverloadStaysS
   EXPECT_EQ(Pick(m, d, portrait_view, 0.95f, 0.5f, 0.5f, &opt).body, right_body);
   EXPECT_EQ(Pick(m, d, portrait_view, 0.5f, 0.1f, 0.5f, &opt).body, top_body);
 
-  // The mjvCamera* overload does not implicitly apply portrait FOV so non-Studio
-  // callers using unmodified mjv_camera2GLCamera keep matching their render.
+  // The mjvCamera* overload does not implicitly apply portrait FOV so
+  // non-Studio callers using unmodified mjv_camera2GLCamera keep matching their
+  // render.
   EXPECT_EQ(Pick(m, d, &cam, 0.95f, 0.5f, 0.5f, &opt).body, -1);
   EXPECT_EQ(Pick(m, d, &cam, 0.5f, 0.1f, 0.5f, &opt).body, -1);
 
@@ -635,6 +637,171 @@ TEST(InteractionTest, PickUsesRealBottomAnchorForAsymmetricFrustum) {
 
   mj_deleteData(d);
   mj_deleteModel(m);
+}
+
+TEST(InteractionTest, PickToleranceSelectsNearbyGeomAndPrioritizesStrictVisibleBounds) {
+  // Camera at (0, 0, 2) looking along -z with fovy = 90 deg on a 400x800
+  // portrait smartphone viewport (aspect 0.5):
+  //   - At z = 0 (dist 2): x_world in [-2, 2], so 1 px = 0.01 m.
+  //   - At z = 1 (dist 1): x_world in [-1, 1], so 1 px = 0.005 m.
+  //   - At z = -1 (dist 3): x_world in [-3, 3], so 1 px = 0.015 m.
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <visual>
+      <global fovy="90"/>
+    </visual>
+    <worldbody>
+      <geom name="ground" type="plane" pos="0 0 -1" size="10 10 0.1"/>
+      <body name="small_near" pos="0 0 1">
+        <geom name="small_near_geom" type="sphere" size="0.02"/>
+      </body>
+      <body name="far_visible" pos="0.30 0 -1">
+        <geom name="far_visible_geom" type="box" size="0.21 0.5 0.05"/>
+      </body>
+      <body name="occluded_back" pos="-1.0 0 -0.5">
+        <geom name="occluded_geom" type="sphere" size="0.06"/>
+      </body>
+      <body name="occluder_front" pos="-0.4 0 1.0">
+        <geom name="occluder_geom" type="box" size="0.15 0.15 0.05"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(kXml, nullptr, error.data(), error.size());
+  ASSERT_NE(spec, nullptr) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  mj_deleteSpec(spec);
+  ASSERT_NE(m, nullptr);
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  const int ground_geom = mj_name2id(m, mjOBJ_GEOM, "ground");
+  const int small_near_body = mj_name2id(m, mjOBJ_BODY, "small_near");
+  const int far_visible_body = mj_name2id(m, mjOBJ_BODY, "far_visible");
+  const int occluded_body = mj_name2id(m, mjOBJ_BODY, "occluded_back");
+  const int occluder_body = mj_name2id(m, mjOBJ_BODY, "occluder_front");
+  ASSERT_GE(ground_geom, 0);
+  ASSERT_GT(small_near_body, 0);
+  ASSERT_GT(far_visible_body, 0);
+  ASSERT_GT(occluded_body, 0);
+  ASSERT_GT(occluder_body, 0);
+
+  mjvCamera cam;
+  mjv_defaultFreeCamera(m, &cam);
+  cam.lookat[0] = 0.0;
+  cam.lookat[1] = 0.0;
+  cam.lookat[2] = 0.0;
+  cam.distance = 2.0;
+  cam.azimuth = 90.0;
+  cam.elevation = -90.0;
+
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+
+  constexpr float kWidth = 400.0f;
+  constexpr float kHeight = 800.0f;
+  constexpr float kAspect = kWidth / kHeight;
+  constexpr float kTol = kTouchPickTolerancePx / kHeight;
+  const mjrCamera view_cam = ViewCamera(m, d, &cam, kAspect);
+
+  // 1. Touch 14 px left of small_near center (px = 186, outside its 4 px
+  // radius, over the ground plane):
+  //   - Desktop (tolerance = 0) hits the ground plane (body == 0).
+  //   - Touch (22 px tolerance) selects small_near.
+  const float near_miss_x = 186.0f / kWidth;
+  const PickResult desktop_miss = Pick(m, d, view_cam, near_miss_x, 0.5f, kAspect, &opt);
+  EXPECT_EQ(desktop_miss.geom, ground_geom);
+  EXPECT_EQ(desktop_miss.body, 0);
+
+  const PickResult phone_hit = Pick(m, d, view_cam, near_miss_x, 0.5f, kAspect, &opt, kTol);
+  EXPECT_EQ(phone_hit.body, small_near_body);
+
+  // Beyond the 22 px radius (30 px right of far_visible's right edge at
+  // px = 234 -> px = 264, clear of all non-plane geoms), touch tolerance
+  // falls back to the center ground-plane hit.
+  const PickResult phone_outside_tol =
+      Pick(m, d, view_cam, 264.0f / kWidth, 0.5f, kAspect, &opt, kTol);
+  EXPECT_EQ(phone_outside_tol.geom, ground_geom);
+  EXPECT_EQ(phone_outside_tol.body, 0);
+
+  // 2. Strict visible-bounds priority:
+  // small_near spans screen px [196, 204] at depth ~1.0.
+  // far_visible spans x_world [0.09, 0.51] at z = -1 (depth 3.0), which
+  // projects to screen px [206, 234].
+  // Touching at px = 210 is strictly inside the visible portion of far_visible
+  // AND only 6 px outside small_near (well inside small_near's 22 px tolerance
+  // halo, with small_near closer in 3D depth). Pick MUST prioritize
+  // far_visible because the touch already lies strictly within its visible
+  // bounds.
+  const PickResult strict_priority =
+      Pick(m, d, view_cam, 210.0f / kWidth, 0.5f, kAspect, &opt, kTol);
+  EXPECT_EQ(strict_priority.body, far_visible_body);
+
+  // 3. True 3D occlusion:
+  // occluded_back at (-1.0, 0, -0.5) (dist 2.5) projects to px = 120 with
+  // 8 px radius [112, 128], completely hidden behind occluder_front at
+  // (-0.4, 0, 1.0) (dist 1.0) which spans px [90, 150].
+  // Touching at px = 82 (8 px left of occluder_front, 30 px from occluded
+  // center; or px = 100 directly over occluder_front) must NEVER select
+  // occluded_back through occluder_front.
+  const PickResult over_occluder = Pick(m, d, view_cam, 120.0f / kWidth, 0.5f, kAspect, &opt, kTol);
+  EXPECT_EQ(over_occluder.body, occluder_body);
+
+  const PickResult beside_occluder =
+      Pick(m, d, view_cam, 82.0f / kWidth, 0.5f, kAspect, &opt, kTol);
+  EXPECT_EQ(beside_occluder.body, occluder_body);
+  EXPECT_NE(beside_occluder.body, occluded_body);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST(InteractionTest, PickToleranceStaticFallbackPrefersClosestDepthAndIgnoresNaN) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <visual>
+      <global fovy="45"/>
+    </visual>
+    <worldbody>
+      <geom name="ground" type="plane" pos="0 0 -2" size="10 10 0.1"/>
+      <geom name="far_right" type="sphere" pos="0.08 0 -0.5" size="0.05"/>
+      <geom name="near_left" type="sphere" pos="-0.035 0 1.0" size="0.025"/>
+    </worldbody>
+  </mujoco>
+  )";
+  auto [m, d] = MakeTestScene(kXml);
+  ASSERT_NE(m, nullptr);
+
+  const int ground_geom = mj_name2id(m.get(), mjOBJ_GEOM, "ground");
+  const int near_left_geom = mj_name2id(m.get(), mjOBJ_GEOM, "near_left");
+  ASSERT_GE(ground_geom, 0);
+  ASSERT_GE(near_left_geom, 0);
+
+  mjvCamera cam;
+  mjv_defaultFreeCamera(m.get(), &cam);
+  cam.lookat[0] = 0.0;
+  cam.lookat[1] = 0.0;
+  cam.lookat[2] = 0.0;
+  cam.distance = 2.0;
+  cam.azimuth = 90.0;
+  cam.elevation = -90.0;
+
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+
+  const mjrCamera view_cam = ViewCamera(m.get(), d.get(), &cam, /*aspect_ratio=*/1.0f);
+
+  // Center ray hits the ground plane; ring 1 hits `far_right` at angle 0 before
+  // `near_left` at angle pi, so closest depth on the innermost hit ring must
+  // win.
+  const PickResult picked = Pick(m.get(), d.get(), view_cam, 0.5f, 0.5f, 1.0f, &opt, 0.2f);
+  EXPECT_EQ(picked.geom, near_left_geom);
+
+  // NaN tolerance disables ring sampling and returns the exact center hit.
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  const PickResult nan_picked = Pick(m.get(), d.get(), view_cam, 0.5f, 0.5f, 1.0f, &opt, nan);
+  EXPECT_EQ(nan_picked.geom, ground_geom);
 }
 
 }  // namespace
