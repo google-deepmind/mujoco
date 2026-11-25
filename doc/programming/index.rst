@@ -81,12 +81,28 @@ MUJOCO_LOG.TXT in the executable directory; it contains error and warning messag
      doc     - README.txt and REFERENCE.txt
      include - header files needed to develop with MuJoCo
      model   - model collection
-     sample  - code samples and CMakeLists.txt needed to build them
+     sample  - source code for the sample applications
 
 After verifying that the simulator works, you may also want to re-compile the code samples to ensure that you have a
 working development environment. We provide a cross-platform `CMake
 <https://github.com/google-deepmind/mujoco/blob/main/sample/CMakeLists.txt>`__ setup that can be used to build sample
 applications independently of the MuJoCo library itself.
+
+If a binary release archive does not include the CMake build files, obtain the source
+tree from the matching release tag. On Linux and Windows, set ``mujoco_ROOT`` to the
+absolute path of the extracted binary archive when configuring either standalone project:
+
+.. code-block:: shell
+
+   cmake -S sample -B build-sample -Dmujoco_ROOT=/path/to/extracted/mujoco
+   cmake --build build-sample --config Release
+   cmake -S simulate -B build-simulate -Dmujoco_ROOT=/path/to/extracted/mujoco
+   cmake --build build-simulate --config Release
+
+The standalone builds use the installed CMake package when available. Otherwise they
+look for the headers and link library in the supplied archive root. On Windows, keep
+the archive's ``bin`` directory on the runtime library search path (PATH) when running
+the resulting executables. CMake may fetch the sample applications' other dependencies.
 
 On macOS, you can drag ``MuJoCoStudio.app`` and ``MuJoCo.app`` from the ``.dmg`` into ``/Applications`` to install them
 like any other `application bundle <https://developer.apple.com/go/?id=bundle-structure>`__ (their executables inside
