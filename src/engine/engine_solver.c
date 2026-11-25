@@ -4200,8 +4200,8 @@ static void HessianConeUpdate(mjData* d, mjPrimalContext* ctx) {
 
 
 // predict whether folding is faster than rank-1 updates for the current set, comparing flop counts:
-// sparse update path: cost_L + 10*U where U sums dim*pathcost[lastcol] over cone contacts
-// sparse folded path: Lflops/2 for the factorization plus S for cone contact outer products on H
+// sparse update path: cost_L + 10*U where U sums (dim-1)*pathcost[lastcol] over cone contacts
+// sparse folded path: Lflops for supernodal factorization plus 2*S for cone outer products on H
 // dense update path:  cost_L + 10*U where U sums (dim-1)*(nv-firstcol)*(nv-firstcol+1)/2
 //                     (mju_cholUpdate skips leading zeros k < firstcol and fills in above it)
 // dense folded path:  vectorized mju_cholFactor (4*Lflops including copy/scatter)
@@ -4214,8 +4214,8 @@ static int HessianConeFoldFaster(const mjPrimalContext* ctx, mjtSize cost_L) {
       int dim = ctx->contact[ctx->efc_id[i]].dim;
       if (ctx->is_sparse) {
         int nnz = ctx->J_rownnz[i];
-        U += (mjtSize)dim * primalRowUpdateCost(ctx, i, 1);
-        S += (mjtSize)dim * nnz * nnz;
+        U += (mjtSize)(dim - 1) * primalRowUpdateCost(ctx, i, 1);
+        S += (mjtSize)(dim - 1) * nnz * nnz;
       } else {
         U += (mjtSize)(dim - 1) * primalRowUpdateCost(ctx, i, dim);
       }
@@ -4223,7 +4223,8 @@ static int HessianConeFoldFaster(const mjPrimalContext* ctx, mjtSize cost_L) {
     }
   }
 
-  mjtSize fold_cost = ctx->is_sparse ? 3*(ctx->Lflops + 2*S) : 4*ctx->Lflops;
+  // compare update cost against folded refactorization
+  mjtSize fold_cost = ctx->is_sparse ? ctx->Lflops + 2*S : 4*ctx->Lflops;
   return cost_L + 10*U > fold_cost;
 }
 
@@ -4305,10 +4306,9 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
 
   // decide whether L is cheaper to refactorize from H than to rank-1 update, and whether cone
   // folding beats updating L plus rank-1 updating Lcone
-  int refactor_L = ctx->H &&
-      (!ctx->flg_Lvalid ||
-       ((!ctx->is_sparse || ctx->Lflops > 4096) && 10*U_quad > 3*ctx->Lflops));
-  mjtSize cost_L = refactor_L ? 3*ctx->Lflops : 10*U_quad;
+  mjtSize factor_cost = ctx->is_sparse ? ctx->Lflops : 3*ctx->Lflops;
+  int refactor_L = ctx->H && (!ctx->flg_Lvalid || 10*U_quad > factor_cost);
+  mjtSize cost_L = refactor_L ? factor_cost : 10*U_quad;
   int use_fold = HessianConeFold(d, ctx, cost_L);
   if (refactor_L || use_fold) {
     ctx->flg_Lvalid = 0;
