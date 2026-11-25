@@ -1430,6 +1430,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(flexgroup);
   X(skingroup);
   X(flags);
+  X(offset);
 #undef X
 
   // ==================== MJVSCENE =============================================

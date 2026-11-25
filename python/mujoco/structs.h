@@ -908,6 +908,7 @@ class MjWrapper<raw::MjvOption> : public WrapperBase<raw::MjvOption> {
   X(flexgroup);
   X(skingroup);
   X(flags);
+  X(offset);
   #undef X
 };
 

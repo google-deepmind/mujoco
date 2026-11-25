@@ -1226,7 +1226,8 @@ MjvOptionWrapper::MjWrapper()
       X(actuatorgroup),
       X(flexgroup),
       X(skingroup),
-      X(flags) {}
+      X(flags),
+      X(offset) {}
 #undef X
 
 MjvOptionWrapper::MjWrapper(const MjvOptionWrapper& other)

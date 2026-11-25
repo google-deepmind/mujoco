@@ -142,6 +142,8 @@ Rendering
 
 - Added :ref:`mjGEOM_DISC<mjtGeom>` rendering-only geom type for flat double-sided discs and annuli
   (``size = [r_out, r_in, 0]``).
+- Added ``mjvOption.offset``, an offset added to simulation coordinates when rendering, so that several simulations of
+  one model can be drawn side by side.
 - Fixed Filament planar reflections leaking geometry behind or crossing the mirror plane by clipping the reflection
   camera at the mirror plane with an oblique near-plane projection (:issue:`3902`).
 - Added ``image_diffuse_scale`` to :ref:`mjrfLightParams` to control the diffuse colour of image based lights.

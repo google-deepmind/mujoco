@@ -1794,6 +1794,12 @@ Euler integrator, semi-implicit in velocity.
     with self.assertRaises(TypeError):
       camera.fixedcamid = 0.5
 
+  def test_mjv_option_offset(self):
+    option = mujoco.MjvOption()
+    np.testing.assert_array_equal(option.offset, [0, 0, 0])
+    option.offset = [1, 2, 3]
+    np.testing.assert_array_equal(copy.copy(option).offset, [1, 2, 3])
+
   def test_mjv_scene(self):
     scene = mujoco.MjvScene(model=self.model, maxgeom=100)
     # scene.geoms is a fixed-length tuple of length maxgeom.

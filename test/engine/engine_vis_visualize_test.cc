@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -1148,6 +1149,160 @@ TEST_F(MjvSceneTest, DefaultInitializersClearAllStructBytes) {
   mjStatistic stat_copy;
   std::memcpy(&stat_copy, &model->stat, sizeof(mjStatistic));
   EXPECT_EQ(std::memcmp(&model->stat, &stat_copy, sizeof(mjStatistic)), 0);
+}
+
+TEST_F(MjvSceneTest, OptionOffsetShiftsGeomsLightsFlexAndSkin) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <light name="spot" type="spot" pos="0.5 -1 2" dir="0 0 -1"/>
+      <geom name="floor" type="plane" size="2 2 0.1"/>
+      <body name="box_body" pos="0.2 0.3 0.4">
+        <freejoint/>
+        <geom name="box" type="box" size="0.1 0.1 0.1"/>
+      </body>
+      <body name="deform_body" pos="0.1 -0.2 0.5"/>
+    </worldbody>
+    <deformable>
+      <flex name="f0" dim="2" radius="0.01" body="deform_body deform_body deform_body"
+            vertex="0 0 0  1 0 0  0 1 0" element="0 1 2"/>
+      <skin name="s0" vertex="0 0 0.5  1 0 0.5  0 1 0.5" face="0 1 2">
+        <bone body="deform_body" bindpos="0 0 0" bindquat="1 0 0 0"
+              vertid="0 1 2" vertweight="1 1 1"/>
+      </skin>
+    </deformable>
+  </mujoco>
+  )";
+
+  char error[1024] = "";
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  InitSceneObjects(model.get());
+  mjv_defaultOption(&opt_);
+  opt_.flags[mjVIS_FLEXVERT] = 1;
+  opt_.flags[mjVIS_FLEXEDGE] = 1;
+  opt_.flags[mjVIS_FLEXFACE] = 1;
+  opt_.flags[mjVIS_FLEXSKIN] = 0;
+  opt_.flags[mjVIS_SKIN] = 1;
+  opt_.frame = mjFRAME_BODY;
+
+  // Baseline update with zero offset.
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                  &scn_);
+  ASSERT_GT(scn_.ngeom, 0);
+  ASSERT_GE(scn_.nlight, 2);
+  ASSERT_GT(scn_.flexfaceused[0], 0);
+  ASSERT_GT(scn_.skinvertnum[0], 0);
+
+  const int base_ngeom = scn_.ngeom;
+  const int base_nlight = scn_.nlight;
+  const int base_nflexface = scn_.flexfaceused[0];
+  std::vector<mjvGeom> base_geoms(scn_.geoms, scn_.geoms + base_ngeom);
+  std::vector<mjvLight> base_lights(scn_.lights, scn_.lights + base_nlight);
+  const mjvGLCamera base_cam = scn_.camera[0];
+  std::vector<float> base_flexvert(scn_.flexvert,
+                                   scn_.flexvert + 3 * model->nflexvert);
+  std::vector<float> base_flexface(scn_.flexface,
+                                   scn_.flexface + 9 * base_nflexface);
+  std::vector<float> base_flexnormal(scn_.flexnormal,
+                                     scn_.flexnormal + 9 * base_nflexface);
+  std::vector<float> base_skinvert(scn_.skinvert,
+                                   scn_.skinvert + 3 * scn_.skinvertnum[0]);
+  std::vector<float> base_skinnormal(scn_.skinnormal,
+                                     scn_.skinnormal + 3 * scn_.skinvertnum[0]);
+
+  // Update with a non-zero offset.
+  const float offset1[3] = {1.5f, -2.5f, 3.0f};
+  std::memcpy(opt_.offset, offset1, sizeof(offset1));
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                  &scn_);
+
+  ASSERT_EQ(scn_.ngeom, base_ngeom);
+  for (int i = 0; i < base_ngeom; ++i) {
+    for (int k = 0; k < 3; ++k) {
+      EXPECT_NEAR(scn_.geoms[i].pos[k], base_geoms[i].pos[k] + offset1[k],
+                  1e-5f)
+          << "geom=" << i << " k=" << k;
+    }
+    for (int k = 0; k < 9; ++k) {
+      EXPECT_FLOAT_EQ(scn_.geoms[i].mat[k], base_geoms[i].mat[k]);
+    }
+  }
+
+  // Camera stays in scene space; headlight stays with camera; model light
+  // shifts by offset.
+  for (int k = 0; k < 3; ++k) {
+    EXPECT_FLOAT_EQ(scn_.camera[0].pos[k], base_cam.pos[k]);
+  }
+  ASSERT_EQ(scn_.nlight, base_nlight);
+  for (int i = 0; i < base_nlight; ++i) {
+    for (int k = 0; k < 3; ++k) {
+      const float shift = base_lights[i].headlight ? 0.0f : offset1[k];
+      EXPECT_NEAR(scn_.lights[i].pos[k], base_lights[i].pos[k] + shift, 1e-5f)
+          << "light=" << i << " k=" << k;
+      EXPECT_FLOAT_EQ(scn_.lights[i].dir[k], base_lights[i].dir[k]);
+    }
+  }
+
+  for (int v = 0; v < model->nflexvert; ++v) {
+    for (int k = 0; k < 3; ++k) {
+      EXPECT_NEAR(scn_.flexvert[3 * v + k],
+                  base_flexvert[3 * v + k] + offset1[k], 1e-5f);
+    }
+  }
+  ASSERT_EQ(scn_.flexfaceused[0], base_nflexface);
+  for (int v = 0; v < 3 * base_nflexface; ++v) {
+    for (int k = 0; k < 3; ++k) {
+      EXPECT_NEAR(scn_.flexface[3 * v + k],
+                  base_flexface[3 * v + k] + offset1[k], 1e-5f);
+      EXPECT_FLOAT_EQ(scn_.flexnormal[3 * v + k], base_flexnormal[3 * v + k]);
+    }
+  }
+  for (int v = 0; v < scn_.skinvertnum[0]; ++v) {
+    for (int k = 0; k < 3; ++k) {
+      EXPECT_NEAR(scn_.skinvert[3 * v + k],
+                  base_skinvert[3 * v + k] + offset1[k], 1e-5f);
+      EXPECT_FLOAT_EQ(scn_.skinnormal[3 * v + k], base_skinnormal[3 * v + k]);
+    }
+  }
+
+  // Appending a second simulation with mjv_addGeoms (without mjCAT_DECOR)
+  // shifts only the newly added geoms.
+  const float offset2[3] = {-4.0f, 5.0f, 0.5f};
+  std::memcpy(opt_.offset, offset2, sizeof(offset2));
+  mjv_addGeoms(model.get(), data.get(), &opt_, &pert_, mjCAT_DYNAMIC, &scn_);
+  ASSERT_GT(scn_.ngeom, base_ngeom);
+
+  // Earlier geoms keep offset1.
+  for (int i = 0; i < base_ngeom; ++i) {
+    for (int k = 0; k < 3; ++k) {
+      EXPECT_NEAR(scn_.geoms[i].pos[k], base_geoms[i].pos[k] + offset1[k],
+                  1e-5f);
+    }
+  }
+
+  // Newly added box geom has offset2.
+  const int box_id = mj_name2id(model.get(), mjOBJ_GEOM, "box");
+  ASSERT_GE(box_id, 0);
+  const mjvGeom* second_box = nullptr;
+  for (int i = base_ngeom; i < scn_.ngeom; ++i) {
+    if (scn_.geoms[i].objtype == mjOBJ_GEOM && scn_.geoms[i].objid == box_id) {
+      second_box = &scn_.geoms[i];
+      break;
+    }
+  }
+  ASSERT_THAT(second_box, NotNull());
+  for (int k = 0; k < 3; ++k) {
+    EXPECT_NEAR(
+        second_box->pos[k],
+        static_cast<float>(data->geom_xpos[3 * box_id + k]) + offset2[k],
+        1e-5f);
+  }
+
+  FreeSceneObjects();
 }
 }  // namespace
 }  // namespace mujoco

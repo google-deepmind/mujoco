@@ -6139,6 +6139,7 @@ public unsafe struct mjvOption_ {
   public fixed byte flags[31];
   public int bvh_depth;
   public int flex_layer;
+  public fixed float offset[3];
 }
 
 [StructLayout(LayoutKind.Sequential)]

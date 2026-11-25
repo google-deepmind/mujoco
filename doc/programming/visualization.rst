@@ -141,6 +141,8 @@ The data structure :ref:`mjvOption` controls what is shown, independently of how
   which spatial frames are drawn.
 - ``bvh_depth`` and ``flex_layer`` select which level of the bounding volume hierarchy and which layer of 3D flex
   elements are shown, respectively.
+- ``offset`` adds a 3D translation to rendered positions, allowing several simulations of one model to be drawn side
+  by side in a single scene.
 
 The function :ref:`mjv_defaultOption` sets all fields to their defaults, in which groups 0, 1 and 2 are visible and
 flags take the defaults listed in :ref:`mjVISSTRING`.

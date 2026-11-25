@@ -11099,6 +11099,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='int'),
                  doc='element layer to be visualized for 3D flex',
              ),
+             StructFieldDecl(
+                 name='offset',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='offset added to rendered positions',
+             ),
          ),
      )),
     ('mjvScene',

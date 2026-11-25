@@ -6316,6 +6316,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("geomgroup", &MjvOption::geomgroup)
     .property("jointgroup", &MjvOption::jointgroup)
     .property("label", &MjvOption::label, &MjvOption::set_label)
+    .property("offset", &MjvOption::offset)
     .property("sitegroup", &MjvOption::sitegroup)
     .property("skingroup", &MjvOption::skingroup)
     .property("tendongroup", &MjvOption::tendongroup);

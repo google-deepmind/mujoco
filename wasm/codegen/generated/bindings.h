@@ -2190,6 +2190,9 @@ struct MjvOption {
   void set_flex_layer(int value) {
     ptr_->flex_layer = value;
   }
+  emscripten::val offset() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->offset));
+  }
 
  private:
   mjvOption* ptr_;

@@ -36,7 +36,7 @@ namespace {
 // host Python (LP64 / Windows LLP64) and wasm32 (web_client); assert exact byte
 // sizes so any ABI padding drift fails at compile time.
 static_assert(sizeof(mjtNum) == 8 && alignof(mjtNum) == 8);
-static_assert(kRenderStateSize == 1312);
+static_assert(kRenderStateSize == 1324);
 static_assert(sizeof(mjvGeom) == 256);
 
 // Appends raw bytes to the payload buffer.
