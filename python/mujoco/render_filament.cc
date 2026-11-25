@@ -236,6 +236,24 @@ void DefProperty(pybind11::class_<C, O...>& c, const char* name, T C::* prop) {
 void InitRenderFilament(pybind11::module_& m) {
 #include "render_filament_generated.cc.inc"
 
+  // a null render target renders directly to the window, but the generated
+  // binding requires a non-null object, so rebind the property to accept None
+  mjrf_render_request.def_property(
+      "target",
+      [](const mjrfRenderRequest& req) -> py::object {
+        if (req.target == nullptr) {
+          return py::none();
+        }
+        return py::cast(PyRenderTarget(req.target));
+      },
+      [](mjrfRenderRequest& req, py::object target) {
+        if (target.is_none()) {
+          req.target = nullptr;
+          return;
+        }
+        req.target = py::cast<PyRenderTarget*>(target)->get();
+      });
+
   // Explicit bindings for memory management functions.
 
   // Note: ReadRequest stores a raw pointer to `buffer`; the caller must

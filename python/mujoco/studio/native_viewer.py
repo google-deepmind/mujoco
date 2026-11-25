@@ -84,8 +84,16 @@ class NativeViewer(viewer_protocol.Viewer):
         gfx_mode,
     )
 
+    # The headless modes render to a pixel buffer instead of the window.
+    native_window = 0
+    if not _viewer.render_to_pixels(self._window.GetGraphicsMode()):
+      native_window = self._window.GetNativeWindowHandle()
+
     mjrf_ctx = mjrf.Context(
-        mjrf.ContextConfig(graphics_api=mjrf.GraphicsApi.GRAPHICS_API_OPENGL)
+        mjrf.ContextConfig(
+            graphics_api=mjrf.GraphicsApi.GRAPHICS_API_OPENGL,
+            native_window=native_window,
+        )
     )
     self._renderer = renderer.Renderer(mjrf_ctx)
     self._model_scene = None
@@ -139,6 +147,7 @@ class NativeViewer(viewer_protocol.Viewer):
     else:
       width = self._window.GetDrawableWidth()
       height = self._window.GetDrawableHeight()
+      self._renderer.set_window_size(width, height)
 
     self._sync_renderer(self.model)
     self._imgui_bridge.update()
@@ -172,7 +181,7 @@ class NativeViewer(viewer_protocol.Viewer):
 
     scene_view = renderer.View(
         scene='scn',
-        target='out' if pixels is not None else '',
+        target='out' if pixels is not None else None,
         camera=gl_camera,
         draw_mode=draw_mode,
         shadows=self.render_flags.flags[mujoco.mjtRndFlag.mjRND_SHADOW],
@@ -203,7 +212,7 @@ class NativeViewer(viewer_protocol.Viewer):
     )
     ux_view = renderer.View(
         scene='ux',
-        target='out' if pixels is not None else '',
+        target='out' if pixels is not None else None,
         camera=ux_camera,
         shadows=False,
         reflections=False,
@@ -231,12 +240,17 @@ class NativeViewer(viewer_protocol.Viewer):
     finally:
       # Destroy the C++ viewer *before* closing the endpoint so that the
       # FilamentRenderer destructor runs on the daemon/viewer thread, even if
-      # an ExitEvent handler raised.
-      del self._model_scene
-      del self._imgui_bridge
-      del self._renderer
-      del self._window
-      super().close()
+      # an ExitEvent handler raised. Close the renderer first so that it
+      # releases its context on this thread rather than during garbage
+      # collection.
+      try:
+        del self._model_scene
+        del self._imgui_bridge
+        self._renderer.close()
+        del self._renderer
+        del self._window
+      finally:
+        super().close()
 
   def get_drop_file(self) -> str:
     """Returns the path of the file dropped into the window, or empty string."""
