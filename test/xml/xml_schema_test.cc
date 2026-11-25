@@ -13,13 +13,17 @@
 // limitations under the License.
 
 #include <optional>
+#include <sstream>
 #include <string>
+#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include <gtest/gtest.h>
-#include "src/xml/xml_native_reader.h"
-#include "test/fixture.h"
 #include "absl/strings/str_format.h"
+#include "src/xml/xml_native_reader.h"
+#include "src/xml/xml_util.h"
+#include "test/fixture.h"
+#include "tinyxml2.h"
 
 namespace mujoco {
 namespace {
@@ -121,6 +125,115 @@ TEST_F(XMLSchemaTest, MjcfSchemaTest) {
 
   EXPECT_EQ(error_msg, "");
   ASSERT_FALSE(error.has_value());
+}
+
+TEST_F(XMLSchemaTest, DeduplicatesAttributesAndHandlesNullElement) {
+  std::vector<const char*> rows[] = {
+      {"item", "!", "pos", "name", "pos"},
+  };
+  mjXSchema schema(rows, 1);
+
+  std::stringstream out;
+  schema.Print(out, 0);
+  EXPECT_EQ(out.str(), "item (!)                      name pos \n");
+
+  std::string error = "stale";
+  EXPECT_EQ(schema.Check(nullptr, 0, error), nullptr);
+  EXPECT_EQ(error, "");
+
+  std::vector<const char*> recursive_rows[] = {
+      {"item", "R", "name"},
+  };
+  mjXSchema recursive_schema(recursive_rows, 1);
+  tinyxml2::XMLDocument ns_doc;
+  ns_doc.Parse(R"(
+  <item xmlns="http://example.com">
+    <item xmlns="http://example.com"/>
+  </item>
+  )");
+  EXPECT_NE(recursive_schema.Check(ns_doc.RootElement(), 0, error), nullptr);
+  EXPECT_EQ(error, "unrecognized attribute: 'xmlns'");
+}
+
+TEST_F(XMLSchemaTest, ConcurrentSchemaCheck) {
+  static constexpr char kValidXml[] = R"(
+  <mujoco model="concurrent">
+    <default>
+      <default class="sub">
+        <geom size="0.1"/>
+      </default>
+    </default>
+    <worldbody>
+      <body name="b1" pos="0 0 1">
+        <joint type="hinge"/>
+        <geom class="sub"/>
+        <body name="b2" pos="0.2 0 0">
+          <joint type="slide"/>
+          <geom size="0.05"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char kInvalidAttrXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom unknown_attr="1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char kDuplicateUniqueXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <inertial mass="1"/>
+        <inertial mass="2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  const mjXSchema schema(MJCF, nMJCF, MJCF_constraints, nMJCF_constraints);
+  ASSERT_EQ(schema.GetError(), "");
+
+  constexpr int kNumThreads = 8;
+  constexpr int kIters = 50;
+  std::vector<int> failures(kNumThreads, 0);
+  std::vector<std::thread> threads;
+  threads.reserve(kNumThreads);
+  for (int t = 0; t < kNumThreads; ++t) {
+    threads.emplace_back([t, &schema, &failures]() {
+      std::string err;
+      for (int i = 0; i < kIters; ++i) {
+        tinyxml2::XMLDocument valid_doc;
+        valid_doc.Parse(kValidXml);
+        if (schema.Check(valid_doc.RootElement(), 0, err) != nullptr ||
+            !err.empty()) {
+          failures[t]++;
+        }
+
+        tinyxml2::XMLDocument bad_attr_doc;
+        bad_attr_doc.Parse(kInvalidAttrXml);
+        if (schema.Check(bad_attr_doc.RootElement(), 0, err) == nullptr ||
+            err != "unrecognized attribute: 'unknown_attr'") {
+          failures[t]++;
+        }
+
+        tinyxml2::XMLDocument dup_doc;
+        dup_doc.Parse(kDuplicateUniqueXml);
+        if (schema.Check(dup_doc.RootElement(), 0, err) == nullptr ||
+            err != "unique element 'inertial' found 2 times") {
+          failures[t]++;
+        }
+      }
+    });
+  }
+  for (std::thread& th : threads) {
+    th.join();
+  }
+  for (int t = 0; t < kNumThreads; ++t) {
+    EXPECT_EQ(failures[t], 0) << "thread=" << t;
+  }
 }
 
 }  // namespace

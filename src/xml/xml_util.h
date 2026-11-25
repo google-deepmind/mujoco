@@ -19,10 +19,9 @@
 #include <array>
 #include <functional>
 #include <optional>
-#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
 
 #include <mujoco/mujoco.h>
 #include "user/user_util.h"
@@ -73,25 +72,30 @@ class mjXSchema {
             int                      nconstraint = 0,
             int                      first_row   = 0);
 
-  std::string GetError();                                      // return error
+  std::string GetError() const;                                // return error
   void        Print(std::stringstream& str, int level) const;  // print schema
   void        PrintHTML(std::stringstream& str, int level, bool pad) const;
 
-  bool                  NameMatch(tinyxml2::XMLElement* elem, int level);  // does name match
-  tinyxml2::XMLElement* Check(tinyxml2::XMLElement* elem, int level);      // validator
+  bool                  NameMatch(const tinyxml2::XMLElement* elem, int level) const;
+  tinyxml2::XMLElement* Check(tinyxml2::XMLElement* elem, int level, std::string& error_out) const;
 
 
  private:
-  std::string            name_;       // element name
-  char                   type_;       // element type: '?', '!', '*', 'R'
-  std::set<std::string>  attr_;       // allowed attributes
-  std::vector<mjXSchema> subschema_;  // allowed child elements
+  struct ParsedConstraint {
+    char                                  kind;         // constraint type: 'e', 't', 'r', or 'o'
+    std::vector<std::vector<std::string>> bundles;      // '|' groups of space-separated attributes
+    std::string                           bundle_list;  // formatted bundle list for error messages
+  };
 
-  std::vector<const mjXConstraintDef*> constraints_;  // constraints here
-  tinyxml2::XMLElement*                CheckConstraints(tinyxml2::XMLElement* elem);
+  std::string              name_;       // element name
+  char                     type_;       // element type: '?', '!', '*', 'R'
+  std::vector<std::string> attr_;       // sorted allowed attributes
+  std::vector<mjXSchema>   subschema_;  // allowed child elements
 
-  int         refcnt_ = 0;  // refcount used for validation
-  std::string error;        // error from constructor or Check
+  std::vector<ParsedConstraint> constraints_;  // pre-parsed presence constraints
+  tinyxml2::XMLElement* CheckConstraints(tinyxml2::XMLElement* elem, std::string& error_out) const;
+
+  std::string error_;  // error from constructor
 };
 
 

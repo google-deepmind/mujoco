@@ -178,7 +178,14 @@ static void UpdateString(string& psuffix, int count, int i) {
 #include "xml/generated/mjcf_read_table.inc"
 
 
-mjXReader::mjXReader() : schema(MJCF, nMJCF, MJCF_constraints, nMJCF_constraints) {
+const mjXSchema& mjXReader::Schema() {
+  static const mjXSchema* const kSchema =
+      new mjXSchema(MJCF, nMJCF, MJCF_constraints, nMJCF_constraints);
+  return *kSchema;
+}
+
+
+mjXReader::mjXReader() {
   readingdefaults = false;
 }
 
@@ -186,9 +193,9 @@ mjXReader::mjXReader() : schema(MJCF, nMJCF, MJCF_constraints, nMJCF_constraints
 // print schema
 void mjXReader::PrintSchema(std::stringstream& str, bool html, bool pad) {
   if (html) {
-    schema.PrintHTML(str, 0, pad);
+    Schema().PrintHTML(str, 0, pad);
   } else {
-    schema.Print(str, 0);
+    Schema().Print(str, 0);
   }
 }
 
@@ -197,14 +204,15 @@ void mjXReader::PrintSchema(std::stringstream& str, bool html, bool pad) {
 //  mjCModel is allocated here; caller is responsible for deallocation
 void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
   // check schema
+  const mjXSchema& schema = Schema();
   if (!schema.GetError().empty()) {
     throw mjXError(0, "XML Schema Construction Error: %s", schema.GetError().c_str());
   }
 
   // validate
-  XMLElement* bad = 0;
-  if ((bad = schema.Check(root, 0))) {
-    throw mjXError(bad, "Schema violation: %s", schema.GetError().c_str());
+  string schema_error;
+  if (XMLElement* bad = schema.Check(root, 0, schema_error)) {
+    throw mjXError(bad, "Schema violation: %s", schema_error.c_str());
   }
 
   // get model name

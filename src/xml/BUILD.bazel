@@ -275,7 +275,7 @@ cc_library(
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
     ],
-    visibility = ["//visibility:private"],
+    visibility = ["//:__subpackages__"],
     deps = [
         ":xml_numeric_format",
         "//:libmujoco_hdrs",

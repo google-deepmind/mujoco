@@ -29,6 +29,7 @@
 #include <sstream>
 #include <stack>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -405,6 +406,25 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
   return nullptr;
 }
 
+// quoted list of constraint bundles: 'a' or ('a', 'b'), comma-joined
+static string BundleList(const vector<vector<string>>& bundles) {
+  string out;
+  for (size_t i = 0; i < bundles.size(); i++) {
+    if (i) { out += ", "; }
+    if (bundles[i].size() == 1) {
+      out += "'" + bundles[i][0] + "'";
+    } else {
+      out += '(';
+      for (size_t j = 0; j < bundles[i].size(); j++) {
+        out += (j ? ", '" : "'") + bundles[i][j] + "'";
+      }
+      out += ')';
+    }
+  }
+  return out;
+}
+
+
 // constructor
 mjXSchema::mjXSchema(vector<const char*>     schema[],
                      unsigned                nrow,
@@ -415,14 +435,36 @@ mjXSchema::mjXSchema(vector<const char*>     schema[],
   name_ = schema[0][0];
   type_ = schema[0][1][0];
 
-  // adopt the presence constraints declared for this row
+  // pre-parse the presence constraints declared for this row
   for (int i = 0; i < nconstraint; i++) {
-    if (constraints[i].row == first_row) { constraints_.push_back(&constraints[i]); }
+    if (constraints[i].row == first_row) {
+      ParsedConstraint parsed;
+      parsed.kind = constraints[i].kind;
+      parsed.bundles.emplace_back();
+      string token;
+      for (const char* c = constraints[i].spec;; c++) {
+        if (*c == ' ' || *c == '|' || *c == '\0') {
+          if (!token.empty()) {
+            parsed.bundles.back().push_back(token);
+            token.clear();
+          }
+          if (*c == '|') { parsed.bundles.emplace_back(); }
+          if (*c == '\0') { break; }
+        } else {
+          token += *c;
+        }
+      }
+      parsed.bundle_list = BundleList(parsed.bundles);
+      constraints_.push_back(std::move(parsed));
+    }
   }
 
-  // set attributes
+  // set sorted, deduplicated attributes
   int nattr = schema[0].size() - 2;
-  for (int i = 0; i < nattr; i++) { attr_.emplace(schema[0][2 + i]); }
+  attr_.reserve(nattr);
+  for (int i = 0; i < nattr; i++) { attr_.emplace_back(schema[0][2 + i]); }
+  std::sort(attr_.begin(), attr_.end());
+  attr_.erase(std::unique(attr_.begin(), attr_.end()), attr_.end());
 
   // process sub-elements of complex element
   if (nrow > 1) {
@@ -461,48 +503,12 @@ mjXSchema::mjXSchema(vector<const char*>     schema[],
 }
 
 
-// quoted list of constraint bundles: 'a' or ('a', 'b'), comma-joined
-static string BundleList(const vector<vector<string>>& bundles) {
-  string out;
-  for (size_t i = 0; i < bundles.size(); i++) {
-    if (i) { out += ", "; }
-    if (bundles[i].size() == 1) {
-      out += "'" + bundles[i][0] + "'";
-    } else {
-      out += '(';
-      for (size_t j = 0; j < bundles[i].size(); j++) {
-        out += (j ? ", '" : "'") + bundles[i][j] + "'";
-      }
-      out += ')';
-    }
-  }
-  return out;
-}
-
-
 // enforce the presence constraints declared for this element
-XMLElement* mjXSchema::CheckConstraints(XMLElement* elem) {
-  for (const mjXConstraintDef* con : constraints_) {
-    // split the spec into bundles of attribute names
-    vector<vector<string>> bundles(1);
-
-    string token;
-    for (const char* c = con->spec;; c++) {
-      if (*c == ' ' || *c == '|' || *c == '\0') {
-        if (!token.empty()) {
-          bundles.back().push_back(token);
-          token.clear();
-        }
-        if (*c == '|') { bundles.emplace_back(); }
-        if (*c == '\0') { break; }
-      } else {
-        token += *c;
-      }
-    }
-
+XMLElement* mjXSchema::CheckConstraints(XMLElement* elem, string& error_out) const {
+  for (const ParsedConstraint& con : constraints_) {
     // per-bundle presence: any member present / all members present
     int n_any = 0, n_all = 0, n_attr = 0, n_present = 0;
-    for (const auto& bundle : bundles) {
+    for (const auto& bundle : con.bundles) {
       bool any = false, all = true;
       for (const string& attr : bundle) {
         bool present  = elem->Attribute(attr.c_str()) != nullptr;
@@ -515,30 +521,34 @@ XMLElement* mjXSchema::CheckConstraints(XMLElement* elem) {
       n_all += all;
     }
 
-    switch (con->kind) {
+    switch (con.kind) {
       case 'e':  // at most one bundle may be present
         if (n_any > 1) {
-          error = "at most one of " + BundleList(bundles) + " can be specified";
+          error_out = "at most one of " + con.bundle_list + " can be specified";
           return elem;
         }
         break;
       case 't':  // all listed attributes appear together or not at all
         if (n_present != 0 && n_present != n_attr) {
-          error = "attributes " + BundleList(bundles) + " must be specified together";
+          error_out = "attributes " + con.bundle_list + " must be specified together";
           return elem;
         }
         break;
       case 'r':  // first attribute requires the second
         if (n_any &&
-            elem->Attribute(bundles[0][0].c_str()) &&
-            !elem->Attribute(bundles[1][0].c_str())) {
-          error = "attribute '" + bundles[0][0] + "' requires attribute '" + bundles[1][0] + "'";
+            elem->Attribute(con.bundles[0][0].c_str()) &&
+            !elem->Attribute(con.bundles[1][0].c_str())) {
+          error_out = "attribute '" +
+                      con.bundles[0][0] +
+                      "' requires attribute '" +
+                      con.bundles[1][0] +
+                      "'";
           return elem;
         }
         break;
       case 'o':  // at least one bundle must be complete
         if (n_all == 0) {
-          error = "one of " + BundleList(bundles) + " must be specified";
+          error_out = "one of " + con.bundle_list + " must be specified";
           return elem;
         }
         break;
@@ -548,9 +558,9 @@ XMLElement* mjXSchema::CheckConstraints(XMLElement* elem) {
 }
 
 
-// get pointer to error message
-string mjXSchema::GetError() {
-  return error;
+// get error message from schema construction
+string mjXSchema::GetError() const {
+  return error_;
 }
 
 
@@ -631,7 +641,7 @@ void mjXSchema::PrintHTML(stringstream& str, int level, bool pad) const {
 
 
 // check for name match
-bool mjXSchema::NameMatch(XMLElement* elem, int level) {
+bool mjXSchema::NameMatch(const XMLElement* elem, int level) const {
   // special handling of body, worldbody, and frame
   if (name_ == "body" && ((level == 1 && !strcmp(elem->Value(), "worldbody")) ||
                           (level != 1 && !strcmp(elem->Value(), "body")) ||
@@ -646,19 +656,15 @@ bool mjXSchema::NameMatch(XMLElement* elem, int level) {
 
 
 // validator
-XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
-  bool        missing;
-  char        msg[100];
-  XMLElement *bad, *sub;
-
-  error.clear();
+XMLElement* mjXSchema::Check(XMLElement* elem, int level, string& error_out) const {
+  error_out.clear();
   if (!elem) {
-    return 0;  // SHOULD NOT OCCUR
+    return nullptr;  // SHOULD NOT OCCUR
   }
 
   // check name (already done by parent, but hard to avoid)
   if (!NameMatch(elem, level)) {
-    error = "unrecognized element";
+    error_out = "unrecognized element";
     return elem;
   }
 
@@ -670,74 +676,73 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
     if (level == 0 && (strchr(attribute->Name(), ':') || !strcmp(attribute->Name(), "xmlns"))) {
       continue;
     }
-    if (attr_.find(attribute->Name()) == attr_.end()) {
-      error = "unrecognized attribute: '" + string(attribute->Name()) + "'";
+    if (!std::binary_search(attr_.begin(), attr_.end(), std::string_view(attribute->Name()))) {
+      error_out = "unrecognized attribute: '" + string(attribute->Name()) + "'";
       return elem;
     }
   }
 
   // check presence constraints
-  if ((bad = CheckConstraints(elem))) { return bad; }
+  if (XMLElement* bad = CheckConstraints(elem, error_out)) { return bad; }
 
   // handle recursion
   if (type_ == 'R') {
     // check child elements with same name
-    sub = FirstChildElement(elem, name_.c_str());
-    for (; sub != nullptr; sub = NextSiblingElement(sub, name_.c_str())) {
-      if ((bad = Check(sub, level + 1))) { return bad; }
+    for (XMLElement* sub = FirstChildElement(elem, name_.c_str()); sub != nullptr;
+         sub             = NextSiblingElement(sub, name_.c_str())) {
+      if (XMLElement* bad = Check(sub, level + 1, error_out)) { return bad; }
     }
   }
 
-  // clear reference counts
-  for (mjXSchema& subschema : subschema_) { subschema.refcnt_ = 0; }
+  // child reference counts for stateless concurrent validation
+  const size_t nsub = subschema_.size();
+  vector<int>  refcnt(nsub, 0);
 
   // check sub-elements, update refcnt
-  sub = FirstChildElement(elem);
-  for (; sub != nullptr; sub = NextSiblingElement(sub)) {
-    missing = true;
+  for (XMLElement* sub = FirstChildElement(elem); sub != nullptr; sub = NextSiblingElement(sub)) {
+    bool missing = true;
 
-    for (mjXSchema& subschema : subschema_) {
-      if (subschema.NameMatch(sub, level + 1)) {
+    for (size_t i = 0; i < nsub; i++) {
+      if (subschema_[i].NameMatch(sub, level + 1)) {
         // check sub-tree
-        if ((bad = subschema.Check(sub, level + 1))) {
-          error = subschema.error;
-          return bad;
-        }
+        if (XMLElement* bad = subschema_[i].Check(sub, level + 1, error_out)) { return bad; }
 
         // mark found
         missing = false;
-        subschema.refcnt_++;
+        refcnt[i]++;
         break;
       }
     }
 
     // missing, unless recursive
     if (missing && !(type_ == 'R' && NameMatch(sub, level + 1))) {
-      error = "unrecognized element";
+      error_out = "unrecognized element";
       return sub;
     }
   }
 
   // enforce sub-element types
+  char msg[100];
   msg[0] = '\0';
-  for (mjXSchema& subschema : subschema_) {
+  for (size_t i = 0; i < nsub; i++) {
+    const mjXSchema& subschema = subschema_[i];
     switch (subschema.type_) {
       case '!':
-        if (subschema.refcnt_ > 1)
+        if (refcnt[i] > 1)
           mju::sprintf_arr(msg,
                            "unique element '%s' found %d times",
                            subschema.name_.c_str(),
-                           subschema.refcnt_);
-        else if (subschema.refcnt_ < 1)
+                           refcnt[i]);
+        else if (refcnt[i] < 1)
           mju::sprintf_arr(msg, "element '%s' is required", subschema.name_.c_str());
         break;
 
       case '?':
-        if (subschema.refcnt_ > 1)
+        if (refcnt[i] > 1)
           mju::sprintf_arr(msg,
                            "unique element '%s' found %d times",
                            subschema.name_.c_str(),
-                           subschema.refcnt_);
+                           refcnt[i]);
         break;
 
       default:
@@ -747,7 +752,7 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
 
   // handle error
   if (msg[0]) {
-    error = msg;
+    error_out = msg;
     return elem;
   }
   return nullptr;

@@ -100,8 +100,8 @@ class mjXReader : public mjXBase {
   void OneFlexcomp(tinyxml2::XMLElement* elem, mjsBody* pbody, mjsFrame* pframe, const mjVFS* vfs);
   void OnePlugin(tinyxml2::XMLElement* elem, mjsPlugin* plugin);
 
-  mjXSchema         schema;                                   // schema used for validation
-  const mjsDefault* GetClass(tinyxml2::XMLElement* section);  // get default class name
+  static const mjXSchema& Schema();  // shared schema used for validation
+  const mjsDefault*       GetClass(tinyxml2::XMLElement* section);  // get default class name
 
   bool readingdefaults;  // true while reading defaults
 

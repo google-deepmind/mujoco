@@ -427,5 +427,134 @@ TEST_F(MujocoTest, FreeLastXml) {
   ASSERT_EQ(mj_saveLastXML(nullptr, nullptr, nullptr, 0), 0);
 }
 
+TEST_F(MujocoTest, PrintSchemaDeterministic) {
+  const int text_len = mj_printSchema(nullptr, nullptr, 0, 0, 0);
+  ASSERT_GT(text_len, 0);
+  std::string text1(text_len + 1, '\0');
+  std::string text2(text_len + 1, '\0');
+  EXPECT_EQ(mj_printSchema(nullptr, text1.data(), text1.size(), 0, 0),
+            text_len);
+  EXPECT_EQ(mj_printSchema(nullptr, text2.data(), text2.size(), 0, 0),
+            text_len);
+  EXPECT_EQ(text1, text2);
+  EXPECT_THAT(text1.c_str(), HasSubstr("(world)body (R)"));
+  EXPECT_THAT(text1.c_str(), HasSubstr("align group name "));
+
+  const int html_len = mj_printSchema(nullptr, nullptr, 0, 1, 1);
+  ASSERT_GT(html_len, 0);
+  std::string html_pad(html_len + 1, '\0');
+  EXPECT_EQ(mj_printSchema(nullptr, html_pad.data(), html_pad.size(), 1, 1),
+            html_len);
+  EXPECT_THAT(html_pad.c_str(), StartsWith("<table border=\"1\">\n"));
+  EXPECT_THAT(html_pad.c_str(), HasSubstr("padding-left:"));
+
+  const int nbsp_len = mj_printSchema(nullptr, nullptr, 0, 1, 0);
+  ASSERT_GT(nbsp_len, 0);
+  std::string html_nbsp(nbsp_len + 1, '\0');
+  EXPECT_EQ(mj_printSchema(nullptr, html_nbsp.data(), html_nbsp.size(), 1, 0),
+            nbsp_len);
+  EXPECT_THAT(html_nbsp.c_str(), HasSubstr("&nbsp;"));
+}
+
+TEST_F(MujocoTest, SchemaValidationErrors) {
+  std::array<char, 1024> error;
+
+  // XML namespace attributes on the root element are tolerated.
+  static constexpr char kRootNamespaceXml[] = R"(
+  <mujoco xmlns="http://mujoco.org"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="mjcf.xsd"/>
+  )";
+  mjSpec* valid =
+      mj_parseXMLString(kRootNamespaceXml, nullptr, error.data(), error.size());
+  ASSERT_THAT(valid, NotNull()) << error.data();
+  mj_deleteSpec(valid);
+
+  // Unrecognized element.
+  static constexpr char kBadElementXml[] = R"(
+  <mujoco>
+    <bogus/>
+  </mujoco>
+  )";
+  EXPECT_THAT(
+      mj_parseXMLString(kBadElementXml, nullptr, error.data(), error.size()),
+      IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("Schema violation: unrecognized element"));
+
+  // Unrecognized attribute.
+  static constexpr char kBadAttrXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom bogus="1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  EXPECT_THAT(
+      mj_parseXMLString(kBadAttrXml, nullptr, error.data(), error.size()),
+      IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("Schema violation: unrecognized attribute: 'bogus'"));
+
+  // Exclusive ('e') constraint on <size>.
+  static constexpr char kExclusiveXml[] = R"(
+  <mujoco>
+    <size memory="1M" nstack="100"/>
+  </mujoco>
+  )";
+  EXPECT_THAT(
+      mj_parseXMLString(kExclusiveXml, nullptr, error.data(), error.size()),
+      IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("at most one of 'memory', 'nstack' can be specified"));
+
+  // Oneof ('o') constraint on <connect>.
+  static constexpr char kOneofXml[] = R"(
+  <mujoco>
+    <equality>
+      <connect/>
+    </equality>
+  </mujoco>
+  )";
+  EXPECT_THAT(mj_parseXMLString(kOneofXml, nullptr, error.data(), error.size()),
+              IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "one of ('site1', 'site2'), ('body1', 'anchor') must be specified"));
+
+  // Together ('t') constraint on <framepos>.
+  static constexpr char kTogetherXml[] = R"(
+  <mujoco>
+    <sensor>
+      <framepos objtype="site" objname="s" reftype="site"/>
+    </sensor>
+  </mujoco>
+  )";
+  EXPECT_THAT(
+      mj_parseXMLString(kTogetherXml, nullptr, error.data(), error.size()),
+      IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("attributes 'reftype', 'refname' must be specified together"));
+
+  // Duplicate unique ('?') element under <body/>.
+  static constexpr char kDuplicateInertialXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <inertial mass="1"/>
+        <inertial mass="2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  EXPECT_THAT(mj_parseXMLString(kDuplicateInertialXml, nullptr, error.data(),
+                                error.size()),
+              IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("unique element 'inertial' found 2 times"));
+}
+
 }  // namespace
 }  // namespace mujoco

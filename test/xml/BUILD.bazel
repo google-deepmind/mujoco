@@ -157,9 +157,11 @@ cc_test(
     cxxopts = ["-std=c++20"],
     deps = [
         "//src/xml:xml_native_reader",
+        "//src/xml:xml_util",
         "//test:fixture",
         "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest_main",
+        "@tinyxml2",
     ],
 )
 
