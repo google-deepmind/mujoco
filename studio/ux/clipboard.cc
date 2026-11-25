@@ -78,14 +78,106 @@ EM_JS(void, WriteBrowserClipboard, (const char* text), {
 
 namespace mujoco::studio {
 
+namespace {
+
+// State of SetClipboardCopyCallback(). The browser builds have one Dear ImGui context, so one
+// global instance is enough.
+struct ClipboardSync {
+  // Called with each text copied in the UI, or null if no callback is set.
+  ClipboardCopyFn on_copy = nullptr;
+  // The platform's own handler, which SetClipboardTextAndNotify() replaced and still calls.
+  void (*platform_set_text)(ImGuiContext* ctx, const char* text) = nullptr;
+  // True inside SetClipboardTextFromBrowser(), whose text must not be written back.
+  bool text_from_browser = false;
+};
+ClipboardSync g_clipboard_sync;
+
+// Dear ImGui's Platform_SetClipboardTextFn once SetClipboardCopyCallback() was called. Stores the
+// text with the platform's own handler, then passes it to the copy callback unless it came from the
+// browser.
+void SetClipboardTextAndNotify(ImGuiContext* ctx, const char* text) {
+  if (g_clipboard_sync.platform_set_text) {
+    g_clipboard_sync.platform_set_text(ctx, text);
+  }
+  if (g_clipboard_sync.on_copy && !g_clipboard_sync.text_from_browser) {
+    g_clipboard_sync.on_copy(text);
+  }
+}
+
+}  // namespace
+
+void SetClipboardCopyCallback(ClipboardCopyFn on_copy) {
+  g_clipboard_sync.on_copy = on_copy;
+  ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+  if (platform_io.Platform_SetClipboardTextFn != &SetClipboardTextAndNotify) {
+    g_clipboard_sync.platform_set_text = platform_io.Platform_SetClipboardTextFn;
+    platform_io.Platform_SetClipboardTextFn = &SetClipboardTextAndNotify;
+  }
+}
+
+void SyncClipboardWithBrowser() {
+#if defined(__EMSCRIPTEN__)
+  // In the browser builds the platform clipboard is only SDL's internal buffer, since SDL's
+  // Emscripten port has no clipboard. The other builds already use the system clipboard.
+  SetClipboardCopyCallback(&WriteBrowserClipboard);
+#endif
+}
+
+void SetClipboardTextFromBrowser(const std::string& text) {
+  // The same as ImGui::SetClipboardText() when no copy callback is set.
+  g_clipboard_sync.text_from_browser = true;
+  ImGui::SetClipboardText(text.c_str());
+  g_clipboard_sync.text_from_browser = false;
+}
+
 void MaybeSaveToClipboard(const std::string& contents) {
-  // ImGui's platform clipboard, which in-app paste reads. In the browser builds
-  // this is only SDL's internal buffer, since SDL's Emscripten port has no
-  // clipboard, so also write the browser's clipboard there.
+  // ImGui's platform clipboard, which in-app paste reads. In the browser builds this also writes
+  // the browser's clipboard once SyncClipboardWithBrowser() was called; do it here otherwise.
   ImGui::SetClipboardText(contents.c_str());
 #if defined(__EMSCRIPTEN__)
-  WriteBrowserClipboard(contents.c_str());
+  if (g_clipboard_sync.on_copy == nullptr) {
+    WriteBrowserClipboard(contents.c_str());
+  }
 #endif
+}
+
+void PressPasteShortcut(ImGuiIO& io) {
+  // AddKeyEvent() swaps Super and Ctrl when ConfigMacOSXBehaviors is set, so pass Super there to
+  // produce ImGuiMod_Ctrl for InputText's paste chord.
+  const ImGuiKey paste_mod = io.ConfigMacOSXBehaviors ? ImGuiMod_Super : ImGuiMod_Ctrl;
+  const ImGuiKey other_mod = io.ConfigMacOSXBehaviors ? ImGuiMod_Ctrl : ImGuiMod_Super;
+  // Lift the other modifiers first, because the shortcut only matches exactly Ctrl+V (a
+  // Shift+Insert paste would otherwise read as Ctrl+Shift+V).
+  io.AddKeyEvent(other_mod, false);
+  io.AddKeyEvent(ImGuiMod_Shift, false);
+  io.AddKeyEvent(ImGuiMod_Alt, false);
+  io.AddKeyEvent(paste_mod, true);
+  io.AddKeyEvent(ImGuiKey_V, false);
+  io.AddKeyEvent(ImGuiKey_V, true);
+}
+
+void ReleasePasteShortcut(ImGuiIO& io, const HeldPasteKeys& held) {
+  // V and the modifiers go back to `held` rather than simply being lifted, so a key the user is
+  // still holding does not look released until they press it again.
+  io.AddKeyEvent(ImGuiKey_V, held.v);
+  io.AddKeyEvent(ImGuiMod_Ctrl, held.ctrl);
+  io.AddKeyEvent(ImGuiMod_Shift, held.shift);
+  io.AddKeyEvent(ImGuiMod_Alt, held.alt);
+  io.AddKeyEvent(ImGuiMod_Super, held.super);
+}
+
+void QueuePasteShortcut(ImGuiIO& io) {
+  // What the user is holding. V is taken to be up: the page stops the real key press before it
+  // reaches Dear ImGui. io.KeyCtrl and io.KeySuper are read after Dear ImGui swapped them for
+  // ConfigMacOSXBehaviors, so swap them back to the physical keys.
+  const bool macos = io.ConfigMacOSXBehaviors;
+  HeldPasteKeys held;
+  held.ctrl = macos ? io.KeySuper : io.KeyCtrl;
+  held.super = macos ? io.KeyCtrl : io.KeySuper;
+  held.shift = io.KeyShift;
+  held.alt = io.KeyAlt;
+  PressPasteShortcut(io);
+  ReleasePasteShortcut(io, held);
 }
 
 }  // namespace mujoco::studio

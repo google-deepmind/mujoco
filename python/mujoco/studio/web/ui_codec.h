@@ -147,6 +147,34 @@ struct Texture {
 
 // Followed immediately on the wire by `header.size - sizeof(Clipboard)` bytes
 // of UTF-8 text.
+//
+// Clipboard flow over /ui:
+//
+// Copy and open URL (server -> browser). The headless UI's SetClipboardText
+// callback queues a kClipboard message. The browser copies its text to the OS
+// clipboard, or opens it in a new tab when kOpenUrl is set.
+//
+// Paste (browser -> whichever UI has keyboard focus). index.html takes the text
+// from the DOM "paste" event and hands it to RemoteUi::SendBrowserPaste():
+// - Browser (WASM) UI, i.e. a local overlay such as the role bar: the text
+//   becomes the local Dear ImGui clipboard and the paste shortcut is
+//   synthesized there. Nothing is sent to the server.
+// - Remote (Python) UI: the text is sent as a kClipboard message.
+//   HeadlessUiSession::ApplyInput() makes it the headless Dear ImGui clipboard
+//   and synthesizes the paste shortcut there.
+//
+// Why paste works this way:
+// - The text comes from the "paste" event because browsers do not let a page
+//   poll the OS clipboard, and navigator.clipboard.readText() is async, needs a
+//   permission prompt, and is blocked on plain HTTP.
+// - index.html stops Ctrl+V / Cmd+V keydowns before SDL2 sees them, for two
+//   reasons. Emscripten's SDL2 calls preventDefault() on any keydown with
+//   ctrlKey, which would suppress the "paste" event. And keydown fires before
+//   "paste", so a forwarded Ctrl+V would run Dear ImGui's paste shortcut before
+//   the new text arrives.
+// - Neither UI therefore sees the real V key press (and Edit -> Paste has no
+//   key event at all), so the shortcut is synthesized once the text is in
+//   place; see QueuePasteShortcut() in the Studio clipboard.h.
 struct Clipboard {
   // MessageHeader::flags bits.
   //

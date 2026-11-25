@@ -99,6 +99,11 @@ Python bindings
   stored the ``ImportError`` in ``mujoco.rendering.classic.gl_context`` and kept every local variable on the importing
   call stack alive for the life of the process (:issue:`3928`, reported by :github:user:`adenzler-nvidia`).
 
+Studio
+^^^^^^
+- Text can now be pasted into text fields of the MuJoCo Studio :ref:`Web Viewer <StudioWebViewers>` with ``Ctrl+V``
+  (``Cmd+V`` on macOS).
+
 Plugins
 ^^^^^^^
 - Added a first-party :ref:`resource provider<exProvider>` plugin, ``plugin/package_uri``, that serves ROS-style

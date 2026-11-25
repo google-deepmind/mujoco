@@ -51,6 +51,7 @@
 #include "studio/render/model_scene.h"
 #include "studio/sim/model_holder.h"
 #include "studio/ux/camera_control.h"
+#include "studio/ux/clipboard.h"
 #include "studio/ux/imgui_widgets.h"
 #include "studio/ux/interaction.h"
 #include "studio/ux/theme.h"
@@ -1126,6 +1127,10 @@ void UpdateModelDownloadProgress(size_t bytes_downloaded, size_t total_bytes,
   g_app.download_status.retry_count = retry_count;
 }
 
+void OnBrowserPaste(std::string text) {
+  g_app.remote_ui.SendBrowserPaste(text);
+}
+
 void FinishModelLoad() {
   mj_forward(g_app.model_holder->model(), g_app.model_holder->data());
   if (g_app.window) {
@@ -1237,6 +1242,8 @@ void StartApp() {
 
   g_app.window = std::make_unique<mujoco::studio::Window>("MuJoCo Web Viewer",
                                                           1400, 720, config);
+  // Text copied in the browser-side UI also goes to the browser's clipboard.
+  mujoco::studio::SyncClipboardWithBrowser();
   ImPlot::CreateContext();  // Needed if the server app uses ImPlot.
   // The local UI's theme from the first frame: the one this browser last
   // chose, or dark.
@@ -1312,4 +1319,8 @@ EMSCRIPTEN_BINDINGS(web_client_bindings) {
   // display a real-time progress bar and status while downloading.
   emscripten::function("updateModelDownloadProgress",
                        &UpdateModelDownloadProgress);
+
+  // Forwards plain-text clipboard data from a browser DOM "paste" event to
+  // the remote Studio UI over /ui.
+  emscripten::function("onBrowserPaste", &OnBrowserPaste);
 }

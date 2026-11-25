@@ -697,6 +697,35 @@ limitations under the License.
         gl?.getExtension("WEBGL_lose_context")?.loseContext();
       });
 
+      // Clipboard paste: stop Ctrl+V / Cmd+V before SDL2 so the browser fires
+      // "paste" with e.clipboardData; see netui::Clipboard in ui_codec.h for
+      // the full browser <-> server paste flow.
+      window.addEventListener(
+        "keydown",
+        (e) => {
+          const isCtrlOrCmdV =
+            (e.ctrlKey || e.metaKey) &&
+            !e.altKey &&
+            (e.code === "KeyV" || e.key === "v" || e.key === "V");
+          if (isCtrlOrCmdV) {
+            e.stopImmediatePropagation();
+          }
+        },
+        true,
+      );
+
+      // Hand the plain text from the browser's "paste" event to the WASM
+      // client, which pastes it into the focused text field. Spectators do
+      // not control the UI, so their pastes are ignored.
+      window.addEventListener("paste", (e) => {
+        if (window.Module && Module.isSpectator) return;
+        const text = e.clipboardData && e.clipboardData.getData("text/plain");
+        if (text && window.Module && Module.onBrowserPaste) {
+          e.preventDefault();
+          Module.onBrowserPaste(text);
+        }
+      });
+
       // Drag & drop: upload dropped model files to the viewer over the
       // /drop WebSocket. Each file is one binary frame ([u32 path length]
       // [relative path utf-8][file bytes], little-endian), an empty frame

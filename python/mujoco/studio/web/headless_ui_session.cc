@@ -29,6 +29,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include "studio/ux/clipboard.h"
 #include "logging.h"
 #include "ui_codec.h"
 
@@ -203,7 +204,7 @@ bool HeadlessUiSession::StartSession(netui::BytesView handshake,
 
   std::lock_guard<std::mutex> lock(mutex_);
   ResetLocked();
-  active_ = true;
+  session_active_ = true;
   ++session_id_;
   resend_textures_ = true;
   LOG(Info, "UI session %llu started",
@@ -213,9 +214,9 @@ bool HeadlessUiSession::StartSession(netui::BytesView handshake,
 
 void HeadlessUiSession::EndSession() {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!active_) return;
+  if (!session_active_) return;
   ResetLocked();
-  active_ = false;
+  session_active_ = false;
   LOG(Info, "UI session %llu ended",
       static_cast<unsigned long long>(session_id_));
 }
@@ -227,6 +228,7 @@ void HeadlessUiSession::ResetLocked() {
   pending_textures_.clear();
   pending_clipboards_.clear();
   pending_inputs_.clear();
+  pending_pastes_.clear();
   has_pending_frame_ = false;
   pending_frame_.Clear();
   has_reference_frame_ = false;
@@ -235,22 +237,35 @@ void HeadlessUiSession::ResetLocked() {
 
 bool HeadlessUiSession::IsActive() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return active_;
+  return session_active_;
 }
 
 bool HeadlessUiSession::HasInput() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return active_ && has_input_;
+  return session_active_ && has_input_;
 }
 
 bool HeadlessUiSession::PushInput(netui::BytesView message) {
+  std::string pasted_text;
+  bool open_url = false;
+  if (netui::DecodeClipboard(message, &pasted_text, &open_url)) {
+    if (open_url) return false;
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!session_active_) return false;
+    if (pending_pastes_.size() >= kMaxPendingClipboards) {
+      pending_pastes_.erase(pending_pastes_.begin());
+    }
+    pending_pastes_.push_back(std::move(pasted_text));
+    return true;
+  }
+
   netui::Input input;
   if (!netui::DecodeInput(message, &input)) {
     return false;
   }
 
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!active_) return false;
+  if (!session_active_) return false;
   // The browser asks for a full frame after connecting, and whenever it gets a
   // compressed frame it cannot decompress.
   if ((input.header.flags & netui::Input::kRequestKeyframe) != 0) {
@@ -272,7 +287,7 @@ std::vector<netui::Bytes> HeadlessUiSession::TakeMessages() {
   // If multiple frames were captured since the last TakeMessages() call, only
   // the newest frame is encoded here against `reference_frame_` (the last frame
   // returned here) unless a full frame was requested.
-  if (!active_ || !has_pending_frame_) return messages;
+  if (!session_active_ || !has_pending_frame_) return messages;
   const bool send_full = full_frame_wanted_ || !has_reference_frame_;
   netui::Bytes frame_message =
       netui::EncodeDrawFrame(pending_frame_, next_frame_index_,
@@ -307,23 +322,46 @@ uint64_t HeadlessUiSession::LastFrameIndex() const {
 
 void HeadlessUiSession::ApplyInput() {
   std::vector<netui::Input> inputs;
+  std::string next_paste;
+  bool has_paste = false;
   bool release = false;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     inputs.swap(pending_inputs_);
     release = release_input_;
     release_input_ = false;
+    // A text field only registers the synthetic paste shortcut if V is still
+    // down when the frame runs, so each paste presses the keys on one frame and
+    // releases them on the next (see ReleasePasteKeys()). Starting the next
+    // paste only after that release lets back-to-back pastes register
+    // separately.
+    if (!release && !paste_keys_active_ && !pending_pastes_.empty()) {
+      next_paste = std::move(pending_pastes_.front());
+      pending_pastes_.erase(pending_pastes_.begin());
+      has_paste = true;
+    }
     // Record which session this frame is laid out for once its browser has sent
     // input (its screen size). CaptureFrame() and QueueClipboard() drop work if
     // the session changes or ends before ImGui::Render() finishes. Session IDs
     // start at 1, so 0 stands for no session.
-    frame_session_id_ = (active_ && has_input_) ? session_id_ : 0;
+    frame_session_id_ = (session_active_ && has_input_) ? session_id_ : 0;
   }
-  if (release) ReleaseInput();
+  if (release) {
+    ReleaseInput();
+  } else if (paste_keys_active_) {
+    ReleasePasteKeys();
+  }
   // Every input is applied in order (Dear ImGui queues the events), so a click
   // shorter than a frame is not lost.
   for (const netui::Input& input : inputs) {
     ApplyOneInput(input);
+  }
+  if (has_paste) {
+    // Synthesize the paste chord after updating the clipboard cache; see
+    // netui::Clipboard in ui_codec.h for the full browser -> server paste flow.
+    ui_clipboard_text_ = std::move(next_paste);
+    PressPasteShortcut(ImGui::GetIO());
+    paste_keys_active_ = true;
   }
 }
 
@@ -368,7 +406,30 @@ void HeadlessUiSession::ApplyOneInput(const netui::Input& input) {
   has_previous_input_ = true;
 }
 
+void HeadlessUiSession::ReleasePasteKeys() {
+  if (!paste_keys_active_) return;
+  HeldPasteKeys held;
+  if (has_previous_input_) {
+    const netui::Input& input = previous_input_;
+    held.v = input.IsImGuiKeyDown(ImGuiKey_V);
+    held.ctrl = input.IsImGuiKeyDown(ImGuiKey_ReservedForModCtrl);
+    held.shift = input.IsImGuiKeyDown(ImGuiKey_ReservedForModShift);
+    held.alt = input.IsImGuiKeyDown(ImGuiKey_ReservedForModAlt);
+    held.super = input.IsImGuiKeyDown(ImGuiKey_ReservedForModSuper);
+  }
+  ReleasePasteShortcut(ImGui::GetIO(), held);
+  paste_keys_active_ = false;
+}
+
 void HeadlessUiSession::ReleaseInput() {
+  ui_clipboard_text_.clear();
+  if (paste_keys_active_) {
+    // Lift the synthetic paste keys outright. Restoring them to what the old
+    // browser held, as ReleasePasteKeys() does, would press those keys again
+    // just before they are released below.
+    ReleasePasteShortcut(ImGui::GetIO(), HeldPasteKeys());
+    paste_keys_active_ = false;
+  }
   if (!has_previous_input_) return;
   // Diffing the previous input state against a default-constructed Input (with
   // the running mouse-wheel totals preserved so no scroll delta is emitted)
@@ -395,7 +456,7 @@ void HeadlessUiSession::CaptureFrame(ImGuiMouseCursor mouse_cursor) {
     // A frame laid out before the session's browser sent input, or for the
     // previous browser (control changed hands during the frame), is not sent.
     // The session's first frame then re-sends everything.
-    if (!active_ || session_id_ != frame_session_id_) return;
+    if (!session_active_ || session_id_ != frame_session_id_) return;
     resend_all = resend_textures_;
     resend_textures_ = false;
   }
@@ -406,7 +467,7 @@ void HeadlessUiSession::CaptureFrame(ImGuiMouseCursor mouse_cursor) {
   netui::SerializeDrawData(ImGui::GetDrawData(), mouse_cursor, &frame);
 
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!active_ || session_id_ != frame_session_id_) {
+  if (!session_active_ || session_id_ != frame_session_id_) {
     // The session changed meanwhile; the new one's first frame re-sends all.
     return;
   }
@@ -436,14 +497,25 @@ void HeadlessUiSession::CaptureFrame(ImGuiMouseCursor mouse_cursor) {
 
 void HeadlessUiSession::QueueClipboard(std::string_view text) {
   const bool open_url = text.starts_with(kOpenUrlPrefix);
-  if (open_url) text.remove_prefix(kOpenUrlPrefix.size());
-  netui::Bytes message = netui::EncodeClipboard(text, open_url);
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (!active_ || session_id_ != frame_session_id_) return;
-  if (pending_clipboards_.size() >= kMaxPendingClipboards) {
-    pending_clipboards_.erase(pending_clipboards_.begin());
+  netui::Bytes message = netui::EncodeClipboard(
+      open_url ? text.substr(kOpenUrlPrefix.size()) : text, open_url);
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!session_active_ || session_id_ != frame_session_id_) return;
+    if (pending_clipboards_.size() >= kMaxPendingClipboards) {
+      pending_clipboards_.erase(pending_clipboards_.begin());
+    }
+    pending_clipboards_.push_back(std::move(message));
   }
-  pending_clipboards_.push_back(std::move(message));
+  // Only reached for the session this frame was laid out for, so text copied
+  // during the previous browser's frame is never left for the next to paste.
+  if (!open_url) {
+    ui_clipboard_text_.assign(text.data(), text.size());
+  }
+}
+
+const char* HeadlessUiSession::GetClipboardText() const {
+  return ui_clipboard_text_.c_str();
 }
 
 std::vector<netui::Bytes> HeadlessUiSession::CollectTextureChanges(

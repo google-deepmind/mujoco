@@ -90,6 +90,10 @@ class HeadlessUiSession {
   // Platform_SetClipboardTextFn to be sent before the next draw frame.
   void QueueClipboard(std::string_view text);
 
+  // Returns the latest UTF-8 clipboard text for Dear ImGui's
+  // Platform_GetClipboardTextFn (UI thread only).
+  const char* GetClipboardText() const;
+
  private:
   // Encodes pending Dear ImGui texture updates (or all live textures when
   // `resend_all` is true).
@@ -97,6 +101,13 @@ class HeadlessUiSession {
 
   // Turns one browser Input message into Dear ImGui input events.
   void ApplyOneInput(const netui::Input& input);
+
+  // Ends the paste shortcut that ApplyInput() pressed on the previous frame.
+  // Each key goes back to what the browser last reported rather than simply
+  // being lifted: the synthetic events changed Dear ImGui's key state without
+  // the browser's input changing, so a Ctrl the user is still holding would
+  // otherwise look released until they pressed it again.
+  void ReleasePasteKeys();
 
   // Releases every key and button the previous browser left pressed.
   void ReleaseInput();
@@ -111,9 +122,10 @@ class HeadlessUiSession {
   std::vector<netui::Bytes> pending_textures_;  // Oldest first.
   std::vector<netui::Bytes> pending_clipboards_;  // Oldest first.
   std::vector<netui::Input> pending_inputs_;      // Oldest first.
+  std::vector<std::string> pending_pastes_;       // Oldest first.
   uint64_t session_id_ = 0;        // Incremented by every StartSession().
   uint64_t next_frame_index_ = 1;  // Index of the next frame taken.
-  bool active_ = false;
+  bool session_active_ = false;     // Between StartSession() and EndSession().
   bool has_input_ = false;          // The session's browser has sent input.
   bool resend_textures_ = false;    // Re-create all textures with next frame.
   bool release_input_ = false;      // Release the previous browser's input.
@@ -123,10 +135,14 @@ class HeadlessUiSession {
 
   // UI thread only:
   std::unordered_set<int> live_textures_;  // IDs the browser was sent.
+  std::string ui_clipboard_text_;  // Latest pasted or copied clipboard text.
   uint64_t frame_session_id_ = 0;  // The session the frame is laid out for.
   netui::Input previous_input_;    // The last applied Input.
   int next_texture_id_ = 1;
   bool has_previous_input_ = false;
+  // True for the one frame in which a synthetic paste shortcut is held down,
+  // so the next ApplyInput() knows to call ReleasePasteKeys().
+  bool paste_keys_active_ = false;
 };
 
 }  // namespace mujoco::studio

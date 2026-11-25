@@ -85,7 +85,8 @@ class HeadlessUi {
     }
 
     // Forward ImGui::SetClipboardText (used by Studio's Copy buttons and
-    // open-URL commands) to the active browser session over /ui.
+    // open-URL commands) and ImGui::GetClipboardText (used when the browser
+    // pastes text into InputText) to the active browser session over /ui.
     ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
     platform_io.Platform_ClipboardUserData = &session_;
     platform_io.Platform_SetClipboardTextFn = [](ImGuiContext* ctx,
@@ -96,6 +97,14 @@ class HeadlessUi {
       if (session) {
         session->QueueClipboard(text);
       }
+    };
+    platform_io.Platform_GetClipboardTextFn =
+        [](ImGuiContext* ctx) -> const char* {
+      if (!ctx) return nullptr;
+      const auto* session =
+          static_cast<const mujoco::studio::HeadlessUiSession*>(
+              ctx->PlatformIO.Platform_ClipboardUserData);
+      return session ? session->GetClipboardText() : nullptr;
     };
 
     ImGui::StyleColorsLight();

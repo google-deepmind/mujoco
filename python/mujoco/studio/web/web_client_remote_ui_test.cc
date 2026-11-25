@@ -778,6 +778,87 @@ TEST_F(RemoteUiTest, CopiesClipboardMessagesAndInterceptsOpenUrls) {
   EXPECT_STREQ(ImGui::GetClipboardText(), "camera_xml");
 }
 
+TEST_F(RemoteUiTest, SendsBrowserPasteOverUiSocketWhenRemoteHasFocus) {
+  FakeWebSocket* socket = ConnectFakeSocket();
+  remote_ui_.ReceiveAndProcessCommands(/*frame=*/1);
+  ASSERT_EQ(socket->sent.size(), 1u);  // Hello handshake.
+
+  remote_ui_.SendBrowserPaste("pasted text");
+  ASSERT_EQ(socket->sent.size(), 2u);
+  std::string decoded;
+  bool open_url = true;
+  ASSERT_TRUE(netui::DecodeClipboard(socket->sent[1], &decoded, &open_url));
+  EXPECT_EQ(decoded, "pasted text");
+  EXPECT_FALSE(open_url);
+}
+
+TEST_F(RemoteUiTest, IgnoresBrowserPasteWithoutDearImGuiContext) {
+  FakeWebSocket* socket = ConnectFakeSocket();
+  remote_ui_.ReceiveAndProcessCommands(/*frame=*/1);
+  ASSERT_EQ(socket->sent.size(), 1u);  // Hello handshake.
+
+  ImGui::SetCurrentContext(nullptr);
+  remote_ui_.SendBrowserPaste("pasted text");
+  ImGui::SetCurrentContext(context_);
+  EXPECT_EQ(socket->sent.size(), 1u);  // Nothing went to the server.
+}
+
+TEST_F(RemoteUiTest, BrowserPasteLandsInFocusedLocalTextFieldAndKeepsHeldKeys) {
+  FakeWebSocket* socket = ConnectFakeSocket();
+  remote_ui_.ReceiveAndProcessCommands(/*frame=*/1);
+  ASSERT_EQ(socket->sent.size(), 1u);  // Hello handshake.
+
+  ImGuiIO& io = ImGui::GetIO();
+  io.DisplaySize = ImVec2(800, 600);
+  unsigned char* font_pixels = nullptr;
+  int font_w = 0, font_h = 0;
+  io.Fonts->GetTexDataAsAlpha8(&font_pixels, &font_w, &font_h);
+  io.Fonts->SetTexID(static_cast<ImTextureID>(1));
+
+  char text[64] = "";
+  auto run_frame = [&text](bool focus = false) {
+    ImGui::NewFrame();
+    ImGui::Begin("Local overlay");
+    if (focus) ImGui::SetKeyboardFocusHere();
+    ImGui::InputText("##field", text, sizeof(text));
+    ImGui::End();
+    ImGui::Render();
+  };
+  // Focus a local text field, and hold Shift as for a Shift+Insert paste.
+  run_frame(/*focus=*/true);
+  io.AddKeyEvent(ImGuiMod_Shift, true);
+  run_frame();
+  run_frame();
+  ASSERT_TRUE(io.WantCaptureKeyboard);
+  ASSERT_TRUE(io.KeyShift);
+
+  remote_ui_.SendBrowserPaste("16");
+  run_frame();
+  EXPECT_STREQ(text, "16");
+  EXPECT_EQ(socket->sent.size(), 1u);  // Nothing went to the server.
+
+  // The synthetic keys are released and Shift is still held afterwards.
+  run_frame();
+  EXPECT_STREQ(text, "16");
+  EXPECT_FALSE(ImGui::IsKeyDown(ImGuiKey_V));
+  EXPECT_FALSE(io.KeyCtrl);
+  EXPECT_TRUE(io.KeyShift);
+
+  // With macOS behaviors the user holds Cmd, which Dear ImGui reports as Ctrl.
+  io.AddKeyEvent(ImGuiMod_Shift, false);
+  io.ConfigMacOSXBehaviors = true;
+  io.AddKeyEvent(ImGuiMod_Super, true);
+  run_frame();
+  ASSERT_TRUE(io.KeyCtrl);
+  remote_ui_.SendBrowserPaste("0");
+  run_frame();
+  EXPECT_STREQ(text, "160");
+  run_frame();
+  EXPECT_FALSE(ImGui::IsKeyDown(ImGuiKey_V));
+  EXPECT_TRUE(io.KeyCtrl);
+  EXPECT_FALSE(io.KeySuper);
+}
+
 TEST_F(RemoteUiTest, StateQueueSynchronizesFullPayloadAndBoundsLatency) {
   StateQueue queue;
   EXPECT_TRUE(queue.Empty());

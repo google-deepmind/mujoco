@@ -99,6 +99,10 @@ class RemoteUi {
   // ImGui::EndFrame() or ImGui::Render().
   void CaptureAndSendInput();
 
+  // Forwards text from a browser "paste" event to the remote UI over /ui (or
+  // applies it to the local ImGui context when a local overlay captures keys).
+  void SendBrowserPaste(std::string_view text);
+
   // Uploads any CPU-buffered textures without GPU handles yet once the GPU
   // context becomes ready.
   void UpdateTextures();

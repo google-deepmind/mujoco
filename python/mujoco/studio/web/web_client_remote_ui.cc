@@ -645,6 +645,30 @@ void RemoteUi::CaptureAndSendInput() {
   }
 }
 
+// Handles text from the browser's DOM "paste" event (see netui::Clipboard in
+// ui_codec.h for why paste chords are synthesized instead of forwarded via
+// SDL2).
+void RemoteUi::SendBrowserPaste(std::string_view text) {
+  if (text.empty()) return;
+  // The page can paste before the viewer has started and created the context.
+  if (ImGui::GetCurrentContext() == nullptr) return;
+  ImGuiIO& io = ImGui::GetIO();
+  if (io.WantCaptureKeyboard) {  // Browser (WASM) UI.
+    // A text field in the browser-side Dear ImGui (a local overlay such as the
+    // role bar) has keyboard focus, so paste into it here and send nothing to
+    // the server.
+    SetClipboardTextFromBrowser(std::string(text));
+    QueuePasteShortcut(io);
+  } else {  // Remote (Python) UI.
+    // The streamed Studio UI has keyboard focus, so send the text to the
+    // server, which pastes it into the headless Dear ImGui. Dropped if the /ui
+    // connection is not up yet.
+    if (socket_ && handshake_sent_ && ConnectionState() == ReadyState::kOpen) {
+      socket_->SendBinary(netui::EncodeClipboard(text, /*open_url=*/false));
+    }
+  }
+}
+
 void RemoteUi::Shutdown() {
   ResetSessionState();
   socket_.reset();
