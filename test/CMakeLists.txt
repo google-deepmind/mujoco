@@ -154,6 +154,10 @@ mujoco_test(mjspecmacro_test)
 
 mujoco_test(pipeline_test)
 
+if(TARGET libmujoco_simulate)
+  mujoco_test(simulate_test ADDITIONAL_LINK_LIBRARIES libmujoco_simulate)
+endif()
+
 add_subdirectory(batch)
 add_subdirectory(benchmark)
 add_subdirectory(engine)

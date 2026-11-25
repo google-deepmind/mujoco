@@ -3216,6 +3216,10 @@ void Simulate::RenderLoop() {
     }
   }
 
+  FinishRenderLoop();
+}
+
+void Simulate::FinishRenderLoop() {
   const MutexLock lock(this->mtx);
   mjv_freeScene(&this->scn);
   if (is_passive_) {
@@ -3223,7 +3227,10 @@ void Simulate::RenderLoop() {
     mj_deleteModel(m_passive_);
   }
 
+  // The render thread will no longer service asset uploads.
+  hfield_upload_ = mesh_upload_ = texture_upload_ = -1;
   this->exitrequest.store(2);
+  cond_upload_.notify_all();
 }
 
 // add state to history buffer
@@ -3272,21 +3279,21 @@ void Simulate::InjectNoise(int key) {
 
 void Simulate::UpdateHField(int hfieldid) {
   MutexLock lock(this->mtx);
-  if (!m_ || hfieldid < 0 || hfieldid >= m_->nhfield) { return; }
+  if (exitrequest.load() || !m_ || hfieldid < 0 || hfieldid >= m_->nhfield) { return; }
   hfield_upload_ = hfieldid;
   cond_upload_.wait(lock, [this]() { return hfield_upload_ == -1; });
 }
 
 void Simulate::UpdateMesh(int meshid) {
   MutexLock lock(this->mtx);
-  if (!m_ || meshid < 0 || meshid >= m_->nmesh) { return; }
+  if (exitrequest.load() || !m_ || meshid < 0 || meshid >= m_->nmesh) { return; }
   mesh_upload_ = meshid;
   cond_upload_.wait(lock, [this]() { return mesh_upload_ == -1; });
 }
 
 void Simulate::UpdateTexture(int texid) {
   MutexLock lock(this->mtx);
-  if (!m_ || texid < 0 || texid >= m_->ntex) { return; }
+  if (exitrequest.load() || !m_ || texid < 0 || texid >= m_->ntex) { return; }
   texture_upload_ = texid;
   cond_upload_.wait(lock, [this]() { return texture_upload_ == -1; });
 }
