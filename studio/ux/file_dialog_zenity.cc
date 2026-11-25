@@ -12,52 +12,105 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <assert.h>
+#include "studio/ux/file_dialog.h"
+
 #include <fcntl.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <cstring>
+#include <cerrno>
+#include <cstddef>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
-
-#include "studio/ux/file_dialog.h"
 
 namespace mujoco::studio {
 
 static DialogResult RunZenity(std::vector<std::string>& args) {
-  std::string cmd = "zenity";
-  for (const std::string& arg : args) {
-    cmd += " " + arg;
-  }
-
-  static constexpr int kBufferSize = 1024;
-  FILE* output = popen(cmd.c_str(), "r");
-  if (!output) {
-    return DialogResult{.status = DialogResult::kCancelled};
-  }
-  char buffer[kBufferSize];
-  auto ret = fgets(buffer, kBufferSize, output);
-  if (ret == nullptr || ferror(output)) {
+  int pipe_fds[2];
+  if (pipe(pipe_fds) != 0) {
     return DialogResult{.status = DialogResult::kError};
   }
-  // Zenity outputs a newline at the end of the buffer which we need to remove.
-  const int len = std::strlen(buffer);
-  if (len > 0) {
-    buffer[len - 1] = '\0';
+  fcntl(pipe_fds[0], F_SETFD, FD_CLOEXEC);
+  fcntl(pipe_fds[1], F_SETFD, FD_CLOEXEC);
+
+  std::string program = "zenity";
+  std::vector<char*> argv;
+  argv.reserve(args.size() + 2);
+  argv.push_back(program.data());
+  for (std::string& arg : args) {
+    argv.push_back(arg.data());
   }
-  return DialogResult{.status = DialogResult::kAccepted, .path = std::string(buffer)};
+  argv.push_back(nullptr);
+
+  const pid_t pid = fork();
+  if (pid < 0) {
+    close(pipe_fds[0]);
+    close(pipe_fds[1]);
+    return DialogResult{.status = DialogResult::kError};
+  }
+  if (pid == 0) {
+    close(pipe_fds[0]);
+    if (pipe_fds[1] != STDOUT_FILENO) {
+      while (dup2(pipe_fds[1], STDOUT_FILENO) == -1) {
+        if (errno != EINTR) {
+          _exit(127);
+        }
+      }
+      close(pipe_fds[1]);
+    } else if (fcntl(STDOUT_FILENO, F_SETFD, 0) == -1) {
+      _exit(127);
+    }
+    execvp(argv[0], argv.data());
+    _exit(127);
+  }
+
+  close(pipe_fds[1]);
+  std::string output;
+  char buffer[4096];
+  bool read_error = false;
+  while (true) {
+    const ssize_t bytes_read = read(pipe_fds[0], buffer, sizeof(buffer));
+    if (bytes_read > 0) {
+      output.append(buffer, static_cast<size_t>(bytes_read));
+    } else if (bytes_read == 0) {
+      break;
+    } else if (errno != EINTR) {
+      read_error = true;
+      break;
+    }
+  }
+  close(pipe_fds[0]);
+
+  int status = 0;
+  pid_t waited = -1;
+  do {
+    waited = waitpid(pid, &status, 0);
+  } while (waited == -1 && errno == EINTR);
+
+  if (read_error || waited == -1 || !WIFEXITED(status)) {
+    return DialogResult{.status = DialogResult::kError};
+  }
+  const int exit_code = WEXITSTATUS(status);
+  if (exit_code == 1) {
+    return DialogResult{.status = DialogResult::kCancelled};
+  }
+  if (exit_code != 0) {
+    return DialogResult{.status = DialogResult::kError};
+  }
+  // Zenity outputs a trailing newline which we need to remove.
+  if (!output.empty() && output.back() == '\n') {
+    output.pop_back();
+  }
+  return DialogResult{.status = DialogResult::kAccepted, .path = std::move(output)};
 }
 
 static void UpdateArgs(std::vector<std::string>& args, std::string_view path,
                        std::span<std::string_view> filters = {}) {
-  if (!path.empty() && path.front() != 0) {
-    args.push_back("--filename=" + std::string(path.data()));
+  if (!path.empty() && path.front() != '\0') {
+    args.push_back("--filename=" + std::string(path));
   }
   for (std::string_view filter : filters) {
     std::string pattern = FormatFileFilter(filter, ' ');
