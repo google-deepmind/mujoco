@@ -470,6 +470,11 @@ Overflow detection
 MJWarp relies on fixed-size buffer allocations (`nconmax`_ / `naconmax`_, `njmax`_, ``nccdmax`` / ``naccdmax``,
 ``nvmax``, :attr:`Option.contact_sensor_maxmatch <mujoco_warp.Option.contact_sensor_maxmatch>`) for high-throughput GPU
 execution. When simulation demands exceed these pre-allocated limits, an overflow occurs, leading to undefined behavior.
+MJWarp also detects numerical acceleration instability (:attr:`OverflowType.BADQACC <mujoco_warp.OverflowType.BADQACC>`,
+when ``qacc`` is ``NaN``, ``Inf``, or exceeds ``mjMAXVAL``).
+
+Unlike MuJoCo (CPU), MJWarp does not automatically reset unstable worlds: worlds continue integrating and will
+propagate ``NaN``/``Inf`` unless explicitly reset.
 
 MJWarp tracks overflows per world in :attr:`Data.overflow <mujoco_warp.Data.overflow>`, a 1D Warp array of shape
 ``(nworld,)`` storing bitmasks of :class:`mjw.OverflowType <mujoco_warp.OverflowType>`.
@@ -477,7 +482,7 @@ MJWarp tracks overflows per world in :attr:`Data.overflow <mujoco_warp.Data.over
 :attr:`Data.overflow <mujoco_warp.Data.overflow>` is initialized to zero upon creation and cleared on
 :func:`mjw.reset_data <mujoco_warp.reset_data>`.
 
-.. rubric:: Checking for overflows programmatically
+.. rubric:: Checking for overflows and resetting unstable worlds
 
 .. code-block:: python
 
@@ -489,8 +494,13 @@ MJWarp tracks overflows per world in :attr:`Data.overflow <mujoco_warp.Data.over
    # check worlds for any overflow
    any_overflow = np.any(overflow != 0)
 
-   # check for each world for (narrowphase) contact overflow
+   # check each world for (narrowphase) contact overflow
    has_contact_overflow = (overflow & mjw.OverflowType.NARROWPHASE) != 0
+
+   # auto-reset worlds that became numerically unstable
+   badqacc = (overflow & int(mjw.OverflowType.BADQACC)) != 0
+   if np.any(badqacc):
+     mjw.reset_data(m, d, reset=wp.array(badqacc, dtype=bool))
 
 .. rubric:: Controlling warnings
 
@@ -1164,7 +1174,11 @@ MJWarp utilizes single precision `float32
 double precision (float64) representation for :ref:`mjtNum`. Solver settings, including iterations, collision detection,
 and small friction values may be sensitive to differences in floating point representation.
 
-If you encounter unexpected results, including NaNs, please open a GitHub issue.
+If you encounter unexpected results, including NaNs, note that MuJoCo (CPU) automatically resets ``mjData`` on
+``mjWARN_BADQACC`` unless :ref:`mjDSBL_AUTORESET <mjtDisablebit>` is set, whereas MJWarp does not auto-reset
+unstable worlds (it sets :attr:`OverflowType.BADQACC <mujoco_warp.OverflowType.BADQACC>` in
+:attr:`Data.overflow <mujoco_warp.Data.overflow>` and continues stepping). If you encounter unexpected physics bugs,
+please open a GitHub issue.
 
 **How to fix simulation runtime warnings?**
 
@@ -1260,7 +1274,8 @@ exceptions:
 :ref:`disableflags <option-flag>` has the following differences:
 
 - :ref:`mjDSBL_MIDPHASE <mjtDisablebit>` is not available.
-- :ref:`mjDSBL_AUTORESET <mjtDisablebit>` is not available.
+- :ref:`mjDSBL_AUTORESET <mjtDisablebit>` has no effect: auto-reset on instability is not implemented, so worlds are never
+  reset automatically.
 - :ref:`mjDSBL_NATIVECCD <mjtDisablebit>` changes the default box-box collider from CCD to a primitive collider.
 
 :ref:`enableflags <option-flag>` has the following differences:
