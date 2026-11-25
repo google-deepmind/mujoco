@@ -75,6 +75,7 @@ struct _mjCCDObj {
       const float* hfield_data;
       int hfield_nrow;
       int hfield_ncol;
+      int prism_id;
     } hfield;
 
     // flex data from mjModel and mjData
@@ -120,14 +121,14 @@ void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
 int mjc_PlaneConvex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
 int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
 MJAPI int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
+int mjc_SubConvex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int sub_g1,
+                  int g2, int sub_g2, mjtNum margin);
 
 // geom-elem or elem-elem or vert-elem collision function using ccd
 int mjc_ConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int f1, int e1, int v1,
                    int f2, int e2, mjtNum margin);
-
-// heightfield-elem collision function using ccd
-int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, int e,
-                   mjtNum margin);
+int mjc_SubConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int sub_g1,
+                      int f1, int e1, int v1, int f2, int e2, mjtNum margin);
 
 // fix contact frame normal
 void mjc_fixNormal(const mjModel* m, const mjData* d, mjPreContact* con, int g1, int g2);

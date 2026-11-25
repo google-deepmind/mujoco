@@ -27,6 +27,7 @@
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_flex.h"
 #include "engine/engine_collision_gjk.h"
+#include "engine/engine_collision_nonconvex.h"
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_collision_sdf.h"
 #include "engine/engine_thread.h"
@@ -547,15 +548,15 @@ typedef struct {
   enum {
     mjCPAIR_GEOM_GEOM = 0,  // mjCOLLISIONFUNC[type1][type2]
     mjCPAIR_GEOM_FLEX,      // mjc_PlaneFlex, mjc_FlexSDF
-    mjCPAIR_GEOM_ELEM,      // mjc_GeomElem
+    mjCPAIR_GEOM_ELEM,      // mjc_SubGeomElem
     mjCPAIR_ELEM_ELEM,      // mjc_ElemElem
   } type;
   int conpos;
   int group;                // filter group (-1: no filtering)
   union {
-    struct { int g1, g2, ipair, spec; } geom_geom;
+    struct { int g1, g2, ipair, spec, sub_g1, sub_g2; } geom_geom;
     struct { int g, f; } geom_flex;
-    struct { int g, f, e; } geom_elem;
+    struct { int g, f, e, sub_g; } geom_elem;
     struct { int f1, e1, f2, e2; } elem_elem;
   };
 } mjcPair;
@@ -637,8 +638,8 @@ static inline void pairObjects(const mjcPair* p, int* obj1, int* obj2) {
 static inline int pairCompare(const mjcPair* p1, const mjcPair* p2, void* context) {
   (void) context;
 
-  // if both have a valid group, keep pairs in the same group contiguous
-  if (p1->group >= 0 && p2->group >= 0 && p1->group != p2->group) {
+  // keep pairs in the same group contiguous and groups strictly increasing (-1 first)
+  if (p1->group != p2->group) {
     return p1->group < p2->group ? -1 : 1;
   }
 
@@ -656,6 +657,17 @@ static inline int pairCompare(const mjcPair* p1, const mjcPair* p2, void* contex
   if (obj1_1 > obj2_1) return 1;
   if (obj1_2 < obj2_2) return -1;
   if (obj1_2 > obj2_2) return 1;
+
+  // tie break on subgeom indices
+  if (p1->type == mjCPAIR_GEOM_GEOM) {
+    int sub_g1_1 = p1->geom_geom.sub_g1, sub_g1_2 = p1->geom_geom.sub_g2;
+    int sub_g2_1 = p2->geom_geom.sub_g1, sub_g2_2 = p2->geom_geom.sub_g2;
+    if (sub_g1_1 != sub_g2_1) return sub_g1_1 < sub_g2_1 ? -1 : 1;
+    if (sub_g1_2 != sub_g2_2) return sub_g1_2 < sub_g2_2 ? -1 : 1;
+  } else if (p1->type == mjCPAIR_GEOM_ELEM) {
+    int sub_g1 = p1->geom_elem.sub_g, sub_g2 = p2->geom_elem.sub_g;
+    if (sub_g1 != sub_g2) return sub_g1 < sub_g2 ? -1 : 1;
+  }
   return 0;
 }
 
@@ -676,7 +688,42 @@ static void pushPairArena(mjData* d, mjcPairArena* arena, const mjcPair* pair) {
 }
 
 
-// push a geom-geom collision pair onto the arena
+// assign a shared filter group to arena pairs from start to the current end when >= 2 pairs exist
+static inline void assignGroup(mjData* d, mjcPairArena* arena, int start) {
+  int end = (int)((d->parena - arena->parena) / sizeof(mjcPair));
+  if (end - start >= 2) {
+    int grp = arena->ngroup++;
+    mjcPair* pairs = (mjcPair*)((char*)d->arena + arena->parena);
+    for (int k = start; k < end; k++) {
+      pairs[k].group = grp;
+    }
+  }
+}
+
+
+// return 1 if allocating up to n pairs fits within 25% of remaining free arena + narrowphase stack
+static inline int canAllocPairs(const mjData* d, const mjcPairArena* arena, size_t n) {
+  if (!n) {
+    return 1;
+  }
+  size_t free_bytes = (d->parena + d->pstack < d->narena)
+                      ? (d->narena - d->pstack - d->parena) : 0;
+
+  // narrowphase copies pairs onto the stack while arena is live, then allocates ncon + con buffers
+  size_t stack_per_pair = sizeof(mjcPair) + sizeof(int) + sizeof(mjPreContact);
+  size_t existing_stack = (size_t)arena->npair * stack_per_pair;
+  if (existing_stack >= free_bytes) {
+    return 0;
+  }
+
+  // cap any single expansion to 25% of remaining net space so unrelated pairs and stack stay safe
+  size_t budget = (free_bytes - existing_stack) / 4;
+  size_t per_pair = sizeof(mjcPair) + stack_per_pair;
+  return n <= budget / per_pair;
+}
+
+
+// push a geom-geom collision pair (or expand piece pairs) onto the arena
 static void pushGeomGeom(const mjModel* m, mjData* d, mjcPairArena* arena,
                          int g1, int g2, int ipair) {
   if (m->geom_type[g1] > m->geom_type[g2]) {
@@ -685,12 +732,53 @@ static void pushGeomGeom(const mjModel* m, mjData* d, mjcPairArena* arena,
     g2 = tmp;
   }
 
+  int type1 = m->geom_type[g1];
+  int type2 = m->geom_type[g2];
+
   mjcPair pair;
   defaultPair(&pair, mjCPAIR_GEOM_GEOM);
   pair.geom_geom.g1 = g1;
   pair.geom_geom.g2 = g2;
   pair.geom_geom.ipair = ipair;
   pair.geom_geom.spec = 0;
+
+  // expand heightfield vs convex geom into virtual triangular prism piece pairs
+  if (mjCOLLISIONFUNC[type1][type2] == mjc_ConvexHField) {
+    mjtNum margin = getMargin(m, g1, g2, ipair) + getGap(m, g1, g2, ipair);
+    int rmin, rmax, cmin, cmax;
+    mjtNum zmin;
+    if (!mjc_hfieldSubgridGeom(m, d, g1, g2, margin, &rmin, &rmax, &cmin, &cmax, &zmin)) {
+      return;
+    }
+    size_t max_prism = 2 * (size_t)(rmax - rmin) * (size_t)(cmax - cmin);
+    if (!canAllocPairs(d, arena, max_prism)) {
+      // fall back to single unexpanded pair (serial mjc_ConvexHField) to avoid arena/stack blowup
+      pushPairArena(d, arena, &pair);
+      return;
+    }
+    int start = (int)((d->parena - arena->parena) / sizeof(mjcPair));
+    int hid = m->geom_dataid[g1];
+    int ncol = m->hfield_ncol[hid];
+    mjtNum size2 = m->hfield_size[4*hid + 2];
+    const float* hdata = m->hfield_data + m->hfield_adr[hid];
+
+    for (int r = rmin; r < rmax; r++) {
+      for (int c = cmin; c < cmax; c++) {
+        int mask = mjc_hfieldCellMask(hdata, ncol, size2, r, c, zmin);
+        if (mask & 1) {
+          pair.geom_geom.sub_g1 = mjc_hfieldPrismId(r, c, 0, ncol - 1);
+          pushPairArena(d, arena, &pair);
+        }
+        if (mask & 2) {
+          pair.geom_geom.sub_g1 = mjc_hfieldPrismId(r, c, 1, ncol - 1);
+          pushPairArena(d, arena, &pair);
+        }
+      }
+    }
+    assignGroup(d, arena, start);
+    return;
+  }
+
   pushPairArena(d, arena, &pair);
 }
 
@@ -718,21 +806,74 @@ static void pushGeomFlex(mjData* d, mjcPairArena* arena, int g, int f, int group
 }
 
 
-// push a geom-elem collision pair onto the arena
-static void pushGeomElem(mjData* d, mjcPairArena* arena, int g, int f, int e, int group) {
+// push a geom-elem collision pair (or expand piece pairs) onto the arena
+static void pushGeomElem(const mjModel* m, mjData* d, mjcPairArena* arena,
+                         int g, int f, int e, int group) {
   mjcPair pair;
   defaultPair(&pair, mjCPAIR_GEOM_ELEM);
   pair.group = group;
   pair.geom_elem.g = g;
   pair.geom_elem.f = f;
   pair.geom_elem.e = e;
+  pair.geom_elem.sub_g = -1;
+
+  // expand heightfield vs flex element into virtual triangular prism piece pairs
+  if (m->geom_type[g] == mjGEOM_HFIELD) {
+    // skip if element has a vertex on the same body as the heightfield
+    int b = m->geom_bodyid[g];
+    int dim = m->flex_dim[f];
+    const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim + 1);
+    const int* bdata = m->flex_vertbodyid + m->flex_vertadr[f];
+    for (int i = 0; i <= dim; i++) {
+      if (b >= 0 && b == bdata[edata[i]]) {
+        return;
+      }
+    }
+
+    mjtNum dist_bound = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]) +
+                        m->geom_gap[g] + m->flex_gap[f];
+    int rmin, rmax, cmin, cmax;
+    mjtNum zmin;
+    if (!mjc_hfieldSubgridElem(m, d, g, f, e, dist_bound, &rmin, &rmax, &cmin, &cmax, &zmin)) {
+      return;
+    }
+    size_t max_prism = 2 * (size_t)(rmax - rmin) * (size_t)(cmax - cmin);
+    if (!canAllocPairs(d, arena, max_prism)) {
+      // fall back to single unexpanded pair (serial hfield-elem loop) to avoid arena/stack blowup
+      pushPairArena(d, arena, &pair);
+      return;
+    }
+    int start = (int)((d->parena - arena->parena) / sizeof(mjcPair));
+    int hid = m->geom_dataid[g];
+    int ncol = m->hfield_ncol[hid];
+    mjtNum size2 = m->hfield_size[4*hid + 2];
+    const float* hdata = m->hfield_data + m->hfield_adr[hid];
+
+    for (int r = rmin; r < rmax; r++) {
+      for (int c = cmin; c < cmax; c++) {
+        int mask = mjc_hfieldCellMask(hdata, ncol, size2, r, c, zmin);
+        if (mask & 1) {
+          pair.geom_elem.sub_g = mjc_hfieldPrismId(r, c, 0, ncol - 1);
+          pushPairArena(d, arena, &pair);
+        }
+        if (mask & 2) {
+          pair.geom_elem.sub_g = mjc_hfieldPrismId(r, c, 1, ncol - 1);
+          pushPairArena(d, arena, &pair);
+        }
+      }
+    }
+    if (group < 0) {
+      assignGroup(d, arena, start);
+    }
+    return;
+  }
+
   pushPairArena(d, arena, &pair);
 }
 
 
 // push an elem-elem collision pair onto the arena
-static void pushElemElem(mjData* d, mjcPairArena* arena,
-                         int f1, int e1, int f2, int e2, int group) {
+static void pushElemElem(mjData* d, mjcPairArena* arena, int f1, int e1, int f2, int e2, int group) {
   mjcPair pair;
   defaultPair(&pair, mjCPAIR_ELEM_ELEM);
   pair.group = group;
@@ -1001,7 +1142,7 @@ void mj_collision(const mjModel* m, mjData* d) {
           int elemnum = m->flex_elemnum[f];
           for (int e=0; e < elemnum; e++) {
             if (mj_isElemActive(m, f, e)) {
-              pushGeomElem(d, &arena, g, f, e, group);
+              pushGeomElem(m, d, &arena, g, f, e, group);
             }
           }
         }
@@ -1357,7 +1498,7 @@ static void mj_collideTree(const mjModel* m, mjData* d, mjcPairArena* arena, int
             if (m->geom_type[nodeid1] != mjGEOM_PLANE &&
                 m->geom_type[nodeid1] != mjGEOM_SDF) {
               if (!mjc_ipcOwnsFlexGeom(m, f2, nodeid1)) {
-                pushGeomElem(d, arena, nodeid1, f2, nodeid2, geomGroup(group, nodeid1, geomadr1));
+                pushGeomElem(m, d, arena, nodeid1, f2, nodeid2, geomGroup(group, nodeid1, geomadr1));
               }
             }
             if (mark_active) {
@@ -2169,6 +2310,9 @@ static inline int pairMaxContact(const mjModel* m, const mjcPair* pair) {
     case mjCPAIR_GEOM_GEOM: {
       int g1 = pair->geom_geom.g1;
       int g2 = pair->geom_geom.g2;
+      if (pair->geom_geom.sub_g1 >= 0 || pair->geom_geom.sub_g2 >= 0) {
+        return 1;
+      }
       int ipair = pair->geom_geom.ipair;
       mjtNum margin = getMargin(m, g1, g2, ipair);
       mjtNum gap = getGap(m, g1, g2, ipair);
@@ -2189,6 +2333,9 @@ static inline int pairMaxContact(const mjModel* m, const mjcPair* pair) {
       int f = pair->geom_elem.f;
       int dim = m->flex_dim[f];
       int type = m->geom_type[g];
+      if (type == mjGEOM_HFIELD && pair->geom_elem.sub_g >= 0) {
+        return 1;
+      }
       if (type == mjGEOM_HFIELD ||
           (dim == 2 && (type == mjGEOM_BOX || type == mjGEOM_CAPSULE))) {
         return mjMAXCONPAIR;
@@ -2293,13 +2440,19 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
         int g1 = pair[i].geom_geom.g1;
         int g2 = pair[i].geom_geom.g2;
         int ipair = pair[i].geom_geom.ipair;
+        int sub_g1 = pair[i].geom_geom.sub_g1;
+        int sub_g2 = pair[i].geom_geom.sub_g2;
         int type1 = m->geom_type[g1];
         int type2 = m->geom_type[g2];
         mjtNum margin = getMargin(m, g1, g2, ipair);
         mjtNum gap = getGap(m, g1, g2, ipair);
         mjPreContact* con = conbuffer + conpos;
 
-        if (user_collider) {
+        // TODO(kylebayes): batch contiguous (g1, g2) sub-geom runs within this chunk to reuse
+        // mjCCDObj setup and run GJK in the hfield/mesh local frame once per run
+        if (sub_g1 >= 0 || sub_g2 >= 0) {
+          ncon[i] = mjc_SubConvex(m, d, con, g1, sub_g1, g2, sub_g2, margin + gap);
+        } else if (user_collider) {
           mjfCollision fn = mjCOLLISIONFUNC[type1][type2];
           ncon[i] = fn ? fn(m, d, con, g1, g2, margin + gap) : 0;
         } else {
@@ -2313,7 +2466,7 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
               break;
           }
         }
-        if (speculativeEnabled(m)) {
+        if (speculativeEnabled(m) && sub_g1 < 0 && sub_g2 < 0) {
           // check for active surface contact (in-gap contacts are only replaced if
           // CCD finds a surface hit)
           int active = 0;
@@ -2356,11 +2509,12 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
 
       case mjCPAIR_GEOM_ELEM: {
         int g = pair[i].geom_elem.g;
+        int sub_g = pair[i].geom_elem.sub_g;
         int f = pair[i].geom_elem.f;
         int e = pair[i].geom_elem.e;
         mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
         mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
-        ncon[i] = mjc_GeomElem(m, d, conbuffer + conpos, g, f, e, margin + gap);
+        ncon[i] = mjc_SubGeomElem(m, d, conbuffer + conpos, g, sub_g, f, e, margin + gap);
         break;
       }
 

@@ -25,6 +25,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
 #include "engine/engine_collision_gjk.h"
+#include "engine/engine_collision_nonconvex.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_inline.h"
@@ -44,10 +45,13 @@ void mjc_setCCDBuffer(void* buffer) {
   ccd_buffer = buffer;
 }
 
-// ccd prism first dir
-static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
-  ccdVec3Set(vec, 0, 0, 1);
+// ccd prism first dir (heightfield global +Z axis)
+static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t* vec) {
+  const mjCCDObj* obj1 = (const mjCCDObj*)o1;
+  const mjCCDObj* obj = (obj1->geom_type == mjGEOM_HFIELD) ? obj1 : (const mjCCDObj*)o2;
+  ccdVec3Set(vec, obj->mat[2], obj->mat[5], obj->mat[8]);
 }
+
 
 // wrapper around libccd; returns number of collisions found
 static inline int _libccd_wrapper(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
@@ -147,11 +151,13 @@ void mjc_center(mjtNum res[3], const mjCCDObj *obj) {
   int v = obj->vert;
 
   if (obj->geom_type == mjGEOM_HFIELD) {
-    mju_zero3(res);
+    mjtNum lcen[3] = {0, 0, 0};
     for (int i=0; i < 6; i++) {
-      mji_addTo3(res, obj->data.hfield.prism[i]);
-     }
-    mju_scl3(res, res, 1.0/6.0);
+      mji_addTo3(lcen, obj->data.hfield.prism[i]);
+    }
+    mju_scl3(lcen, lcen, 1.0/6.0);
+    mji_mulMatVec3(res, obj->mat, lcen);
+    mji_addTo3(res, obj->pos);
     return;
   }
 
@@ -458,23 +464,54 @@ static void mjc_hillclimbSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
 
 // prism support function
 static void mjc_prism_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
+  mjtNum local_dir[3];
+  mulMatTVec3(local_dir, obj->mat, dir);
+
   int istart, ibest;
   mjtNum best, tmp;
   mjtNum (*prism)[3] = obj->data.hfield.prism;
 
-  // find best vertex in halfspace determined by dir.z
-  istart = dir[2] < 0 ? 0 : 3;
+  // find best vertex in halfspace determined by local_dir.z
+  istart = local_dir[2] < 0 ? 0 : 3;
   ibest = istart;
-  best = mju_dot3(prism[istart], dir);
+  best = mju_dot3(prism[istart], local_dir);
   for (int i=1; i < 3; i++) {
-    if ((tmp = mju_dot3(prism[istart + i], dir)) > best) {
+    if ((tmp = mju_dot3(prism[istart + i], local_dir)) > best) {
       ibest = istart + i;
       best = tmp;
     }
   }
 
-  // copy best point
-  mji_copy3(res, prism[ibest]);
+  obj->vertindex = ibest;
+  localToGlobal(res, obj->mat, prism[ibest], obj->pos);
+}
+
+
+// initialize a virtual hfield triangular prism piece in hfield-local coordinates
+static void mjc_initHFieldPrism(mjCCDObj* obj, int prism_id) {
+  int nr = obj->data.hfield.hfield_nrow - 1;
+  int nc = obj->data.hfield.hfield_ncol - 1;
+  int r, c, tri;
+  mjc_hfieldPrismCoords(prism_id, nc, &r, &c, &tri);
+  mjtNum dx = (2.0 * obj->size[0]) / nc;
+  mjtNum dy = (2.0 * obj->size[1]) / nr;
+  const float* hdata = obj->data.hfield.hfield_data;
+
+  // Counter-clockwise top triangle vertices in grid (col, row) coordinates
+  int gc[3] = {c, c + tri, c + 1};
+  int gr[3] = {r + 1 - tri, r, r + 1};
+
+  mjtNum (*prism)[3] = obj->data.hfield.prism;
+  for (int k = 0; k < 3; k++) {
+    mjtNum x = dx * gc[k] - obj->size[0];
+    mjtNum y = dy * gr[k] - obj->size[1];
+    mjtNum z = hdata[gr[k] * (nc + 1) + gc[k]] * obj->size[2];
+    prism[k][0] = prism[3 + k][0] = x;
+    prism[k][1] = prism[3 + k][1] = y;
+    prism[k][2] = -obj->size[3];
+    prism[3 + k][2] = z;
+  }
+  obj->data.hfield.prism_id = prism_id;
 }
 
 
@@ -773,6 +810,7 @@ static void mjc_initCCDObjSupport(mjCCDObj* obj, const mjModel* m, int dataid) {
   case mjGEOM_HFIELD:
     obj->center = mjc_center;
     obj->support = mjc_prism_support;
+    obj->data.hfield.prism_id = -1;
     if (dataid >= 0) {
       obj->data.hfield.hfield_nrow = m->hfield_nrow[dataid];
       obj->data.hfield.hfield_ncol = m->hfield_ncol[dataid];
@@ -947,13 +985,20 @@ static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* o
 }
 
 
-// multi-point convex-convex collision, using libccd
-int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
+// single-piece convex-convex collision (sub_g1/sub_g2 >= 0 select virtual hfield prisms or pieces)
+int mjc_SubConvex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int sub_g1,
+                  int g2, int sub_g2, mjtNum margin) {
   // init ccd objects
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, margin);
   mjc_initCCDObj(&obj2, m, d, g2, margin);
-  int max_contacts = maxContacts(m, &obj1, &obj2);
+  if (sub_g1 >= 0 && obj1.geom_type == mjGEOM_HFIELD) {
+    mjc_initHFieldPrism(&obj1, sub_g1);
+  }
+  if (sub_g2 >= 0 && obj2.geom_type == mjGEOM_HFIELD) {
+    mjc_initHFieldPrism(&obj2, sub_g2);
+  }
+  int max_contacts = (sub_g1 >= 0 || sub_g2 >= 0) ? 1 : maxContacts(m, &obj1, &obj2);
 
   // ellipsoid (including sphere) geoms don't require multiple contacts
   int isellipsoid1 = (obj1.geom_type == mjGEOM_ELLIPSOID || obj1.geom_type == mjGEOM_SPHERE);
@@ -968,7 +1013,7 @@ int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
   }
 
   // no additional contacts needed
-  if (max_contacts > 1 || isellipsoid1 || isellipsoid2) {
+  if (max_contacts > 1 || isellipsoid1 || isellipsoid2 || sub_g1 >= 0 || sub_g2 >= 0) {
     return ncon;
   }
 
@@ -1033,6 +1078,12 @@ int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
     }
   }
   return ncon;
+}
+
+
+// multi-point convex-convex collision, using ccd
+int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
+  return mjc_SubConvex(m, d, con, g1, -1, g2, -1, margin);
 }
 
 
@@ -1204,201 +1255,37 @@ int mjc_PlaneConvex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int 
 //----------------------------  heightfield collisions ---------------------------------------------
 
 
-// add vertex to prism
-static inline void addVert(mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
-  // move old data
-  mji_copy3(obj->data.hfield.prism[0], obj->data.hfield.prism[1]);
-  mji_copy3(obj->data.hfield.prism[1], obj->data.hfield.prism[2]);
-  mji_copy3(obj->data.hfield.prism[3], obj->data.hfield.prism[4]);
-  mji_copy3(obj->data.hfield.prism[4], obj->data.hfield.prism[5]);
-
-  // add new vertex at last position
-  obj->data.hfield.prism[2][0] = obj->data.hfield.prism[5][0] = x;
-  obj->data.hfield.prism[2][1] = obj->data.hfield.prism[5][1] = y;
-  obj->data.hfield.prism[5][2] = z;
-}
-
-
-// add vertex to prism
-static inline void addPrismVert(mjCCDObj* obj, int r, int c, int i, mjtNum dx, mjtNum dy) {
-  // move old data
-  mji_copy3(obj->data.hfield.prism[0], obj->data.hfield.prism[1]);
-  mji_copy3(obj->data.hfield.prism[1], obj->data.hfield.prism[2]);
-  mji_copy3(obj->data.hfield.prism[3], obj->data.hfield.prism[4]);
-  mji_copy3(obj->data.hfield.prism[4], obj->data.hfield.prism[5]);
-
-  int dr = 1 - i;
-
-  // add new vertex at last position
-  obj->data.hfield.prism[2][0] = obj->data.hfield.prism[5][0] = dx*c - obj->size[0];
-  obj->data.hfield.prism[2][1] = obj->data.hfield.prism[5][1] = dy*(r + dr) - obj->size[1];
-  obj->data.hfield.prism[5][2] = obj->data.hfield.hfield_data[(r + dr)*obj->data.hfield.hfield_ncol + c]*obj->size[2];
-}
-
-
-// entry point for heightfield collisions
+// fallback entry point for heightfield collisions (used by mj_geomDistance and direct table calls)
 int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2,
                      mjtNum margin) {
-  // hfield frame
-  const mjtNum* pos1 = d->geom_xpos + 3*g1;
-  const mjtNum* mat1 = d->geom_xmat + 9*g1;
+  int rmin, rmax, cmin, cmax;
+  mjtNum zmin;
+  if (!mjc_hfieldSubgridGeom(m, d, g1, g2, margin, &rmin, &rmax, &cmin, &cmax, &zmin)) {
+    return 0;
+  }
 
-  // geom2 frame
-  mjtNum* pos2 = d->geom_xpos + 3*g2;
-  mjtNum* mat2 = d->geom_xmat + 9*g2;
-
-  // hfield data
   int hid = m->geom_dataid[g1];
-  int nrow = m->hfield_nrow[hid];
   int ncol = m->hfield_ncol[hid];
-  mjtNum size0 = m->hfield_size[4*hid + 0], size1 = m->hfield_size[4*hid + 1];
-  mjtNum size2 = m->hfield_size[4*hid + 2], size3 = m->hfield_size[4*hid + 3];
+  int nc = ncol - 1;
+  mjtNum size2 = m->hfield_size[4*hid + 2];
+  const float* hdata = m->hfield_data + m->hfield_adr[hid];
 
-  // try early return using box-sphere test
-
-  // express geom2 pos in hfield frame
-  mjtNum local_pos[3] = {pos2[0] - pos1[0], pos2[1] - pos1[1], pos2[2] - pos1[2]};
-  mju_mulMatTVec3(local_pos, mat1, local_pos);
-
-  // sphere radius is geom2 rbound + margin
-  mjtNum radius = m->geom_rbound[g2] + margin;
-
-  // box-sphere test
-  if ((size0 < local_pos[0] - radius) || (-size0 > local_pos[0] + radius) ||
-      (size1 < local_pos[1] - radius) || (-size1 > local_pos[1] + radius) ||
-      (size2 < local_pos[2] - radius) || (-size3 > local_pos[2] + radius)) {
-    return 0;
-  }
-
-  // ccd set up
-  mjCCDObj obj1, obj2;
-  mjc_initCCDObj(&obj1, m, d, g1, margin);
-  mjc_initCCDObj(&obj2, m, d, g2, 0);
-
-
-  // try early return using AABB box-box test
-
-  // express geom2 mat in hfield frame
-  mjtNum mat[9];
-  mji_mulMatTMat3(mat, mat1, mat2);
-
-  mji_copy9(obj2.mat, mat);
-  mji_copy3(obj2.pos, local_pos);
-
-  mjtNum local_dir[3] = {0, 0, 0}, res[3];
-
-  // get support point in +X
-  local_dir[0] = 1;
-  obj2.support(res, &obj2, local_dir);
-  mjtNum xmax = res[0];
-
-  // get support point in -X
-  local_dir[0] = -1;
-  obj2.support(res, &obj2, local_dir);
-  mjtNum xmin = res[0];
-
-  local_dir[0] = 0;
-
-  // get support point in +Y
-  local_dir[1] = 1;
-  obj2.support(res, &obj2, local_dir);
-  mjtNum ymax = res[1];
-
-  // get support point in -Y
-  local_dir[1] = -1;
-  obj2.support(res, &obj2, local_dir);
-  mjtNum ymin = res[1];
-
-  local_dir[1] = 0;
-
-  // get support point in +Z
-  local_dir[2] = 1;
-  obj2.support(res, &obj2, local_dir);
-  mjtNum zmax = res[2];
-
-  // get support point in -Z
-  local_dir[2] = -1;
-  obj2.support(res, &obj2, local_dir);
-  mjtNum zmin = res[2];
-
-  xmin -= margin;
-  xmax += margin;
-  ymin -= margin;
-  ymax += margin;
-  zmin -= margin;
-  zmax += margin;
-
-  // AABB box-box test
-  if ((xmin > size0) || (xmax < -size0) ||
-      (ymin > size1) || (ymax < -size1) ||
-      (zmin > size2) || (zmax < -size3)) {
-    return 0;
-  }
-
-  // compute sub-grid bounds
-  int cmin = (int) mju_floor((xmin + size0) / (2.0*size0) * (ncol-1));
-  int cmax = (int) mju_ceil ((xmax + size0) / (2.0*size0) * (ncol-1));
-  int rmin = (int) mju_floor((ymin + size1) / (2.0*size1) * (nrow-1));
-  int rmax = (int) mju_ceil ((ymax + size1) / (2.0*size1) * (nrow-1));
-  cmin = mjMAX(0, cmin);
-  cmax = mjMIN(ncol-1, cmax);
-  rmin = mjMAX(0, rmin);
-  rmax = mjMIN(nrow-1, rmax);
-
-  // geom margin needed for actual collision test
-  obj2.margin = margin;
-
-  // compute real-valued grid step
-  mjtNum dx = (2.0*size0) / (ncol-1);
-  mjtNum dy = (2.0*size1) / (nrow-1);
-
-  // set zbottom value using base size
-  mjtNum (*prism)[3] = obj1.data.hfield.prism;
-  prism[0][2] = prism[1][2] = prism[2][2] = -size3;
-
-  // process all prisms in subgrid
   int ncon = 0;
-  for (int r=rmin; r < rmax; r++) {
-    addPrismVert(&obj1, r, cmin, 0, dx, dy);
-    addPrismVert(&obj1, r, cmin, 1, dx, dy);
-    for (int c=cmin + 1; c <= cmax; c++) {
-      for (int i=0; i < 2; i++) {
-        // send vertex to prism constructor
-        addPrismVert(&obj1, r, c, i, dx, dy);
-
-        // prism height test
-        if (prism[3][2] < zmin && prism[4][2] < zmin && prism[5][2] < zmin) {
-          continue;
-        }
-
-        // run penetration function, save contact
-        if (mjc_penetration(m, d, &obj1, &obj2, con + ncon, 1, margin)) {
-          // transform to global coordinates
-          mji_copy3(local_dir, con[ncon].normal);
-          mji_copy3(local_pos, con[ncon].pos);
-          mji_mulMatVec3(con[ncon].normal, mat1, local_dir);
-          mji_mulMatVec3(con[ncon].pos, mat1, local_pos);
-          mji_addTo3(con[ncon].pos, pos1);
-
-          // force out of all loops if max contacts reached
-          if (++ncon >= mjMAXCONPAIR) {
-            r = rmax+1;
-            c = cmax+1;
-            i = 3;
-            break;
-          }
-        }
+  mjPreContact tmp[4];
+  for (int r = rmin; r < rmax && ncon < mjMAXCONPAIR; r++) {
+    for (int c = cmin; c < cmax && ncon < mjMAXCONPAIR; c++) {
+      int mask = mjc_hfieldCellMask(hdata, ncol, size2, r, c, zmin);
+      if (mask & 1) {
+        int k = mjc_SubConvex(m, d, tmp, g1, mjc_hfieldPrismId(r, c, 0, nc), g2, -1, margin);
+        for (int i = 0; i < k && ncon < mjMAXCONPAIR; i++) con[ncon++] = tmp[i];
+        if (ncon >= mjMAXCONPAIR) break;
+      }
+      if (mask & 2) {
+        int k = mjc_SubConvex(m, d, tmp, g1, mjc_hfieldPrismId(r, c, 1, nc), g2, -1, margin);
+        for (int i = 0; i < k && ncon < mjMAXCONPAIR; i++) con[ncon++] = tmp[i];
       }
     }
   }
-
-  if (mjDISABLED(mjDSBL_NATIVECCD)) {
-    // fix contact normals
-    for (int i=0; i < ncon; i++) {
-      mjc_fixNormal(m, d, con + i, g1, g2);
-    }
-  }
-
   return ncon;
 }
 
@@ -1658,11 +1545,45 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjPreContact* con, int g1,
 
 //----------------------------  flex collisions ---------------------------------------------
 
-// geom-elem or elem-elem or vert-elem convex collision using ccd
-int mjc_ConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int f1, int e1, int v1,
-                   int f2, int e2, mjtNum margin) {
+// geom-elem or elem-elem or vert-elem convex collision using ccd (sub_g1 >= 0 selects a piece)
+int mjc_SubConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int sub_g1,
+                      int f1, int e1, int v1, int f2, int e2, mjtNum margin) {
+  // serial fallback when an unexpanded heightfield-elem pair reaches narrowphase
+  if (sub_g1 < 0 && g1 >= 0 && m->geom_type[g1] == mjGEOM_HFIELD) {
+    int rmin, rmax, cmin, cmax;
+    mjtNum zmin;
+    if (!mjc_hfieldSubgridElem(m, d, g1, f2, e2, margin, &rmin, &rmax, &cmin, &cmax, &zmin)) {
+      return 0;
+    }
+    int hid = m->geom_dataid[g1];
+    int ncol = m->hfield_ncol[hid];
+    int nc = ncol - 1;
+    mjtNum size2 = m->hfield_size[4*hid + 2];
+    const float* hdata = m->hfield_data + m->hfield_adr[hid];
+
+    int ncon = 0;
+    for (int r = rmin; r < rmax && ncon < mjMAXCONPAIR; r++) {
+      for (int c = cmin; c < cmax && ncon < mjMAXCONPAIR; c++) {
+        int mask = mjc_hfieldCellMask(hdata, ncol, size2, r, c, zmin);
+        if (mask & 1) {
+          ncon += mjc_SubConvexElem(m, d, con + ncon, g1, mjc_hfieldPrismId(r, c, 0, nc),
+                                    f1, e1, v1, f2, e2, margin);
+          if (ncon >= mjMAXCONPAIR) break;
+        }
+        if (mask & 2) {
+          ncon += mjc_SubConvexElem(m, d, con + ncon, g1, mjc_hfieldPrismId(r, c, 1, nc),
+                                    f1, e1, v1, f2, e2, margin);
+        }
+      }
+    }
+    return ncon;
+  }
+
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, margin);
+  if (sub_g1 >= 0 && obj1.geom_type == mjGEOM_HFIELD) {
+    mjc_initHFieldPrism(&obj1, sub_g1);
+  }
   mjc_initCCDObj(&obj2, m, d, -1, margin);
   mjc_setCCDObjFlex(&obj1, f1, e1, v1);
   mjc_setCCDObjFlex(&obj2, f2, e2, -1);
@@ -1671,7 +1592,7 @@ int mjc_ConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int f
   int ncon = mjc_penetration(m, d, &obj1, &obj2, con, 1, margin);
 
   // fix normals for 2D flex
-  if (ncon && !mjDISABLED(mjDSBL_NATIVECCD)) {
+  if (ncon && !mjDISABLED(mjDSBL_NATIVECCD) && sub_g1 < 0) {
     // check if either object is a 2D flex
     int isflex2d = 0;
     if (f1 >= 0 && m->flex_dim[f1] == 2) isflex2d = 1;
@@ -1687,136 +1608,9 @@ int mjc_ConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int f
 }
 
 
-// test a height field and a flex element for collision
-int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, int e,
-                   mjtNum margin) {
-  mjtNum vec[3], dx, dy;
-  mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
-  int dr[2], cnt, rmin, rmax, cmin, cmax;
-  mjCCDObj obj1;
-  mjc_initCCDObj(&obj1, m, d, g, margin);
-
-  // get hfield info
-  int hid = m->geom_dataid[g];
-  int nrow = m->hfield_nrow[hid];
-  int ncol = m->hfield_ncol[hid];
-  const mjtNum* hpos = d->geom_xpos + 3*g;
-  const mjtNum* hmat = d->geom_xmat + 9*g;
-  const mjtNum* hsize = m->hfield_size + 4*hid;
-  const float* hdata = m->hfield_data + m->hfield_adr[hid];
-
-  // get elem info
-  int dim = m->flex_dim[f];
-  const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
-  static const int local_edata[4] = {0, 1, 2, 3};
-  mjtNum evert[4][3], ecenter[3];
-  for (int i=0; i <= dim; i++) {
-    const mjtNum* v = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
-    mji_sub3(vec, v, hpos);
-    mji_mulMatTVec3(evert[i], hmat, vec);
-  }
-  mji_sub3(vec, d->flexelem_aabb + 6*(m->flex_elemadr[f] + e), hpos);
-  mji_mulMatTVec3(ecenter, hmat, vec);
-
-  // ccd-related
-  mjCCDObj obj2;
-  mjc_initCCDObj(&obj2, m, d, -1, margin);
-  mjc_setCCDObjFlex(&obj2, f, e, -1);
-  obj2.data.flex.elem = local_edata;
-  obj2.data.flex.vert_xpos = (const mjtNum*)evert;
-  obj2.data.flex.aabb = ecenter;
-  //------------------------------------- AABB computation, box-box test
-
-  // compute elem bounding box (in hfield frame)
-  xmin = xmax = evert[0][0];
-  ymin = ymax = evert[0][1];
-  zmin = zmax = evert[0][2];
-  for (int i=1; i <= dim; i++) {
-    xmin = mju_min(xmin, evert[i][0]);
-    xmax = mju_max(xmax, evert[i][0]);
-    ymin = mju_min(ymin, evert[i][1]);
-    ymax = mju_max(ymax, evert[i][1]);
-    zmin = mju_min(zmin, evert[i][2]);
-    zmax = mju_max(zmax, evert[i][2]);
-  }
-
-  mjtNum expand = m->flex_radius[f] + margin;
-  xmin -= expand;
-  xmax += expand;
-  ymin -= expand;
-  ymax += expand;
-  zmin -= expand;
-  zmax += expand;
-
-  // box-box test
-  if ((xmin > hsize[0]) || (xmax < -hsize[0]) ||
-      (ymin > hsize[1]) || (ymax < -hsize[1]) ||
-      (zmin > hsize[2]) || (zmax < -hsize[3])) {
-    return 0;
-  }
-
-  // compute sub-grid bounds
-  cmin = (int) mju_floor((xmin + hsize[0]) / (2*hsize[0]) * (ncol-1));
-  cmax = (int) mju_ceil ((xmax + hsize[0]) / (2*hsize[0]) * (ncol-1));
-  rmin = (int) mju_floor((ymin + hsize[1]) / (2*hsize[1]) * (nrow-1));
-  rmax = (int) mju_ceil ((ymax + hsize[1]) / (2*hsize[1]) * (nrow-1));
-  cmin = mjMAX(0, cmin);
-  cmax = mjMIN(ncol-1, cmax);
-  rmin = mjMAX(0, rmin);
-  rmax = mjMIN(nrow-1, rmax);
-
-  //------------------------------------- collision testing
-
-  // compute real-valued grid step, and triangulation direction
-  dx = (2.0*hsize[0]) / (ncol-1);
-  dy = (2.0*hsize[1]) / (nrow-1);
-  dr[0] = 1;
-  dr[1] = 0;
-
-  // set zbottom value using base size
-  mjtNum (*prism)[3] = obj1.data.hfield.prism;
-  prism[0][2] = prism[1][2] = prism[2][2] = -hsize[3];
-
-  // process all prisms in sub-grid
-  cnt = 0;
-  for (int r=rmin; r < rmax; r++) {
-    int nvert = 0;
-    for (int c=cmin; c <= cmax; c++) {
-      for (int k=0; k < 2; k++) {
-        // send vertex to prism constructor
-        addVert(&obj1, dx*c-hsize[0], dy*(r+dr[k])-hsize[1],
-                hdata[(r+dr[k])*ncol+c]*hsize[2]);
-
-        // check for enough vertices
-        if (++nvert > 2) {
-          // prism height test
-          if (prism[3][2] < zmin && prism[4][2] < zmin && prism[5][2] < zmin) {
-            continue;
-          }
-
-          // run ccd, save contact
-          if (mjc_penetration(m, d, &obj1, &obj2, con + cnt, 1, margin)) {
-            // transform to global coordinates
-            mji_zero3(con[cnt].tangent);
-            mju_mulMatVec3(con[cnt].normal, hmat, con[cnt].normal);
-            mju_mulMatVec3(con[cnt].pos, hmat, con[cnt].pos);
-            mji_addTo3(con[cnt].pos, hpos);
-
-            // count, stop if max number reached
-            cnt++;
-            if (cnt >= mjMAXCONPAIR) {
-              r = rmax+1;
-              c = cmax+1;
-              k = 3;
-              break;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return cnt;
+int mjc_ConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int f1, int e1, int v1,
+                   int f2, int e2, mjtNum margin) {
+  return mjc_SubConvexElem(m, d, con, g1, -1, f1, e1, v1, f2, e2, margin);
 }
 
 

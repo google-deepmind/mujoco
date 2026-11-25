@@ -27,9 +27,9 @@ extern "C" {
 int mjc_PlaneFlex(const mjModel* m, mjData* d, mjPreContact* con, int* vert, int g, int f,
                   mjtNum margin);
 
-// test a geom and an elem for collision, return number of contacts
-int mjc_GeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, int e,
-                 mjtNum margin);
+// test a geom (or sub-geom sub_g >= 0) and an elem for collision, return number of contacts
+int mjc_SubGeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int sub_g, int f,
+                    int e, mjtNum margin);
 
 // range [lo, hi] of the interpolation grid cells containing vertex v of flex f,
 // per axis

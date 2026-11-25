@@ -641,9 +641,9 @@ static void makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 }
 
 
-// test a geom and an elem for collision, return number of contacts
-int mjc_GeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, int e,
-                 mjtNum margin) {
+// test a geom (or piece sub_g >= 0) and an elem for collision, return number of contacts
+int mjc_SubGeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int sub_g, int f,
+                    int e, mjtNum margin) {
   int dim = m->flex_dim[f], type = m->geom_type[g], ncon;
 
   // bounding sphere test: only if midphase is disabled
@@ -714,11 +714,6 @@ int mjc_GeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, i
     }
   }
 
-  // heightfield : elem
-  else if (type == mjGEOM_HFIELD) {
-    ncon = mjc_HFieldElem(m, d, con, g, f, e, margin);
-  }
-
   // sphere : triangle
   else if (type == mjGEOM_SPHERE && dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
@@ -762,13 +757,13 @@ int mjc_GeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, i
 
     ncon = capsuleTetrahedron(con, margin, p1, p2, size[0], v, m->flex_radius[f]);
     if (ncon < 0) {
-      ncon = mjc_ConvexElem(m, d, con, g, -1, -1, -1, f, e, margin);
+      ncon = mjc_SubConvexElem(m, d, con, g, sub_g, -1, -1, -1, f, e, margin);
     }
   }
 
   // general geom : elem
   else {
-    ncon = mjc_ConvexElem(m, d, con, g, -1, -1, -1, f, e, margin);
+    ncon = mjc_SubConvexElem(m, d, con, g, sub_g, -1, -1, -1, f, e, margin);
   }
 
   return ncon;

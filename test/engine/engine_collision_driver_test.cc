@@ -15,6 +15,7 @@
 // Tests for engine/engine_collision_driver.c.
 
 #include "src/engine/engine_collision_driver.h"
+#include "src/engine/engine_collision_nonconvex.h"
 
 #include <algorithm>
 #include <cmath>
@@ -2277,6 +2278,236 @@ TEST_F(MjCollisionTest, FlexSAPSelfCollideMatchesNarrow) {
     EXPECT_EQ(c_sap[i].first, c_narrow[i].first);
     EXPECT_NEAR(c_sap[i].second, c_narrow[i].second, MjTol(1e-5, 1e-4));
   }
+}
+
+TEST_F(MjCollisionTest, HFieldSubgridAndPrismHelpers) {
+  // Verify prism id encode/decode round-trip.
+  int r = -1, c = -1, tri = -1;
+  int id = mjc_hfieldPrismId(/*r=*/2, /*c=*/3, /*tri=*/1, /*nc=*/4);
+  mjc_hfieldPrismCoords(id, /*nc=*/4, &r, &c, &tri);
+  EXPECT_EQ(r, 2);
+  EXPECT_EQ(c, 3);
+  EXPECT_EQ(tri, 1);
+
+  // 5x5 hfield covering [-1, 1] x [-1, 1] (4x4 cells, grid lines at -1, -0.5,
+  // 0, 0.5, 1).
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="5" ncol="5" size="1 1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="hf" type="hfield" hfield="hf"/>
+      <body name="far" pos="0 0 2.0">
+        <freejoint/>
+        <geom name="far_sphere" type="sphere" size="0.1"/>
+      </body>
+      <body name="mid" pos="0.25 0.25 0.05">
+        <freejoint/>
+        <geom name="mid_box" type="box" size="0.1 0.1 0.1"/>
+      </body>
+      <flexcomp name="gridline_flex" type="direct" dim="1" radius="0"
+                point="0 0 0  0 0 0.05" element="0 1">
+        <contact selfcollide="none"/>
+      </flexcomp>
+      <flexcomp name="border_flex" type="direct" dim="1" radius="0"
+                pos="-1 -1 0" point="0 0 0  0 0 0.05" element="0 1">
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  int g_hf = mj_name2id(m.get(), mjOBJ_GEOM, "hf");
+  int g_far = mj_name2id(m.get(), mjOBJ_GEOM, "far_sphere");
+  int g_mid = mj_name2id(m.get(), mjOBJ_GEOM, "mid_box");
+
+  int rmin = 0, rmax = 0, cmin = 0, cmax = 0;
+  mjtNum zmin = 0;
+
+  // Disjoint geom returns 0.
+  EXPECT_EQ(mjc_hfieldSubgridGeom(m.get(), d.get(), g_hf, g_far, 0, &rmin,
+                                  &rmax, &cmin, &cmax, &zmin),
+            0);
+
+  // Box centered at (0.25, 0.25) with half-size 0.1 lies strictly inside cell
+  // (2, 2).
+  EXPECT_EQ(mjc_hfieldSubgridGeom(m.get(), d.get(), g_hf, g_mid, 0, &rmin,
+                                  &rmax, &cmin, &cmax, &zmin),
+            1);
+  EXPECT_EQ(rmin, 2);
+  EXPECT_EQ(rmax, 3);
+  EXPECT_EQ(cmin, 2);
+  EXPECT_EQ(cmax, 3);
+
+  // Zero-radius vertical flex segment on interior grid line (0, 0) expands
+  // symmetrically to [1, 3).
+  int f_grid = mj_name2id(m.get(), mjOBJ_FLEX, "gridline_flex");
+  EXPECT_EQ(mjc_hfieldSubgridElem(m.get(), d.get(), g_hf, f_grid, 0, 0, &rmin,
+                                  &rmax, &cmin, &cmax, &zmin),
+            1);
+  EXPECT_EQ(rmin, 1);
+  EXPECT_EQ(rmax, 3);
+  EXPECT_EQ(cmin, 1);
+  EXPECT_EQ(cmax, 3);
+
+  // Zero-radius vertical flex segment on outer border (-1, -1) expands to [0,
+  // 1).
+  int f_border = mj_name2id(m.get(), mjOBJ_FLEX, "border_flex");
+  EXPECT_EQ(mjc_hfieldSubgridElem(m.get(), d.get(), g_hf, f_border, 0, 0, &rmin,
+                                  &rmax, &cmin, &cmax, &zmin),
+            1);
+  EXPECT_EQ(rmin, 0);
+  EXPECT_EQ(rmax, 1);
+  EXPECT_EQ(cmin, 0);
+  EXPECT_EQ(cmax, 1);
+}
+
+TEST_F(MjCollisionTest, HFieldThreadedParity) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="9" ncol="9" size="1 1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="hf" type="hfield" hfield="hf"/>
+      <body name="b1" pos="0 0 0.08">
+        <freejoint/>
+        <geom type="box" size="0.3 0.3 0.1"/>
+      </body>
+      <body name="b2" pos="0.5 0.2 0.08">
+        <freejoint/>
+        <geom type="sphere" size="0.1"/>
+      </body>
+      <body name="b3" pos="-0.4 -0.3 0.08">
+        <freejoint/>
+        <geom type="capsule" size="0.08 0.15"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  MjDataPtr d_serial = MakeData(m);
+  mj_forward(m.get(), d_serial.get());
+  ASSERT_GT(d_serial->ncon, 0);
+
+  MjDataPtr d_threaded = MakeData(m);
+  mju_threadpool(d_threaded.get(), 4);
+  mj_forward(m.get(), d_threaded.get());
+
+  EXPECT_EQ(d_threaded->ncon, d_serial->ncon);
+  EXPECT_MJTNUM_EQ(d_threaded->contact[0].dist, d_serial->contact[0].dist);
+  EXPECT_MJTNUM_EQ(d_threaded->contact[0].pos[2], d_serial->contact[0].pos[2]);
+  int last = d_serial->ncon - 1;
+  EXPECT_MJTNUM_EQ(d_threaded->contact[last].dist,
+                   d_serial->contact[last].dist);
+  EXPECT_MJTNUM_EQ(d_threaded->contact[last].pos[2],
+                   d_serial->contact[last].pos[2]);
+}
+
+TEST_F(MjCollisionTest, HFieldMaxConPairReductionAndArenaFallback) {
+  // Large flat box overlapping 14x14x2 = 392 prisms (> mjMAXCONPAIR).
+  static constexpr char kXmlNormal[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="15" ncol="15" size="1 1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="hf" type="hfield" hfield="hf"/>
+      <body name="big_box" pos="0 0 0.09">
+        <freejoint/>
+        <geom type="box" size="0.9 0.9 0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXmlNormal, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(d->ncon, mjMAXCONPAIR);
+
+  // Tight arena budget forces canAllocPairs() to fall back to unexpanded
+  // mjc_ConvexHField without triggering a stack overflow in mj_narrowphase.
+  static constexpr char kXmlTight[] = R"(
+  <mujoco>
+    <size memory="30K"/>
+    <asset>
+      <hfield name="hf" nrow="15" ncol="15" size="1 1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="hf" type="hfield" hfield="hf"/>
+      <body name="big_box" pos="0 0 0.09">
+        <freejoint/>
+        <geom type="box" size="0.9 0.9 0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_tight = LoadModelFromString(kXmlTight, error, sizeof(error));
+  ASSERT_THAT(m_tight.get(), NotNull()) << error;
+  MjDataPtr d_tight = MakeData(m_tight);
+  mj_kinematics(m_tight.get(), d_tight.get());
+  mj_collision(m_tight.get(), d_tight.get());
+  EXPECT_GT(d_tight->ncon, 0);
+  EXPECT_LE(d_tight->ncon, mjMAXCONPAIR);
+}
+
+TEST_F(MjCollisionTest, HFieldFlexCollisionAndPinnedSkip) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="5" ncol="5" size="1 1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="hf" type="hfield" hfield="hf"/>
+      <flexcomp name="free_tri" type="direct" dim="2" radius="0.02"
+                point="-0.2 -0.2 0.01  0.2 -0.2 0.01  0 0.2 0.01"
+                element="0 1 2">
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  EXPECT_GT(d->ncon, 0);
+
+  // Pinning a vertex to body 0 (same body as the heightfield) skips the element
+  // in pushGeomElem.
+  static constexpr char kXmlPinned[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="5" ncol="5" size="1 1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="hf" type="hfield" hfield="hf"/>
+      <flexcomp name="pinned_tri" type="direct" dim="2" radius="0.02"
+                point="-0.2 -0.2 0.01  0.2 -0.2 0.01  0 0.2 0.01"
+                element="0 1 2">
+        <pin id="0"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_pin = LoadModelFromString(kXmlPinned, error, sizeof(error));
+  ASSERT_THAT(m_pin.get(), NotNull()) << error;
+  MjDataPtr d_pin = MakeData(m_pin);
+  mj_forward(m_pin.get(), d_pin.get());
+  EXPECT_EQ(d_pin->ncon, 0);
 }
 }  // namespace
 }  // namespace mujoco

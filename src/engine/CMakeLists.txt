@@ -27,6 +27,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_collision_flex.h
     engine_collision_gjk.c
     engine_collision_gjk.h
+    engine_collision_nonconvex.c
+    engine_collision_nonconvex.h
     engine_collision_primitive.c
     engine_collision_primitive.h
     engine_collision_sdf.c

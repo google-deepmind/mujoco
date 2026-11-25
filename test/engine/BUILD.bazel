@@ -179,6 +179,7 @@ cc_test(
     deps = [
         "//:mujoco",
         "//src/engine:engine_collision",
+        "//src/engine:engine_collision_convex",
         "//test:fixture",
         "@googletest//:gtest_main",
     ],

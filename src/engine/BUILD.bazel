@@ -535,10 +535,12 @@ cc_library(
     srcs = [
         "engine_collision_convex.c",
         "engine_collision_gjk.c",
+        "engine_collision_nonconvex.c",
     ],
     hdrs = [
         "engine_collision_convex.h",
         "engine_collision_gjk.h",
+        "engine_collision_nonconvex.h",
     ],
     conlyopts = _C_CONLYOPTS + ["-std=c11"],
     copts = [
