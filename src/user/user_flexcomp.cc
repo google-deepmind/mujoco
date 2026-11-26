@@ -3378,9 +3378,16 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       throw mjCError(this, "cellcount cannot be 0 in any dimension when interpolation order > 0");
     }
 
-    int expected_nodes = (spec.cellcount[0] * spec.order + 1) *
-                         (spec.cellcount[1] * spec.order + 1) *
-                         (spec.cellcount[2] * spec.order + 1);
+    int node_count[3];
+    for (int k = 0; k < 3; k++) {
+      bool valid    = spec.cellcount[k] > 0 && spec.cellcount[k] <= (INT_MAX - 1) / spec.order;
+      node_count[k] = valid ? spec.cellcount[k] * spec.order + 1 : -1;
+    }
+    int expected_nodes = mjuu_gridSize(node_count);
+    if (expected_nodes < 0) {
+      throw mjCError(this,
+                     "cellcount is negative or too large, the number of nodes must fit in an int");
+    }
     if (nnode != expected_nodes) {
       std::string msg = "number of nodes (" +
                         std::to_string(nnode) +
@@ -3885,8 +3892,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // geometry (volume mode only) (survives XML round-trips where flexcomp data
   // is lost)
   if (interpolated && !elastic2d && cell_empty.empty()) {
-    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
-    if (cx * cy * cz >= 1) {
+    if (mjuu_gridSize(spec.cellcount) >= 1) {
       // as in flexcomp: vertices in the frame of the grid, cells dividing the box of the nodes
       std::vector<double> vertxpos_local(3 * nvert);
       for (int j = 0; j < nvert; j++) {
@@ -4939,7 +4945,14 @@ void mjCFlex::ComputeCellEmpty(
   int cx     = spec.cellcount[0];
   int cy     = spec.cellcount[1];
   int cz     = spec.cellcount[2];
-  int ncells = cx * cy * cz;
+  int ncells = mjuu_gridSize(spec.cellcount);
+  if (ncells <= 0) {
+    cell_empty.clear();
+    cell_full.clear();
+    cell_vol.clear();
+    cell_alphas.clear();
+    return;
+  }
 
   double dx = minmax[3] - minmax[0];
   double dy = minmax[4] - minmax[1];
@@ -4951,7 +4964,7 @@ void mjCFlex::ComputeCellEmpty(
   cell_alphas.assign(ncells, {});
 
   int nvpe = fdim + 1;
-  if (nvpe <= 0 || ne <= 0 || ncells <= 0) { return; }
+  if (nvpe <= 0 || ne <= 0) { return; }
 
   std::string fcm_cache_key = ComputeFcmCacheKey(vpos, elems, ne, fdim, minmax);
   if (LoadCachedFcmGeometry(fcm_cache_key)) { return; }
