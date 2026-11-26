@@ -197,6 +197,7 @@ class Rollout:
     nstep = _infer_dimension(
         1,
         1 if nstep is None else nstep,
+        infer_from_singleton=nstep is None,
         control=control,
         state=state,
         sensordata=sensordata,
@@ -411,12 +412,13 @@ def _ensure_3d(arg):
     return np.ascontiguousarray(arg, dtype=mujoco.MJTNUM_DTYPE)
 
 
-def _infer_dimension(dim, value, **kwargs):
+def _infer_dimension(dim, value, *, infer_from_singleton=True, **kwargs):
   """Infers dimension `dim` given guess `value` from set of arrays.
 
   Args:
     dim: Dimension to be inferred.
-    value: Initial guess of inferred value (1: unknown).
+    value: Initial guess of inferred value.
+    infer_from_singleton: Whether a value of 1 may be replaced by an array size.
     **kwargs: List of arrays which should all have the same size (or 1) along
       dimension dim.
 
@@ -430,7 +432,7 @@ def _infer_dimension(dim, value, **kwargs):
     if array is None:
       continue
     if array.shape[dim] != value:
-      if value == 1:
+      if value == 1 and infer_from_singleton:
         value = array.shape[dim]
       elif array.shape[dim] != 1:
         raise ValueError(
