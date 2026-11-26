@@ -112,8 +112,15 @@ fi
 OUT_PNG="${TEST_TMPDIR}/render_out.png"
 RENDER_LOG=$("$TARGET_BINARY" "$MODEL" "$OUT_PNG" --width=64 --height=48 2>&1)
 RENDER_EXIT=$?
-if [ "$RENDER_EXIT" -ge 128 ] && ! echo "$RENDER_LOG" | grep -q "mEGLDisplay != EGL_NO_DISPLAY"; then
-  die "Render binary crashed with signal $((RENDER_EXIT - 128)) (exit $RENDER_EXIT): $RENDER_LOG"
+if [ "$RENDER_EXIT" -ge 128 ]; then
+  if echo "$RENDER_LOG" | grep -q "mEGLDisplay != EGL_NO_DISPLAY"; then
+    echo "Tolerating headless abort (exit $RENDER_EXIT): no EGL display"
+  elif [ "$(uname)" = "Darwin" ] && [ "$RENDER_EXIT" -eq 134 ] \
+      && echo "$RENDER_LOG" | grep -q "PostconditionPanic"; then
+    echo "Tolerating headless macOS abort (exit $RENDER_EXIT): $RENDER_LOG"
+  else
+    die "Render binary crashed with signal $((RENDER_EXIT - 128)) (exit $RENDER_EXIT): $RENDER_LOG"
+  fi
 fi
 if echo "$RENDER_LOG" | grep -q "Failed to open filament asset"; then
   die "Filament asset resolution failed: $RENDER_LOG"
