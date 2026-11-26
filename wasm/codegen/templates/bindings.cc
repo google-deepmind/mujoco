@@ -556,28 +556,32 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
 
   emscripten::class_<WasmBuffer<float>>("FloatBuffer")
       .constructor<int>()
-      .class_function("FromArray", &WasmBuffer<float>::FromArray)
+      .class_function("FromArray", &WasmBuffer<float>::FromArray,
+                      take_ownership())
       .function("GetPointer", &WasmBuffer<float>::GetPointer)
       .function("GetElementCount", &WasmBuffer<float>::GetElementCount)
       .function("GetView", &WasmBuffer<float>::GetView);
 
   emscripten::class_<WasmBuffer<double>>("DoubleBuffer")
       .constructor<int>()
-      .class_function("FromArray", &WasmBuffer<double>::FromArray)
+      .class_function("FromArray", &WasmBuffer<double>::FromArray,
+                      take_ownership())
       .function("GetPointer", &WasmBuffer<double>::GetPointer)
       .function("GetElementCount", &WasmBuffer<double>::GetElementCount)
       .function("GetView", &WasmBuffer<double>::GetView);
 
   emscripten::class_<WasmBuffer<int>>("IntBuffer")
       .constructor<int>()
-      .class_function("FromArray", &WasmBuffer<int>::FromArray)
+      .class_function("FromArray", &WasmBuffer<int>::FromArray,
+                      take_ownership())
       .function("GetPointer", &WasmBuffer<int>::GetPointer)
       .function("GetElementCount", &WasmBuffer<int>::GetElementCount)
       .function("GetView", &WasmBuffer<int>::GetView);
 
   emscripten::class_<WasmBuffer<uint8_t>>("Uint8Buffer")
       .constructor<int>()
-      .class_function("FromArray", &WasmBuffer<uint8_t>::FromArray)
+      .class_function("FromArray", &WasmBuffer<uint8_t>::FromArray,
+                      take_ownership())
       .function("GetPointer", &WasmBuffer<uint8_t>::GetPointer)
       .function("GetElementCount", &WasmBuffer<uint8_t>::GetElementCount)
       .function("GetView", &WasmBuffer<uint8_t>::GetView);
