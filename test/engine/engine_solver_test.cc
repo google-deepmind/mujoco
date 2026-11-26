@@ -23,6 +23,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_metric.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -1695,6 +1696,218 @@ TEST_F(SolverTest, DenseEllipticConeFold) {
     }
   }
 }
+
+// float32 cannot resolve the cost at the default tolerance
+#ifndef mjUSESINGLE
+
+// stiff discrete CG models at rest in contact with a plane
+static const char* const kDiscreteRod = R"(
+<mujoco>
+  <option integrator="discrete" solver="CG" timestep="0.002"/>
+  <worldbody>
+    <geom type="plane" size="1 1 .1"/>
+    <flexcomp name="rod" type="grid" dim="1" count="8 1 1"
+              spacing="0.05 0.05 0.05" pos="0 0 0.011" radius="0.01" mass="0.1">
+      <contact selfcollide="none"/>
+      <elasticity young="1e7" damping="0.01"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+
+static const char* const kDiscreteCloth = R"(
+<mujoco>
+  <option integrator="discrete" solver="CG" timestep="0.002"/>
+  <worldbody>
+    <geom type="plane" size="1 1 .1"/>
+    <flexcomp name="cloth" type="grid" dim="2" count="6 6 1"
+              spacing="0.05 0.05 0.05" pos="0 0 0.006" radius="0.005"
+              mass="0.2">
+      <contact selfcollide="none"/>
+      <elasticity young="1e6" poisson="0.3" damping="0.01" thickness="0.005"
+                  elastic2d="both"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+
+static const char* const kDiscreteTrilinear = R"(
+<mujoco>
+  <option integrator="discrete" solver="CG" timestep="0.002"/>
+  <worldbody>
+    <geom type="plane" size="1 1 .1"/>
+    <flexcomp name="soft" type="grid" dim="3" count="3 3 3"
+              spacing="0.05 0.05 0.05" pos="0 0 0.061" radius="0.01" mass="0.5"
+              dof="trilinear">
+      <contact selfcollide="none"/>
+      <elasticity young="1e6" poisson="0.3" damping="0.01"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+
+// a tendon spring pulls a box onto the plane, a position actuator presses a
+// sphere onto it (ctrl < 0)
+static const char* const kDiscreteTendonActuator = R"(
+<mujoco>
+  <option integrator="discrete" solver="CG" timestep="0.002"/>
+  <default>
+    <geom solref="0.004 1"/>
+  </default>
+  <worldbody>
+    <geom type="plane" size="1 1 .1"/>
+    <site name="anchor" pos="0 0 -0.25"/>
+    <body pos="0 0 0.05">
+      <freejoint/>
+      <geom type="box" size="0.05 0.05 0.05" mass="0.05"/>
+      <site name="box"/>
+    </body>
+    <body pos="0.3 0 0.05">
+      <joint name="press" type="slide" axis="0 0 1"/>
+      <geom type="sphere" size="0.05" mass="0.02"/>
+    </body>
+  </worldbody>
+  <tendon>
+    <spatial stiffness="1e5" damping="1" springlength="0.2999">
+      <site site="anchor"/>
+      <site site="box"/>
+    </spatial>
+  </tendon>
+  <actuator>
+    <position joint="press" kp="1e5" kv="10"/>
+  </actuator>
+</mujoco>
+)";
+
+static const mjtNum kPressCtrl = -1e-4;
+
+// iterations of the last constraint solve, over all islands
+static int SolverIterations(const mjData* d) {
+  int niter = 0;
+  for (int i = 0; i < mjNISLAND; i++) {
+    niter += d->solver_niter[i];
+  }
+  return niter;
+}
+
+// trace of the inertia, the inverse of the solver's cost scale
+static mjtNum InertiaTrace(const mjModel* m, const mjData* d) {
+  mjtNum trace = 0;
+  for (int i = 0; i < m->nv; i++) {
+    trace += d->M[m->M_rowadr[i] + m->M_rownnz[i] - 1];
+  }
+  return trace;
+}
+
+// cost(qacc1) - cost(qacc2) of the primal problem at the state of d, with
+//   cost(a) = 0.5*a'*Mtilde*a - a'*qfrc_eff + s(J*a - aref)
+// overwrites the constraint state of d
+static mjtNum PrimalCostDiff(const mjModel* m, mjData* d, const mjtNum* qacc1,
+                             const mjtNum* qacc2) {
+  int nv = m->nv, nefc = d->nefc;
+  std::vector<mjtNum> dif(nv), mid(nv), res(nv), jar(nefc);
+
+  // Gauss: (a1 - a2)' * (Mtilde*(a1 + a2)/2 - qfrc_eff), free of cancellation
+  for (int i = 0; i < nv; i++) {
+    dif[i] = qacc1[i] - qacc2[i];
+    mid[i] = 0.5 * (qacc1[i] + qacc2[i]);
+  }
+  mj_mulM(m, d, res.data(), mid.data());
+  mju_subFrom(res.data(), d->qfrc_smooth, nv);
+  if (d->efm_active) {
+    mj_effMulAdd(m, d, res.data(), mid.data(), /*flg_contact=*/1);
+    mju_subFrom(res.data(), d->efm_c, nv);
+    if (d->efm_ca) {
+      mju_subFrom(res.data(), d->efm_ca, nv);
+    }
+  }
+  mjtNum diff = mju_dot(dif.data(), res.data(), nv);
+
+  // constraint: s(J*a1 - aref) - s(J*a2 - aref)
+  mjtNum cost[2];
+  const mjtNum* qacc[2] = {qacc1, qacc2};
+  for (int k = 0; k < 2; k++) {
+    mj_mulJacVec(m, d, jar.data(), qacc[k]);
+    mju_subFrom(jar.data(), d->efc_aref, nefc);
+    mj_constraintUpdate(m, d, jar.data(), &cost[k]);
+  }
+  return diff + cost[0] - cost[1];
+}
+
+// minimizer of the primal cost at the state of d: the constraint stage from the
+// same qacc_smooth, metric and warmstart, with early termination disabled.
+// (mj_forward would also converge qacc_smooth to opt.tolerance = 0)
+static std::vector<mjtNum> ConvergedQacc(mjModel* m, const mjData* d,
+                                         mjData* scratch) {
+  mjtNum tolerance = m->opt.tolerance;
+  int iterations = m->opt.iterations;
+  m->opt.tolerance = 0;
+  m->opt.iterations = 2000;
+  mj_copyData(scratch, m, d);
+  mj_fwdConstraint(m, scratch);
+  m->opt.tolerance = tolerance;
+  m->opt.iterations = iterations;
+  return std::vector<mjtNum>(scratch->qacc, scratch->qacc + m->nv);
+}
+
+// under integrator="discrete", zero-iteration exits of CG are within tolerance
+// of the converged cost: cost(qacc) - cost* <= tolerance/scale
+TEST_F(SolverTest, DiscreteZeroIterationsWithinTolerance) {
+  struct Case {
+    const char* name;
+    const char* xml;
+    bool fires;  // returns in zero iterations at rest
+  };
+  const Case cases[] = {{"rod", kDiscreteRod, true},
+                        {"cloth", kDiscreteCloth, true},
+                        {"trilinear", kDiscreteTrilinear, true},
+                        {"tendon_actuator", kDiscreteTendonActuator, false}};
+  const int kSettle = 250, kCheckSteps = 10;
+
+  for (const Case& tc : cases) {
+    for (bool island : {false, true}) {
+      SCOPED_TRACE(std::string(tc.name) + (island ? "/island" : "/monolithic"));
+      char error[1024];
+      MjModelPtr model = LoadModelFromString(tc.xml, error, sizeof(error));
+      ASSERT_THAT(model, NotNull()) << error;
+      if (!island) {
+        model->opt.disableflags |= mjDSBL_ISLAND;
+      }
+
+      mjtNum tolerance = model->opt.tolerance;
+      MjDataPtr data = MakeData(model);
+      MjDataPtr scratch = MakeData(model);
+      mju_fill(data->ctrl, kPressCtrl, model->nu);
+
+      for (int step = 0; step < kSettle; step++) {
+        mj_step(model.get(), data.get());
+      }
+
+      int nzero = 0;
+      for (int step = 0; step < kCheckSteps; step++) {
+        mj_forward(model.get(), data.get());
+        if (data->nefc && SolverIterations(data.get()) == 0) {
+          nzero++;
+          std::vector<mjtNum> qacc =
+              ConvergedQacc(model.get(), data.get(), scratch.get());
+          mj_copyData(scratch.get(), model.get(), data.get());
+          mjtNum diff = PrimalCostDiff(model.get(), scratch.get(), data->qacc,
+                                       qacc.data());
+          mjtNum bound = tolerance * InertiaTrace(model.get(), data.get());
+          EXPECT_LE(diff, bound * (1 + 1e-6)) << "step " << (kSettle + step);
+        }
+        mj_step(model.get(), data.get());
+      }
+
+      // the certificate fires at rest
+      if (tc.fires) {
+        EXPECT_GT(nzero, 0);
+      }
+    }
+  }
+}
+
+#endif  // !mjUSESINGLE
 
 }  // namespace
 }  // namespace mujoco

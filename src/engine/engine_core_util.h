@@ -249,6 +249,9 @@ MJAPI int mj_effFlexPossible(const mjModel* m, int f);
 // does any flex need the implicit metric treatment: elastic stiffness or passive contact
 int mj_effFlexAny(const mjModel* m);
 
+// damping of flex f in the metric: flex_damping clamped at 0
+mjtNum mj_effFlexDamping(const mjModel* m, int f);
+
 // can this tendon contribute to the metric (model-level; mirrored by island discovery
 // and the sleep wake rule)
 MJAPI int mj_effTendonPossible(const mjModel* m, int i);

@@ -67,7 +67,7 @@ static void* effAlloc(mjData* d, size_t bytes, size_t align) {
 static mjtNum effTwistHinge(const mjModel* m, int f, int h, mjtNum s1, mjtNum s2,
                             int* dof0, int* dof1) {
   const mjtNum* hinge = m->flex_bending + m->flex_bendingadr[f] + 1 + mjROD_HINGE_SIZE*h;
-  mjtNum scale = (s1 + s2*m->flex_damping[f]) * 2 * hinge[8];
+  mjtNum scale = (s1 + s2*mj_effFlexDamping(m, f)) * 2 * hinge[8];
   *dof0 = mj_rodChainTwistDof(m, f, h);
   *dof1 = mj_rodChainTwistDof(m, f, h + 1);
   if (scale <= 0 || (*dof0 < 0 && *dof1 < 0)) {
@@ -657,7 +657,7 @@ static int effCholBendFlaps(const mjModel* m, int f) {
   mjtNum h = m->opt.timestep;
   mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
   mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
-  mjtNum scale = s1 + s2*m->flex_damping[f];
+  mjtNum scale = s1 + s2*mj_effFlexDamping(m, f);
   if (scale <= 0) {
     return 0;
   }
@@ -1699,7 +1699,7 @@ static void effTwistSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
       continue;
     }
 
-    mjtNum scale_f = s1 + s2 * m->flex_damping[f];
+    mjtNum scale_f = s1 + s2 * mj_effFlexDamping(m, f);
     const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
     int nhinge = (int)b[0];
     if (scale_f <= 0 || nhinge <= 0) {
@@ -2752,10 +2752,11 @@ void mj_effShift(const mjModel* m, mjData* d) {
   }
 
 
-  // fluid drag blocks: assemble the drag-only passive-fluid velocity derivative into the
-  // assemble the drag derivatives into stack scratch in qDeriv's shape (qDeriv itself is
-  // user-facing), gather into M's sparsity pattern, scale by -h. Drag derivatives are
-  // symmetric dissipative by construction; lift and added-mass terms are excluded and
+  // fluid drag blocks: assemble the drag-only passive-fluid velocity derivative into stack
+  // scratch in qDeriv's shape (qDeriv itself is user-facing), gather into M's sparsity
+  // pattern, scale by -h. The inertia-box drag derivative is negative semidefinite term by
+  // term; the ellipsoid one is not (its symmetric part is indefinite for slender shapes) and
+  // is projected per geom (mjd_ellipsoidFluid). Lift and added-mass terms are excluded and
   // integrate explicitly
   if (d->efm_fluid) {
     mj_markStack(d);

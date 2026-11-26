@@ -2161,6 +2161,13 @@ int mj_effFlexAny(const mjModel* m) {
 }
 
 
+// damping of flex f in the metric, clamped PSD-safe like the joint and tendon damping
+// derivatives: the force of a negative damping integrates explicitly
+mjtNum mj_effFlexDamping(const mjModel* m, int f) {
+  return mju_max(0, m->flex_damping[f]);
+}
+
+
 // can this tendon contribute to the metric (model-level; mirrored by island discovery
 // and the sleep wake rule)
 int mj_effTendonPossible(const mjModel* m, int i) {

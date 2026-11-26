@@ -175,6 +175,15 @@ OpenUSD
   (``double3``) and ``xformOp:orient`` (``quatd``) instead of ``xformOp:transform`` (``matrix4d``), avoiding shear
   artifacts when USD or external renderers interpolate between time samples.
 
+Bug fixes
+^^^^^^^^^
+- Under the ``discrete`` :ref:`integrator<option-integrator>`, negative flex :ref:`damping<flex-elasticity-damping>` is
+  clamped to zero in the effective metric, like negative joint and tendon damping, and its force is integrated
+  explicitly. Previously it made the metric indefinite.
+- Under the ``discrete`` :ref:`integrator<option-integrator>`, the ellipsoid :ref:`fluid model<flEllipsoid>` contributes
+  the dissipative part of its drag derivative to the effective metric. The symmetrized derivative used before is
+  indefinite for slender shapes at small angles of attack.
+
 Version 4.0.1 (November 11, 2026)
 ---------------------------------
 

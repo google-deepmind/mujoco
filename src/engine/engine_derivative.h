@@ -76,13 +76,13 @@ MJAPI void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_o
 
 // compute res += scale * K_bend * vec for standard (non-interp) flex bending, over the convex
 // stencils
-//   scale = s1 + s2 * flex_damping[f]  per flex
+//   scale = s1 + s2 * max(0, flex_damping[f])  per flex
 MJAPI void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                             mjtNum s1, mjtNum s2);
 
 // compute res += scale * K_stretch * vec for standard (non-interp) flex stretch,
 // K_stretch is the PSD world-space stretch Hessian projected through the vertex Jacobians
-//   scale = s1 + s2 * flex_damping[f]  per flex
+//   scale = s1 + s2 * max(0, flex_damping[f])  per flex
 MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                                mjtNum s1, mjtNum s2);
 
@@ -181,7 +181,7 @@ void mjd_flexInterp_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjt
 
 // compute res += scale * K_bend * vec for standard (non-interp) flex bending, over the convex
 // stencils
-//   scale = s1 + s2 * flex_damping[f]  per flex
+//   scale = s1 + s2 * max(0, flex_damping[f])  per flex
 //   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
 //   for stiffness only:    s1=h,   s2=0  =>  scale = h
 void mjd_flexBend_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
@@ -195,7 +195,8 @@ void mjd_flexStretch_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mj
                               mjtNum s1, mjtNum s2, int first, int last);
 
 // add d(fluid force)/d(velocity) of body bodyid to res (qDeriv's sparse layout), ellipsoid
-// model; if flg_dragonly, only the dissipative drag terms (the variant the metric uses)
+// model; if flg_dragonly, only the drag terms, projected to symmetric negative semidefinite
+// (the variant the metric uses)
 void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* res, int bodyid,
                         int flg_dragonly);
 

@@ -5085,5 +5085,258 @@ TEST_F(DerivativeTest, FreeGyroJointsFiltersCoupledAndSleepingBodies) {
   }
 }
 
+// the stiffness part S of the discrete metric Mtilde = M + S is symmetric
+// positive semidefinite for every class of term, so that Mtilde >= M: joint,
+// tendon and actuator terms, fluid drag, flex elasticity and passive contact.
+// Negative flex damping and the ellipsoid fluid model with slender shapes,
+// whose drag derivative is indefinite, are clamped in the metric
+TEST_F(DerivativeTest, EffMetricPositiveSemidefinite) {
+  // joint stiffness and damping, tendon springs and dampers, actuator gains
+  // (one with positive feedback)
+  static const char* const kRigid = R"(
+  <mujoco>
+    <option integrator="discrete" solver="CG"/>
+    <worldbody>
+      <body>
+        <joint name="j1" axis="0 1 0" stiffness="50" damping="2"/>
+        <geom type="capsule" fromto="0 0 0 0.3 0 0" size="0.02"/>
+        <body pos="0.3 0 0">
+          <joint name="j2" axis="0 1 0" stiffness="20" damping="1"/>
+          <geom type="capsule" fromto="0 0 0 0.3 0 0" size="0.02"/>
+          <site name="tip" pos="0.3 0 0"/>
+        </body>
+      </body>
+      <body pos="0 0.5 0">
+        <joint name="j3" type="slide" axis="1 0 0"/>
+        <geom size="0.05"/>
+        <site name="ball"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed stiffness="1e4" damping="10" springlength="0.1">
+        <joint joint="j1" coef="1"/>
+        <joint joint="j2" coef="-1"/>
+      </fixed>
+      <spatial name="spatial" stiffness="1e3" damping="5" springlength="0.2">
+        <site site="tip"/>
+        <site site="ball"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <position joint="j3" kp="1e4" kv="100"/>
+      <position tendon="spatial" kp="1e3" kv="10"/>
+      <general joint="j1" biastype="affine" biasprm="0 100 10"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  // fluid drag, inertia-box model
+  static const char* const kFluidBox = R"(
+  <mujoco>
+    <option integrator="discrete" solver="CG" density="1000" viscosity="0.1"
+            wind="1 2 3"/>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size="0.5 0.05 0.02"/>
+        <body pos="0.5 0 0">
+          <joint axis="0 1 0"/>
+          <geom type="box" size="0.02 0.3 0.1" pos="0.1 0 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // fluid drag, ellipsoid model: slender and flat shapes at small angles of
+  // attack, on a free body with diagonal inertia, off its origin, and on a
+  // hinge
+  static const char* const kFluidEllipsoid = R"(
+  <mujoco>
+    <option integrator="discrete" solver="CG" density="1000"/>
+    <default>
+      <geom type="ellipsoid" fluidshape="ellipsoid"/>
+    </default>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size="0.5 0.05 0.05"/>
+      </body>
+      <body pos="0 1 0">
+        <freejoint/>
+        <geom size="0.5 0.05 0.05" pos="0.2 0 0"/>
+      </body>
+      <body pos="0 2 0">
+        <freejoint/>
+        <geom size="0.5 0.5 0.02" pos="0 0.1 0"/>
+        <body pos="0.6 0 0">
+          <joint axis="0 0 1"/>
+          <geom size="0.05 0.4 0.05" pos="0 0.4 0"/>
+        </body>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="-1 0.006 0.018 0.3 2 -1
+                 -1 0.006 0.018 0 0 0
+                 -1 0.006 0.018 0 0 0  0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  // flex elasticity: rod, shell, trilinear and tetrahedral flexes, and passive
+  // contact
+  static const char* const kFlex = R"(
+  <mujoco>
+    <option integrator="discrete" solver="CG" timestep="0.002"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <flexcomp name="rod" type="grid" dim="1" count="6 1 1"
+                spacing="0.05 0.05 0.05" pos="0 0 0.3" radius="0.01" mass="0.1">
+        <contact selfcollide="none"/>
+        <elasticity young="1e7" damping="DAMPING"/>
+      </flexcomp>
+      <flexcomp name="cloth" type="grid" dim="2" count="4 4 1"
+                spacing="0.05 0.05 0.05" pos="0.5 0 0.3" radius="0.005"
+                mass="0.1">
+        <contact selfcollide="none"/>
+        <elasticity young="1e6" poisson="0.3" damping="DAMPING"
+                    thickness="0.005" elastic2d="both"/>
+      </flexcomp>
+      <flexcomp name="soft" type="grid" dim="3" count="3 3 3"
+                spacing="0.05 0.05 0.05" pos="1 0 0.3" radius="0.01" mass="0.5"
+                dof="trilinear">
+        <contact selfcollide="none"/>
+        <elasticity young="1e6" poisson="0.3" damping="DAMPING"/>
+      </flexcomp>
+      <flexcomp name="tets" type="grid" dim="3" count="3 3 3"
+                spacing="0.05 0.05 0.05" pos="1.5 0 0.3" radius="0.005"
+                mass="0.2">
+        <contact selfcollide="none"/>
+        <elasticity young="1e5" poisson="0.3" damping="DAMPING"/>
+      </flexcomp>
+      <flexcomp name="sheet" type="grid" dim="2" count="4 4 1"
+                spacing="0.05 0.05 0.05" pos="0 0.5 0.004" radius="0.005"
+                mass="0.1">
+        <contact selfcollide="none" passive="true"/>
+        <elasticity young="1e5" poisson="0.3" damping="DAMPING"
+                    thickness="0.005" elastic2d="both"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // flexes pinned to an articulated body: matrix-free stiffness
+  static const char* const kFlexArticulated = R"(
+  <mujoco>
+    <option integrator="discrete" solver="CG"/>
+    <worldbody>
+      <body name="arm" pos="0 0 1">
+        <joint type="ball"/>
+        <inertial pos="0 0 0" mass="0.5" diaginertia="0.01 0.02 0.03"/>
+        <flexcomp name="rod" type="grid" dim="1" count="5 1 1"
+                  spacing="0.1 0.1 0.1" radius="0.01" mass="0.4">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e5" damping="DAMPING"/>
+        </flexcomp>
+        <flexcomp name="cloth" type="grid" dim="2" count="4 4 1"
+                  spacing="0.05 0.05 0.05" pos="0 0.4 0" radius="0.005"
+                  mass="0.2">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e5" poisson="0.3" damping="DAMPING"
+                      thickness="0.005" elastic2d="both"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // xml with every DAMPING replaced by a flex damping
+  auto with_damping = [](std::string xml, const std::string& damping) {
+    const std::string key = "DAMPING";
+    for (size_t pos; (pos = xml.find(key)) != std::string::npos;) {
+      xml.replace(pos, key.size(), damping);
+    }
+    return xml;
+  };
+
+  struct Case {
+    const char* name;
+    std::string xml;
+  };
+  const Case cases[] = {
+      {"rigid", kRigid},
+      {"fluid_box", kFluidBox},
+      {"fluid_ellipsoid", kFluidEllipsoid},
+      {"flex", with_damping(kFlex, "0.01")},
+      {"flex_negative_damping", with_damping(kFlex, "-1")},
+      {"flex_articulated", with_damping(kFlexArticulated, "0.1")},
+      {"flex_articulated_negative_damping",
+       with_damping(kFlexArticulated, "-1")},
+  };
+
+  for (const Case& tc : cases) {
+    SCOPED_TRACE(tc.name);
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(tc.xml, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
+    int nv = model->nv;
+    MjDataPtr data = MakeData(model);
+
+    // the keyframe state, or a state away from rest: strained and moving
+    std::vector<mjtNum> vec(nv), col(nv);
+    if (model->nkey) {
+      mj_resetDataKeyframe(model.get(), data.get(), 0);
+    } else {
+      for (int i = 0; i < nv; i++) {
+        vec[i] = 0.01 * (mju_Halton(i + 1, 3) - 0.5);
+        data->qvel[i] = mju_Halton(i + 1, 5) - 0.5;
+      }
+      mj_integratePos(model.get(), data->qpos, vec.data(), 1);
+    }
+    mj_forward(model.get(), data.get());
+    ASSERT_GT(data->efm_active, 0);
+
+    // dense S, column by column
+    std::vector<mjtNum> S(nv * nv);
+    mjtNum norm = 0;
+    for (int j = 0; j < nv; j++) {
+      mju_zero(vec.data(), nv);
+      vec[j] = 1;
+      mju_zero(col.data(), nv);
+      mj_effMulAdd(model.get(), data.get(), col.data(), vec.data(),
+                   /*flg_contact=*/1);
+      mjtNum sum = 0;
+      for (int i = 0; i < nv; i++) {
+        S[i * nv + j] = col[i];
+        sum += std::abs(col[i]);
+      }
+      norm = std::max(norm, sum);
+    }
+    ASSERT_GT(norm, 0);
+
+    // symmetric
+    mjtNum asymmetry = 0;
+    for (int i = 0; i < nv; i++) {
+      for (int j = 0; j < i; j++) {
+        asymmetry =
+            std::max(asymmetry, std::abs(S[i * nv + j] - S[j * nv + i]));
+      }
+    }
+    EXPECT_LE(asymmetry, MjTol(1e-10, 1e-4) * norm);
+
+    // positive semidefinite: S + eps*|S|*I has a Cholesky factor
+    mjtNum eps = MjTol(1e-9, 1e-3) * norm;
+    for (int i = 0; i < nv; i++) {
+      for (int j = 0; j < i; j++) {
+        S[i * nv + j] = S[j * nv + i] = 0.5 * (S[i * nv + j] + S[j * nv + i]);
+      }
+      S[i * nv + i] += eps;
+    }
+    EXPECT_EQ(mju_cholFactor(S.data(), nv, 0.5 * eps), nv);
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

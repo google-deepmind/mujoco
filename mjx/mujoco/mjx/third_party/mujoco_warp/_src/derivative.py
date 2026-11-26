@@ -955,6 +955,21 @@ def deriv_rne_vel(m: Model, d: Data, out: wp.array2d[float]):
 
 
 @wp.func
+def _drag_dissipative(deriv: wp.mat33) -> wp.mat33:
+  """Projects a drag derivative to symmetric negative semidefinite.
+
+  The symmetric part of the ellipsoid drag derivative is indefinite for slender
+  shapes; the discrete metric keeps its dissipative part.
+  """
+  sym = 0.5 * (deriv + wp.transpose(deriv))
+  eigvec, eigval = wp.eig3(sym)
+  if eigval[0] <= 0.0 and eigval[1] <= 0.0 and eigval[2] <= 0.0:
+    return sym
+  clamped = wp.vec3(wp.min(eigval[0], 0.0), wp.min(eigval[1], 0.0), wp.min(eigval[2], 0.0))
+  return eigvec @ wp.diag(clamped) @ wp.transpose(eigvec)
+
+
+@wp.func
 def _geom_ellipsoid_fluid_B(
   # In:
   semiaxes: wp.vec3,
@@ -1119,6 +1134,11 @@ def _geom_ellipsoid_fluid_B(
 
   D = wp.outer(ang_vel, mom_sq) + wp.diag(wp.vec3(diag_val))
   B00 += D
+
+  # discrete metric: drag-only B is block-diagonal, keep the dissipative part
+  # of each block
+  if flg_dragonly:
+    return _drag_dissipative(B00), B01, B10, _drag_dissipative(B11)
 
   return B00, B01, B10, B11
 
@@ -1965,7 +1985,7 @@ def _eff_add_rod_twist_qH_diag(
   h_dt = opt_timestep[worldid % opt_timestep.shape[0]]
   s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else h_dt * h_dt
   s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else h_dt
-  scale_f = s1 + s2 * flex_damping[flexid]
+  scale_f = s1 + s2 * wp.max(0.0, flex_damping[flexid])
   b_adr = flex_bendingadr[flexid]
   nhinge = int(flex_bending[b_adr])
   if scale_f <= 0.0 or nhinge <= 0:
@@ -2019,7 +2039,7 @@ def _eff_mul_add_rod_twist(check_skip: bool):
     h_dt = opt_timestep[worldid % opt_timestep.shape[0]]
     s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else h_dt * h_dt
     s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else h_dt
-    scale_f = s1 + s2 * flex_damping[flexid]
+    scale_f = s1 + s2 * wp.max(0.0, flex_damping[flexid])
     b_adr = flex_bendingadr[flexid]
     nhinge = int(flex_bending[b_adr])
     if scale_f <= 0.0 or nhinge <= 0:
@@ -2083,7 +2103,7 @@ def _eff_twist_solve(has_tw_diag: bool):
     h_dt = opt_timestep[worldid % opt_timestep.shape[0]]
     s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else h_dt * h_dt
     s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else h_dt
-    scale_f = wp.max(0.0, s1 + s2 * flex_damping[flexid])
+    scale_f = s1 + s2 * wp.max(0.0, flex_damping[flexid])
     b_adr = flex_bendingadr[flexid]
     nhinge = int(flex_bending[b_adr])
     if nhinge <= 0:
@@ -2927,7 +2947,7 @@ def _eff_flex_stretch_stiff_vert(deterministic: bool = False):
 
     s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else timestep * timestep
     s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else timestep
-    scale = s1 + s2 * flex_damping[f]
+    scale = s1 + s2 * wp.max(0.0, flex_damping[f])
     if scale == 0.0:
       return
 
@@ -3000,7 +3020,7 @@ def _eff_flex_stretch_stiff_edge(deterministic: bool = False):
 
     s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else timestep * timestep
     s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else timestep
-    scale = s1 + s2 * flex_damping[f]
+    scale = s1 + s2 * wp.max(0.0, flex_damping[f])
     if scale == 0.0:
       return
 
@@ -3088,7 +3108,7 @@ def _eff_flex_bend_stiff(deterministic: bool = False):
 
     s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else timestep * timestep
     s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else timestep
-    scale = s1 + s2 * flex_damping[f]
+    scale = s1 + s2 * wp.max(0.0, flex_damping[f])
     if scale == 0.0:
       return
 
@@ -3188,7 +3208,7 @@ def _eff_flex_rod_stiff(deterministic: bool = False):
     timestep = opt_timestep[worldid % opt_timestep.shape[0]]
     s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else timestep * timestep
     s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else timestep
-    sd = s2 * flex_damping[f]
+    sd = s2 * wp.max(0.0, flex_damping[f])
     if s1 == 0.0 and sd == 0.0:
       return
 
@@ -3312,7 +3332,7 @@ def _eff_flex_interp_stiff(deterministic: bool = False):
 
     s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else timestep * timestep
     s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else timestep
-    iscale = -(s1 + s2 * flex_damping[f])
+    iscale = -(s1 + s2 * wp.max(0.0, flex_damping[f]))
     if iscale == 0.0:
       return
 
@@ -3844,7 +3864,7 @@ def _eff_flex_interp_mul(check_skip: bool, is_shift: bool, nv: int, deterministi
     else:
       s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else -timestep * timestep
       s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else -timestep
-      scale = s1 + s2 * flex_damping[f]
+      scale = s1 + s2 * wp.max(0.0, flex_damping[f])
       if scale == 0.0:
         return
 

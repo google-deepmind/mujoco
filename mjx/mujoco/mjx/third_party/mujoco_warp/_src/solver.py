@@ -2743,7 +2743,7 @@ def _add_rod_twist_metric_dense(
   h_dt = opt_timestep[worldid % opt_timestep.shape[0]]
   s1 = 0.0 if (opt_disableflags & types.DisableBit.SPRING) else h_dt * h_dt
   s2 = 0.0 if (opt_disableflags & types.DisableBit.DAMPER) else h_dt
-  scale_f = s1 + s2 * flex_damping[flexid]
+  scale_f = s1 + s2 * wp.max(0.0, flex_damping[flexid])
   b_adr = flex_bendingadr[flexid]
   nhinge = int(flex_bending[b_adr])
   if scale_f <= 0.0 or nhinge <= 0:

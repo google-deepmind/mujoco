@@ -2946,7 +2946,7 @@ def _flex_stretch_mul_scale(
     else:
       s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else s1_in * timestep * timestep
     s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else s2_in * timestep
-    return s1 + s2 * flex_damping[f]
+    return s1 + s2 * wp.max(0.0, flex_damping[f])
   if s1_in == 0.0 and timestep <= 0.0:
     return 0.0
   return s1_in + s2_in * flex_damping[f]
@@ -3271,7 +3271,7 @@ def _flex_bend_mul(check_skip: bool, nv: int, deterministic: bool = False):
       else:
         s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else s1_in * timestep * timestep
       s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else s2_in * timestep
-      scale = s1 + s2 * flex_damping[f]
+      scale = s1 + s2 * wp.max(0.0, flex_damping[f])
     else:
       scale = s1_in + s2_in * flex_damping[f]
     if scale == 0.0:
@@ -3444,10 +3444,12 @@ def _flex_rod_mul(check_skip: bool, nv: int, deterministic: bool = False):
       else:
         s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else s1_in * timestep * timestep
       s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else s2_in * timestep
+      damping = wp.max(0.0, flex_damping[f])
     else:
       s1 = s1_in
       s2 = s2_in
-    sd = s2 * flex_damping[f]
+      damping = flex_damping[f]
+    sd = s2 * damping
     if s1 == 0.0 and sd == 0.0:
       return
 

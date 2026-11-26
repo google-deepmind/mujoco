@@ -1450,7 +1450,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
     mjtNum* K = m->flex_stiffness + stiffnessadr;
 
     // compute scale
-    mjtNum damping = m->flex_damping[f];
+    mjtNum damping = mj_effFlexDamping(m, f);
     mjtNum scale = s1 + s2 * damping;
 
     // skip if scale is zero
@@ -1685,7 +1685,7 @@ static inline int flexBendConvex(const mjtNum* stencil) {
 
 // compute res += scale * K_bend * vec for standard (non-interp) flex bending, over the convex
 // stencils (flexBendConvex)
-//   scale = s1 + s2 * flex_damping[f]  per flex
+//   scale = s1 + s2 * max(0, flex_damping[f])  per flex
 //   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
 //   for stiffness only:    s1=h,   s2=0  =>  scale = h
 void mjd_flexBend_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
@@ -1701,7 +1701,7 @@ void mjd_flexBend_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNu
       continue;
     }
 
-    mjtNum scale = s1 + s2 * m->flex_damping[f];
+    mjtNum scale = s1 + s2 * mj_effFlexDamping(m, f);
     if (!scale) {
       continue;
     }
@@ -1766,7 +1766,7 @@ static mjtNum* rodChainWeights(const mjModel* m, mjData* d, int f, mjtNum s1, mj
   }
   mjtNum* W = mjSTACKALLOC(d, 18*nhinge, mjtNum);
   mjtNum* Wk = s1 ? W : NULL;
-  mjtNum* Wd = (s2 && m->flex_damping[f]) ? (W + 9*nhinge) : NULL;
+  mjtNum* Wd = (s2 && mj_effFlexDamping(m, f)) ? (W + 9*nhinge) : NULL;
   if (!mj_rodChain(m, d, f, NULL, NULL, NULL, Wk, Wd, NULL, NULL)) {
     return NULL;
   }
@@ -1784,7 +1784,7 @@ static int rodHingeWeight(const mjModel* m, const mjData* d, int f, int h, mjtNu
     v[i] = (int)hinge[i];
   }
   int n = mj_rodHingeVert(hinge);
-  mjtNum sd = s2*m->flex_damping[f];
+  mjtNum sd = s2*mj_effFlexDamping(m, f);
   mjtNum Wk[16], Wd[16];
   if (n == 3) {
     mjtNum kb[3];
@@ -1825,7 +1825,7 @@ static mjtNum rodHingeTorsionRow(const mjModel* m, const mjData* d, int f, int h
   }
   const mjtNum* hinge = m->flex_bending + m->flex_bendingadr[f] + 1 + mjROD_HINGE_SIZE*h;
   mjtNum kt = hinge[8];
-  mjtNum scale = (s1 + s2*m->flex_damping[f]) * 2 * kt;
+  mjtNum scale = (s1 + s2*mj_effFlexDamping(m, f)) * 2 * kt;
   if (scale <= 0) {
     return 0;
   }
@@ -1970,7 +1970,7 @@ void mjd_flexStretch_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mj
       continue;
     }
 
-    mjtNum scale = s1 + s2 * m->flex_damping[f];
+    mjtNum scale = s1 + s2 * mj_effFlexDamping(m, f);
     if (!scale) {
       continue;
     }
@@ -2545,7 +2545,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     if (!mjd_flexStiff_active(m, f, flg_bend, flg_stretch)) {
       continue;
     }
-    mjtNum scale = s1 + s2*m->flex_damping[f];
+    mjtNum scale = s1 + s2*mj_effFlexDamping(m, f);
     if (!scale) {
       continue;
     }
@@ -2689,7 +2689,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       if (!mjd_flexInterp_processed(m, f)) {
         continue;
       }
-      mjtNum iscale = -(s1 + s2*m->flex_damping[f]);
+      mjtNum iscale = -(s1 + s2*mj_effFlexDamping(m, f));
       if (!iscale) {
         continue;
       }
@@ -2805,7 +2805,7 @@ static void flexStiff_valuesGeneral(const mjModel* m, mjData* d, const int* rown
     if (!mjd_flexStiff_activeGen(m, f, flg_bend, flg_stretch, 1)) {
       continue;
     }
-    if (!(s1 + s2*m->flex_damping[f])) {
+    if (!(s1 + s2*mj_effFlexDamping(m, f))) {
       continue;
     }
     int va = m->flex_vertadr[f];
@@ -2832,7 +2832,7 @@ static void flexStiff_valuesGeneral(const mjModel* m, mjData* d, const int* rown
     if (!mjd_flexStiff_activeGen(m, f, flg_bend, flg_stretch, 1)) {
       continue;
     }
-    if (!(s1 + s2*m->flex_damping[f])) {
+    if (!(s1 + s2*mj_effFlexDamping(m, f))) {
       continue;
     }
     int va = m->flex_vertadr[f];
@@ -2871,7 +2871,7 @@ static void flexStiff_valuesGeneral(const mjModel* m, mjData* d, const int* rown
       continue;
     }
 
-    mjtNum scale = s1 + s2*m->flex_damping[f];
+    mjtNum scale = s1 + s2*mj_effFlexDamping(m, f);
     if (!scale) {
       continue;
     }
@@ -2957,7 +2957,7 @@ static void flexStiff_valuesGeneral(const mjModel* m, mjData* d, const int* rown
       if (!mjd_flexInterp_processed(m, f)) {
         continue;
       }
-      mjtNum iscale = -(s1 + s2*m->flex_damping[f]);
+      mjtNum iscale = -(s1 + s2*mj_effFlexDamping(m, f));
       if (!iscale) {
         continue;
       }
@@ -4300,6 +4300,32 @@ static inline void mjd_magnus_force(
 
 //----------------- fluid force derivatives, ellipsoid and inertia-box models ----------------------
 
+// project the 3x3 drag derivative D to the nearest symmetric negative semidefinite matrix: its
+// symmetric part, with positive eigenvalues clamped to 0. The symmetric part is indefinite
+// where the drag coefficient varies quickly with the direction of motion (slender shapes)
+static void dragDissipative(mjtNum D[9]) {
+  mjtNum eigval[3], eigvec[9], quat[4];
+  mju_symmetrize(D, D, 3);
+  mju_eig3(eigval, eigvec, quat, D);
+
+  // eigenvalues are in decreasing order: nothing to clamp
+  if (eigval[0] <= 0) {
+    return;
+  }
+
+  // D = eigvec * min(0, eigval) * eigvec'
+  mju_zero(D, 9);
+  for (int e=0; e < 3; e++) {
+    mjtNum value = mju_min(0, eigval[e]);
+    for (int i=0; i < 3; i++) {
+      for (int j=0; j < 3; j++) {
+        D[3*i+j] += value*eigvec[3*i+e]*eigvec[3*j+e];
+      }
+    }
+  }
+}
+
+
 // fluid forces based on ellipsoid approximation
 void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* res, int bodyid,
                         int flg_dragonly) {
@@ -4385,22 +4411,30 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* res, int bodyid,
       addToQuadrant(B, D, 1, 1);
     }
 
+    // drag force and torque; the drag-only (metric) variant keeps their dissipative parts,
+    // so that B is symmetric negative semidefinite
     mjd_viscous_drag(D, lvel, m->opt.density, m->opt.viscosity, semiaxes,
                      blunt_drag_coef, slender_drag_coef);
+    if (flg_dragonly) {
+      dragDissipative(D);
+    }
     addToQuadrant(B, D, 1, 1);
 
     mjd_viscous_torque(D, lvel, m->opt.density, m->opt.viscosity, semiaxes,
                        slender_drag_coef, ang_drag_coef);
+    if (flg_dragonly) {
+      dragDissipative(D);
+    }
     addToQuadrant(B, D, 0, 0);
 
     if (!flg_dragonly) {
       mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
     }
 
-    // make B symmetric for the metric, or if integrator is IMPLICITFAST,
-    // except for free rigid subtrees, including fluid geoms on fixed descendants
-    if (flg_dragonly ||
-        (m->opt.integrator == mjINT_IMPLICITFAST && !mj_isFreeBody(m, m->body_rootid[bodyid]))) {
+    // make B symmetric if integrator is IMPLICITFAST, except for free rigid subtrees,
+    // including fluid geoms on fixed descendants (the drag-only B is already symmetric)
+    if (!flg_dragonly &&
+        m->opt.integrator == mjINT_IMPLICITFAST && !mj_isFreeBody(m, m->body_rootid[bodyid])) {
       mju_symmetrize(B, B, 6);
     }
 
