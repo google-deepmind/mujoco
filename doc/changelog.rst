@@ -147,6 +147,8 @@ Rendering
 - Fixed Filament planar reflections leaking geometry behind or crossing the mirror plane by clipping the reflection
   camera at the mirror plane with an oblique near-plane projection (:issue:`3902`).
 - Added ``image_diffuse_scale`` to :ref:`mjrfLightParams` to control the diffuse colour of image based lights.
+- Builtin textures with mark=\"cross\" now draw a 2-pixel wide cross on even-sized textures so that it is centered.
+- Fixed Filament cube textures with texuniform being scaled inversely, they now match the classic renderer.
 
 Python bindings
 ^^^^^^^^^^^^^^^

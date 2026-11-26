@@ -2022,8 +2022,8 @@ Only ``image/png`` and ``image/ktx`` are supported.
 :at:`mark`: :at-val:`[none, edge, cross, random], "none"`
    Procedural textures can be marked with the markrgb color, on top of the colors determined by the builtin type. "edge"
    means that the edges of all texture images are marked. "cross" means that a cross is marked in the middle of each
-   image. "random" means that randomly chosen pixels are marked. All markings are one-pixel wide, thus the markings
-   appear larger and more diffuse on smaller textures.
+   image. "random" means that randomly chosen pixels are marked. All markings are either one or two pixels wide, thus
+   the markings may appear larger and more diffuse on smaller textures.
 
 .. _asset-texture-markrgb:
 

@@ -6074,11 +6074,18 @@ void mjCTexture::Builtin2D(void) {
 
   // cross
   else if (mark == mjMARK_CROSS) {
-    for (int r = 0; r < height; r++) {
-      memcpy(data_.data() + 3 * (r * width + width / 2), RGBm, 3);
+    // for even dimensions, mark both center pixels so the cross is centered
+    mjtSize col0 = (width - 1) / 2;
+    mjtSize col1 = width / 2;
+    mjtSize row0 = (height - 1) / 2;
+    mjtSize row1 = height / 2;
+    for (mjtSize r = 0; r < height; r++) {
+      memcpy(data_.data() + 3 * (r * width + col0), RGBm, 3);
+      memcpy(data_.data() + 3 * (r * width + col1), RGBm, 3);
     }
-    for (int c = 0; c < width; c++) {
-      memcpy(data_.data() + 3 * (height / 2 * width + c), RGBm, 3);
+    for (mjtSize c = 0; c < width; c++) {
+      memcpy(data_.data() + 3 * (row0 * width + c), RGBm, 3);
+      memcpy(data_.data() + 3 * (row1 * width + c), RGBm, 3);
     }
   }
 
@@ -6181,12 +6188,17 @@ void mjCTexture::BuiltinCube(void) {
 
   // cross
   else if (mark == mjMARK_CROSS) {
-    for (int j = 0; j < 6; j++) {
-      for (int r = 0; r < w; r++) {
-        memcpy(data_.data() + j * 3 * ww + 3 * (r * w + w / 2), RGBm, 3);
+    // for even widths, mark both center pixels so the cross stays symmetric
+    mjtSize mid0 = (w - 1) / 2;
+    mjtSize mid1 = w / 2;
+    for (mjtSize j = 0; j < 6; j++) {
+      for (mjtSize r = 0; r < w; r++) {
+        memcpy(data_.data() + j * 3 * ww + 3 * (r * w + mid0), RGBm, 3);
+        memcpy(data_.data() + j * 3 * ww + 3 * (r * w + mid1), RGBm, 3);
       }
-      for (int c = 0; c < w; c++) {
-        memcpy(data_.data() + j * 3 * ww + 3 * (w / 2 * w + c), RGBm, 3);
+      for (mjtSize c = 0; c < w; c++) {
+        memcpy(data_.data() + j * 3 * ww + 3 * (mid0 * w + c), RGBm, 3);
+        memcpy(data_.data() + j * 3 * ww + 3 * (mid1 * w + c), RGBm, 3);
       }
     }
   }

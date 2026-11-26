@@ -1039,12 +1039,12 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
         }
       }
     } else {
-      // For cube maps, if `tex_uniform` is true, then scale the texture so that
-      // it covers a 1x1 area of world space rather than the area of the object.
+      // For cube maps, if `tex_uniform` is true, scale the uvs so projection
+      // uses physical proportions rather than unit object coordinates.
       if (tex_uniform) {
-        material.uv_scale[0] = 1.0f / (fsize[0] ? fsize[0] : 1.0f);
-        material.uv_scale[1] = 1.0f / (fsize[1] ? fsize[1] : 1.0f);
-        material.uv_scale[2] = 1.0f / (fsize[2] ? fsize[2] : 1.0f);
+        material.uv_scale[0] = fsize[0] ? fsize[0] : 1.0f;
+        material.uv_scale[1] = fsize[1] ? fsize[1] : 1.0f;
+        material.uv_scale[2] = fsize[2] ? fsize[2] : 1.0f;
       }
     }
   }
