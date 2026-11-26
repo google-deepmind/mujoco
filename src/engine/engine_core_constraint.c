@@ -1537,6 +1537,59 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
 }
 
 
+// return last DOF index of body's weld body, or -1 if static
+static inline int bodyLastDof(const mjModel* m, int body) {
+  int b = m->body_weldid[body];
+  return m->body_dofnum[b] ? m->body_dofadr[b] + m->body_dofnum[b] - 1 : -1;
+}
+
+
+// count nonzeros in one body's sparse ancestor DOF chain
+static inline int contactSideNnz(const mjModel* m, int body) {
+  // simple or world/static body: contiguous own DOFs only
+  if (m->body_simple[body]) {
+    return m->body_dofnum[body];
+  }
+
+  // walk ancestor DOFs to root
+  const int* dof_parentid = m->dof_parentid;
+  int da = bodyLastDof(m, body);
+  int n = 0;
+  while (da >= 0) {
+    da = dof_parentid[da];
+    n++;
+  }
+  return n;
+}
+
+
+// count nonzeros between two same-tree DOFs down to their LCA (outlined off cross-tree path)
+static mjNOINLINE int sameTreeNnz(const int* dof_parentid, int da1, int da2) {
+  int NV = 0;
+  while (da1 != da2) {
+    if (da2 > da1) {
+      da2 = dof_parentid[da2];
+    } else {
+      da1 = dof_parentid[da1];
+    }
+    NV++;
+  }
+  return NV;
+}
+
+
+// count nonzeros in the sparse DOF chain of a single-body-per-side contact
+static inline int contactPairNnz(const mjModel* m, int b1, int b2) {
+  // different kinematic trees (or one static side): chains are disjoint
+  if (m->body_treeid[b1] != m->body_treeid[b2]) {
+    return contactSideNnz(m, b1) + contactSideNnz(m, b2);
+  }
+
+  // same tree: walk ancestor chains until they meet at the lowest common ancestor
+  return sameTreeNnz(m->dof_parentid, bodyLastDof(m, b1), bodyLastDof(m, b2));
+}
+
+
 // dense single-body-per-side contact instantiation: fuse Jacobian walk, frame rotation, and cone
 static void instantiateContactDense(const mjModel* m, mjData* d, const mjContact* con,
                                     int conid, const int bid[2], int ispyramid) {
@@ -2822,8 +2875,8 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   // sleep filtering
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
-  mj_markStack(d);
-  int *chain = mjSTACKALLOC(d, m->nv, int);
+  int has_flex = m->nflex > 0;
+  int* chain = NULL;
 
   for (int i=0; i < ncon; i++) {
     mjContact* con = d->contact + i;
@@ -2831,19 +2884,21 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     // Passive path: flex-flex (including self-collision) and flex-vs-static-geometry, where every
     // dof is a metric-carried flex vertex so the Hessian is assembled in full. Flex-vs-moving-body
     // stays on the constraint solver. Passive if either flex asks for it.
-    {
+    if (has_flex) {
       int f0 = con->flex[0], f1 = con->flex[1];
       int wants = (f0 > -1 && mj_effFlexContactPossible(m, f0)) ||
                   (f1 > -1 && mj_effFlexContactPossible(m, f1));
-      int ok = (f0 > -1 && f1 > -1);   // flex-flex, or a flex with itself
-      for (int s = 0; s < 2 && !ok; s++) {
-        if (con->flex[s] < 0 && con->geom[s] > -1) {
-          ok = (m->body_weldid[m->geom_bodyid[con->geom[s]]] == 0);   // welded to the world
+      if (wants) {
+        int ok = (f0 > -1 && f1 > -1);   // flex-flex, or a flex with itself
+        for (int s = 0; s < 2 && !ok; s++) {
+          if (con->flex[s] < 0 && con->geom[s] > -1) {
+            ok = (m->body_weldid[m->geom_bodyid[con->geom[s]]] == 0);   // welded to the world
+          }
         }
-      }
-      if (wants && ok) {
-        con->efc_address = -1;
-        con->exclude = 4;
+        if (ok) {
+          con->efc_address = -1;
+          con->exclude = 4;
+        }
       }
     }
 
@@ -2883,8 +2938,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
       int body[2];
       if (contactSingleBody(m, con, body)) {
         if (!noDofs(m, body, 2)) {
-          NV = mj_jacDifPair(m, NULL, chain, body[0], body[1], NULL, NULL,
-                             NULL, NULL, NULL, NULL, NULL, NULL, mj_isSparse(m), 1);
+          NV = contactPairNnz(m, body[0], body[1]);
         }
       }
 
@@ -2897,6 +2951,11 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 
         // count non-zeros in merged chain
         if (!noDofs(m, bid, nb)) {
+          // lazily allocate scratch chain for flex elements
+          if (!chain) {
+            mj_markStack(d);
+            chain = mjSTACKALLOC(d, m->nv, int);
+          }
           NV = mj_jacSumCount(m, d, chain, nb, bid);
         }
       }
@@ -2923,7 +2982,9 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     *nnz += nnzc;
   }
 
-  mj_freeStack(d);
+  if (chain) {
+    mj_freeStack(d);
+  }
   return nc;
 }
 
