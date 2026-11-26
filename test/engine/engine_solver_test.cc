@@ -1909,5 +1909,103 @@ TEST_F(SolverTest, DiscreteZeroIterationsWithinTolerance) {
 
 #endif  // !mjUSESINGLE
 
+// PGS with warmstart disabled (uninitialized efc_state on entry) must be
+// MSAN-clean and write valid states across cones, jacobians, islands >
+// mjNISLAND, iterations > mjNSOLVER, and NoSlip.
+TEST_F(SolverTest, PGSWarmstartDisabled) {
+  std::string xml = R"(
+  <mujoco>
+    <option solver="PGS" iterations="210" tolerance="0" noslip_iterations="2">
+      <flag warmstart="disable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="20 20 0.1" condim="1"
+        friction="0.1 0.001 0.0001"/>
+      <body pos="0 0 0.095">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1" condim="3"
+          friction="1 0.005 0.0001"/>
+      </body>
+      <body pos="0.5 0 0.095">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1" condim="4"
+          friction="0.7 0.02 0.002"/>
+      </body>
+      <body pos="1.0 0 0.095">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1" condim="6"
+          friction="0.6 0.03 0.003"/>
+      </body>
+      <body pos="1.5 0 0.5">
+        <joint name="j_eq" type="slide" axis="1 0 0" frictionloss="0.5"
+          limited="true" range="-0.1 0.1"/>
+        <geom type="sphere" size="0.05" contype="0" conaffinity="0"/>
+      </body>)";
+
+  // add extra islands beyond mjNISLAND to cover unrecorded-stats post-loop path
+  // and both unit and non-unit friction on dim == 3 contacts
+  for (int i = 0; i < mjNISLAND; ++i) {
+    xml += "\n      <body pos=\"" + std::to_string(2.5 + 0.5 * i) +
+           " 0 0.095\">\n"
+           "        <freejoint/>\n"
+           "        <geom type=\"sphere\" size=\"0.1\" condim=\"3\" "
+           "friction=\"" +
+           std::string(i % 2 == 0 ? "0.7 0.005 0.0001" : "1 0.005 0.0001") +
+           "\"/>\n"
+           "      </body>";
+  }
+
+  xml += R"(
+    </worldbody>
+    <equality>
+      <joint joint1="j_eq" polycoef="0.05 0 0 0 0"/>
+    </equality>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+    for (mjtJacobian jac : {mjJAC_DENSE, mjJAC_SPARSE}) {
+      model->opt.cone = cone;
+      model->opt.jacobian = jac;
+      MjDataPtr data = MakeData(model);
+      data->qvel[0] = 1.5;
+      data->qvel[6] = -1.2;
+      data->qvel[12] = 0.8;
+      mj_step(model.get(), data.get());
+
+      ASSERT_GT(data->nisland, mjNISLAND);
+      ASSERT_GT(data->nefc, 0);
+      int n_dim3 = 0, n_dim4 = 0, n_dim6 = 0;
+      for (int c = 0; c < data->ncon; ++c) {
+        int dim = data->contact[c].dim;
+        n_dim3 += (dim == 3);
+        n_dim4 += (dim == 4);
+        n_dim6 += (dim == 6);
+      }
+      EXPECT_GT(n_dim3, 0) << "cone=" << cone << " jac=" << jac;
+      EXPECT_GT(n_dim4, 0) << "cone=" << cone << " jac=" << jac;
+      EXPECT_GT(n_dim6, 0) << "cone=" << cone << " jac=" << jac;
+      for (int i = 0; i < data->nefc; ++i) {
+        EXPECT_GE(data->efc_state[i], mjCNSTRSTATE_SATISFIED)
+            << "cone=" << cone << " jac=" << jac << " i=" << i;
+        EXPECT_LE(data->efc_state[i], mjCNSTRSTATE_CONE)
+            << "cone=" << cone << " jac=" << jac << " i=" << i;
+      }
+      for (int isl = 0; isl < mjNISLAND; ++isl) {
+        int niter = mjMIN(data->solver_niter[isl], mjNSOLVER);
+        for (int it = 0; it < niter; ++it) {
+          const mjSolverStat& st = data->solver[isl * mjNSOLVER + it];
+          EXPECT_GE(st.nactive, 0);
+          EXPECT_GE(st.nchange, 0);
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

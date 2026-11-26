@@ -110,10 +110,12 @@ void mj_dualFinish(const mjModel* m, mjData* d) {
 }
 
 
-// compute 1/diag(AR)
+// compute 1/diag(AR), optionally interleaved (1/diag, diag) and sparse diagonal column offset
 //   res[c] = 1 / AR[efclist[c], efclist[c]] for c = 0..nefc-1
+//   if interleaved is non-zero: writes inv at res[2*c] and 1/inv at res[2*c+1]
 //   efclist is NULL for monolithic (sequential) iteration
-static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* restrict res,
+static void ARdiaginv(const mjModel* m, const mjData* d,
+                      mjtNum* restrict res, int interleaved, int* restrict diagoff,
                       int nefc, const int* restrict efclist, int flg_subR) {
   const mjtNum* restrict AR = d->efc_AR;
   const mjtNum* restrict R = d->efc_R;
@@ -127,10 +129,23 @@ static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* restrict res,
     for (int c=0; c < nefc; c++) {
       int i = efclist ? efclist[c] : c;
       int nnz = rownnz[i];
+      int adr0 = rowadr[i];
       for (int j=0; j < nnz; j++) {
-        int adr = rowadr[i] + j;
+        int adr = adr0 + j;
         if (i == colind[adr]) {
-          res[c] = 1 / (flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr]);
+          mjtNum diag = flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr];
+          mjtNum inv = 1 / diag;
+          if (interleaved) {
+            res[2*c+0] = inv;
+            res[2*c+1] = 1 / inv;  // 1/inv matches 1/ARinv[c] in costChange for bit-exactness
+          } else {
+            res[c] = inv;
+          }
+
+          // record diagonal column offset for O(1) elliptic block extraction
+          if (diagoff) {
+            diagoff[c] = j;
+          }
           break;
         }
       }
@@ -143,7 +158,14 @@ static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* restrict res,
     for (int c=0; c < nefc; c++) {
       int i = efclist ? efclist[c] : c;
       int adr = i * (d_nefc + 1);
-      res[c] = 1 / (flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr]);
+      mjtNum diag = flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr];
+      mjtNum inv = 1 / diag;
+      if (interleaved) {
+        res[2*c+0] = inv;
+        res[2*c+1] = 1 / inv;  // 1/inv matches 1/ARinv[c] in costChange for bit-exactness
+      } else {
+        res[c] = inv;
+      }
     }
   }
 }
@@ -209,31 +231,87 @@ static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
 
 
 // compute residual for one block
-static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int dim, int flg_subR) {
+static void residual(const mjModel* m, const mjData* d, const mjtNum* restrict force,
+                     mjtNum* restrict res, int i, int dim, int flg_subR) {
   int nefc = d->nefc;
 
   // sparse
   if (mj_isSparse(m)) {
-    for (int j=0; j < dim; j++) {
-      res[j] = d->efc_b[i+j] + mju_dotSparse(d->efc_AR + d->efc_AR_rowadr[i+j],
-                                             d->efc_force,
-                                             d->efc_AR_rownnz[i+j],
-                                             d->efc_AR_colind + d->efc_AR_rowadr[i+j]);
+    const mjtNum* restrict AR = d->efc_AR;
+    const mjtNum* restrict b = d->efc_b;
+    const int* restrict rowadr = d->efc_AR_rowadr;
+    const int* restrict rownnz = d->efc_AR_rownnz;
+    const int* restrict colind = d->efc_AR_colind;
+    const int* restrict rowsuper = d->efc_J_rowsuper;
+
+    // process 3-row supernodes
+    int j = 0;
+    while (j + 3 <= dim && rowsuper && rowsuper[i+j] >= 2) {
+      int a0 = rowadr[i+j], a1 = rowadr[i+j+1], a2 = rowadr[i+j+2];
+      mjtNum d0, d1, d2;
+      mju_dotSparseX3(&d0, &d1, &d2, AR+a0, AR+a1, AR+a2, force, rownnz[i+j], colind+a0);
+      res[j+0] = b[i+j+0] + d0;
+      res[j+1] = b[i+j+1] + d1;
+      res[j+2] = b[i+j+2] + d2;
+      j += 3;
+    }
+
+    // remaining rows
+    for (; j < dim; j++) {
+      int adr = rowadr[i+j];
+      res[j] = b[i+j] + mju_dotSparse(AR+adr, force, rownnz[i+j], colind+adr);
     }
   }
 
   // dense
   else {
-    for (int j=0; j < dim; j++) {
-      res[j] = d->efc_b[i+j] + mju_dot(d->efc_AR+(i+j)*nefc, d->efc_force, nefc);
+    const mjtNum* restrict AR = d->efc_AR;
+    const mjtNum* restrict b = d->efc_b;
+
+    // process 3 rows at a time
+    int j = 0;
+    while (j + 3 <= dim) {
+      const mjtNum* row = AR + (i+j)*nefc;
+      mjtNum d0, d1, d2;
+      mju_dotX3(&d0, &d1, &d2, row, row + nefc, row + 2*nefc, force, nefc);
+      res[j+0] = b[i+j+0] + d0;
+      res[j+1] = b[i+j+1] + d1;
+      res[j+2] = b[i+j+2] + d2;
+      j += 3;
+    }
+
+    // remaining rows
+    for (; j < dim; j++) {
+      res[j] = b[i+j] + mju_dot(AR+(i+j)*nefc, force, nefc);
     }
   }
 
+  // subtract R*force (NoSlip)
   if (flg_subR) {
     for (int j=0; j < dim; j++) {
-      res[j] -= d->efc_R[i+j]*d->efc_force[i+j];
+      res[j] -= d->efc_R[i+j]*force[i+j];
     }
   }
+}
+
+
+// compute cost change for dim == 3 block
+static inline mjtNum costChange3(const mjtNum A[9], mjtNum* force,
+                                 const mjtNum oldforce[3], const mjtNum res[3]) {
+  mjtNum delta[3] = {force[0] - oldforce[0], force[1] - oldforce[1], force[2] - oldforce[2]};
+  mjtNum vmv = 0;
+  vmv += delta[0] * mju_dot3(A, delta);
+  vmv += delta[1] * mju_dot3(A+3, delta);
+  vmv += delta[2] * mju_dot3(A+6, delta);
+  mjtNum change = 0.5*vmv + mju_dot3(delta, res);
+
+  // positive change: restore force
+  if (change > 1e-10) {
+    mji_copy3(force, oldforce);
+    change = 0;
+  }
+
+  return change;
 }
 
 
@@ -253,12 +331,7 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
     vmv += delta[1] * dot2(A+2, delta);
     change = 0.5*vmv + dot2(delta, res);
   } else if (dim == 3) {
-    mjtNum delta[3] = {force[0] - oldforce[0], force[1] - oldforce[1], force[2] - oldforce[2]};
-    mjtNum vmv = 0;
-    vmv += delta[0] * mju_dot3(A, delta);
-    vmv += delta[1] * mju_dot3(A+3, delta);
-    vmv += delta[2] * mju_dot3(A+6, delta);
-    change = 0.5*vmv + mju_dot3(delta, res);
+    return costChange3(A, force, oldforce, res);
   } else {
     mjtNum delta[6];
     mju_sub(delta, force, oldforce, dim);
@@ -271,8 +344,6 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
       force[0] = oldforce[0];
     } else if (dim == 2) {
       copy2(force, oldforce);
-    } else if (dim == 3) {
-      mji_copy3(force, oldforce);
     } else {
       mju_copy(force, oldforce, dim);
     }
@@ -311,12 +382,67 @@ static void shuffle_int(int* array, int n, pcg32_state* rng) {
 }
 
 
-// set efc_state to dual constraint state; return nactive
+// classify dim == 3 elliptic contact force into cone zone (matches dualState bit-for-bit)
+static inline int ellipticState3(const mjtNum f[3], const mjContact* con) {
+  mjtNum fn = f[0], f1 = f[1], f2 = f[2];
+
+  // zero force (inactive contact): N = 0, T = 0 => top zone
+  if (fn == 0 && f1 == 0 && f2 == 0) {
+    return mjCNSTRSTATE_SATISFIED;
+  }
+
+  mjtNum mu = con->mu;
+  mjtNum fric0 = con->friction[0];
+  mjtNum fric1 = con->friction[1];
+
+  // unit friction fast path (x / 1 == x in IEEE-754): avoids three divisions
+  if (mu == 1 && fric0 == 1 && fric1 == 1) {
+    mjtNum T = mju_sqrt(f1*f1 + f2*f2);
+
+    // top zone
+    if (fn >= T) {
+      return mjCNSTRSTATE_SATISFIED;
+    }
+
+    // bottom zone
+    if (fn + T <= 0) {
+      return mjCNSTRSTATE_QUADRATIC;
+    }
+
+    // middle zone
+    return mjCNSTRSTATE_CONE;
+  }
+
+  // map force to regular-cone space
+  mjtNum N = fn/mu;
+  f1 /= fric0;
+  f2 /= fric1;
+  mjtNum T = mju_sqrt(f1*f1 + f2*f2);
+
+  // top zone
+  if (mu*N >= T) {
+    return mjCNSTRSTATE_SATISFIED;
+  }
+
+  // bottom zone
+  if (N + mu*T <= 0) {
+    return mjCNSTRSTATE_QUADRATIC;
+  }
+
+  // middle zone
+  return mjCNSTRSTATE_CONE;
+}
+
+
+// set efc_state to dual constraint state; if count_change != 0, count changes into *nchange_out
 //   iterates over efclist (or sequentially if NULL), classifies by ne/nf ranges
-static int dualState(const mjData* d, int* state,
-                     int ne, int nf, int nefc, const int* efclist) {
-  const mjtNum* force = d->efc_force;
-  const mjtNum* floss = d->efc_frictionloss;
+//   when count_change == 0, state[] is write-only (safe on uninitialized efc_state)
+static inline int dualStateImpl(const mjData* d, const mjtNum* restrict force,
+                                int* restrict state, int ne, int nf, int nefc,
+                                const int* restrict efclist, int has_elliptic,
+                                int count_change, int* nchange_out) {
+  const mjtNum* restrict floss = d->efc_frictionloss;
+  int nchange = 0;
 
   // equality and friction always active
   int nactive = ne + nf;
@@ -324,109 +450,169 @@ static int dualState(const mjData* d, int* state,
   // equality
   for (int c=0; c < ne; c++) {
     int i = efclist ? efclist[c] : c;
+    if (count_change) {
+      nchange += (state[i] != mjCNSTRSTATE_QUADRATIC);
+    }
     state[i] = mjCNSTRSTATE_QUADRATIC;
   }
 
   // friction
   for (int c=ne; c < ne+nf; c++) {
     int i = efclist ? efclist[c] : c;
-    if (force[i] <= -floss[i]) {
-      state[i] = mjCNSTRSTATE_LINEARPOS;  // opposite of primal
-    } else if (force[i] >= floss[i]) {
-      state[i] = mjCNSTRSTATE_LINEARNEG;
+    mjtNum fi = force[i];
+    int result;
+    if (fi <= -floss[i]) {
+      result = mjCNSTRSTATE_LINEARPOS;  // opposite of primal
+    } else if (fi >= floss[i]) {
+      result = mjCNSTRSTATE_LINEARNEG;
     } else {
-      state[i] = mjCNSTRSTATE_QUADRATIC;
+      result = mjCNSTRSTATE_QUADRATIC;
     }
+    if (count_change) {
+      nchange += (state[i] != result);
+    }
+    state[i] = result;
   }
 
   // limit and contact
-  for (int c=ne+nf; c < nefc; c++) {
-    int i = efclist ? efclist[c] : c;
-
-    // non-negative
-    if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
-      if (force[i] <= 0) {
-        state[i] = mjCNSTRSTATE_SATISFIED;
-      } else {
-        state[i] = mjCNSTRSTATE_QUADRATIC;
-        nactive++;
+  const int* restrict efc_type = d->efc_type;
+  const int* restrict efc_id = d->efc_id;
+  if (!has_elliptic) {
+    // non-negative constraints only (no elliptic contacts)
+    for (int c=ne+nf; c < nefc; c++) {
+      int i = efclist ? efclist[c] : c;
+      int active = (force[i] > 0);
+      int result = active ? mjCNSTRSTATE_QUADRATIC : mjCNSTRSTATE_SATISFIED;
+      nactive += active;
+      if (count_change) {
+        nchange += (state[i] != result);
       }
+      state[i] = result;
     }
+  } else {
+    // mixed non-negative and elliptic constraints
+    for (int c=ne+nf; c < nefc; c++) {
+      int i = efclist ? efclist[c] : c;
 
-    // elliptic
-    else {
-      // get contact dimensionality, friction, mu
-      mjContact* con = d->contact + d->efc_id[i];
-      int dim = con->dim, result = 0;
-      mjtNum mu = con->mu, f[6];
-
-      // f = map force to regular-cone space
-      f[0] = force[i]/mu;
-      for (int j=1; j < dim; j++) {
-        f[j] = force[i+j]/con->friction[j-1];
+      // non-negative
+      if (efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
+        int active = (force[i] > 0);
+        int result = active ? mjCNSTRSTATE_QUADRATIC : mjCNSTRSTATE_SATISFIED;
+        nactive += active;
+        if (count_change) {
+          nchange += (state[i] != result);
+        }
+        state[i] = result;
       }
 
-      // N = normal, T = norm of tangent vector
-      mjtNum N = f[0];
-      mjtNum T;
-      if (dim == 3) {
-        T = mju_sqrt(dot2(f+1, f+1));
-      } else if (dim == 4) {
-        T = mju_norm3(f+1);
-      } else {
-        T = mju_norm(f+1, dim-1);
-      }
-
-      // top zone
-      if (mu*N >= T) {
-        result = mjCNSTRSTATE_SATISFIED;
-      }
-
-      // bottom zone
-      else if (N+mu*T <= 0) {
-        result = mjCNSTRSTATE_QUADRATIC;
-        nactive += dim;
-      }
-
-      // middle zone
+      // elliptic
       else {
-        result = mjCNSTRSTATE_CONE;
-        nactive += dim;
+        // get contact dimensionality, friction, mu
+        const mjContact* con = d->contact + efc_id[i];
+        int dim = con->dim;
+        const mjtNum* fblk = force + i;
+        int result;
+
+        // fast path for dim == 3
+        if (dim == 3) {
+          result = ellipticState3(fblk, con);
+          if (result != mjCNSTRSTATE_SATISFIED) {
+            nactive += 3;
+          }
+
+          // replicate state in all cone dimensions
+          if (count_change) {
+            nchange += (state[i+0] != result) + (state[i+1] != result) + (state[i+2] != result);
+          }
+          state[i+0] = state[i+1] = state[i+2] = result;
+
+          // skip remaining rows of this cone
+          c += 2;
+        } else {
+          mjtNum mu = con->mu, f[6];
+
+          // f = map force to regular-cone space
+          f[0] = fblk[0]/mu;
+          for (int j=1; j < dim; j++) {
+            f[j] = fblk[j]/con->friction[j-1];
+          }
+
+          // N = normal, T = norm of tangent vector
+          mjtNum N = f[0];
+          mjtNum T = (dim == 4) ? mju_norm3(f+1) : mju_norm(f+1, dim-1);
+
+          // top zone
+          if (mu*N >= T) {
+            result = mjCNSTRSTATE_SATISFIED;
+          }
+
+          // bottom zone
+          else if (N+mu*T <= 0) {
+            result = mjCNSTRSTATE_QUADRATIC;
+            nactive += dim;
+          }
+
+          // middle zone
+          else {
+            result = mjCNSTRSTATE_CONE;
+            nactive += dim;
+          }
+
+          // replicate state in all cone dimensions
+          for (int j=0; j < dim; j++) {
+            if (count_change) {
+              nchange += (state[i+j] != result);
+            }
+            state[i+j] = result;
+          }
+
+          // advance
+          c += (dim-1);
+        }
       }
-
-      // replicate state in all cone dimensions
-      mju_fillInt(state+i, result, dim);
-
-      // advance
-      c += (dim-1);
     }
   }
 
+  // write state change count if requested
+  if (count_change) {
+    *nchange_out = nchange;
+  }
   return nactive;
 }
 
 
+// set efc_state to dual constraint state (write-only, safe on uninitialized state); return nactive
+static int dualStateSet(const mjData* d, const mjtNum* restrict force, int* restrict state,
+                        int ne, int nf, int nefc, const int* restrict efclist,
+                        int has_elliptic) {
+  return dualStateImpl(d, force, state, ne, nf, nefc, efclist, has_elliptic,
+                       /*count_change=*/0, NULL);
+}
+
+
+// update efc_state and count changes from prior state in one pass; return nactive
+static int dualStateUpdate(const mjData* d, const mjtNum* restrict force, int* restrict state,
+                           int ne, int nf, int nefc, const int* restrict efclist,
+                           int has_elliptic, int* nchange_out) {
+  return dualStateImpl(d, force, state, ne, nf, nefc, efclist, has_elliptic,
+                       /*count_change=*/1, nchange_out);
+}
+
+
+// set efc_state to dual constraint state; return nactive
+//   iterates over efclist (or sequentially if NULL), classifies by ne/nf ranges
+static int dualState(const mjData* d, int* state,
+                     int ne, int nf, int nefc, const int* efclist) {
+  return dualStateSet(d, d->efc_force, state, ne, nf, nefc, efclist, /*has_elliptic=*/1);
+}
+
+
 // update constraint state, return nactive and nchange
-static int dualStateChange(const mjData* d, int* state, int* oldstate,
+static int dualStateChange(const mjData* d, int* state,
                            int ne, int nf, int nefc,
                            const int* efclist, int* nchange) {
-  // save old state
-  for (int c=0; c < nefc; c++) {
-    int i = efclist ? efclist[c] : c;
-    oldstate[c] = state[i];
-  }
-
-  // update state
-  int nactive = dualState(d, state, ne, nf, nefc, efclist);
-
-  // count state changes
-  *nchange = 0;
-  for (int c=0; c < nefc; c++) {
-    int i = efclist ? efclist[c] : c;
-    *nchange += (oldstate[c] != state[i]);
-  }
-
-  return nactive;
+  return dualStateUpdate(d, d->efc_force, state, ne, nf, nefc, efclist, /*has_elliptic=*/1,
+                         nchange);
 }
 
 
@@ -436,6 +622,23 @@ static int dualStateChange(const mjData* d, int* state, int* oldstate,
 // if feasible is false, always scale to the boundary
 static void projectEllipsoid(mjtNum* friction, mjtNum normal, const mjtNum* mu,
                              int dim, int feasible) {
+  // dim == 3 fast path: unrolled, avoids divisions when mu == {1, 1} (x/1 == x in IEEE-754)
+  if (dim == 3) {
+    mjtNum f0 = friction[0], f1 = friction[1];
+    mjtNum m0 = mu[0], m1 = mu[1];
+    mjtNum s = (m0 == 1 && m1 == 1) ? (f0*f0 + f1*f1)
+                                    : (f0*f0/(m0*m0) + f1*f1/(m1*m1));
+    mjtNum normal2 = normal*normal;
+
+    // project onto ellipsoid boundary
+    if (!feasible || s > normal2) {
+      mjtNum scl = mju_sqrt(normal2 / mju_max(mjMINVAL, s));
+      friction[0] = f0*scl;
+      friction[1] = f1*scl;
+    }
+    return;
+  }
+
   mjtNum s = 0;
   for (int j=0; j < dim-1; j++) {
     s += friction[j]*friction[j] / (mu[j]*mu[j]);
@@ -486,7 +689,11 @@ static void projectCone(mjtNum* force, const mjtNum* mu, int dim, int type) {
   if (type == mjCNSTR_CONTACT_ELLIPTIC) {
     // clamp normal force
     if (force[0] < 0) {
-      mju_zero(force, dim);
+      if (dim == 3) {
+        mji_zero3(force);
+      } else {
+        mju_zero(force, dim);
+      }
     } else {
       projectEllipsoid(force+1, force[0], mu, dim, /*feasible=*/1);
     }
@@ -521,6 +728,439 @@ static mjtNum inertiaScale(const mjModel* m, const mjData* d, int island) {
 //---------------------------- PGS solver ----------------------------------------------------------
 
 
+// finalize scalar update with costChange check; return negative costChange (improvement)
+static inline mjtNum pgsScalarCostChange(mjtNum* f_slot, mjtNum oldf, mjtNum newf,
+                                         mjtNum res0, mjtNum diag) {
+  mjtNum delta = newf - oldf;
+  mjtNum change = 0.5*delta*delta*diag + delta*res0;
+
+  // positive change: restore force
+  if (change > 1e-10) {
+    newf = oldf;
+    change = 0;
+  }
+  *f_slot = newf;
+  return -change;
+}
+
+
+// single scalar constraint update + costChange; return negative costChange (improvement)
+static inline mjtNum pgsScalarStep(mjtNum* f_slot, mjtNum res0, mjtNum inv, mjtNum diag,
+                                   int c, int ne, int nenf, const mjtNum* floss, int i) {
+  // unconstrained minimum
+  mjtNum oldf = *f_slot;
+  mjtNum newf = oldf - res0*inv;
+
+  // impose interval and inequality constraints
+  if (c >= nenf) {
+    if (newf < 0) {
+      newf = 0;
+    }
+  } else if (c >= ne) {
+    mjtNum fl = floss[i];
+    if (newf < -fl) {
+      newf = -fl;
+    } else if (newf > fl) {
+      newf = fl;
+    }
+  }
+
+  return pgsScalarCostChange(f_slot, oldf, newf, res0, diag);
+}
+
+
+// single inequality-only scalar constraint update + costChange (ne == 0 && nf == 0)
+static inline mjtNum pgsIneqStep(mjtNum* f_slot, mjtNum res0, mjtNum inv, mjtNum diag) {
+  // unconstrained minimum
+  mjtNum oldf = *f_slot;
+  mjtNum newf = oldf - res0*inv;
+
+  // impose inequality constraint
+  if (newf < 0) {
+    newf = 0;
+  }
+
+  return pgsScalarCostChange(f_slot, oldf, newf, res0, diag);
+}
+
+
+// scalar-only PGS sweep: sparse AR
+static mjtNum pgsSweepScalarSparse(const mjData* d, mjtNum* restrict force,
+                                   const mjtNum* restrict ARdiag,
+                                   const int* restrict blockstart, const int* restrict efclist,
+                                   int ne, int nf, int nblocks) {
+  const mjtNum* restrict AR = d->efc_AR;
+  const mjtNum* restrict b = d->efc_b;
+  const mjtNum* restrict floss = d->efc_frictionloss;
+  const int* restrict rowadr = d->efc_AR_rowadr;
+  const int* restrict rownnz = d->efc_AR_rownnz;
+  const int* restrict colind = d->efc_AR_colind;
+  int nenf = ne + nf;
+  mjtNum improvement = 0;
+
+  // inequality-only fast path (no equality or friction-loss constraints)
+  if (nenf == 0) {
+    for (int bi=0; bi < nblocks; bi++) {
+      int c = blockstart[bi];
+      int i = efclist ? efclist[c] : c;
+      int adr = rowadr[i];
+      mjtNum res0 = b[i] + mju_dotSparse(AR+adr, force, rownnz[i], colind+adr);
+      improvement += pgsIneqStep(force+i, res0, ARdiag[2*c], ARdiag[2*c+1]);
+    }
+  }
+
+  // general scalar sweep (equality, friction-loss, and inequality constraints)
+  else {
+    for (int bi=0; bi < nblocks; bi++) {
+      int c = blockstart[bi];
+      int i = efclist ? efclist[c] : c;
+      int adr = rowadr[i];
+      mjtNum res0 = b[i] + mju_dotSparse(AR+adr, force, rownnz[i], colind+adr);
+      improvement += pgsScalarStep(force+i, res0, ARdiag[2*c], ARdiag[2*c+1],
+                                   c, ne, nenf, floss, i);
+    }
+  }
+  return improvement;
+}
+
+
+// scalar-only PGS sweep: dense AR
+static mjtNum pgsSweepScalarDense(const mjData* d, mjtNum* restrict force,
+                                  const mjtNum* restrict ARdiag,
+                                  const int* restrict blockstart, const int* restrict efclist,
+                                  int ne, int nf, int nblocks) {
+  const mjtNum* restrict AR = d->efc_AR;
+  const mjtNum* restrict b = d->efc_b;
+  const mjtNum* restrict floss = d->efc_frictionloss;
+  int d_nefc = d->nefc;
+  int nenf = ne + nf;
+  mjtNum improvement = 0;
+
+  // inequality-only fast path (no equality or friction-loss constraints)
+  if (nenf == 0) {
+    for (int bi=0; bi < nblocks; bi++) {
+      int c = blockstart[bi];
+      int i = efclist ? efclist[c] : c;
+      mjtNum res0 = b[i] + mju_dot(AR+i*d_nefc, force, d_nefc);
+      improvement += pgsIneqStep(force+i, res0, ARdiag[2*c], ARdiag[2*c+1]);
+    }
+  }
+
+  // general scalar sweep (equality, friction-loss, and inequality constraints)
+  else {
+    for (int bi=0; bi < nblocks; bi++) {
+      int c = blockstart[bi];
+      int i = efclist ? efclist[c] : c;
+      mjtNum res0 = b[i] + mju_dot(AR+i*d_nefc, force, d_nefc);
+      improvement += pgsScalarStep(force+i, res0, ARdiag[2*c], ARdiag[2*c+1],
+                                   c, ne, nenf, floss, i);
+    }
+  }
+  return improvement;
+}
+
+
+// elliptic dim == 3 block update + costChange; return negative costChange (improvement)
+static inline mjtNum pgsUpdateElliptic3(mjtNum* restrict fblk, const mjtNum res[3],
+                                        const mjtNum Athis[9], mjtNum arinv, const mjtNum* mu) {
+  // save old force
+  mjtNum oldforce[3] = {fblk[0], fblk[1], fblk[2]};
+
+  //-------------------- perform normal or ray update
+
+  // normal force too small: normal update
+  if (fblk[0] < mjMINVAL) {
+    // unconstrained minimum
+    fblk[0] -= res[0]*arinv;
+
+    // clamp
+    if (fblk[0] < 0) {
+      fblk[0] = 0;
+    }
+
+    // clear friction (just in case)
+    zero2(fblk+1);
+  }
+
+  // ray update
+  else {
+    // v = ray, denom = v' * AR(this,this) * v
+    mjtNum v[3] = {fblk[0], fblk[1], fblk[2]};
+    mjtNum v1[3];
+    mji_mulMatVec3(v1, Athis, v);
+    mjtNum denom = mju_dot3(v, v1);
+
+    // avoid division by 0
+    if (denom >= mjMINVAL) {
+      // x = -v' * res / denom
+      mjtNum x = -mju_dot3(v, res) / denom;
+
+      // make sure normal is non-negative
+      if (fblk[0] + x*v[0] < 0) {
+        x = -1;  // -v[0]/fblk[0], since v[0] == fblk[0]
+      }
+
+      // add x*v to f
+      fblk[0] += x*v[0];
+      fblk[1] += x*v[1];
+      fblk[2] += x*v[2];
+    }
+  }
+
+  //-------------------- perform friction update, keep normal fixed
+
+  // Ac = AR-submatrix; bc = b-subvector + Ac,rest * f_rest
+  mjtNum df0 = fblk[0] - oldforce[0];
+  mjtNum Ac[4] = {Athis[4], Athis[5], Athis[7], Athis[8]};
+  mjtNum bc[2];
+  bc[0] = (res[1] - dot2(Ac, oldforce+1)) + Athis[3]*df0;
+  bc[1] = (res[2] - dot2(Ac+2, oldforce+1)) + Athis[6]*df0;
+
+  // guard for f_normal==0
+  if (fblk[0] < mjMINVAL) {
+    zero2(fblk+1);
+  }
+
+  // QCQP
+  else {
+    mjtNum v[2];
+    if (mju_QCQP2(v, Ac, bc, mu, fblk[0])) {
+      projectEllipsoid(v, fblk[0], mu, 3, /*feasible=*/0);
+    }
+    copy2(fblk+1, v);
+  }
+
+  // compute cost change and return improvement
+  return -costChange3(Athis, fblk, oldforce, res);
+}
+
+
+// general elliptic cone block update (dim == 4 or dim == 6); return improvement
+static mjtNum pgsUpdateEllipticGeneral(const mjModel* m, const mjData* d, mjtNum* restrict force,
+                                       int i, int dim, int diagoff, mjtNum arinv,
+                                       const mjtNum* mu) {
+  const mjtNum* restrict AR = d->efc_AR;
+  const int* restrict rowadr = d->efc_AR_rowadr;
+  int d_nefc = d->nefc;
+  mjtNum* fblk = force + i;
+  mjtNum res[6], oldforce[6], Athis[36];
+
+  // compute residual and save old force
+  residual(m, d, force, res, i, dim, 0);
+  mju_copy(oldforce, fblk, dim);
+
+  //-------------------- perform normal or ray update
+
+  // Athis = AR(this,this)
+  if (mj_isSparse(m)) {
+    for (int j=0; j < dim; j++) {
+      mju_copy(Athis+j*dim, AR+rowadr[i+j]+diagoff, dim);
+    }
+  } else {
+    for (int j=0; j < dim; j++) {
+      mju_copy(Athis+j*dim, AR+i+(i+j)*d_nefc, dim);
+    }
+  }
+
+  // normal force too small: normal update
+  if (fblk[0] < mjMINVAL) {
+    // unconstrained minimum
+    fblk[0] -= res[0]*arinv;
+
+    // clamp
+    if (fblk[0] < 0) {
+      fblk[0] = 0;
+    }
+
+    // clear friction (just in case)
+    mju_zero(fblk+1, dim-1);
+  }
+
+  // ray update
+  else {
+    // v = ray, denom = v' * AR(this,this) * v
+    mjtNum v[6], v1[6];
+    mju_copy(v, fblk, dim);
+    mju_mulMatVec(v1, Athis, v, dim, dim);
+    mjtNum denom = mju_dot(v, v1, dim);
+
+    // avoid division by 0
+    if (denom >= mjMINVAL) {
+      // x = -v' * res / denom
+      mjtNum x = -mju_dot(v, res, dim) / denom;
+
+      // make sure normal is non-negative
+      if (fblk[0]+x*v[0] < 0) {
+        x = -1;  // -v[0]/fblk[0], since v[0] == fblk[0]
+      }
+
+      // add x*v to f
+      for (int j=0; j < dim; j++) {
+        fblk[j] += x*v[j];
+      }
+    }
+  }
+
+  //-------------------- perform friction update, keep normal fixed
+
+  // Ac = AR-submatrix; bc = b-subvector + Ac,rest * f_rest
+  mjtNum bc[5], Ac[25];
+  mju_copy(bc, res+1, dim-1);
+  for (int j=0; j < dim-1; j++) {
+    mju_copy(Ac+j*(dim-1), Athis+(j+1)*dim+1, dim-1);
+    bc[j] -= (dim == 4) ? mju_dot3(Ac+j*3, oldforce+1)
+                        : mju_dot(Ac+j*(dim-1), oldforce+1, dim-1);
+    bc[j] += Athis[(j+1)*dim]*(fblk[0]-oldforce[0]);
+  }
+
+  // guard for f_normal==0
+  if (fblk[0] < mjMINVAL) {
+    mju_zero(fblk+1, dim-1);
+  }
+
+  // QCQP
+  else {
+    solveQCQP(fblk, 0, dim, Ac, bc, mu);
+  }
+
+  // compute cost change and return improvement
+  return -costChange(Athis, fblk, oldforce, res, dim);
+}
+
+
+// elliptic-enabled PGS sweep: dense AR
+static mjtNum pgsSweepEllipticDense(const mjModel* m, const mjData* d, mjtNum* restrict force,
+                                    const mjtNum* restrict ARdiag,
+                                    const int* restrict blockstart, const int* restrict efclist,
+                                    int ne, int nf, int nblocks) {
+  const mjtNum* restrict AR = d->efc_AR;
+  const mjtNum* restrict b = d->efc_b;
+  const mjtNum* restrict floss = d->efc_frictionloss;
+  const int* restrict efc_type = d->efc_type;
+  const int* restrict efc_id = d->efc_id;
+  int d_nefc = d->nefc;
+  int nenf = ne + nf;
+  mjtNum improvement = 0;
+
+  for (int bi=0; bi < nblocks; bi++) {
+    int c = blockstart[bi];
+    int i = efclist ? efclist[c] : c;
+
+    // simple constraint (dim == 1)
+    if (efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
+      mjtNum res0 = b[i] + mju_dot(AR+i*d_nefc, force, d_nefc);
+      improvement += pgsScalarStep(force+i, res0, ARdiag[2*c], ARdiag[2*c+1],
+                                   c, ne, nenf, floss, i);
+      continue;
+    }
+
+    // elliptic cone constraint: get dimensionality and friction
+    const mjContact* con = d->contact + efc_id[i];
+    int dim = con->dim;
+    const mjtNum* mu = con->friction;
+
+    // fast path for dim == 3 elliptic contact
+    if (dim == 3) {
+      // compute residual for 3-row dense block
+      const mjtNum* row0 = AR + i*d_nefc;
+      const mjtNum* row1 = row0 + d_nefc;
+      const mjtNum* row2 = row1 + d_nefc;
+      mjtNum d0, d1, d2, res[3], Athis[9];
+      mju_dotX3(&d0, &d1, &d2, row0, row1, row2, force, d_nefc);
+      res[0] = b[i+0] + d0;
+      res[1] = b[i+1] + d1;
+      res[2] = b[i+2] + d2;
+
+      // Athis = AR(this,this)
+      mji_copy3(Athis+0, row0+i);
+      mji_copy3(Athis+3, row1+i);
+      mji_copy3(Athis+6, row2+i);
+
+      // update block and accumulate improvement
+      improvement += pgsUpdateElliptic3(force+i, res, Athis, ARdiag[2*c], mu);
+    }
+
+    // general elliptic contact (dim == 4 or dim == 6)
+    else {
+      improvement += pgsUpdateEllipticGeneral(m, d, force, i, dim, 0, ARdiag[2*c], mu);
+    }
+  }
+  return improvement;
+}
+
+
+// elliptic-enabled PGS sweep: sparse AR
+static mjtNum pgsSweepEllipticSparse(const mjModel* m, const mjData* d, mjtNum* restrict force,
+                                     const mjtNum* restrict ARdiag, const int* restrict ARdiagoff,
+                                     const int* restrict blockstart, const int* restrict efclist,
+                                     int ne, int nf, int nblocks) {
+  const mjtNum* restrict AR = d->efc_AR;
+  const mjtNum* restrict b = d->efc_b;
+  const mjtNum* restrict floss = d->efc_frictionloss;
+  const int* restrict rowadr = d->efc_AR_rowadr;
+  const int* restrict rownnz = d->efc_AR_rownnz;
+  const int* restrict colind = d->efc_AR_colind;
+  const int* restrict rowsuper = d->efc_J_rowsuper;
+  const int* restrict efc_type = d->efc_type;
+  const int* restrict efc_id = d->efc_id;
+  int nenf = ne + nf;
+  mjtNum improvement = 0;
+
+  for (int bi=0; bi < nblocks; bi++) {
+    int c = blockstart[bi];
+    int i = efclist ? efclist[c] : c;
+
+    // simple constraint (dim == 1)
+    if (efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
+      int adr = rowadr[i];
+      mjtNum res0 = b[i] + mju_dotSparse(AR+adr, force, rownnz[i], colind+adr);
+      improvement += pgsScalarStep(force+i, res0, ARdiag[2*c], ARdiag[2*c+1],
+                                   c, ne, nenf, floss, i);
+      continue;
+    }
+
+    // elliptic cone constraint: get dimensionality, friction, and diagonal offset
+    const mjContact* con = d->contact + efc_id[i];
+    int dim = con->dim;
+    const mjtNum* mu = con->friction;
+    int diagoff = ARdiagoff[c];
+
+    // fast path for dim == 3 elliptic contact
+    if (dim == 3) {
+      int a0 = rowadr[i+0], a1 = rowadr[i+1], a2 = rowadr[i+2];
+      mjtNum res[3], Athis[9];
+
+      // compute residual using 3-row supernode if available, else per-row sparse dot
+      if (rowsuper && rowsuper[i] >= 2) {
+        mjtNum d0, d1, d2;
+        mju_dotSparseX3(&d0, &d1, &d2, AR+a0, AR+a1, AR+a2, force, rownnz[i], colind+a0);
+        res[0] = b[i+0] + d0;
+        res[1] = b[i+1] + d1;
+        res[2] = b[i+2] + d2;
+      } else {
+        res[0] = b[i+0] + mju_dotSparse(AR+a0, force, rownnz[i+0], colind+a0);
+        res[1] = b[i+1] + mju_dotSparse(AR+a1, force, rownnz[i+1], colind+a1);
+        res[2] = b[i+2] + mju_dotSparse(AR+a2, force, rownnz[i+2], colind+a2);
+      }
+
+      // Athis = AR(this,this)
+      mji_copy3(Athis+0, AR+a0+diagoff);
+      mji_copy3(Athis+3, AR+a1+diagoff);
+      mji_copy3(Athis+6, AR+a2+diagoff);
+
+      // update block and accumulate improvement
+      improvement += pgsUpdateElliptic3(force+i, res, Athis, ARdiag[2*c], mu);
+    }
+
+    // general elliptic contact (dim == 4 or dim == 6)
+    else {
+      improvement += pgsUpdateEllipticGeneral(m, d, force, i, dim, diagoff, ARdiag[2*c], mu);
+    }
+  }
+  return improvement;
+}
+
+
 // core PGS solver: iterates over constraints specified by efclist
 //   island: island index for stats (use -1 for monolithic, mapped to 0)
 //   ne, nf, nefc: constraint type counts
@@ -528,12 +1168,44 @@ static mjtNum inertiaScale(const mjModel* m, const mjData* d, int island) {
 static void solPGS(const mjModel* m, mjData* d, int island,
                    int ne, int nf, int nefc,
                    const int* efclist, int maxiter) {
-  const mjtNum *floss = d->efc_frictionloss;
-  mjtNum *force = d->efc_force;
+  const mjtNum* restrict floss = d->efc_frictionloss;
+  mjtNum* restrict force = d->efc_force;
+  int is_sparse = mj_isSparse(m);
+
+  // detect identity efclist once to avoid indirect indexing in hot loops
+  if (efclist) {
+    int is_identity = 1;
+    for (int c=0; c < nefc; c++) {
+      if (efclist[c] != c) {
+        is_identity = 0;
+        break;
+      }
+    }
+    if (is_identity) {
+      efclist = NULL;
+    }
+  }
+
   mj_markStack(d);
-  mjtNum* ARinv = mjSTACKALLOC(d, nefc, mjtNum);
-  int* oldstate = mjSTACKALLOC(d, 2*nefc, int);
-  int* blockstart = oldstate + nefc;
+  mjtNum* ARdiag = mjSTACKALLOC(d, 2*nefc, mjtNum);  // interleaved (inv, 1/inv)
+  int* blockstart = mjSTACKALLOC(d, nefc, int);
+
+  // build block-index array: one entry per constraint block; detect elliptic contacts
+  int nblocks = 0;
+  int has_elliptic = 0;
+  for (int c=0; c < nefc; ) {
+    blockstart[nblocks++] = c;
+    int i = efclist ? efclist[c] : c;
+    if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
+      has_elliptic = 1;
+      c += d->contact[d->efc_id[i]].dim;
+    } else {
+      c++;
+    }
+  }
+
+  // sparse diagonal offsets for O(1) elliptic block extraction
+  int* ARdiagoff = (is_sparse && has_elliptic) ? mjSTACKALLOC(d, nefc, int) : NULL;
 
   // Nesterov momentum
   mjtBool nesterov = (mj_nesterov_momentum != 0);
@@ -546,24 +1218,15 @@ static void solPGS(const mjModel* m, mjData* d, int island,
   }
 
   int island_stat = mjMAX(0, island);  // island index for diagnostic stats
+  int record_stats = (island < mjNISLAND);
   mjtNum scale = inertiaScale(m, d, island);
 
-  // precompute inverse diagonal of AR
-  ARdiaginv(m, d, ARinv, nefc, efclist, 0);
+  // precompute interleaved (1/diag, diag) of AR (and sparse diagonal offsets)
+  ARdiaginv(m, d, ARdiag, /*interleaved=*/1, ARdiagoff, nefc, efclist, 0);
 
-  // initial constraint state
-  dualState(d, d->efc_state, ne, nf, nefc, efclist);
-
-  // build block-index array: one entry per constraint block
-  int nblocks = 0;
-  for (int c=0; c < nefc; ) {
-    blockstart[nblocks++] = c;
-    int i = efclist ? efclist[c] : c;
-    if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
-      c += d->contact[d->efc_id[i]].dim;
-    } else {
-      c++;
-    }
+  // initial constraint state (only needed before loop when recording per-iter nchange stats)
+  if (record_stats) {
+    dualStateSet(d, force, d->efc_state, ne, nf, nefc, efclist, has_elliptic);
   }
 
   // seed PCG32 RNG with a fixed seed
@@ -575,6 +1238,7 @@ static void solPGS(const mjModel* m, mjData* d, int island,
   // main iteration
   int iter = 0;
   int nesterov_k = 0;  // Nesterov counter (resets on adaptive restart)
+  int nenf = ne + nf;
   while (iter < maxiter) {
     // Nesterov momentum extrapolation
     if (nesterov) {
@@ -583,212 +1247,119 @@ static void solPGS(const mjModel* m, mjData* d, int island,
         beta = (mjtNum)(nesterov_k - 1) / (mjtNum)(nesterov_k + 2);
       }
 
-      // update with momentum, save pre-extrapolation value
+      // update with momentum, save pre-extrapolation and extrapolated values
       if (beta > 0) {
-        for (int c=0; c < nefc; c++) {
-          int i = efclist ? efclist[c] : c;
-          mjtNum f_save = force[i];
-          force[i] += beta*(force[i] - force_prev[c]);
-          force_prev[c] = f_save;
-        }
-
-        // friction loss: project onto bounds
-        for (int c=ne; c < ne+nf; c++) {
-          int i = efclist ? efclist[c] : c;
-          force[i] = mju_clip(force[i], -floss[i], floss[i]);
-        }
-
-        // contact force: project onto friction cone
-        for (int c=ne+nf; c < nefc; ) {
-          int i = efclist ? efclist[c] : c;
-          int dim = 1;
-          int type = d->efc_type[i];
-          const mjtNum* mu = NULL;
-
-          if (type == mjCNSTR_CONTACT_ELLIPTIC) {
-            dim = d->contact[d->efc_id[i]].dim;
-            mu = d->contact[d->efc_id[i]].friction;
+        // fused extrapolate, project, and save for scalar-only constraints
+        if (!has_elliptic) {
+          // equality: extrapolate without projection
+          for (int c=0; c < ne; c++) {
+            int i = efclist ? efclist[c] : c;
+            mjtNum fs = force[i];
+            mjtNum fn = fs + beta*(fs - force_prev[c]);
+            force_prev[c] = fs;
+            force[i] = fn;
+            force_momentum[c] = fn;
           }
 
-          projectCone(force+i, mu, dim, type);
-          c += dim;
+          // friction loss: extrapolate and project onto bounds
+          for (int c=ne; c < nenf; c++) {
+            int i = efclist ? efclist[c] : c;
+            mjtNum fs = force[i];
+            mjtNum fn = mju_clip(fs + beta*(fs - force_prev[c]), -floss[i], floss[i]);
+            force_prev[c] = fs;
+            force[i] = fn;
+            force_momentum[c] = fn;
+          }
+
+          // limit and contact: extrapolate and clamp to non-negative
+          for (int c=nenf; c < nefc; c++) {
+            int i = efclist ? efclist[c] : c;
+            mjtNum fs = force[i];
+            mjtNum fn = fs + beta*(fs - force_prev[c]);
+            if (fn < 0) {
+              fn = 0;
+            }
+            force_prev[c] = fs;
+            force[i] = fn;
+            force_momentum[c] = fn;
+          }
+        }
+
+        // general case with elliptic contacts
+        else {
+          // extrapolate force and save pre-extrapolation value
+          for (int c=0; c < nefc; c++) {
+            int i = efclist ? efclist[c] : c;
+            mjtNum fs = force[i];
+            force[i] = fs + beta*(fs - force_prev[c]);
+            force_prev[c] = fs;
+          }
+
+          // friction loss: project onto bounds
+          for (int c=ne; c < nenf; c++) {
+            int i = efclist ? efclist[c] : c;
+            force[i] = mju_clip(force[i], -floss[i], floss[i]);
+          }
+
+          // contact force: project onto friction cone
+          for (int c=nenf; c < nefc; ) {
+            int i = efclist ? efclist[c] : c;
+            int type = d->efc_type[i];
+            int dim = 1;
+            const mjtNum* mu = NULL;
+            if (type == mjCNSTR_CONTACT_ELLIPTIC) {
+              const mjContact* con = d->contact + d->efc_id[i];
+              dim = con->dim;
+              mu = con->friction;
+            }
+            projectCone(force+i, mu, dim, type);
+            c += dim;
+          }
+
+          // save extrapolated point for gradient restart check
+          mju_gather(force_momentum, force, efclist, nefc);
         }
       }
 
       // iter == 0 or beta <= 0 (nesterov_k <= 1): just save current force
       else {
         mju_gather(force_prev, force, efclist, nefc);
+
+        // no extrapolation: momentum point is the current force
+        mju_copy(force_momentum, force_prev, nefc);
       }
-
-      // save extrapolated point for gradient restart check
-      mju_gather(force_momentum, force, efclist, nefc);
     }
-
-    // clear improvement
-    mjtNum improvement = 0;
 
     // shuffle constraint visitation order
     shuffle_int(blockstart, nblocks, &rng);
 
     // perform one sweep over constraint blocks
-    for (int bi=0; bi < nblocks; bi++) {
-      int c = blockstart[bi];
-      int i = efclist ? efclist[c] : c;
-
-      // get constraint dimensionality
-      int dim;
-      if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
-        dim = d->contact[d->efc_id[i]].dim;
+    mjtNum improvement = 0;
+    if (!has_elliptic) {
+      // scalar-only constraints
+      if (!is_sparse) {
+        improvement = pgsSweepScalarDense(d, force, ARdiag, blockstart, efclist, ne, nf, nblocks);
       } else {
-        dim = 1;
+        improvement = pgsSweepScalarSparse(d, force, ARdiag, blockstart, efclist, ne, nf, nblocks);
       }
-
-      // compute residual for this constraint
-      mjtNum res[6];
-      residual(m, d, res, i, dim, 0);
-
-      // save old force
-      mjtNum oldforce[6];
-      if (dim == 1) {
-        oldforce[0] = force[i];
-      } else if (dim == 3) {
-        mji_copy3(oldforce, force+i);
-      } else {
-        mju_copy(oldforce, force+i, dim);
-      }
-
-      // allocate AR submatrix, required later for costChage
-      mjtNum Athis[36];
-
-      // simple constraint
-      if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
-        // unconstrained minimum
-        force[i] -= res[0]*ARinv[c];
-
-        // impose interval and inequality constraints
-        if (c >= ne && c < ne+nf) {
-          if (force[i] < -floss[i]) {
-            force[i] = -floss[i];
-          } else if (force[i] > floss[i]) {
-            force[i] = floss[i];
-          }
-        } else if (c >= ne+nf) {
-          if (force[i] < 0) {
-            force[i] = 0;
-          }
-        }
-      }
-
-      // elliptic cone constraint
-      else {
-        // get friction
-        mjtNum *mu = d->contact[d->efc_id[i]].friction;
-
-        //-------------------- perform normal or ray update
-
-        // Athis = AR(this,this)
-        extractBlock(m, d, Athis, i, dim, 0);
-
-        // normal force too small: normal update
-        if (force[i] < mjMINVAL) {
-          // unconstrained minimum
-          force[i] -= res[0]*ARinv[c];
-
-          // clamp
-          if (force[i] < 0) {
-            force[i] = 0;
-          }
-
-          // clear friction (just in case)
-          if (dim == 3) {
-            zero2(force+i+1);
-          } else {
-            mju_zero(force+i+1, dim-1);
-          }
-        }
-
-        // ray update
-        else {
-          // v = ray, denom = v' * AR(this,this) * v
-          mjtNum v[6], v1[6], denom;
-          if (dim == 3) {
-            mji_copy3(v, force+i);
-            mji_mulMatVec3(v1, Athis, v);
-            denom = mju_dot3(v, v1);
-          } else {
-            mju_copy(v, force+i, dim);
-            mju_mulMatVec(v1, Athis, v, dim, dim);
-            denom = mju_dot(v, v1, dim);
-          }
-
-          // avoid division by 0
-          if (denom >= mjMINVAL) {
-            // x = v' * res / denom
-            mjtNum x = (dim == 3 ? -mju_dot3(v, res) : -mju_dot(v, res, dim)) / denom;
-
-            // make sure normal is non-negative
-            if (force[i]+x*v[0] < 0) {
-              x = -v[0]/force[i];
-            }
-
-            //  add x*v to f
-            for (int j=0; j < dim; j++) {
-              force[i+j] += x*v[j];
-            }
-          }
-        }
-
-        //-------------------- perform friction update, keep normal fixed
-
-        // Ac = AR-submatrix; bc = b-subvector + Ac,rest * f_rest
-        mjtNum bc[5], Ac[25];
-        if (dim == 3) {
-          mjtNum df0 = force[i] - oldforce[0];
-          Ac[0] = Athis[4];
-          Ac[1] = Athis[5];
-          Ac[2] = Athis[7];
-          Ac[3] = Athis[8];
-          bc[0] = (res[1] - dot2(Ac, oldforce+1)) + Athis[3]*df0;
-          bc[1] = (res[2] - dot2(Ac+2, oldforce+1)) + Athis[6]*df0;
-        } else {
-          mju_copy(bc, res+1, dim-1);
-          for (int j=0; j < dim-1; j++) {
-            mju_copy(Ac+j*(dim-1), Athis+(j+1)*dim+1, dim-1);
-            bc[j] -= (dim == 4) ? mju_dot3(Ac+j*3, oldforce+1)
-                                : mju_dot(Ac+j*(dim-1), oldforce+1, dim-1);
-            bc[j] += Athis[(j+1)*dim]*(force[i]-oldforce[0]);
-          }
-        }
-
-        // guard for f_normal==0
-        if (force[i] < mjMINVAL) {
-          if (dim == 3) {
-            zero2(force+i+1);
-          } else {
-            mju_zero(force+i+1, dim-1);
-          }
-        }
-
-        // QCQP
-        else {
-          solveQCQP(force, i, dim, Ac, bc, mu);
-        }
-      }
-
-      // accumulate improvement
-      if (dim == 1) {
-        Athis[0] = 1/ARinv[c];
-      }
-      improvement -= costChange(Athis, force+i, oldforce, res, dim);
+    } else if (!is_sparse) {
+      // dense AR with elliptic contacts
+      improvement = pgsSweepEllipticDense(m, d, force, ARdiag, blockstart, efclist,
+                                          ne, nf, nblocks);
+    } else {
+      // sparse AR with elliptic contacts
+      improvement = pgsSweepEllipticSparse(m, d, force, ARdiag, ARdiagoff, blockstart,
+                                           efclist, ne, nf, nblocks);
     }
 
-    // update constraint state
-    int nchange;
-    int nactive = dualStateChange(d, d->efc_state, oldstate, ne, nf, nefc, efclist, &nchange);
-
-    // scale improvement, save stats
+    // scale improvement; update constraint state and save stats when recorded
     improvement *= scale;
-    saveStats(m, d, island_stat, iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    if (record_stats && iter < mjNSOLVER) {
+      int nchange = 0;
+      int nactive = dualStateUpdate(d, force, d->efc_state, ne, nf, nefc,
+                                    efclist, has_elliptic, &nchange);
+      saveStats(m, d, island_stat, iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    }
 
     // Nesterov gradient restart (O'Donoghue-Candès): reset when correction opposes extrapolation
     if (nesterov) {
@@ -820,17 +1391,23 @@ static void solPGS(const mjModel* m, mjData* d, int island,
     }
   }
 
+  // finalize constraint state when per-iter state tracking was skipped
+  if (!record_stats || iter > mjNSOLVER) {
+    dualStateSet(d, force, d->efc_state, ne, nf, nefc, efclist, has_elliptic);
+  }
+
   // finalize statistics
   if (island_stat < mjNISLAND) {
     // update solver iterations
     d->solver_niter[island_stat] += iter;
 
     // set nnz
-    if (mj_isSparse(m)) {
-      d->solver_nnz[island_stat] = 0;
+    if (is_sparse) {
+      int nnz = 0;
       for (int c=0; c < nefc; c++) {
-        d->solver_nnz[island_stat] += d->efc_AR_rownnz[efclist ? efclist[c] : c];
+        nnz += d->efc_AR_rownnz[efclist ? efclist[c] : c];
       }
+      d->solver_nnz[island_stat] = nnz;
     } else {
       d->solver_nnz[island_stat] = nefc*nefc;
     }
@@ -874,13 +1451,12 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
   mjContact* con;
   mj_markStack(d);
   mjtNum* ARinv = mjSTACKALLOC(d, nefc, mjtNum);
-  int* oldstate = mjSTACKALLOC(d, nefc, int);
 
   int island_stat = mjMAX(0, island);
   mjtNum scale = inertiaScale(m, d, island);
 
   // precompute inverse diagonal of A
-  ARdiaginv(m, d, ARinv, nefc, efclist, 1);
+  ARdiaginv(m, d, ARinv, /*interleaved=*/0, NULL, nefc, efclist, 1);
 
   // initial constraint state
   dualState(d, d->efc_state, ne, nf, nefc, efclist);
@@ -903,7 +1479,7 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
       int i = efclist ? efclist[c] : c;
 
       // compute residual, save old
-      residual(m, d, res, i, 1, 1);
+      residual(m, d, force, res, i, 1, 1);
       oldforce[0] = force[i];
 
       // unconstrained minimum
@@ -935,7 +1511,7 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
         // loop over pairs of opposing pyramid edges
         for (int j=i; j < i+2*(dim-1); j+=2) {
           // compute residual, save old
-          residual(m, d, res, j, 2, 1);
+          residual(m, d, force, res, j, 2, 1);
           copy2(oldforce, force+j);
 
           // Ac = AR-submatirx
@@ -992,7 +1568,7 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
         mu = con->friction;
 
         // compute residual, save old
-        residual(m, d, res, i+1, dim-1, 1);
+        residual(m, d, force, res, i+1, dim-1, 1);
         if (dim == 3) {
           copy2(oldforce, force+i+1);
         } else {
@@ -1038,7 +1614,7 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
 
     // update constraint state
     int nchange;
-    int nactive = dualStateChange(d, d->efc_state, oldstate, ne, nf, nefc, efclist, &nchange);
+    int nactive = dualStateChange(d, d->efc_state, ne, nf, nefc, efclist, &nchange);
 
     // scale improvement, save stats
     improvement *= scale;
