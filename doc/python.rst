@@ -232,7 +232,7 @@ Optionally, ``viewer.launch_passive`` accepts the following keyword arguments.
 
     def key_callback(keycode):
       if chr(keycode) == ' ':
-        nonlocal paused
+        global paused
         paused = not paused
 
     ...
@@ -242,7 +242,7 @@ Optionally, ``viewer.launch_passive`` accepts the following keyword arguments.
         ...
         if not paused:
           mujoco.mj_step(m, d)
-          viewer.sync()
+        viewer.sync()
         ...
 
 - ``show_left_ui`` and ``show_right_ui``: Boolean arguments indicating whether UI panels should be visible
