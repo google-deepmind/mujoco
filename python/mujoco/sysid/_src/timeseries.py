@@ -611,7 +611,7 @@ class TimeSeries:
     """
     np.savetxt(
         path,
-        np.concatenate([self.times[:, None], self.data], axis=1),
+        np.column_stack((self.times, self.data)),
         delimiter=",",
     )
 
