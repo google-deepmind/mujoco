@@ -15,6 +15,7 @@
 from pathlib import Path
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
 from wasm.codegen.generators import binding_builder
 
@@ -23,26 +24,28 @@ The file '{}' needs to be updated, please run:
 update.py as described in wasm/README.md""".lstrip()
 
 
-class BindingsDiffTest(absltest.TestCase):
+class BindingsDiffTest(parameterized.TestCase):
 
-  def test_bindings_source(self):
-    SCRIPT_DIR = Path(__file__).parent
-    with open(SCRIPT_DIR / 'generated/bindings.cc', 'r') as f:
-      self.generated_src = f.read()
-    self.template_path_cc = SCRIPT_DIR / 'templates/bindings.cc'
-
-    self.builder = binding_builder.BindingBuilder()
+  @parameterized.named_parameters(
+      ('source', 'bindings.cc'),
+      ('header', 'bindings.h'),
+  )
+  def test_bindings(self, filename):
+    codegen_dir = Path(__file__).resolve().parents[1]
+    generated_src = (codegen_dir / 'generated' / filename).read_text()
+    template_path = codegen_dir / 'templates' / filename
 
     generator_output = (
-        self.builder.set_enums()
+        binding_builder.BindingBuilder()
+        .set_enums()
         .set_structs()
         .set_functions()
-        .build_string(self.template_path_cc)
+        .build_string(template_path)
     )
     self.assertEqual(
         generator_output,
-        self.generated_src,
-        msg=ERROR_MESSAGE.format('bindings.cc'),
+        generated_src,
+        msg=ERROR_MESSAGE.format(filename),
     )
 
 
