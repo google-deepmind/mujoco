@@ -111,6 +111,10 @@ fi
 # alone would not catch -- is fatal.
 OUT_PNG="${TEST_TMPDIR}/render_out.png"
 RENDER_LOG=$("$TARGET_BINARY" "$MODEL" "$OUT_PNG" --width=64 --height=48 2>&1)
+RENDER_EXIT=$?
+if [ "$RENDER_EXIT" -ge 128 ] && ! echo "$RENDER_LOG" | grep -q "mEGLDisplay != EGL_NO_DISPLAY"; then
+  die "Render binary crashed with signal $((RENDER_EXIT - 128)) (exit $RENDER_EXIT): $RENDER_LOG"
+fi
 if echo "$RENDER_LOG" | grep -q "Failed to open filament asset"; then
   die "Filament asset resolution failed: $RENDER_LOG"
 fi
