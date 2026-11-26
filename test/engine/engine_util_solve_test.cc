@@ -17,8 +17,10 @@
 #include "src/engine/engine_util_solve.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -3340,6 +3342,121 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicExactMatchesScalar) {
     }
     check_graph(n, adj, /*upper_only=*/(trial % 2 == 0),
                 (trial % 5 == 0) ? nullptr : d.get());
+  }
+}
+
+// --------------------------- mju_cholFactor ----------------------------------
+
+using DenseCholFactorTest = MujocoTest;
+
+// verify mju_cholFactor matches the scalar reference bit-for-bit across sizes,
+// rank deficiency, NaN diagonals, and strict upper-triangle NaN poisoning
+TEST_F(DenseCholFactorTest, BitExactParityAndUpperPoisoned) {
+  auto ref_chol_factor = [](mjtNum* mat, int n, mjtNum mindiag) {
+    int rank = n;
+    for (int j = 0; j < n; j++) {
+      mjtNum tmp = mat[j * (n + 1)];
+      if (j) {
+        tmp -= mju_dot(mat + j * n, mat + j * n, j);
+      }
+      int deficient = !(tmp >= mindiag);
+      if (deficient) {
+        tmp = mindiag;
+        rank--;
+      }
+      mat[j * (n + 1)] = mju_sqrt(tmp);
+      if (deficient) {
+        for (int i = j + 1; i < n; i++) {
+          mat[i * n + j] = 0;
+        }
+      } else {
+        tmp = 1 / mat[j * (n + 1)];
+        for (int i = j + 1; i < n; i++) {
+          mat[i * n + j] =
+              (mat[i * n + j] - mju_dot(mat + i * n, mat + j * n, j)) * tmp;
+        }
+      }
+    }
+    return rank;
+  };
+
+  EXPECT_EQ(mju_cholFactor(nullptr, 0, mjMINVAL), 0);
+
+  std::mt19937_64 rng(77);
+  std::normal_distribution<double> dist(0, 1);
+  const mjtNum nan = std::numeric_limits<mjtNum>::quiet_NaN();
+
+  for (int n : {1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
+                13, 15, 16, 17, 18, 27, 30, 31, 32, 33, 49, 50}) {
+    for (int mode = 0; mode < 4; mode++) {
+      vector<mjtNum> sqrtH(n * n);
+      vector<mjtNum> A(n * n);
+      for (int i = 0; i < n * n; i++) {
+        sqrtH[i] = dist(rng);
+      }
+      mju_mulMatTMat(A.data(), sqrtH.data(), sqrtH.data(), n, n, n);
+      for (int i = 0; i < n; i++) {
+        A[i * n + i] += n;
+      }
+
+      if (mode == 1) {
+        // rank-deficient rows at multiple panel positions
+        for (int r : {0, 1, 2, 3, 4, 5, n - 1}) {
+          if (r < n) {
+            A[r * n + r] = -1;
+          }
+        }
+      } else if (mode == 2) {
+        // deficient columns and NaN diagonals on both even (diag0) and odd
+        // (diag1) panel slots
+        if (n > 2) A[1 * n + 1] = -0.5;
+        if (n > 6) A[6 * n + 6] = nan;
+        if (n > 11) A[11 * n + 11] = -0.5;
+        if (n > 15) A[15 * n + 15] = nan;
+      } else if (mode == 3) {
+        // signed zeros in lower triangle, including rows with -0.0 in column 1
+        // paired with both -0.0 and +0.0 in column 0 so j == 0 hits
+        // ri[1] == -0.0 with l0 * L10 == -0.0 regardless of L10's sign
+        for (int i = 0; i < n; i++) {
+          for (int j = 0; j < i; j++) {
+            if ((i + j) % 3 == 0) A[i * n + j] = -0.0;
+          }
+          if (i >= 2 && i % 4 == 0) {
+            A[i * n + 0] = -0.0;
+            A[i * n + 1] = -0.0;
+          } else if (i >= 2 && i % 4 == 1) {
+            A[i * n + 0] = 0.0;
+            A[i * n + 1] = -0.0;
+          }
+        }
+      }
+
+      // poison strict upper triangle with NaN (must not be read or overwritten)
+      for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+          A[i * n + j] = nan;
+        }
+      }
+
+      vector<mjtNum> L = A;
+      vector<mjtNum> L_ref = A;
+      int rank = mju_cholFactor(L.data(), n, mjMINVAL);
+      int rank_ref = ref_chol_factor(L_ref.data(), n, mjMINVAL);
+      EXPECT_EQ(rank, rank_ref) << "n=" << n << " mode=" << mode;
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j <= i; j++) {
+          int idx = i * n + j;
+          EXPECT_EQ(std::memcmp(&L[idx], &L_ref[idx], sizeof(mjtNum)), 0)
+              << "n=" << n << " mode=" << mode << " (" << i << "," << j
+              << ") got=" << L[idx] << " ref=" << L_ref[idx];
+        }
+        for (int j = i + 1; j < n; j++) {
+          EXPECT_TRUE(std::isnan(L[i * n + j]))
+              << "upper triangle clobbered at n=" << n << " (" << i << "," << j
+              << ")";
+        }
+      }
+    }
   }
 }
 

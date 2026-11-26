@@ -28,44 +28,302 @@
 
 //---------------------------- dense Cholesky ------------------------------------------------------
 
-// Cholesky decomposition: mat = L*L'; return 'rank'
-int mju_cholFactor(mjtNum* restrict mat, int n, mjtNum mindiag) {
+// minimum dimension for 2x4 SIMD panel blocking (below 12 the 4-row k-loop runs at most once)
+#define mjCHOL_PANEL_MIN 12
+
+
+// single-column Cholesky step at column j; return 1 if deficient, 0 if full rank
+static inline int cholFactorCol(mjtNum* restrict mat, int n, int j, mjtNum mindiag) {
+  const size_t sn = n;
+  mjtNum* restrict rowj = mat + j*sn;
+
+  // compute new diagonal
+  mjtNum tmp = rowj[j];
+  if (j) {
+    tmp -= mju_dot(rowj, rowj, j);
+  }
+
+  // correct diagonal values below threshold (negated >= so NaN counts as deficient)
+  int deficient = !(tmp >= mindiag);
+  if (deficient) {
+    tmp = mindiag;
+  }
+
+  // save diagonal
+  rowj[j] = mju_sqrt(tmp);
+
+  // process off-diagonal entries
+  if (deficient) {
+    // clear off-diagonals if deficient
+    for (int i=j+1; i < n; i++) {
+      mat[i*sn+j] = 0;
+    }
+    return 1;
+  }
+
+  tmp = 1 / rowj[j];
+  if (j) {
+    for (int i=j+1; i < n; i++) {
+      mjtNum* restrict ri = mat + i*sn;
+      ri[j] = (ri[j] - mju_dot(ri, rowj, j)) * tmp;
+    }
+  }
+
+  // first column has no prefix dot product
+  else {
+    for (int i=j+1; i < n; i++) {
+      mat[i*sn] *= tmp;
+    }
+  }
+  return 0;
+}
+
+
+// column-wise Cholesky for small matrices (n < mjCHOL_PANEL_MIN); outlined to keep
+// mju_cholFactor a tail-call dispatcher and avoid YMM prologue spills on the small-n path
+static mjNOINLINE int cholFactorSmall(mjtNum* restrict mat, int n, mjtNum mindiag) {
   int rank = n;
-  mjtNum tmp;
-
-  // in-place Cholesky factorization
   for (int j=0; j < n; j++) {
-    // compute new diagonal
-    tmp = mat[j*(n+1)];
-    if (j) {
-      tmp -= mju_dot(mat+j*n, mat+j*n, j);
-    }
+    rank -= cholFactorCol(mat, n, j, mindiag);
+  }
+  return rank;
+}
 
-    // correct diagonal values below threshold (negated >= so NaN counts as deficient)
-    int deficient = !(tmp >= mindiag);
-    if (deficient) {
-      tmp = mindiag;
-      rank--;
-    }
 
-    // save diagonal
-    mat[j*(n+1)] = mju_sqrt(tmp);
+// cold fallback for a rank-deficient 2-column panel
+static mjNOINLINE int cholFactorDeficient2(mjtNum* restrict mat, int n, int j, mjtNum mindiag) {
+  return cholFactorCol(mat, n, j, mindiag) + cholFactorCol(mat, n, j+1, mindiag);
+}
 
-    // process off-diagonal entries
-    if (deficient) {
-      // clear off-diagonals if deficient
-      for (int i=j+1; i < n; i++) {
-        mat[i*n+j] = 0;
+
+// 2-column x 4-row SIMD panel-blocked Cholesky (n >= mjCHOL_PANEL_MIN); outlined so its
+// YMM stack frame does not penalize small matrices
+static mjNOINLINE int cholFactorPanel2x4(mjtNum* restrict mat, int n, mjtNum mindiag) {
+  int rank = n;
+  const size_t sn = n;
+  const int n2 = n & ~1;
+
+  // in-place Cholesky factorization, 2-column x 4-row panel blocked
+  //   scalar equivalent:
+  //     for (int j=0; j < n; j++) {
+  //       tmp = mat[j*(n+1)] - (j ? mju_dot(mat+j*n, mat+j*n, j) : 0);
+  //       deficient = !(tmp >= mindiag);  mat[j*(n+1)] = mju_sqrt(deficient ? mindiag : tmp);
+  //       for (int i=j+1; i < n; i++)
+  //         mat[i*n+j] = deficient ? 0 : (mat[i*n+j] - mju_dot(mat+i*n, mat+j*n, j))/mat[j*(n+1)];
+  //     }
+  for (int j=0; j < n2; j += 2) {
+    mjtNum* restrict p0 = mat + (j+0)*sn;
+    mjtNum* restrict p1 = mat + (j+1)*sn;
+    int j4 = j & ~3;
+    int rem2 = j & 2;
+
+    // prefix dot products of the 2 panel rows over columns 0..j4-1
+    mjtNum t00 = 0, t10 = 0, t11 = 0;
+    if (j4) {
+      mjtNum4 b0 = v4_load(p0), b1 = v4_load(p1);
+      mjtNum4 s00 = v4_mul(b0, b0), s10 = v4_mul(b1, b0), s11 = v4_mul(b1, b1);
+      for (int k=4; k < j4; k += 4) {
+        b0 = v4_load(p0+k);
+        b1 = v4_load(p1+k);
+        s00 = v4_add(s00, v4_mul(b0, b0));
+        s10 = v4_add(s10, v4_mul(b1, b0));
+        s11 = v4_add(s11, v4_mul(b1, b1));
       }
-    } else {
-      tmp = 1/mat[j*(n+1)];
-      for (int i=j+1; i < n; i++) {
-        mat[i*n+j] = (mat[i*n+j] - mju_dot(mat+i*n, mat+j*n, j)) * tmp;
+      t00 = v4_sum(s00);
+      t10 = v4_sum(s10);
+      t11 = v4_sum(s11);
+    }
+
+    // factor 2x2 diagonal block into locals; fall back to column-wise if either pivot is deficient
+    mjtNum p0a = 0, p0b = 0, p1a = 0, p1b = 0;
+    mjtNum diag0, d10;
+    if (rem2) {
+      p0a = p0[j4];
+      p0b = p0[j4+1];
+      p1a = p1[j4];
+      p1b = p1[j4+1];
+      diag0 = p0[j] - (t00 + (p0a*p0a + p0b*p0b));
+      d10 = t10 + (p1a*p0a + p1b*p0b);
+    }
+
+    // j is a multiple of 4: no 2-element remainder
+    else {
+      diag0 = p0[j] - t00;
+      d10 = t10;
+    }
+    if (!(diag0 >= mindiag)) {
+      rank -= cholFactorDeficient2(mat, n, j, mindiag);
+      continue;
+    }
+    mjtNum L00 = mju_sqrt(diag0);
+    mjtNum inv0 = 1 / L00;
+    mjtNum L10 = (p1[j] - d10) * inv0;
+    mjtNum tail11 = rem2 ? ((p1a*p1a + p1b*p1b) + L10*L10) : L10*L10;
+    mjtNum diag1 = p1[j+1] - (t11 + tail11);
+    if (!(diag1 >= mindiag)) {
+      rank -= cholFactorDeficient2(mat, n, j, mindiag);
+      continue;
+    }
+    mjtNum L11 = mju_sqrt(diag1);
+    mjtNum inv1 = 1 / L11;
+
+    // write 2x2 lower-triangular diagonal block
+    p0[j] = L00;
+    p1[j] = L10;
+    p1[j+1] = L11;
+
+    // update off-diagonal panel rows j+2..n-1 for columns j, j+1
+    if (!j) {
+      // add +0.0 to match mju_dot's signed-zero canonicalization (-0.0 -> +0.0)
+      for (int i=2; i < n; i++) {
+        mjtNum* restrict ri = mat + i*sn;
+        mjtNum l0 = ri[0] * inv0;
+        mjtNum l1 = (ri[1] - ((mjtNum)0 + l0*L10)) * inv1;
+        ri[0] = l0;
+        ri[1] = l1;
+      }
+    }
+
+    // columns j >= 2: 4-row x 2-column SIMD panel followed by 0..3 remainder rows
+    else {
+      int i = j + 2;
+
+      // 4 rows x 2 panel columns at a time (6 loads per 8 vector ops, 4-wide triangular solve)
+      for (; i+4 <= n; i += 4) {
+        mjtNum* restrict r0 = mat + (i+0)*sn;
+        mjtNum* restrict r1 = mat + (i+1)*sn;
+        mjtNum* restrict r2 = mat + (i+2)*sn;
+        mjtNum* restrict r3 = mat + (i+3)*sn;
+        mjtNum4 d0, d1;
+        if (j4) {
+          mjtNum4 b0 = v4_load(p0), b1 = v4_load(p1);
+          mjtNum4 a0 = v4_load(r0), a1 = v4_load(r1), a2 = v4_load(r2), a3 = v4_load(r3);
+          mjtNum4 s00 = v4_mul(a0, b0), s01 = v4_mul(a0, b1);
+          mjtNum4 s10 = v4_mul(a1, b0), s11 = v4_mul(a1, b1);
+          mjtNum4 s20 = v4_mul(a2, b0), s21 = v4_mul(a2, b1);
+          mjtNum4 s30 = v4_mul(a3, b0), s31 = v4_mul(a3, b1);
+          for (int k=4; k < j4; k += 4) {
+            b0 = v4_load(p0+k);
+            b1 = v4_load(p1+k);
+            a0 = v4_load(r0+k);
+            s00 = v4_add(s00, v4_mul(a0, b0));
+            s01 = v4_add(s01, v4_mul(a0, b1));
+            a1 = v4_load(r1+k);
+            s10 = v4_add(s10, v4_mul(a1, b0));
+            s11 = v4_add(s11, v4_mul(a1, b1));
+            a2 = v4_load(r2+k);
+            s20 = v4_add(s20, v4_mul(a2, b0));
+            s21 = v4_add(s21, v4_mul(a2, b1));
+            a3 = v4_load(r3+k);
+            s30 = v4_add(s30, v4_mul(a3, b0));
+            s31 = v4_add(s31, v4_mul(a3, b1));
+          }
+
+          // reduce partial sums with exact v4_sum tree order
+          v4_transpose(&s00, &s10, &s20, &s30);
+          d0 = v4_add(v4_add(s00, s20), v4_add(s10, s30));
+          v4_transpose(&s01, &s11, &s21, &s31);
+          d1 = v4_add(v4_add(s01, s21), v4_add(s11, s31));
+        }
+
+        // j == 2: no 4-wide prefix
+        else {
+          d0 = v4_splat(0);
+          d1 = v4_splat(0);
+        }
+
+        // 4-row parallel triangular solve for columns j, j+1
+        mjtNum4 c0 = v4_set(r0[j], r1[j], r2[j], r3[j]);
+        mjtNum4 c1 = v4_set(r0[j+1], r1[j+1], r2[j+1], r3[j+1]);
+        mjtNum4 vinv0 = v4_splat(inv0), vinv1 = v4_splat(inv1), vL10 = v4_splat(L10);
+        mjtNum4 l0, l1;
+        if (rem2) {
+          mjtNum4 x0 = v4_set(r0[j4], r1[j4], r2[j4], r3[j4]);
+          mjtNum4 x1 = v4_set(r0[j4+1], r1[j4+1], r2[j4+1], r3[j4+1]);
+          mjtNum4 t0 = v4_add(v4_mul(x0, v4_splat(p0a)), v4_mul(x1, v4_splat(p0b)));
+          l0 = v4_mul(v4_sub(c0, v4_add(d0, t0)), vinv0);
+          mjtNum4 t1 = v4_add(v4_add(v4_mul(x0, v4_splat(p1a)), v4_mul(x1, v4_splat(p1b))),
+                              v4_mul(l0, vL10));
+          l1 = v4_mul(v4_sub(c1, v4_add(d1, t1)), vinv1);
+        }
+
+        // j is a multiple of 4: no 2-element remainder
+        else {
+          l0 = v4_mul(v4_sub(c0, d0), vinv0);
+          l1 = v4_mul(v4_sub(c1, v4_add(d1, v4_mul(l0, vL10))), vinv1);
+        }
+
+        // store 4x2 panel block
+        mjtNum o0[4], o1[4];
+        v4_store(o0, l0);
+        v4_store(o1, l1);
+        r0[j+0] = o0[0];
+        r0[j+1] = o1[0];
+        r1[j+0] = o0[1];
+        r1[j+1] = o1[1];
+        r2[j+0] = o0[2];
+        r2[j+1] = o1[2];
+        r3[j+0] = o0[3];
+        r3[j+1] = o1[3];
+      }
+
+      // remaining 0..3 rows
+      for (; i < n; i++) {
+        mjtNum* restrict r0 = mat + i*sn;
+        mjtNum d0 = 0, d1 = 0;
+        if (j4) {
+          mjtNum4 a0 = v4_load(r0);
+          mjtNum4 s0 = v4_mul(a0, v4_load(p0));
+          mjtNum4 s1 = v4_mul(a0, v4_load(p1));
+          for (int k=4; k < j4; k += 4) {
+            a0 = v4_load(r0+k);
+            s0 = v4_add(s0, v4_mul(a0, v4_load(p0+k)));
+            s1 = v4_add(s1, v4_mul(a0, v4_load(p1+k)));
+          }
+          d0 = v4_sum(s0);
+          d1 = v4_sum(s1);
+        }
+
+        // triangular solve for columns j, j+1
+        mjtNum l0, l1;
+        if (rem2) {
+          mjtNum x0 = r0[j4], x1 = r0[j4+1];
+          l0 = (r0[j] - (d0 + (x0*p0a + x1*p0b))) * inv0;
+          l1 = (r0[j+1] - (d1 + ((x0*p1a + x1*p1b) + l0*L10))) * inv1;
+        }
+
+        // j is a multiple of 4: no 2-element remainder
+        else {
+          l0 = (r0[j] - d0) * inv0;
+          l1 = (r0[j+1] - (d1 + l0*L10)) * inv1;
+        }
+        r0[j+0] = l0;
+        r0[j+1] = l1;
       }
     }
   }
 
+  // odd last diagonal element (n >= mjCHOL_PANEL_MIN, no off-diagonal rows)
+  if (n & 1) {
+    mjtNum* restrict row = mat + (n-1)*sn;
+    mjtNum tmp = row[n-1] - mju_dot(row, row, n-1);
+    if (!(tmp >= mindiag)) {
+      tmp = mindiag;
+      rank--;
+    }
+    row[n-1] = mju_sqrt(tmp);
+  }
+
   return rank;
+}
+
+
+// Cholesky decomposition: mat = L*L'; return 'rank'
+int mju_cholFactor(mjtNum* restrict mat, int n, mjtNum mindiag) {
+  if (n >= mjCHOL_PANEL_MIN) {
+    return cholFactorPanel2x4(mat, n, mindiag);
+  }
+  return cholFactorSmall(mat, n, mindiag);
 }
 
 
