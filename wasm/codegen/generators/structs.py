@@ -316,11 +316,22 @@ def _generate_field_data(
           )
       else:
         with builder.function(f"emscripten::val {f.name}() const"):
-          builder.line(
-              "return"
-              f" emscripten::val(emscripten::typed_memory_view({array_size_str},"
-              f" {ptr_field_expr}));"
-          )
+          if w == "MjData" and is_dynamically_sized:
+            # These arena indices use -1 to mean "none", as in Python.
+            fill = (
+                ", -1"
+                if f.name in ("tendon_efcadr", "tree_island", "dof_island")
+                else ""
+            )
+            builder.line(
+                f"return InitDataArray({ptr_field_expr}, {array_size_str}{fill});"
+            )
+          else:
+            builder.line(
+                "return"
+                f" emscripten::val(emscripten::typed_memory_view({array_size_str},"
+                f" {ptr_field_expr}));"
+            )
       return WrappedFieldData(
           declaration=builder.to_string(),
           typename=_get_field_struct_type(f, s),  # pyrefly: ignore[bad-argument-type]

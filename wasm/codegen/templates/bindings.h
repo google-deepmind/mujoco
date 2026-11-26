@@ -122,6 +122,22 @@ std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
 std::string IndexErrorMessage(int index, int count,
                               std::string_view accessor_name);
 
+// Arena arrays can be unallocated even when their dimensions are nonzero.
+// Preserve allocated views; otherwise return initialized JS-owned storage,
+// matching the Python bindings instead of exposing memory at the null address.
+template <typename T>
+inline val InitDataArray(T* data, std::size_t size, int fill = 0) {
+  if (data) {
+    return val(typed_memory_view(size, data));
+  }
+  val empty = val(typed_memory_view(0, data));
+  val array = empty["constructor"].new_(size);
+  if (fill) {
+    array.call<void>("fill", fill);
+  }
+  return array;
+}
+
 template <typename T>
 inline val ToInt32Array(const T* data, int size) {
   if (!data || size <= 0) {
