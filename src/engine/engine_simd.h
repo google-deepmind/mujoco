@@ -446,6 +446,33 @@ mjtNum4 v4_xorsign(mjtNum4 a, int s0, int s1, int s2, int s3) {
 }
 
 
+// lane-wise absolute value (clears sign bits, matching mju_abs)
+mjSIMD_ATTR
+mjtNum4 v4_abs(mjtNum4 a) {
+#if defined(__ARM_NEON) && (defined(__aarch64__) || defined(_M_ARM64)) && !defined(mjUSESINGLE)
+  mjtNum2_vec_ lo = (mjtNum2_vec_)vabsq_f64((float64x2_t)__builtin_shufflevector(a.v, a.v, 0, 1));
+  mjtNum2_vec_ hi = (mjtNum2_vec_)vabsq_f64((float64x2_t)__builtin_shufflevector(a.v, a.v, 2, 3));
+  return v4_wrap_(__builtin_shufflevector(lo, hi, 0, 1, 2, 3));
+#elif defined(__ARM_NEON) && (defined(__aarch64__) || defined(_M_ARM64)) && defined(mjUSESINGLE)
+  return v4_wrap_((mjtNum4_vec_)vabsq_f32((float32x4_t)a.v));
+#elif defined(__wasm_simd128__) && !defined(mjUSESINGLE)
+  mjtNum2_vec_ lo = (mjtNum2_vec_)wasm_f64x2_abs((v128_t)__builtin_shufflevector(a.v, a.v, 0, 1));
+  mjtNum2_vec_ hi = (mjtNum2_vec_)wasm_f64x2_abs((v128_t)__builtin_shufflevector(a.v, a.v, 2, 3));
+  return v4_wrap_(__builtin_shufflevector(lo, hi, 0, 1, 2, 3));
+#elif defined(__wasm_simd128__) && defined(mjUSESINGLE)
+  return v4_wrap_((mjtNum4_vec_)wasm_f32x4_abs((v128_t)a.v));
+#elif defined(mjUSESINGLE)
+  const uint32_t mask = ~((uint32_t)1 << 31);
+  mjtNum4_bits_ m = {mask, mask, mask, mask};
+  return v4_wrap_((mjtNum4_vec_)((mjtNum4_bits_)a.v & m));
+#else
+  const uint64_t mask = ~((uint64_t)1 << 63);
+  mjtNum4_bits_ m = {mask, mask, mask, mask};
+  return v4_wrap_((mjtNum4_vec_)((mjtNum4_bits_)a.v & m));
+#endif
+}
+
+
 // permute lanes with compile-time indices; a is evaluated multiple times and must be
 // side-effect-free
 #define v4_shuffle(a, i0, i1, i2, i3) \
@@ -912,6 +939,13 @@ mjtNum4 v4_xorsign(mjtNum4 a, int s0, int s1, int s2, int s3) {
 }
 
 
+// lane-wise absolute value (clears sign bits, matching mju_abs)
+static inline
+mjtNum4 v4_abs(mjtNum4 a) {
+  return v4_wrap_(_mm_andnot_ps(_mm_set1_ps(-0.0f), a.v));
+}
+
+
 // permute lanes with compile-time indices; a is evaluated multiple times and must be
 // side-effect-free
 #define v4_shuffle(a, i0, i1, i2, i3) \
@@ -1212,6 +1246,13 @@ mjtNum4 v4_xorsign(mjtNum4 a, int s0, int s1, int s2, int s3) {
   __m256d m = _mm256_setr_pd(s0 ? -0.0 : 0.0, s1 ? -0.0 : 0.0,
                              s2 ? -0.0 : 0.0, s3 ? -0.0 : 0.0);
   return v4_wrap_(_mm256_xor_pd(a.v, m));
+}
+
+
+// lane-wise absolute value (clears sign bits, matching mju_abs)
+static inline
+mjtNum4 v4_abs(mjtNum4 a) {
+  return v4_wrap_(_mm256_andnot_pd(_mm256_set1_pd(-0.0), a.v));
 }
 
 
@@ -1538,6 +1579,17 @@ mjtNum4 v4_xorsign(mjtNum4 a, int s0, int s1, int s2, int s3) {
 }
 
 
+// lane-wise absolute value (clears sign bits, matching mju_abs)
+static inline
+mjtNum4 v4_abs(mjtNum4 a) {
+#ifdef mjUSESINGLE
+  return v4_set(fabsf(a.v[0]), fabsf(a.v[1]), fabsf(a.v[2]), fabsf(a.v[3]));
+#else
+  return v4_set(fabs(a.v[0]), fabs(a.v[1]), fabs(a.v[2]), fabs(a.v[3]));
+#endif
+}
+
+
 // permute lanes helper
 static inline
 mjtNum4 v4_shuffle_(mjtNum4 a, int i0, int i1, int i2, int i3) {
@@ -1654,16 +1706,6 @@ int f4_movemask(mjtFloatMask4 m) {
 #endif  // backend selection
 
 //------------------------------ backend-independent helpers ---------------------------------------
-
-// lane-wise absolute value (zero results are selected as +0, matching mju_abs)
-static inline
-mjtNum4 v4_abs(mjtNum4 a) {
-  // max(-a, a) is -0 for a = -0; select +0 explicitly rather than adding +0, which MSVC folds away
-  mjtNum4 zero = v4_splat(0);
-  mjtNum4 r = v4_max(v4_xorsign(a, 1, 1, 1, 1), a);
-  return v4_select(v4_cmple(r, zero), zero, r);
-}
-
 
 // linear combination of three vectors: c0*x0 + c1*x1 + c2*x2
 static inline
