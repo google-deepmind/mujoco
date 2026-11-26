@@ -448,6 +448,13 @@ void LoadKeyframe(const std::string& keyframe) {
   g_app->LoadKeyframe(keyframe);
 }
 
+// Javascript-facing function to paste text from the browser's "paste" event.
+void PasteText(const std::string& text) {
+  if (g_app) {
+    g_app->PasteText(text);
+  }
+}
+
 // Javascript-facing function to render a single frame.
 void RenderFrame() {
   if (g_app) {
@@ -474,6 +481,7 @@ EMSCRIPTEN_BINDINGS(studio_bindings) {
   emscripten::function("loadFile", &LoadFile);
   emscripten::function("loadUrl", &LoadUrl);
   emscripten::function("loadKeyframe", &LoadKeyframe);
+  emscripten::function("pasteText", &PasteText);
   emscripten::function("renderFrame", &RenderFrame);
   emscripten::function("deinit", &Deinit);
 }

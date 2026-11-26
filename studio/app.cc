@@ -228,6 +228,8 @@ void App::SwitchGraphicsMode(int width, int height, GraphicsMode mode) {
   Window::Config window_config;
   window_config.gfx_mode = mode;
   window_ = std::make_unique<Window>(app_title_, width, height, window_config);
+  // In the browser (MuJoCo Live), text copied in the UI also goes to the browser's clipboard.
+  SyncClipboardWithBrowser();
 
   mjrfContextConfig renderer_config;
   mjrf_defaultContextConfig(&renderer_config);
@@ -273,6 +275,16 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer, std::string_vie
                               std::string_view filename) {
   std::unique_lock<std::mutex> lock(physics_mutex_);
   BuildModel(BufferModel{.buffer = buffer, .content_type = content_type, .name = filename});
+}
+
+void App::PasteText(std::string_view text) {
+  SetClipboardTextFromBrowser(std::string(text));
+  // Without a focused text field there is nothing to paste into, and a synthetic Ctrl+V would
+  // only risk triggering a keyboard shortcut.
+  ImGuiIO& io = ImGui::GetIO();
+  if (io.WantTextInput) {
+    QueuePasteShortcut(io);
+  }
 }
 
 void App::LoadKeyframe(std::string_view keyframe) {

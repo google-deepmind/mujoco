@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Copy and paste between Studio's UI and the system clipboard in the browser, for the Studio Web
-// Viewer. There, ImGui's clipboard is only a buffer inside the page, and a page can reach the
-// system clipboard only in limited ways:
+// Copy and paste between Studio's UI and the system clipboard in the browser builds of Studio
+// (MuJoCo Live and the Web Viewer). There, ImGui's clipboard is only a buffer inside the page,
+// and a page can reach the system clipboard only in limited ways:
 // - Copy: text copied in the UI is also written to the browser's clipboard; see
 //   SyncClipboardWithBrowser().
 // - Paste: a page can only read the system clipboard from the browser's "paste" event, by which
@@ -34,15 +34,16 @@
 // Manual test checklist
 //
 // The unit tests cannot reach the browser side (the page's key and paste listeners and the
-// browser's clipboard), so after changing clipboard handling, run the steps below by hand in the
-// Web Viewer. The steps name kinds of widget rather than specific ones, because the UI changes;
-// each example is one that fits at the time of writing:
+// browser's clipboard), so after changing clipboard handling, run the steps below by hand in
+// MuJoCo Live and in the Web Viewer. The steps name kinds of widget rather than specific ones,
+// because the UI changes; each example is one that fits at the time of writing, in both apps
+// unless it says otherwise:
 // - "outside": another browser tab or application.
 // - "InputText": an editable text field, e.g. the one labelled Field in Inspector > Watch.
 // - "InputInt": a number field, e.g. the one labelled Index in Inspector > Watch.
 // - "copy button": a button that copies text, e.g. the one with the Copy Camera tooltip.
-// - "browser InputInt": an "InputInt" drawn by the page itself rather than streamed from Python,
-//   e.g. the spectator limit in the controller's role bar.
+// - "browser InputInt": Web Viewer only. An "InputInt" drawn by the page itself rather than
+//   streamed from Python, e.g. the spectator limit in the controller's role bar.
 //
 // 1. Copy from "outside", then paste into an "InputText".
 // 2. Copy from an "InputText", then paste "outside".
@@ -51,7 +52,7 @@
 // 5. Press a "copy button", then paste into an "InputText".
 // 6. With no field focused, plain V still runs its own shortcut (toggling tendons at the time of
 //    writing).
-// 7. Browser-side copy and paste: repeat 1 to 3 using a "browser InputInt".
+// 7. Web Viewer only, browser-side copy and paste: repeat 1 to 3 using a "browser InputInt".
 //
 // Only the Ctrl+V / Cmd+V shortcut is supported for pasting from "outside". Shift+Insert and the
 // browser's Edit > Paste menu are not.

@@ -151,6 +151,10 @@ async function prefetchModelAssets(rootUrl, onProgress) {
   return stats;
 }
 
+// Plain text queued by the browser "paste" listener, drained in Module.animate
+// between frames when no ASYNCIFY operation is in flight.
+const pendingPastes = [];
+
 var Module = {
   preRun: [],
   postRun: [],
@@ -298,6 +302,12 @@ var Module = {
   },
   animate: async () => {
     try {
+      // Drain queued pastes here rather than in the DOM listener: calling an
+      // embind function while renderFrame() (SDL_GL_SwapWindow -> emscripten_sleep)
+      // or loadUrl() is suspended aborts ASYNCIFY.
+      if (pendingPastes.length > 0) {
+        Module.pasteText(pendingPastes.shift());
+      }
       await Module.renderFrame();
     } catch (error) {
       console.error('Update error:', error);
@@ -398,6 +408,30 @@ window.addEventListener('blur', cancelActiveTouches);
 window.addEventListener('pagehide', cancelActiveTouches);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) cancelActiveTouches();
+});
+
+// Clipboard paste. The UI's clipboard is a buffer inside the page, and a page
+// can only read the system clipboard from the browser's "paste" event. SDL
+// would cancel that event (it calls preventDefault() on any keydown with Ctrl
+// held), so stop Ctrl+V / Cmd+V before SDL sees it.
+window.addEventListener(
+    'keydown',
+    (e) => {
+      const isCtrlOrCmdV = (e.ctrlKey || e.metaKey) && !e.altKey &&
+          (e.code === 'KeyV' || e.key === 'v' || e.key === 'V');
+      if (isCtrlOrCmdV) {
+        e.stopImmediatePropagation();
+      }
+    },
+    true,
+);
+
+window.addEventListener('paste', (e) => {
+  const text = e.clipboardData && e.clipboardData.getData('text/plain');
+  if (text && Module.pasteText) {
+    e.preventDefault();
+    pendingPastes.push(text);
+  }
 });
 
 function handleFile(file) {

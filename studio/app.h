@@ -96,6 +96,9 @@ class App {
   // silently ignores it.
   void LoadKeyframe(std::string_view keyframe);
 
+  // Sets the clipboard to `text` and, if a text field has keyboard focus, pastes it there.
+  void PasteText(std::string_view text);
+
   // Processes window events and advances the state of the simulation.
   bool Update();
 

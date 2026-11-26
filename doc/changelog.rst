@@ -159,8 +159,8 @@ Python bindings
 
 Studio
 ^^^^^^
-- Text can now be pasted into text fields of the MuJoCo Studio :ref:`Web Viewer <StudioWebViewers>` with ``Ctrl+V``
-  (``Cmd+V`` on macOS).
+- Text can now be pasted into text fields of :ref:`MuJoCo Live <StudioLive>` and the MuJoCo Studio
+  :ref:`Web Viewer <StudioWebViewers>` with ``Ctrl+V`` (``Cmd+V`` on macOS).
 
 Plugins
 ^^^^^^^

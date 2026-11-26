@@ -138,6 +138,49 @@ TEST(AppTest, CurrElementResetOnModelReloadAndEmptyInit) {
   EXPECT_EQ(AppTestPeer::curr_element(app), nullptr);
 }
 
+TEST(AppTest, PasteTextPastesOnlyIntoAFocusedTextField) {
+  setenv("SDL_VIDEODRIVER", "dummy", 1);
+
+  App::Config config;
+  config.width = 640;
+  config.height = 480;
+  config.ini_path = std::string(::testing::TempDir()) + "/paste_text_mujoco.ini";
+  config.gfx_mode = GraphicsMode::FilamentOpenGlSoftware;
+  App app(config);
+  app.InitEmptyModel();
+
+  // Without a focused text field, PasteText sets the clipboard without queueing Ctrl+V.
+  app.PasteText("pasted");
+  EXPECT_STREQ(ImGui::GetClipboardText(), "pasted");
+  app.Update();
+  EXPECT_FALSE(ImGui::IsKeyDown(ImGuiKey_V));
+  EXPECT_FALSE(ImGui::GetIO().KeyCtrl);
+  ImGui::EndFrame();
+
+  // With a focused text field, PasteText pastes into the field.
+  char field[64] = "";
+  auto run_field_frame = [&](bool focus = false) {
+    app.Update();
+    ImGui::Begin("PasteTest");
+    if (focus) ImGui::SetKeyboardFocusHere();
+    ImGui::InputText("##field", field, sizeof(field));
+    ImGui::End();
+    ImGui::EndFrame();
+  };
+  run_field_frame(/*focus=*/true);
+  run_field_frame();
+  run_field_frame();
+  ASSERT_TRUE(ImGui::GetIO().WantTextInput);
+
+  app.PasteText("hello");
+  run_field_frame();
+  EXPECT_STREQ(field, "hello");
+  run_field_frame();
+  EXPECT_STREQ(field, "hello");
+  EXPECT_FALSE(ImGui::IsKeyDown(ImGuiKey_V));
+  EXPECT_FALSE(ImGui::GetIO().KeyCtrl);
+}
+
 TEST(AppTest, PrimaryViewportReinterpretsFovyAsFovxOnRealtimeResizeOnly) {
   setenv("SDL_VIDEODRIVER", "dummy", 1);
 
