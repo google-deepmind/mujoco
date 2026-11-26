@@ -1590,6 +1590,59 @@ static inline int contactPairNnz(const mjModel* m, int b1, int b2) {
 }
 
 
+// rotate 3xNV Jacobian rows by the first nr (1..3) rows of 3x3 frame F: res = F[0:nr,:] * src
+static inline void rotateJac3(mjtNum* restrict res, const mjtNum F[9],
+                              const mjtNum* restrict src, int nr, int NV) {
+  const mjtNum* s0 = src;
+  const mjtNum* s1 = src + NV;
+  const mjtNum* s2 = src + 2*NV;
+
+  // 3-row fast path: read src once for all three frame rows
+  if (nr == 3) {
+    mjtNum* r0 = res;
+    mjtNum* r1 = res + NV;
+    mjtNum* r2 = res + 2*NV;
+    int c = 0;
+
+    // 4-wide SIMD: r_i[c..c+3] = F[3*i+0]*s0 + F[3*i+1]*s1 + F[3*i+2]*s2
+    for (; c+4 <= NV; c += 4) {
+      mjtNum4 v0 = v4_load(s0+c), v1 = v4_load(s1+c), v2 = v4_load(s2+c);
+      v4_store(r0+c, v4_lincomb3(v0, v1, v2, F[0], F[1], F[2]));
+      v4_store(r1+c, v4_lincomb3(v0, v1, v2, F[3], F[4], F[5]));
+      v4_store(r2+c, v4_lincomb3(v0, v1, v2, F[6], F[7], F[8]));
+    }
+
+    // scalar tail
+    for (; c < NV; c++) {
+      mjtNum v0 = s0[c], v1 = s1[c], v2 = s2[c];
+      r0[c] = F[0]*v0 + F[1]*v1 + F[2]*v2;
+      r1[c] = F[3]*v0 + F[4]*v1 + F[5]*v2;
+      r2[c] = F[6]*v0 + F[7]*v1 + F[8]*v2;
+    }
+  }
+
+  // 1- or 2-row path (dim == 1 or rotational rows for dim == 4)
+  else {
+    for (int r=0; r < nr; r++) {
+      mjtNum* rr = res + r*NV;
+      mjtNum f0 = F[3*r+0], f1 = F[3*r+1], f2 = F[3*r+2];
+      int c = 0;
+
+      // 4-wide SIMD: rr[c..c+3] = f0*s0 + f1*s1 + f2*s2
+      for (; c+4 <= NV; c += 4) {
+        mjtNum4 v0 = v4_load(s0+c), v1 = v4_load(s1+c), v2 = v4_load(s2+c);
+        v4_store(rr+c, v4_lincomb3(v0, v1, v2, f0, f1, f2));
+      }
+
+      // scalar tail
+      for (; c < NV; c++) {
+        rr[c] = f0*s0[c] + f1*s1[c] + f2*s2[c];
+      }
+    }
+  }
+}
+
+
 // dense single-body-per-side contact instantiation: fuse Jacobian walk, frame rotation, and cone
 static void instantiateContactDense(const mjModel* m, mjData* d, const mjContact* con,
                                     int conid, const int bid[2], int ispyramid) {
@@ -1775,9 +1828,9 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     }
 
     // rotate Jacobian differences to contact frame
-    mju_mulMatMat(jac, con->frame, jacdifp, dim > 1 ? 3 : 1, 3, NV);
+    rotateJac3(jac, con->frame, jacdifp, dim > 1 ? 3 : 1, NV);
     if (dim > 3) {
-      mju_mulMatMat(jac + 3*NV, con->frame, jacdifr, dim-3, 3, NV);
+      rotateJac3(jac + 3*NV, con->frame, jacdifr, dim-3, NV);
     }
 
     // make frictionless contact
