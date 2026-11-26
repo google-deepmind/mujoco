@@ -44,6 +44,7 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _render_shim(
     # Model
@@ -85,8 +86,8 @@ def _render_shim(
     cam_xmat: wp.array2d[wp.mat33],
     cam_xpos: wp.array2d[wp.vec3],
     flexvert_xpos: wp.array2d[wp.vec3],
-    geom_xmat: wp.array2d[wp.mat33],
     geom_xpos: wp.array2d[wp.vec3],
+    geom_xquat: wp.array2d[wp.quat],
     light_xdir: wp.array2d[wp.vec3],
     light_xpos: wp.array2d[wp.vec3],
     _jax_token: wp.array[int],
@@ -137,8 +138,8 @@ def _render_shim(
   _d.cam_xmat = cam_xmat
   _d.cam_xpos = cam_xpos
   _d.flexvert_xpos = flexvert_xpos
-  _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
+  _d.geom_xquat = geom_xquat
   _d.light_xdir = light_xdir
   _d.light_xpos = light_xpos
   _d.nworld = nworld
@@ -173,8 +174,8 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
           'geom_matid',
           'geom_rgba',
           'geom_size',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'light_active',
           'light_ambient',
           'light_attenuation',
@@ -236,8 +237,8 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       d.cam_xmat,
       d.cam_xpos,
       d._impl.flexvert_xpos,
-      d.geom_xmat,
       d.geom_xpos,
+      d._impl.geom_xquat,
       d._impl.light_xdir,
       d._impl.light_xpos,
       d._impl._jax_token,

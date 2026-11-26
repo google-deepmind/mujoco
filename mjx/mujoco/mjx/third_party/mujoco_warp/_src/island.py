@@ -17,12 +17,16 @@ from typing import Tuple
 
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src import passive
 from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConstraintType
+from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import EqType
+from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
+from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
@@ -75,6 +79,40 @@ def _dsu_union(parent: wp.array2d[int], worldid: int, tree0: int, tree1: int, tr
       return
 
 
+@wp.func
+def _union_tendon_trees(
+  # Model:
+  opt_enableflags: int,
+  dof_treeid: wp.array[int],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  # Data in:
+  tree_awake_in: wp.array2d[int],
+  # In:
+  worldid: int,
+  tenid: int,
+  # Data out:
+  tree_island_out: wp.array2d[int],
+  # Out:
+  island_parent_out: wp.array2d[int],
+):
+  start = ten_J_rowadr[tenid]
+  end = start + ten_J_rownnz[tenid]
+  sleep_enabled = bool(opt_enableflags & EnableBit.SLEEP)
+  tree1 = int(-1)
+  for j in range(start, end):
+    tree2 = dof_treeid[ten_J_colind[j]]
+    if tree2 < 0:
+      continue
+    if sleep_enabled and tree_awake_in[worldid, tree2] == 0:
+      continue
+    if tree1 < 0:
+      tree1 = tree2
+    elif tree1 != tree2:
+      _dsu_union(island_parent_out, worldid, tree1, tree2, tree_island_out)
+
+
 @wp.kernel
 def _reset_dsu(
   # Data out:
@@ -92,7 +130,7 @@ def _reset_dsu(
 
 
 @wp.func
-def _is_repeated_fixed_support_efc(
+def is_repeated_fixed_support_efc(
   # Data in:
   efc_type_in: wp.array2d[int],
   efc_id_in: wp.array2d[int],
@@ -389,6 +427,91 @@ def _passive_contact_island_dsu(
       _dsu_union(island_parent_out, worldid, tree1, tree2, tree_island_out)
 
 
+@wp.kernel
+def _island_dsu_metric_couplings(
+  # Model:
+  nactuator: int,
+  ntendon: int,
+  opt_disableflags: int,
+  opt_enableflags: int,
+  body_treeid: wp.array[int],
+  dof_treeid: wp.array[int],
+  site_bodyid: wp.array[int],
+  tendon_actuatorid: wp.array[int],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  tendon_stiffness: wp.array2d[float],
+  tendon_stiffnesspoly: wp.array2d[wp.vec2],
+  tendon_damping: wp.array2d[float],
+  tendon_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_gaintype: wp.array[int],
+  actuator_biastype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  # Data in:
+  nefc_in: wp.array[int],
+  tree_awake_in: wp.array2d[int],
+  # Data out:
+  tree_island_out: wp.array2d[int],
+  # Out:
+  island_parent_out: wp.array2d[int],
+):
+  worldid, idx = wp.tid()
+  if nefc_in[worldid] == 0:
+    return
+
+  if idx < ntendon:
+    if support.eff_tendon_possible(
+      opt_disableflags,
+      tendon_actuatorid,
+      tendon_stiffness,
+      tendon_stiffnesspoly,
+      tendon_damping,
+      tendon_dampingpoly,
+      worldid,
+      idx,
+    ):
+      _union_tendon_trees(
+        opt_enableflags,
+        dof_treeid,
+        ten_J_rownnz,
+        ten_J_rowadr,
+        ten_J_colind,
+        tree_awake_in,
+        worldid,
+        idx,
+        tree_island_out,
+        island_parent_out,
+      )
+
+  if idx < nactuator:
+    if support.eff_actuator_possible(opt_disableflags, actuator_gaintype, actuator_biastype, idx):
+      trntype = actuator_trntype[idx]
+      trnid = actuator_trnid[idx]
+      if trntype == TrnType.TENDON:
+        _union_tendon_trees(
+          opt_enableflags,
+          dof_treeid,
+          ten_J_rownnz,
+          ten_J_rowadr,
+          ten_J_colind,
+          tree_awake_in,
+          worldid,
+          trnid[0],
+          tree_island_out,
+          island_parent_out,
+        )
+      elif trntype == TrnType.SITE or trntype == TrnType.SLIDERCRANK:
+        if trnid[1] >= 0:
+          tree1 = body_treeid[site_bodyid[trnid[0]]]
+          tree2 = body_treeid[site_bodyid[trnid[1]]]
+          if tree1 >= 0 and tree2 >= 0 and tree1 != tree2:
+            sleep_enabled = bool(opt_enableflags & EnableBit.SLEEP)
+            if not sleep_enabled or (tree_awake_in[worldid, tree1] != 0 and tree_awake_in[worldid, tree2] != 0):
+              _dsu_union(island_parent_out, worldid, tree1, tree2, tree_island_out)
+
+
 @wp.kernel(module="unique", enable_backward=False)
 def _island_dsu(
   # Model:
@@ -461,7 +584,7 @@ def _island_dsu(
   for efcid in range(chunk_beg + lane, chunk_end, wp.block_dim()):
     efc_type = efc_type_in[worldid, efcid]
     efc_id = efc_id_in[worldid, efcid]
-    repeated = _is_repeated_fixed_support_efc(efc_type_in, efc_id_in, worldid, efcid)
+    repeated = is_repeated_fixed_support_efc(efc_type_in, efc_id_in, worldid, efcid)
     tree0 = int(-1)
     tree1 = int(-1)
     use_generic = int(0)
@@ -585,61 +708,32 @@ def _island_dsu(
 
 
 @wp.kernel
-def _compress_roots(
-  # Data in:
-  tree_island_in: wp.array2d[int],
-  # Data out:
-  # Out:
-  island_parent_out: wp.array2d[int],
-):
-  """Point every active tree straight at its component's minimum-tree root."""
-  worldid, treeid = wp.tid()
-  if tree_island_in[worldid, treeid] >= 0:
-    island_parent_out[worldid, treeid] = _dsu_find(island_parent_out, worldid, treeid)
-
-
-@wp.kernel
-def _label_roots(
+def _finalize_dsu(
   # Model:
   ntree: int,
-  # Data in:
   # In:
   island_parent_in: wp.array2d[int],
   # Data out:
   nisland_out: wp.array[int],
   tree_island_out: wp.array2d[int],
 ):
-  """Number the roots in ascending tree order, which is MuJoCo's island order.
+  """Number islands in ascending tree order and propagate labels in one pass.
 
-  Ranking roots is the one inherently sequential step: island i is the i-th smallest
-  root, so it depends on every preceding tree. It reads two ints per tree and does no
-  pointer chasing, leaving the compress and propagate passes free to run per tree.
+  Because _dsu_union hooks higher roots to lower roots, parent(treeid) <= treeid. Therefore
+  by the time the loop visits treeid, its parent has already been visited and assigned its
+  final island label in tree_island_out[worldid, parent].
   """
   worldid = wp.tid()
   nisland = int(0)
   for treeid in range(ntree):
-    if tree_island_out[worldid, treeid] >= 0 and island_parent_in[worldid, treeid] == treeid:
-      tree_island_out[worldid, treeid] = nisland
-      nisland += 1
+    if tree_island_out[worldid, treeid] >= 0:
+      parent = island_parent_in[worldid, treeid]
+      if parent == treeid:
+        tree_island_out[worldid, treeid] = nisland
+        nisland += 1
+      else:
+        tree_island_out[worldid, treeid] = tree_island_out[worldid, parent]
   nisland_out[worldid] = nisland
-
-
-@wp.kernel
-def _propagate_labels(
-  # Data in:
-  # In:
-  island_parent_in: wp.array2d[int],
-  # Data out:
-  tree_island_out: wp.array2d[int],
-):
-  """Copy each root's label down to the trees that point at it.
-
-  A root reads and writes its own slot with the same value, so the only concurrent
-  writes to any slot store identical data.
-  """
-  worldid, treeid = wp.tid()
-  if tree_island_out[worldid, treeid] >= 0:
-    tree_island_out[worldid, treeid] = tree_island_out[worldid, island_parent_in[worldid, treeid]]
 
 
 # Smallest EFC chunk worth its own block, and the resident-block count worth reaching for.
@@ -694,7 +788,7 @@ def direct_dsu(m: types.Model, d: types.Data, island_parent: wp.array2d[int]):
       ],
       outputs=[d.tree_island, island_parent],
     )
-    if m.opt.integrator == types.IntegratorType.DISCRETE and m.has_flex_passive:
+    if m.opt.integrator == types.IntegratorType.DISCRETE and passive.flex_passive_contact(m):
       wp.launch(
         _passive_contact_island_dsu,
         dim=d.naconmax,
@@ -797,20 +891,40 @@ def direct_dsu(m: types.Model, d: types.Data, island_parent: wp.array2d[int]):
     ],
     block_dim=types.BlockDim.island_dsu,
   )
+  if m.opt.integrator == IntegratorType.DISCRETE and (m.has_tendon_stiffness or m.has_tendon_damping or m.has_efm_actuator):
+    wp.launch(
+      _island_dsu_metric_couplings,
+      dim=(d.nworld, max(m.ntendon, m.nactuator)),
+      inputs=[
+        m.nactuator,
+        m.ntendon,
+        m.opt.disableflags,
+        m.opt.enableflags,
+        m.body_treeid,
+        m.dof_treeid,
+        m.site_bodyid,
+        m.tendon_actuatorid,
+        m.ten_J_rownnz,
+        m.ten_J_rowadr,
+        m.ten_J_colind,
+        m.tendon_stiffness,
+        m.tendon_stiffnesspoly,
+        m.tendon_damping,
+        m.tendon_dampingpoly,
+        m.actuator_trntype,
+        m.actuator_gaintype,
+        m.actuator_biastype,
+        m.actuator_trnid,
+        d.nefc,
+        d.tree_awake,
+      ],
+      outputs=[d.tree_island, island_parent],
+    )
   wp.launch(
-    _compress_roots,
-    dim=(d.nworld, m.ntree),
-    inputs=[d.tree_island, island_parent],
-  )
-  wp.launch(
-    _label_roots,
+    _finalize_dsu,
     dim=d.nworld,
-    inputs=[m.ntree, island_parent, d.nisland, d.tree_island],
-  )
-  wp.launch(
-    _propagate_labels,
-    dim=(d.nworld, m.ntree),
-    inputs=[island_parent, d.tree_island],
+    inputs=[m.ntree, island_parent],
+    outputs=[d.nisland, d.tree_island],
   )
 
 
@@ -937,42 +1051,6 @@ def _island_map_dofs(
 
 
 @wp.kernel
-def _island_count_constraints(
-  # Data in:
-  nefc_in: wp.array[int],
-  efc_type_in: wp.array2d[int],
-  tree_island_in: wp.array2d[int],
-  njmax_in: int,
-  # In:
-  efc_tree_in: wp.array2d[int],
-  # Data out:
-  efc_island_out: wp.array2d[int],
-  island_nefc_out: wp.array2d[int],
-  island_ne_out: wp.array2d[int],
-  island_nf_out: wp.array2d[int],
-):
-  worldid, efcid = wp.tid()
-  if efcid >= wp.min(njmax_in, nefc_in[worldid]):
-    return
-
-  efc_tree = efc_tree_in[worldid, efcid]
-  if efc_tree < 0:
-    efc_island_out[worldid, efcid] = -1
-    return
-  island_id = tree_island_in[worldid, efc_tree]
-  efc_island_out[worldid, efcid] = island_id
-
-  if island_id >= 0:
-    wp.atomic_add(island_nefc_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
-
-    efc_type = efc_type_in[worldid, efcid]
-    if efc_type == ConstraintType.EQUALITY:
-      wp.atomic_add(island_ne_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
-    elif efc_type == ConstraintType.FRICTION_DOF or efc_type == ConstraintType.FRICTION_TENDON:
-      wp.atomic_add(island_nf_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
-
-
-@wp.kernel
 def _island_map_constraints(
   # Data in:
   nefc_in: wp.array[int],
@@ -1034,7 +1112,7 @@ def _island_map_constraints(
 
 
 @wp.kernel
-def _compute_efc_tree(
+def _island_count_constraints(
   # Model:
   nv: int,
   body_treeid: wp.array[int],
@@ -1082,11 +1160,15 @@ def _compute_efc_tree(
   efc_J_rowadr_in: wp.array2d[int],
   efc_J_colind_in: wp.array3d[int],
   efc_J_in: wp.array3d[float],
+  tree_island_in: wp.array2d[int],
   njmax_in: int,
-  # Out:
-  efc_tree_out: wp.array2d[int],
+  # Data out:
+  efc_island_out: wp.array2d[int],
+  island_nefc_out: wp.array2d[int],
+  island_ne_out: wp.array2d[int],
+  island_nf_out: wp.array2d[int],
 ):
-  """Compute the first non-negative tree for each constraint."""
+  """Compute the first non-negative tree for each constraint and count constraints per island."""
   worldid, efcid = wp.tid()
 
   if efcid >= wp.min(njmax_in, nefc_in[worldid]):
@@ -1215,13 +1297,28 @@ def _compute_efc_tree(
         tree = t
         break
 
-  efc_tree_out[worldid, efcid] = tree
+  if tree < 0:
+    efc_island_out[worldid, efcid] = -1
+    return
+  island_id = tree_island_in[worldid, tree]
+  efc_island_out[worldid, efcid] = island_id
+
+  if island_id >= 0:
+    wp.atomic_add(island_nefc_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
+
+    if efc_type == ConstraintType.EQUALITY:
+      wp.atomic_add(island_ne_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
+    elif efc_type == ConstraintType.FRICTION_DOF or efc_type == ConstraintType.FRICTION_TENDON:
+      wp.atomic_add(island_nf_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
 
 
 @wp.kernel
 def _init_island_arrays(
+  # Model:
+  nv: int,
   # Data out:
   nidof_out: wp.array[int],
+  island_dofadr_out: wp.array2d[int],
   island_idofadr_out: wp.array2d[int],
   island_nv_out: wp.array2d[int],
   island_nefc_out: wp.array2d[int],
@@ -1230,6 +1327,7 @@ def _init_island_arrays(
   island_iefcadr_out: wp.array2d[int],
 ):
   worldid, islandid = wp.tid()
+  island_dofadr_out[worldid, islandid] = nv
   island_nv_out[worldid, islandid] = 0
   island_nefc_out[worldid, islandid] = 0
   island_ne_out[worldid, islandid] = 0
@@ -1264,14 +1362,12 @@ def _init_efc_arrays(
   map_iefc2efc_out: wp.array2d[int],
   # Out:
   iefc_islandid_out: wp.array2d[int],
-  efc_tree_out: wp.array2d[int],
 ):
   worldid, efcid = wp.tid()
   efc_island_out[worldid, efcid] = -1
   map_efc2iefc_out[worldid, efcid] = 0
   map_iefc2efc_out[worldid, efcid] = 0
   iefc_islandid_out[worldid, efcid] = -1
-  efc_tree_out[worldid, efcid] = -1
 
 
 @event_scope
@@ -1298,8 +1394,17 @@ def compute_island_mapping(m: types.Model, d: types.Data):
   wp.launch(
     _init_island_arrays,
     dim=(d.nworld, m.ntree),
-    inputs=[],
-    outputs=[d.nidof, d.island_idofadr, d.island_nv, d.island_nefc, d.island_ne, d.island_nf, d.island_iefcadr],
+    inputs=[m.nv],
+    outputs=[
+      d.nidof,
+      d.island_dofadr,
+      d.island_idofadr,
+      d.island_nv,
+      d.island_nefc,
+      d.island_ne,
+      d.island_nf,
+      d.island_iefcadr,
+    ],
   )
   wp.launch(
     _init_dof_arrays,
@@ -1307,16 +1412,24 @@ def compute_island_mapping(m: types.Model, d: types.Data):
     inputs=[],
     outputs=[d.dof_island, d.map_dof2idof, d.map_idof2dof, d.dof_islandid],
   )
-  efc_tree = wp.empty((d.nworld, d.njmax), dtype=int)
   wp.launch(
     _init_efc_arrays,
     dim=(d.nworld, d.njmax),
     inputs=[],
-    outputs=[d.efc.island, d.map_efc2iefc, d.map_iefc2efc, d.efc_islandid, efc_tree],
+    outputs=[d.efc.island, d.map_efc2iefc, d.map_iefc2efc, d.efc_islandid],
   )
 
+  # Count DOFs per island
   wp.launch(
-    _compute_efc_tree,
+    _island_count_dofs,
+    dim=(d.nworld, m.nv),
+    inputs=[m.dof_treeid, d.tree_island],
+    outputs=[d.dof_island, d.island_nv],
+  )
+
+  # Count Constraints per island
+  wp.launch(
+    _island_count_constraints,
     dim=(d.nworld, d.njmax),
     inputs=[
       m.nv,
@@ -1364,24 +1477,9 @@ def compute_island_mapping(m: types.Model, d: types.Data):
       d.efc.J_rowadr,
       d.efc.J_colind,
       d.efc.J,
+      d.tree_island,
       d.njmax,
     ],
-    outputs=[efc_tree],
-  )
-
-  # 1. Count DOFs per island
-  wp.launch(
-    _island_count_dofs,
-    dim=(d.nworld, m.nv),
-    inputs=[m.dof_treeid, d.tree_island],
-    outputs=[d.dof_island, d.island_nv],
-  )
-
-  # 2. Count Constraints per island
-  wp.launch(
-    _island_count_constraints,
-    dim=(d.nworld, d.njmax),
-    inputs=[d.nefc, d.efc.type, d.tree_island, d.njmax, efc_tree],
     outputs=[d.efc.island, d.island_nefc, d.island_ne, d.island_nf],
   )
 
@@ -1394,7 +1492,6 @@ def compute_island_mapping(m: types.Model, d: types.Data):
   )
 
   # 4. Map DOFs
-  d.island_dofadr.fill_(m.nv)
   wp.launch(
     _island_map_dofs,
     dim=(d.nworld, m.nv),

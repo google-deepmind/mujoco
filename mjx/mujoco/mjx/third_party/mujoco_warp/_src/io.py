@@ -26,7 +26,6 @@ from mujoco.mjx.third_party.mujoco_warp._src import history
 from mujoco.mjx.third_party.mujoco_warp._src import sleep
 from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
-from mujoco.mjx.third_party.mujoco_warp._src import util_pkg
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
 
 wp.set_module_options({"default_grid_stride": False})
@@ -126,24 +125,56 @@ def _create_constraint(
   return types.Constraint(**efc_kwargs)
 
 
-def _jtdaj_groups(mjd: mujoco.MjData) -> tuple[np.ndarray, np.ndarray]:
+def _jtdaj_groups(mjm: mujoco.MjModel, mjd: mujoco.MjData, dof_friction: bool = False) -> tuple[np.ndarray, np.ndarray]:
   """Group loaded efc rows into JTDAJ blocks: maximal runs sharing (efc_type, efc_id).
 
   MuJoCo lays each constraint's rows out contiguously, so this reproduces the block list
   make_constraint builds in-kernel. Returns block start rows (adr) and lengths (nrow).
-  DOF friction rows get no block, matching make_constraint.
+  The edge rows of a flex equality share an efc_id but are each their own block.
+  DOF friction rows get no block, matching make_constraint, unless dof_friction.
   """
   nefc = mjd.nefc
   if nefc == 0:
     return np.zeros(0, dtype=int), np.zeros(0, dtype=int)
   etype = mjd.efc_type[:nefc]
   eid = mjd.efc_id[:nefc]
+  is_eq = etype == mujoco.mjtConstraint.mjCNSTR_EQUALITY
+  is_flex_eq = np.zeros(nefc, dtype=bool)
+  is_flex_eq[is_eq] = mjm.eq_type[eid[is_eq]] == mujoco.mjtEq.mjEQ_FLEX
   boundary = np.ones(nefc, dtype=bool)
-  boundary[1:] = (etype[1:] != etype[:-1]) | (eid[1:] != eid[:-1])
+  boundary[1:] = (etype[1:] != etype[:-1]) | (eid[1:] != eid[:-1]) | is_flex_eq[1:]
   adr = np.flatnonzero(boundary)
   nrow = np.diff(np.append(adr, nefc))
+  if dof_friction:
+    return adr, nrow
   keep = etype[adr] != mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF
   return adr[keep], nrow[keep]
+
+
+def _dense_J_supports(mjm: mujoco.MjModel, mjd: mujoco.MjData):
+  """Each block's rows and the union of their nonzero columns, DOF friction rows included."""
+  dense_J = mjd.efc_J.reshape((mjd.nefc, -1))
+  for start, nrow in zip(*_jtdaj_groups(mjm, mjd, dof_friction=True)):
+    yield start, nrow, np.flatnonzero(np.any(dense_J[start : start + nrow] != 0.0, axis=0))
+
+
+def _dense_J_to_sparse(
+  mjd: mujoco.MjData, supports: list, rownnz: np.ndarray, rowadr: np.ndarray, colind: np.ndarray, J: np.ndarray
+):
+  """Sparse rows of MuJoCo's dense efc_J; the rows of each JTDAJ block share one support.
+
+  The sparse JTDAJ reads every row of a block at the support of its first row, so zeros within
+  the block's support are kept (mju_dense2sparse would drop them per row).
+  """
+  dense_J = mjd.efc_J.reshape((mjd.nefc, -1))
+  adr = 0
+  for start, nrow, cols in supports:
+    for row in range(start, start + nrow):
+      rownnz[row] = cols.size
+      rowadr[row] = adr
+      colind[adr : adr + cols.size] = cols
+      J[adr : adr + cols.size] = dense_J[row, cols]
+      adr += cols.size
 
 
 def _flex_has_stiffness(mjm: mujoco.MjModel, f: int) -> bool:
@@ -248,10 +279,22 @@ def _eff_flex_stiff_possible(mjm: mujoco.MjModel, f: int) -> bool:
   return bool(np.any(mjm.flex_bending[badr:end] != 0))
 
 
+def _flex_interp_assemblable(mjm: mujoco.MjModel) -> bool:
+  """Whether interpolated flex stiffness can be assembled into efm_K (mjd_flexInterpAssemblable)."""
+  for fi in range(mjm.nflex):
+    if mjm.flex_interp[fi] != 0:
+      if not mjm.flex_rigid[fi] and mjm.flex_edgeequality[fi] != 3 and _flex_has_stiffness(mjm, fi):
+        nodeadr = int(mjm.flex_nodeadr[fi])
+        for n in range(int(mjm.flex_nodenum[fi])):
+          bid = int(mjm.body_weldid[mjm.flex_nodebodyid[nodeadr + n]])
+          dofnum = int(mjm.body_dofnum[bid])
+          if dofnum != 0 and (int(mjm.body_simple[bid]) != 2 or dofnum != 3):
+            return False
+  return True
+
+
 def _is_open_rod_chain(mjm: mujoco.MjModel, fi: int) -> tuple[bool, int]:
   """Returns (is_open_chain, nhinge) for single-hinge open 1D rod flex `fi`."""
-  if types.ROD_HINGE_SIZE != 10:
-    return False, 0
   bendingadr = int(mjm.flex_bendingadr[fi])
   if mjm.flex_dim[fi] != 1 or mjm.flex_interp[fi] != 0 or bendingadr < 0:
     return False, 0
@@ -307,7 +350,7 @@ def _mjm_rod_vert_elems(mjm: mujoco.MjModel, fi: int) -> list[int]:
 
   chain = []
   bendingadr = int(mjm.flex_bendingadr[fi])
-  if bendingadr >= 0 and types.ROD_HINGE_SIZE == 10:
+  if bendingadr >= 0:
     nhinge = int(mjm.flex_bending[bendingadr])
     if nhinge > 0 and mjm.flex_bending[bendingadr + 1 + 3] < 0:
       chain = [int(mjm.flex_bending[bendingadr + 1 + 10 * h]) for h in range(nhinge)]
@@ -339,12 +382,23 @@ def _get_efm_data(mjm: mujoco.MjModel) -> mujoco.MjData | None:
   mjm_tmp = copy.copy(mjm)
   mjm_tmp.opt.integrator = mujoco.mjtIntegrator.mjINT_DISCRETE
   mjm_tmp.opt.solver = mujoco.mjtSolver.mjSOL_NEWTON
+  mjm_tmp.opt.noslip_iterations = 0
+  mjm_tmp.opt.enableflags &= ~(int(mujoco.mjtEnableBit.mjENBL_SLEEP) | int(mujoco.mjtEnableBit.mjENBL_IPC))
+  mjm_tmp.opt.disableflags &= ~(
+    int(mujoco.mjtDisableBit.mjDSBL_ISLAND) | int(mujoco.mjtDisableBit.mjDSBL_SPRING) | int(mujoco.mjtDisableBit.mjDSBL_DAMPER)
+  )
+  mjm_tmp.flex_edgestiffness[:] = 0.0
+  mjm_tmp.flex_edgedamping[:] = 0.0
   if mjm_tmp.nflexvert > 0:
     mjm_tmp.flex_vertbodyid[:] = np.where(
       mjm_tmp.flex_vertbodyid >= 0, mjm_tmp.body_weldid[mjm_tmp.flex_vertbodyid], mjm_tmp.flex_vertbodyid
     )
+  interp_assemblable = _flex_interp_assemblable(mjm_tmp)
   for f in range(mjm_tmp.nflex):
-    if not _flex_simple(mjm_tmp, f):
+    if mjm_tmp.flex_interp[f] != 0:
+      if not interp_assemblable:
+        mjm_tmp.flex_rigid[f] = True
+    elif not _flex_simple(mjm_tmp, f):
       mjm_tmp.flex_rigid[f] = True
   d = mujoco.MjData(mjm_tmp)
   mujoco.mj_fwdPosition(mjm_tmp, d)
@@ -551,6 +605,16 @@ def m_block_layout(mjm: mujoco.MjModel) -> dict:
   }
 
 
+def _lowest_common_ancestor(body_parentid: np.ndarray, body1: int, body2: int) -> int:
+  """Returns the deepest body that is an ancestor of both bodies (0 if only the world is shared)."""
+  while body1 != body2:
+    if body1 > body2:
+      body1 = body_parentid[body1]
+    else:
+      body2 = body_parentid[body2]
+  return int(body1)
+
+
 def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) -> types.Model:
   """Creates a model on device.
 
@@ -726,22 +790,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
 
   # create model
   m = types.Model(**{f.name: getattr(mjm, f.name, None) for f in dataclasses.fields(types.Model)})
-  # TODO(team): remove version check once mujoco >= 3.16.1 is required.
-  if not util_pkg.check_version("mujoco>=3.16.1"):
-    m.eq_data = np.pad(mjm.eq_data, ((0, 0), (0, 1)))
-  if not util_pkg.check_version("mujoco>=3.17.1"):
-    if not hasattr(mjm, "nplastic"):
-      m.nplastic = 0
-    if not hasattr(mjm, "jnt_plasticadr"):
-      m.jnt_plasticadr = np.full(mjm.njnt, -1, dtype=np.int32)
-    if not hasattr(mjm, "tendon_plasticadr"):
-      m.tendon_plasticadr = np.full(mjm.ntendon, -1, dtype=np.int32)
-    if not hasattr(mjm, "flex_plasticadr"):
-      m.flex_plasticadr = np.full(mjm.nflex, -1, dtype=np.int32)
-    if not hasattr(mjm, "flex_plasticmode"):
-      m.flex_plasticmode = np.zeros(mjm.nflex, dtype=np.int32)
-  # TODO(team): remove once mujoco >= 4.0.2 is required. Checks the field rather than the version, since
-  # releases up to 4.0.1 and 4.0.2.dev builds before flex_cellempty was added lack it.
+  # TODO(team): remove once mujoco >= 4.0.2 is required. Checks the field rather than the version,
+  # since releases up to 4.0.1 and 4.0.2.dev builds before flex_cellempty was added lack it.
   if not hasattr(mjm, "flex_celladr"):
     ncell = [int(np.prod(mjm.flex_cellnum[f])) if mjm.flex_interp[f] else 0 for f in range(mjm.nflex)]
     m.nflexcell = int(sum(ncell))
@@ -751,13 +801,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.opt = opt
   m.callback = types.Callback()
 
-  m.nv_pad = _get_padded_sizes(
-    mjm.nv,
-    0,
-    is_sparse(mjm),
-    types.TILE_SIZE_JTDAJ_SPARSE if is_sparse(mjm) else types.TILE_SIZE_JTDAJ_DENSE,
-    augment_cholesky=mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON and mjm.nv > 32,
-  )[1]
+  m.nv_pad = _get_padded_sizes(mjm, 0)[1]
   m.nacttrnbody = (mjm.actuator_trntype == mujoco.mjtTrn.mjTRN_BODY).sum()
   m.nsensortaxel = mjm.mesh_vertnum[mjm.sensor_objid[mjm.sensor_type == mujoco.mjtSensor.mjSENS_TACTILE]].sum()
   # rangefinder ray counts (1 per site sensor, width * height per camera sensor)
@@ -777,9 +821,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       raise NotImplementedError("Flex-SDF collision is not implemented.")
     if (mjm.geom_type == mujoco.mjtGeom.mjGEOM_HFIELD).any():
       raise NotImplementedError("Flex-HField collision is not implemented.")
-    if hasattr(mjm, "flex_internal") and (mjm.flex_internal != 0).any():
-      raise NotImplementedError("Flex internal collisions are not implemented.")
-    if (mjm.flex_rigid != 0).any():
+    is_discrete = mjm.opt.integrator == mujoco.mjtIntegrator.mjINT_DISCRETE
+    if np.any((mjm.flex_rigid != 0) & ~(is_discrete & (mjm.flex_dim == 2))):
       raise NotImplementedError("Rigid flexes are not implemented.")
     # TODO(team): skip element pairs driven by a common grid node, as in mjc_ElemSharedNode
     if np.any((mjm.flex_interp != 0) & (mjm.flex_selfcollide != 0) & ((mjm.flex_contype & mjm.flex_conaffinity) != 0)):
@@ -790,6 +833,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.nmaxpyramid = np.maximum(1, 2 * (m.nmaxcondim - 1))
   m.has_sdf_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any()
   m.has_ellipsoid_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_ELLIPSOID).any()
+  m.has_cylinder_geom = bool((mjm.geom_type == mujoco.mjtGeom.mjGEOM_CYLINDER).any())
   m.has_plane_geom = bool(mjm.ngeom > 0 and (mjm.geom_type == mujoco.mjtGeom.mjGEOM_PLANE).any())
   m.has_flex_selfcollide = bool(
     mjm.nflex > 0 and np.any((mjm.flex_selfcollide != 0) & ((mjm.flex_contype & mjm.flex_conaffinity) != 0))
@@ -797,38 +841,23 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.has_flex_passive = bool(
     mjm.nflex > 0 and np.any((mjm.flex_passive != 0) & (mjm.flex_rigid == 0) & (mjm.flex_interp == 0) & (mjm.flex_dim >= 2))
   )
-  m.has_flex_snh = bool(
-    types.FLEX_STIFFNESS_3D == 24
-    and any(
-      mjm.flex_interp[f] == 0
-      and mjm.flex_dim[f] == 3
-      and mjm.flex_stiffnessadr[f] >= 0
-      and mjm.flex_elemnum[f] > 0
-      and mjm.flex_stiffness[mjm.flex_stiffnessadr[f] + 21] != 0
-      for f in range(mjm.nflex)
-    )
+  m.has_flex_snh = any(
+    mjm.flex_interp[f] == 0
+    and mjm.flex_dim[f] == 3
+    and mjm.flex_stiffnessadr[f] >= 0
+    and mjm.flex_elemnum[f] > 0
+    and mjm.flex_stiffness[mjm.flex_stiffnessadr[f] + 21] != 0
+    for f in range(mjm.nflex)
   )
   if m.has_flex_snh and mjm.opt.integrator != mujoco.mjtIntegrator.mjINT_DISCRETE:
     raise ValueError("stable Neo-Hookean elasticity requires integrator='discrete'")
   flex_simple = np.array([_flex_simple(mjm, f) for f in range(mjm.nflex)], dtype=bool)
   m.flex_simple = flex_simple
+  flex_stiff_possible = np.array([_eff_flex_stiff_possible(mjm, f) for f in range(mjm.nflex)], dtype=bool)
+  m.flex_stiff_possible = flex_stiff_possible
+  m.has_flex_stiff = bool(flex_stiff_possible.any())
   m.has_non_simple_flex = bool(
-    mjm.nflex > 0
-    and any(
-      mjm.flex_interp[f] == 0
-      and not mjm.flex_rigid[f]
-      and not flex_simple[f]
-      and (
-        (mjm.flex_dim[f] == 1 and mjm.flex_bendingadr[f] >= 0)
-        or (
-          mjm.flex_dim[f] >= 2
-          and (
-            mjm.flex_bendingadr[f] >= 0 or (mjm.flex_stiffnessadr[f] >= 0 and mjm.flex_stiffness[mjm.flex_stiffnessadr[f]] != 0)
-          )
-        )
-      )
-      for f in range(mjm.nflex)
-    )
+    mjm.nflex > 0 and any(mjm.flex_interp[f] == 0 and flex_stiff_possible[f] and not flex_simple[f] for f in range(mjm.nflex))
   )
   m.has_flex_edge_stiff_damp = bool(
     any(not mjm.flex_rigid[f] and (mjm.flex_edgestiffness[f] > 0 or mjm.flex_edgedamping[f] > 0) for f in range(mjm.nflex))
@@ -851,7 +880,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     )
   )
   m.has_efm_actuator = bool(
-    mjm.nu > 0
+    mjm.nactuator > 0
     and np.any(
       (
         (mjm.actuator_gaintype == mujoco.mjtGain.mjGAIN_AFFINE)
@@ -909,7 +938,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   # Derive CG solver block_dim from nv: clamp(round_up_to_32(nv), 32, 256)
   _nv_block = max(32, min(256, ((mjm.nv + 31) // 32) * 32))
   m.block_dim.update_gradient_grad = _nv_block
-  m.block_dim.solve_beta_accumulate = _nv_block
   m.block_dim.solve_search_update_cg = _nv_block
   m.block_dim.solve_init_search_cg = _nv_block
   if mjm.nv > 500:
@@ -944,9 +972,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.efm0_active = bool(mjm.nefm0dof > 0 and not has_stretch_or_interp and not m.has_flex_passive and not m.has_non_simple_flex)
   m.nefmdof = int(efm_d.nefmdof) if (efm_d and not m.efm0_active) else 0
   m.efm_dofid = (
-    efm_d.efm_dofid
-    if (efm_d and not m.efm0_active and efm_d.efm_dofid is not None)
-    else np.zeros(0, dtype=np.int32)
+    efm_d.efm_dofid if (efm_d and not m.efm0_active and efm_d.efm_dofid is not None) else np.zeros(0, dtype=np.int32)
   )
   chol_info = _get_efm_chol_info(mjm, efm_d if not m.efm0_active else None)
   m.efm_chol_active = bool(chol_info["active"])
@@ -962,18 +988,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.efm_L_M_src = chol_info["L_M_src"]
   m.efm_L_K_src = chol_info["L_K_src"]
 
-  flex_interp_assemblable = True
-  for fi in range(mjm.nflex):
-    if mjm.flex_interp[fi] != 0:
-      if not mjm.flex_rigid[fi] and mjm.flex_edgeequality[fi] != 3 and _flex_has_stiffness(mjm, fi):
-        nodeadr = int(mjm.flex_nodeadr[fi])
-        for n in range(int(mjm.flex_nodenum[fi])):
-          bid = int(mjm.flex_nodebodyid[nodeadr + n])
-          dofnum = int(mjm.body_dofnum[bid])
-          if dofnum != 0 and (int(mjm.body_simple[bid]) != 2 or dofnum != 3):
-            flex_interp_assemblable = False
-            break
-  m.flex_interp_assemblable = flex_interp_assemblable
+  m.flex_interp_assemblable = _flex_interp_assemblable(mjm)
   m.has_unsupported_flex_interp = bool(any(int(x) < -1 or int(x) >= 2 for x in mjm.flex_interp))
 
   # Precompute flex_cell_map
@@ -1063,7 +1078,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   jnt_limited_slide_hinge = mjm.jnt_limited & np.isin(mjm.jnt_type, (mujoco.mjtJoint.mjJNT_SLIDE, mujoco.mjtJoint.mjJNT_HINGE))
   m.jnt_limited_slide_hinge_adr = np.nonzero(jnt_limited_slide_hinge)[0]
   m.jnt_limited_ball_adr = np.nonzero(mjm.jnt_limited & (mjm.jnt_type == mujoco.mjtJoint.mjJNT_BALL))[0]
-  m.dof_tri_row, m.dof_tri_col = np.triu_indices(mjm.nv)
 
   # precompute body_isdofancestor: which DOFs affect each body
   # TODO: Investigate alternative approach such as bitmap
@@ -1173,6 +1187,15 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.nxn_pairid = np.hstack([nxn_pairid_contact.reshape((-1, 1)), nxn_pairid_collision.reshape((-1, 1))])
   m.nxn_pairid_filtered = m.nxn_pairid[nxn_include]
 
+  if (mjm.opt.enableflags & mujoco.mjtEnableBit.mjENBL_SLEEP) and m.nxn_geom_pair_filtered.shape[0] > 0:
+    b1 = mjm.geom_bodyid[m.nxn_geom_pair_filtered[:, 0]]
+    b2 = mjm.geom_bodyid[m.nxn_geom_pair_filtered[:, 1]]
+    t1 = mjm.body_treeid[b1]
+    t2 = mjm.body_treeid[b2]
+    order = np.lexsort((np.maximum(t1, t2), np.minimum(t1, t2)))
+    m.nxn_geom_pair_filtered = m.nxn_geom_pair_filtered[order]
+    m.nxn_pairid_filtered = m.nxn_pairid_filtered[order]
+
   # count contact pair types
   def geom_trid_index(i, j):
     i, j = (j, i) if j < i else (i, j)
@@ -1275,11 +1298,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
 
   m.nJfs = m.flexstrain_J_colind.size
 
-  # tendon type: older mujoco versions imply it from the first wrap object
-  if not util_pkg.check_version("mujoco>=3.17.1"):
-    is_fixed = mjm.wrap_type[mjm.tendon_adr] == mujoco.mjtWrap.mjWRAP_JOINT
-    m.tendon_type = np.where(is_fixed, types.TendonType.FIXED, types.TendonType.SPATIAL)
-
   # fixed tendon
   m.tendon_jnt_adr, m.wrap_jnt_adr = [], []
   for i in range(mjm.ntendon):
@@ -1291,21 +1309,11 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
         m.wrap_jnt_adr.append(adr + j)
 
   # spatial tendon
-  m.tendon_site_pair_adr, m.tendon_geom_adr = [], []
-  m.ten_wrapadr_site, m.ten_wrapnum_site = [0], []
+  m.tendon_site_pair_adr, m.tendon_geom_adr, m.tendon_geom_wrapadr = [], [], []
   for i, tendon_num in enumerate(mjm.tendon_num):
     adr = mjm.tendon_adr[i]
-    # sites
-    if (mjm.wrap_type[adr : adr + tendon_num] == mujoco.mjtWrap.mjWRAP_SITE).all():
-      if i < mjm.ntendon:
-        m.ten_wrapadr_site.append(m.ten_wrapadr_site[-1] + tendon_num)
-      m.ten_wrapnum_site.append(tendon_num)
-    else:
-      if i < mjm.ntendon:
-        m.ten_wrapadr_site.append(m.ten_wrapadr_site[-1])
-      m.ten_wrapnum_site.append(0)
-
-    # geoms
+    # first geom wrap of this tendon, indexing the geom wrap arrays
+    m.tendon_geom_wrapadr.append(len(m.tendon_geom_adr))
     for j in range(tendon_num):
       wrap_type = mjm.wrap_type[adr + j]
       if j < tendon_num - 1:
@@ -1319,6 +1327,26 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.wrap_site_adr = np.nonzero(mjm.wrap_type == mujoco.mjtWrap.mjWRAP_SITE)[0]
   m.wrap_site_pair_adr = np.setdiff1d(m.wrap_site_adr[np.nonzero(np.diff(m.wrap_site_adr) == 1)[0]], mjm.tendon_adr[1:] - 1)
   m.wrap_geom_adr = np.nonzero(np.isin(mjm.wrap_type, [mujoco.mjtWrap.mjWRAP_SPHERE, mujoco.mjtWrap.mjWRAP_CYLINDER]))[0]
+
+  wrap_site_pair_lca = []
+  for adr in m.wrap_site_pair_adr:
+    site0_body = mjm.site_bodyid[mjm.wrap_objid[adr]]
+    site1_body = mjm.site_bodyid[mjm.wrap_objid[adr + 1]]
+    wrap_site_pair_lca.append(_lowest_common_ancestor(mjm.body_parentid, site0_body, site1_body))
+  m.wrap_site_pair_lca = np.array(wrap_site_pair_lca, dtype=np.int32)
+  wrap_geom_lca = []
+  for adr in m.wrap_geom_adr:
+    site0_body = mjm.site_bodyid[mjm.wrap_objid[adr - 1]]
+    geom_body = mjm.geom_bodyid[mjm.wrap_objid[adr]]
+    site1_body = mjm.site_bodyid[mjm.wrap_objid[adr + 1]]
+    wrap_geom_lca.append(
+      (
+        _lowest_common_ancestor(mjm.body_parentid, site0_body, geom_body),
+        _lowest_common_ancestor(mjm.body_parentid, geom_body, site1_body),
+        _lowest_common_ancestor(mjm.body_parentid, site0_body, site1_body),
+      )
+    )
+  m.wrap_geom_lca = np.array(wrap_geom_lca, dtype=np.int32).reshape(-1, 3)
 
   # pulley scaling
   m.wrap_pulley_scale = np.ones(mjm.nwrap, dtype=float)
@@ -1427,6 +1455,12 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.qLD_block_total = _lay["total"]  # packed dense region length / offset of the LDL region
   m.qLD_block_adr = _lay["dof_adr"]
 
+  # inv(M) is block diagonal per tree: one dense block per tree
+  tree_area = mjm.tree_dofnum * mjm.tree_dofnum
+  m.Minv_block_total = int(tree_area.sum())
+  m.Minv_block_adr = (np.cumsum(tree_area) - tree_area)[mjm.dof_treeid]
+  m.Minv_block_dofmax = int(mjm.tree_dofnum.max(initial=0))
+
   scalar_tiles = [
     types.TileSet(
       adr=wp.array(_lay["scalar_tiles"][size], dtype=int),
@@ -1438,6 +1472,29 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     types.TileSet(adr=wp.array(_lay["gather_tiles"][size], dtype=int), size=size) for size in sorted(_lay["gather_tiles"])
   ]
   m.M_tiles = tuple(scalar_tiles + gather_tiles)
+
+  # Sparse rows are full ancestor chains; their depth is M_rownnz - 1.
+  m.dof_subtreenum = np.ones(mjm.nv, dtype=np.int32)
+  for i in reversed(range(mjm.nv)):
+    if mjm.dof_parentid[i] >= 0:
+      m.dof_subtreenum[mjm.dof_parentid[i]] += m.dof_subtreenum[i]
+  sparse_blocks = [(start, size) for start, size in _m_blocks(mjm) if _lay["dof_adr"][start] == types.Q_LD_BLOCK_SPARSE]
+  level_adr, pair_adr, pairs = [0], [], []
+  for start, size in sparse_blocks:
+    depth = mjm.M_rownnz[start : start + size] - 1
+    for level in range(int(depth.max()) + 1):
+      pair_adr.append(len(pairs))
+      for i in np.flatnonzero(depth == level) + start:
+        pairs.extend((i, j) for j in range(mjm.M_rownnz[i]))
+    pair_adr.append(len(pairs))
+    level_adr.append(len(pair_adr))
+  m.qLD_fused_level_adr = level_adr
+  m.qLD_fused_pair_adr = pair_adr
+  m.qLD_fused_pairs = np.array(pairs, dtype=np.int32).reshape(-1, 2)
+  # Match block width to the average number of factor entries per dependency level.
+  nlevel = max(1, len(pair_adr) - len(sparse_blocks))
+  mean_width = max(1, (len(pairs) + nlevel - 1) // nlevel)
+  m.block_dim.factor_LD_sparse_fused = max(64, min(512, 1 << (mean_width - 1).bit_length()))
 
   # Group sparse LDL updates by tree depth. Block-path DOFs never touch the LDL region.
   sparse_updates, dof_depth = {}, np.zeros(mjm.nv, dtype=int) - 1
@@ -1467,23 +1524,16 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.qLD_all_updates = all_updates_flat if all_updates_flat else [(0, 0, 0)]
   m.qLD_level_offsets = level_offsets
 
-  # Indices for sparse M_fullm (used in solver). M_fullm_i/j are built by
-  # walking dof_parentid for each dof, so for joint types whose internal block
-  # MuJoCo stores diagonal-only in the compact (M_rownnz, M_rowadr) layout
-  # (e.g. free joints), the chain-aware layout here has more entries per row
-  # than the compact layout.
-  m.M_fullm_i, m.M_fullm_j = [], []
-  for i in range(mjm.nv):
-    j = i
-    while j > -1:
-      m.M_fullm_i.append(i)
-      m.M_fullm_j.append(j)
-      j = mjm.dof_parentid[j]
   # M_elemid maps (row, col) -> madr index in the native CSR M layout
   M_elemid = np.full((mjm.nv, mjm.nv), -1, dtype=np.int32)
   # M_hinit_i: row index of each CSR entry (its madr is the flat index). The dense Newton H-init
   # uses (M_hinit_i, M_colind) to scatter M's upper triangle into the dense H tile from CSR.
   M_hinit_i = np.zeros(mjm.nC, dtype=np.int32)
+  # M_tile_colmask/M_tile_offdiag: tile pattern of M, which seeds the sparse-tile Newton Cholesky
+  tile = types.TILE_SIZE_JTDAJ_DENSE
+  ntiles = max(1, (m.nv_pad + tile - 1) // tile)
+  M_tile_colmask = np.zeros((ntiles, (ntiles + 63) // 64), dtype=np.uint64)
+  M_tile_offdiag = np.zeros(ntiles, dtype=np.int32)
   for i in range(mjm.nv):
     rowadr = mjm.M_rowadr[i]
     rownnz = mjm.M_rownnz[i]
@@ -1492,8 +1542,22 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       col = int(mjm.M_colind[madr])
       M_elemid[i, col] = madr
       M_hinit_i[madr] = i
+      if col // tile < i // tile:
+        M_tile_colmask[i // tile, col // tile // 64] |= np.uint64(1) << np.uint64(col // tile % 64)
+      elif col != i:
+        M_tile_offdiag[i // tile] = 1
   m.M_elemid = M_elemid
   m.M_hinit_i = M_hinit_i
+  m.M_tile_colmask = M_tile_colmask
+  m.M_tile_offdiag = M_tile_offdiag
+  # whether M and its reverse-elimination fill-in cover every tile holding real DOFs
+  ntiles_nv = (mjm.nv + tile - 1) // tile
+  colmask = [sum(int(w) << (64 * k) for k, w in enumerate(row)) for row in M_tile_colmask[:ntiles_nv]]
+  for tk in range(ntiles_nv - 1, 0, -1):
+    if colmask[tk]:
+      parent = colmask[tk].bit_length() - 1
+      colmask[parent] |= colmask[tk] & ((1 << parent) - 1)
+  m.M_tile_full = all(colmask[tk] == (1 << tk) - 1 for tk in range(ntiles_nv))
 
   # Precompute per-block gather indices for the dense-block densify (tile_load_indexed). For each
   # dense block and flat slot (row, col), store the CSR address of M[max(i,j), min(i,j)], or nC
@@ -1535,13 +1599,10 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
 
   # Flatten into CSR-like arrays
   m.M_mulm_rowadr = [0]
-  m.M_mulm_col = []
-  m.M_mulm_madr = []
-  for i in range(mjm.nv):
-    for col, madr in row_elements[i]:
-      m.M_mulm_col.append(col)
-      m.M_mulm_madr.append(madr)
-    m.M_mulm_rowadr.append(len(m.M_mulm_col))
+  m.M_mulm_entry = []
+  for row in row_elements:
+    m.M_mulm_entry.extend((int(madr) << 32) | col for col, madr in row)
+    m.M_mulm_rowadr.append(len(m.M_mulm_entry))
 
   m.flexedge_J_rownnz = mjm.flexedge_J_rownnz
   m.flexedge_J_rowadr = mjm.flexedge_J_rowadr
@@ -1598,6 +1659,20 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.flex_efcnnz = flex_efcnnz
   m.flexedge_efcadr = flexedge_efcadr
   m.flexedge_efcnnzadr = flexedge_efcnnzadr
+
+  # flex bvh nodes are the dynamic bvh nodes, stored after the static (body) nodes
+  flex_bvhflexid = np.zeros(mjm.nbvhdynamic, dtype=np.int32)
+  flex_bvh_tree = {}
+  for fi in range(mjm.nflex):
+    bvhadr, bvhnum = mjm.flex_bvhadr[fi], mjm.flex_bvhnum[fi]
+    if bvhadr < 0:
+      continue
+    flex_bvhflexid[bvhadr - mjm.nbvhstatic : bvhadr - mjm.nbvhstatic + bvhnum] = fi
+    for i in range(bvhadr, bvhadr + bvhnum):
+      if mjm.bvh_nodeid[i] < 0:
+        flex_bvh_tree.setdefault(mjm.bvh_depth[i], []).append(i)
+  m.flex_bvhflexid = flex_bvhflexid
+  m.flex_bvh_tree = tuple(wp.array(flex_bvh_tree[i], dtype=int) for i in sorted(flex_bvh_tree))
 
   flex_bend_interp_map = []
   flex_face_map = []
@@ -1668,7 +1743,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       flex_vert_rodelem[va : va + int(mjm.flex_vertnum[fi])] = _mjm_rod_vert_elems(mjm, fi)
 
     bendingadr = int(mjm.flex_bendingadr[fi])
-    if mjm.flex_dim[fi] == 1 and bendingadr >= 0 and types.ROD_HINGE_SIZE == 10:
+    if mjm.flex_dim[fi] == 1 and bendingadr >= 0:
       nhinge_raw = int(mjm.flex_bending[bendingadr])
       if nhinge_raw > 0:
         h0 = mjm.flex_bending[bendingadr + 1 : bendingadr + 1 + 10]
@@ -1854,7 +1929,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       "nbody_fluid_box": len(m.body_fluid_box_adr),
       "njnt_limited_slide_hinge": len(m.jnt_limited_slide_hinge_adr),
       "njnt_limited_ball": len(m.jnt_limited_ball_adr),
-      "ndof_tri": len(m.dof_tri_row),
       "nnxn_geom_pair": len(m.nxn_geom_pair),
       "nnxn_geom_pair_filtered": len(m.nxn_geom_pair_filtered),
       "neq_connect": len(m.eq_connect_adr),
@@ -1866,7 +1940,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       "ntendon_site_pair": len(m.tendon_site_pair_adr),
       "ntendon_geom": len(m.tendon_geom_adr),
       "ntendon_limited": len(m.tendon_limited_adr),
-      "nten_wrapadr_site": len(m.ten_wrapadr_site),
       "nwrap_jnt": len(m.wrap_jnt_adr),
       "nwrap_site": len(m.wrap_site_adr),
       "nwrap_site_pair": len(m.wrap_site_pair_adr),
@@ -1886,12 +1959,16 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       "nsensor_contact_vel": len(m.sensor_contact_vel_adr),
       "nsensor_contact_acc": len(m.sensor_contact_acc_adr),
       "nsensor_collision_start_adr": len(m.sensor_collision_start_adr),
+      "nqLD_fused_level_adr": len(m.qLD_fused_level_adr),
+      "nqLD_fused_pair_adr": len(m.qLD_fused_pair_adr),
+      "nqLD_fused_pairs": len(m.qLD_fused_pairs),
       "nqLD_all_updates": len(m.qLD_all_updates),
       "nqLD_level_offsets": len(m.qLD_level_offsets),
-      "nM_fullm": len(m.M_fullm_i),
+      "nv_tile": m.M_tile_colmask.shape[0],
+      "nv_tile_word": m.M_tile_colmask.shape[1],
       "nqD_fullm": len(m.qD_fullm_i),
       "nv_plus_1": len(m.M_mulm_rowadr),
-      "nM_mulm": len(m.M_mulm_col),
+      "nM_mulm": len(m.M_mulm_entry),
       "nefm_3dof": len(m.efm_L_dofid),
       "nefm_bt_adr": len(m.efm_BT_adr),
     }
@@ -1905,20 +1982,28 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   return m
 
 
-def _get_padded_sizes(nv: int, njmax: int, is_sparse: bool, tile_size: int, augment_cholesky: bool = False):
+def _get_padded_sizes(mjm: mujoco.MjModel, njmax: int):
   def round_up(x, multiple):
     return ((x + multiple - 1) // multiple) * multiple
 
+  tile_size = types.TILE_SIZE_JTDAJ_SPARSE if is_sparse(mjm) else types.TILE_SIZE_JTDAJ_DENSE
   njmax_padded = round_up(njmax, tile_size)
-  nv_padded = round_up(nv + int(augment_cholesky), tile_size) if (is_sparse or nv > 32) else round_up(nv, 4)
+  nv = mjm.nv
+  if nv > types.H_ONE_TILE_MAX:
+    # the blocked Cholesky's tiles, and its augmented row for Newton
+    nv_padded = round_up(nv + int(mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON), tile_size)
+  else:
+    # the one-tile Cholesky factors the padded tile: rows of whole 16-byte vectors
+    nv_padded = round_up(nv, 4)
 
   return njmax_padded, nv_padded
 
 
 def _nvmax_pad(nvmax: int) -> int:
-  """Reserve an augmented column and round nvmax up to the dense tile size."""
+  """Reserve an augmented column for blocked Cholesky and round up to dense tile size."""
   t = types.TILE_SIZE_JTDAJ_DENSE
-  return ((max(nvmax, 1) + t) // t) * t
+  n = max(nvmax, 1)
+  return ((n + t - 1) // t) * t if n <= types.H_ONE_TILE_MAX else ((n + t) // t) * t
 
 
 def _default_nconmax(mjm: mujoco.MjModel, mjd: Optional[mujoco.MjData] = None) -> int:
@@ -2005,7 +2090,7 @@ def _calculate_efm_con_max_dof(mjm: mujoco.MjModel) -> int:
   non_interp_flex_nnz = []
   passive_flex_nnz = []
   for fi in range(mjm.nflex):
-    if mjm.flex_interp[fi] != 0 or mjm.flex_rigid[fi]:
+    if mjm.flex_interp[fi] != 0:
       continue
     vert_start = int(mjm.flex_vertadr[fi])
     dim = int(mjm.flex_dim[fi])
@@ -2040,7 +2125,7 @@ def _calculate_efm_con_max_dof(mjm: mujoco.MjModel) -> int:
       for v in range(int(mjm.flex_vertnum[fi])):
         f_nnz = max(f_nnz, _body_set_nnz(mjm, {mjm.flex_vertbodyid[vert_start + v]}))
     non_interp_flex_nnz.append(f_nnz)
-    if mjm.flex_passive[fi] != 0 and dim >= 2:
+    if not mjm.flex_rigid[fi] and mjm.flex_passive[fi] != 0 and dim >= 2:
       passive_flex_nnz.append(f_nnz)
   if not passive_flex_nnz:
     max_other = max([0] + non_interp_flex_nnz + geom_nnz)
@@ -2308,10 +2393,12 @@ def _default_njmax_nnz(mjm: mujoco.MjModel, nconmax: int, njmax: int) -> int:
       if jnt_type == mujoco.mjtJoint.mjJNT_BALL:
         total_nnz += 3
       elif jnt_type in (mujoco.mjtJoint.mjJNT_SLIDE, mujoco.mjtJoint.mjJNT_HINGE):
-        total_nnz += 1
+        # both sides are active when the range is narrower than twice the margin
+        total_nnz += 1 + int(mjm.jnt_range[i, 1] - mjm.jnt_range[i, 0] < 2 * mjm.jnt_margin[i])
   for i in range(mjm.ntendon):
     if mjm.tendon_limited[i]:
-      total_nnz += mjm.ten_J_rownnz[i]
+      bilateral = mjm.tendon_range[i, 1] - mjm.tendon_range[i, 0] < 2 * mjm.tendon_margin[i]
+      total_nnz += (1 + int(bilateral)) * mjm.ten_J_rownnz[i]
 
   # contact constraints: njmax rows at max contact non-zeros
   max_contact_nnz = _calculate_max_contact_nnz(mjm)
@@ -2397,12 +2484,7 @@ def _allocate_island_arrays(
 
 
 _COMPACT_DATA_FIELDS: tuple[str, ...] = (
-  "cdof_tri_row",
-  "cdof_tri_col",
   "cM",
-  "cqLD",
-  "crhs",
-  "cx",
   "cJ",
   "cMa",
   "cqfrc_smooth",
@@ -2423,11 +2505,10 @@ def _allocate_compact_arrays(
 ):
   """Allocate workspace for the compacted dense factor/solve (when nvmax is requested).
 
-  Mirrors the island-local ``i*`` Data fields with a ``c*`` (compact) prefix. The
-  constant dof-pair indices are derived on the host since
-  they depend only on nvmax_pad; the workspace shadows are sized by nvmax_pad so the
-  blocked Cholesky never reads out of bounds on its partial tile. When the user does not
-  request compaction (nvmax is None) everything is allocated empty.
+  Mirrors the island-local ``i*`` Data fields with a ``c*`` (compact) prefix. The workspace
+  shadows are sized by nvmax_pad so the blocked Cholesky never reads out of bounds on its
+  partial tile. When the user does not request compaction (nvmax is None) everything is
+  allocated empty.
 
   TODO(team): once the compact path replaces the island solver, the whole forward
   pipeline can run in compacted space and ``d.M`` / ``d.qacc`` etc. become nvmax-sized
@@ -2437,23 +2518,10 @@ def _allocate_compact_arrays(
   nvp = nvmax_pad if compact else 0
   njp = njmax_pad if compact else 0
 
-  if compact:
-    # all (i, j) DOF pairs of the nvmax_pad-wide compacted Hessian (the global dof_tri,
-    # triu over full nv, would index out of bounds).
-    idx = np.arange(nvmax_pad, dtype=np.int32)
-    d.cdof_tri_row = wp.array(np.repeat(idx, nvmax_pad), dtype=int)
-    d.cdof_tri_col = wp.array(np.tile(idx, nvmax_pad), dtype=int)
-  else:
-    d.cdof_tri_row = wp.empty(0, dtype=int)
-    d.cdof_tri_col = wp.empty(0, dtype=int)
+  alloc_dense_compact = compact and not is_sparse(mjm)
 
-  alloc_cJ = compact and not is_sparse(mjm)
-
-  d.cM = wp.empty((nw, nvp, nvp), dtype=float)
-  d.cqLD = wp.empty((nw, nvp, nvp), dtype=float)
-  d.crhs = wp.empty((nw, nvp, 1), dtype=float)
-  d.cx = wp.empty((nw, nvp, 1), dtype=float)
-  d.cJ = wp.empty((nw, njp, nvp), dtype=float) if alloc_cJ else wp.empty((0, 0, 0), dtype=float)
+  d.cM = wp.empty((nw, nvp, nvp), dtype=float) if alloc_dense_compact else wp.empty((0, 0, 0), dtype=float)
+  d.cJ = wp.empty((nw, njp, nvp), dtype=float) if alloc_dense_compact else wp.empty((0, 0, 0), dtype=float)
   d.cMa = wp.empty((nw, nvp), dtype=float)
   d.cqfrc_smooth = wp.empty((nw, nvp), dtype=float)
   d.cqacc_smooth = wp.empty((nw, nvp), dtype=float)
@@ -2462,21 +2530,69 @@ def _allocate_compact_arrays(
   d.cqfrc_constraint = wp.empty((nw, nvp), dtype=float)
 
 
-def _initial_body_awake(mjm: mujoco.MjModel, nworld: int, init_asleep: bool) -> np.ndarray:
-  """Returns the initial body awake array."""
-  body_awake_np = np.zeros((nworld, mjm.nbody), dtype=np.int32)
+def _sleep_arrays(mjm: mujoco.MjModel, tree_asleep: np.ndarray, nworld: int) -> dict[str, wp.array]:
+  """Computes initial sleeping Data arrays from 1D tree_asleep (matching mj_updateSleep)."""
+  tree_asleep_1d = np.asarray(tree_asleep, dtype=np.int32)
+  tree_awake_1d = (tree_asleep_1d < 0).astype(np.int32)
+  ntree_awake = int(tree_awake_1d.sum())
+
+  body_awake_1d = np.empty(mjm.nbody, dtype=np.int32)
   for b in range(mjm.nbody):
     tree = mjm.body_treeid[b]
     if tree < 0:
-      root = mjm.body_rootid[b]
-      mocap = mjm.body_mocapid[root]
-      if mocap >= 0:
-        body_awake_np[:, b] = int(types.SleepState.AWAKE)
+      if mjm.body_mocapid[mjm.body_rootid[b]] >= 0:
+        body_awake_1d[b] = int(types.SleepState.AWAKE)
       else:
-        body_awake_np[:, b] = int(types.SleepState.STATIC)
+        body_awake_1d[b] = int(types.SleepState.STATIC)
     else:
-      body_awake_np[:, b] = int(types.SleepState.ASLEEP) if init_asleep else int(types.SleepState.AWAKE)
-  return body_awake_np
+      body_awake_1d[b] = int(types.SleepState.AWAKE) if tree_awake_1d[tree] else int(types.SleepState.ASLEEP)
+
+  awake_bodies = np.flatnonzero(body_awake_1d != int(types.SleepState.ASLEEP)).astype(np.int32)
+  nbody_awake = int(awake_bodies.size)
+  body_awake_ind_1d = np.zeros(mjm.nbody, dtype=np.int32)
+  body_awake_ind_1d[:nbody_awake] = awake_bodies
+
+  dof_awake_ind_1d = np.zeros(mjm.nv, dtype=np.int32)
+  if mjm.nv > 0:
+    dof_body = mjm.dof_bodyid
+    awake_dofs = np.flatnonzero(
+      (mjm.body_treeid[dof_body] >= 0) & (body_awake_1d[dof_body] == int(types.SleepState.AWAKE))
+    ).astype(np.int32)
+  else:
+    awake_dofs = np.empty(0, dtype=np.int32)
+  nv_awake = int(awake_dofs.size)
+  dof_awake_ind_1d[:nv_awake] = awake_dofs
+
+  return {
+    "tree_asleep": wp.array(np.tile(tree_asleep_1d, (nworld, 1)), dtype=int),
+    "tree_awake": wp.array(np.tile(tree_awake_1d, (nworld, 1)), dtype=int),
+    "ntree_awake": wp.full((nworld,), ntree_awake, dtype=int),
+    "body_awake": wp.array(np.tile(body_awake_1d, (nworld, 1)), dtype=int),
+    "body_awake_ind": wp.array(np.tile(body_awake_ind_1d, (nworld, 1)), dtype=int),
+    "nbody_awake": wp.full((nworld,), nbody_awake, dtype=int),
+    "dof_awake_ind": wp.array(np.tile(dof_awake_ind_1d, (nworld, 1)), dtype=int),
+    "nv_awake": wp.full((nworld,), nv_awake, dtype=int),
+  }
+
+
+def _quat_to_mat(quat: np.ndarray) -> np.ndarray:
+  """Rotation matrices (..., 3, 3) of quaternions (..., 4), computed like math.quat_to_mat."""
+  q0, q1, q2, q3 = np.moveaxis(quat, -1, 0)
+  mat = np.stack(
+    [
+      q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3,
+      2 * (q1 * q2 - q0 * q3),
+      2 * (q1 * q3 + q0 * q2),
+      2 * (q1 * q2 + q0 * q3),
+      q0 * q0 - q1 * q1 + q2 * q2 - q3 * q3,
+      2 * (q2 * q3 - q0 * q1),
+      2 * (q1 * q3 - q0 * q2),
+      2 * (q2 * q3 + q0 * q1),
+      q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3,
+    ],
+    axis=-1,
+  )
+  return mat.reshape(quat.shape[:-1] + (3, 3))
 
 
 def make_data(
@@ -2515,9 +2631,7 @@ def make_data(
   if njmax is None:
     njmax = _default_njmax(mjm)
 
-  sleep_enabled = bool(mjm.opt.enableflags & mujoco.mjtEnableBit.mjENBL_SLEEP) and not bool(
-    mjm.opt.disableflags & mujoco.mjtDisableBit.mjDSBL_ISLAND
-  )
+  sleep_enabled = bool(mjm.opt.enableflags & mujoco.mjtEnableBit.mjENBL_SLEEP)
   compact_alloc = sleep_enabled or (nvmax is not None)
 
   if nvmax is None:
@@ -2557,31 +2671,19 @@ def make_data(
 
   sizes = dict(
     {"*": 1},
-    **{
-      f.name: (getattr(mjm, f.name, 0) if f.name == "nplastic" else getattr(mjm, f.name, None))
-      for f in dataclasses.fields(types.Model)
-      if f.type is int
-    },
+    **{f.name: getattr(mjm, f.name, None) for f in dataclasses.fields(types.Model) if f.type is int},
   )
   condim_arrays = [np.array([0]), mjm.geom_condim, mjm.pair_dim]
   if mjm.nflex > 0:
     condim_arrays.append(mjm.flex_condim)
   sizes["nmaxcondim"] = np.concatenate(condim_arrays).max()
   sizes["nmaxpyramid"] = np.maximum(1, 2 * (sizes["nmaxcondim"] - 1))
-  tile_size = types.TILE_SIZE_JTDAJ_SPARSE if is_sparse(mjm) else types.TILE_SIZE_JTDAJ_DENSE
-  sizes["njmax_pad"], sizes["nv_pad"] = _get_padded_sizes(
-    mjm.nv,
-    njmax,
-    is_sparse(mjm),
-    tile_size,
-    augment_cholesky=mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON and mjm.nv > 32,
-  )
+  sizes["njmax_pad"], sizes["nv_pad"] = _get_padded_sizes(mjm, njmax)
   sizes["nworld"] = nworld
   sizes["naconmax"] = naconmax
   sizes["njmax"] = njmax
   sizes["nvmax"] = nvmax
   sizes["nvmax_pad"] = _nvmax_pad(nvmax)
-  sizes["nvmax_pad_sq"] = sizes["nvmax_pad"] * sizes["nvmax_pad"]
   sizes["nflexintcell"] = _get_nflexintcell(mjm)
   sizes["nflexface"] = _get_nflexface(mjm)
   sizes["nflexrodhinge"], sizes["nflexrodedge"] = _get_nflexrod_counts(mjm)
@@ -2625,9 +2727,9 @@ def make_data(
     efc.J_colind = wp.zeros((nworld, 0, 0), dtype=int)
     efc.J = wp.zeros((nworld, sizes["njmax_pad"], sizes["nv_pad"]), dtype=float)
 
-  # Compute initial kinematic state. Static geom positions (geom_xpos, geom_xmat) are set here
+  # Compute initial kinematic state. Static geom positions (geom_xpos, geom_xquat) are set here
   # and never updated by the physics loop (see smooth.py geom_kinematics), so this call is the
-  # only place they are initialized. Also seeds body poses (xquat, xmat, ximat) at qpos0.
+  # only place they are initialized. Also seeds body poses (xquat, xiquat) at qpos0.
   mjd = mujoco.MjData(mjm)
   mujoco.mj_kinematics(mjm, mjd)
 
@@ -2649,11 +2751,10 @@ def make_data(
     "njmax_nnz": njmax_nnz,
     # world body
     "xquat": wp.array(np.tile(mjd.xquat, (nworld, 1)), shape=(nworld, mjm.nbody), dtype=wp.quat),
-    "xmat": wp.array(np.tile(mjd.xmat, (nworld, 1)), shape=(nworld, mjm.nbody), dtype=wp.mat33),
-    "ximat": wp.array(np.tile(mjd.ximat, (nworld, 1)), shape=(nworld, mjm.nbody), dtype=wp.mat33),
+    "xiquat": wp.array(np.tile(mjd.xiquat, (nworld, 1)), shape=(nworld, mjm.nbody), dtype=wp.quat),
     # static geoms
     "geom_xpos": wp.array(np.tile(mjd.geom_xpos, (nworld, 1)), shape=(nworld, mjm.ngeom), dtype=wp.vec3),
-    "geom_xmat": wp.array(np.tile(mjd.geom_xmat, (nworld, 1)), shape=(nworld, mjm.ngeom), dtype=wp.mat33),
+    "geom_xquat": wp.array(np.tile(mjd.geom_xquat, (nworld, 1)), shape=(nworld, mjm.ngeom), dtype=wp.quat),
     # mocap
     "mocap_pos": wp.array(np.tile(mjm.body_pos[mocap_body[mocap_id]], (nworld, 1)), shape=(nworld, mjm.nmocap), dtype=wp.vec3),
     "mocap_quat": wp.array(
@@ -2670,7 +2771,7 @@ def make_data(
     # plastic
     "plastic": (
       wp.array(np.tile(mjd.plastic, (nworld, 1)), shape=(nworld, mjm.nplastic), dtype=float)
-      if getattr(mjm, "nplastic", 0) > 0
+      if mjm.nplastic > 0
       else wp.zeros((nworld, 0), dtype=float)
     ),
     # island arrays
@@ -2693,9 +2794,7 @@ def make_data(
     "efc_islandid": None,
     # compact arrays (populated by _allocate_compact_arrays; skip eager allocation)
     **{name: None for name in _COMPACT_DATA_FIELDS},
-    "tree_asleep": wp.array(np.full((nworld, mjm.ntree), -(1 + types.MJ_MINAWAKE), dtype=np.int32), dtype=int),
-    "tree_awake": wp.array(np.ones((nworld, mjm.ntree), dtype=np.int32), dtype=int),
-    "body_awake": wp.array(_initial_body_awake(mjm, nworld, False), dtype=int),
+    **_sleep_arrays(mjm, np.full(mjm.ntree, -(1 + types.MJ_MINAWAKE), dtype=np.int32), nworld),
   }
   for f in dataclasses.fields(types.Data):
     if f.name in d_kwargs:
@@ -2755,9 +2854,7 @@ def put_data(
   if njmax is None:
     njmax = _default_njmax(mjm, mjd)
 
-  sleep_enabled = bool(mjm.opt.enableflags & mujoco.mjtEnableBit.mjENBL_SLEEP) and not bool(
-    mjm.opt.disableflags & mujoco.mjtDisableBit.mjDSBL_ISLAND
-  )
+  sleep_enabled = bool(mjm.opt.enableflags & mujoco.mjtEnableBit.mjENBL_SLEEP)
   compact_alloc = sleep_enabled or (nvmax is not None)
 
   if nvmax is None:
@@ -2807,31 +2904,19 @@ def put_data(
 
   sizes = dict(
     {"*": 1},
-    **{
-      f.name: (getattr(mjm, f.name, 0) if f.name == "nplastic" else getattr(mjm, f.name, None))
-      for f in dataclasses.fields(types.Model)
-      if f.type is int
-    },
+    **{f.name: getattr(mjm, f.name, None) for f in dataclasses.fields(types.Model) if f.type is int},
   )
   condim_arrays = [np.array([0]), mjm.geom_condim, mjm.pair_dim]
   if mjm.nflex > 0:
     condim_arrays.append(mjm.flex_condim)
   sizes["nmaxcondim"] = np.concatenate(condim_arrays).max()
   sizes["nmaxpyramid"] = np.maximum(1, 2 * (sizes["nmaxcondim"] - 1))
-  tile_size = types.TILE_SIZE_JTDAJ_SPARSE if is_sparse(mjm) else types.TILE_SIZE_JTDAJ_DENSE
-  sizes["njmax_pad"], sizes["nv_pad"] = _get_padded_sizes(
-    mjm.nv,
-    njmax,
-    is_sparse(mjm),
-    tile_size,
-    augment_cholesky=mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON and mjm.nv > 32,
-  )
+  sizes["njmax_pad"], sizes["nv_pad"] = _get_padded_sizes(mjm, njmax)
   sizes["nworld"] = nworld
   sizes["naconmax"] = naconmax
   sizes["njmax"] = njmax
   sizes["nvmax"] = nvmax
   sizes["nvmax_pad"] = _nvmax_pad(nvmax)
-  sizes["nvmax_pad_sq"] = sizes["nvmax_pad"] * sizes["nvmax_pad"]
   sizes["nflexface"] = _get_nflexface(mjm)
   sizes["nflexrodhinge"], sizes["nflexrodedge"] = _get_nflexrod_counts(mjm)
   efm_d = _get_efm_data(mjm)
@@ -2842,15 +2927,19 @@ def put_data(
   qld_total = lay["total"] + (mjm.nC if lay["has_sparse"] else 0)
   sizes["qld_total"] = qld_total
 
+  # MuJoCo's dense efc_J loads as sparse rows that keep their block's union support
+  supports = list(_dense_J_supports(mjm, mjd)) if is_sparse(mjm) and not mujoco.mj_isSparse(mjm) and mjd.nefc else []
+  supports_nnz = sum(nrow * cols.size for _, nrow, cols in supports)
   if njmax_nnz is None:
     if is_sparse(mjm):
-      njmax_nnz = _default_njmax_nnz(mjm, nconmax, njmax)
+      njmax_nnz = max(_default_njmax_nnz(mjm, nconmax, njmax), supports_nnz)
     else:
       njmax_nnz = njmax * mjm.nv
+  elif njmax_nnz < supports_nnz:
+    raise ValueError(f"njmax_nnz {njmax_nnz} is below the {supports_nnz} Jacobian entries of the loaded constraints")
 
   # Capture sleep state before mj_kinematics, which resets tree_asleep as a side effect.
   tree_asleep_init = mjd.tree_asleep.copy()
-  body_awake_init = mjd.body_awake.copy()
 
   # Ensure kinematic state is populated. mujoco.MjData() does not call mj_kinematics, so a freshly
   # created mjd has zero geom positions. Static geoms are never updated by the physics loop
@@ -2871,34 +2960,6 @@ def put_data(
       continue
     if f.name in ["flex", "elem", "vert"] and mjm.nflex == 0:
       contact_kwargs[f.name] = wp.empty(0, dtype=wp.vec2i)
-      continue
-    if f.name == "surfacevel" and not util_pkg.check_version("mujoco>=3.17.1"):
-      val = None
-      if mjm.flg_surfacevel and mjd.ncon > 0:
-        svel = np.zeros((mjd.ncon, 3))
-        sang = np.zeros((mjd.ncon, 3))
-        for side, sgn in ((0, -1.0), (1, 1.0)):
-          geom = mjd.contact.geom[: mjd.ncon, side]
-          valid = geom >= 0
-          g = geom[valid]
-          sv = mjm.geom_surfacevel[g]
-          xmat = mjd.geom_xmat[g].reshape((-1, 3, 3))
-          ang = np.einsum("nij,nj->ni", xmat, sv[:, 3:])
-          lin = np.einsum("nij,nj->ni", xmat, sv[:, :3]) + np.cross(ang, mjd.contact.pos[: mjd.ncon][valid] - mjd.geom_xpos[g])
-          svel[valid] += sgn * lin
-          sang[valid] += sgn * ang
-        frame = mjd.contact.frame[: mjd.ncon].reshape((-1, 3, 3))
-        val = np.stack(
-          (
-            np.einsum("ni,ni->n", frame[:, 1], svel),
-            np.einsum("ni,ni->n", frame[:, 2], svel),
-            np.einsum("ni,ni->n", frame[:, 0], sang),
-          ),
-          axis=-1,
-        )
-        val = np.tile(val, (nworld, 1))
-        val = np.pad(val, ((0, naconmax - val.shape[0]), (0, 0)))
-      contact_kwargs[f.name] = _create_array(val, f.type, sizes)
       continue
     val = getattr(mjd.contact, f.name)
     val = np.tile(val, (nworld,) + (1,) * (val.ndim - 1))
@@ -2928,7 +2989,9 @@ def put_data(
     np.pad(np.tile(con_type, nworld), (0, naconmax - nworld * mjd.ncon), constant_values=1),
     dtype=int,
   )
-  contact.geomcollisionid = wp.empty((naconmax,), dtype=int)  # TODO(team): set values
+  # Native contacts have no collision-local ID and are not collision-sensor contacts.
+  # Use a neutral tie breaker; physical contact fields distinguish imported contacts.
+  contact.geomcollisionid = wp.zeros((naconmax,), dtype=int)
 
   # create efc
   efc = _create_constraint(mjm, nworld, njmax, sizes, mjd)
@@ -2936,7 +2999,7 @@ def put_data(
   # make_constraint builds the block list in-kernel; put_data does not run it, so build it here
   # -- otherwise solving a put_data state would assemble an empty J^T D J.
   if is_sparse(mjm) and mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON:
-    jtdaj_adr, jtdaj_nrow = _jtdaj_groups(mjd)
+    jtdaj_adr, jtdaj_nrow = _jtdaj_groups(mjm, mjd)
     nblock = jtdaj_adr.shape[0]
     adr_row = np.zeros(njmax, dtype=int)
     nrow_row = np.zeros(njmax, dtype=int)
@@ -2959,10 +3022,7 @@ def put_data(
         J_colind[:nnz] = mjd.efc_J_colind[:nnz]
         J[:nnz] = mjd.efc_J[:nnz]
       else:
-        dense_J = mjd.efc_J.reshape((-1, mjm.nv))[: mjd.nefc]
-        mujoco.mju_dense2sparse(
-          J[: mjd.nefc * mjm.nv], dense_J, J_rownnz[: mjd.nefc], J_rowadr[: mjd.nefc], J_colind[: mjd.nefc * mjm.nv]
-        )
+        _dense_J_to_sparse(mjd, supports, J_rownnz, J_rowadr, J_colind, J)
 
     efc.J_rownnz = wp.array(np.tile(J_rownnz, (nworld, 1)), dtype=int)
     efc.J_rowadr = wp.array(np.tile(J_rowadr, (nworld, 1)), dtype=int)
@@ -3019,13 +3079,11 @@ def put_data(
     "efc_islandid": None,
     # compact arrays (populated by _allocate_compact_arrays; skip eager allocation)
     **{name: None for name in _COMPACT_DATA_FIELDS},
-    "tree_asleep": wp.array(np.tile(tree_asleep_init, (nworld, 1)), dtype=int),
-    "tree_awake": wp.array(np.tile((tree_asleep_init < 0).astype(np.int32), (nworld, 1)), dtype=int),
-    "body_awake": wp.array(np.tile(body_awake_init.astype(np.int32), (nworld, 1)), dtype=int),
+    **_sleep_arrays(mjm, tree_asleep_init, nworld),
     # plastic
     "plastic": (
-      wp.array(np.tile(mjd.plastic, (nworld, 1)), shape=(nworld, getattr(mjm, "nplastic", 0)), dtype=float)
-      if getattr(mjm, "nplastic", 0) > 0 and hasattr(mjd, "plastic")
+      wp.array(np.tile(mjd.plastic, (nworld, 1)), shape=(nworld, mjm.nplastic), dtype=float)
+      if mjm.nplastic > 0
       else wp.zeros((nworld, 0), dtype=float)
     ),
   }
@@ -3185,16 +3243,23 @@ def get_data_into(
   result.qacc[:] = d.qacc.numpy()[world_id]
   result.act_dot[:] = d.act_dot.numpy()[world_id]
   result.xpos[:] = d.xpos.numpy()[world_id]
-  result.xquat[:] = d.xquat.numpy()[world_id]
-  result.xmat[:] = d.xmat.numpy()[world_id].reshape((-1, 9))
+  xquat = d.xquat.numpy()[world_id]
+  result.xquat[:] = xquat
+  result.xmat[:] = _quat_to_mat(xquat).reshape((-1, 9))
   result.xipos[:] = d.xipos.numpy()[world_id]
-  result.ximat[:] = d.ximat.numpy()[world_id].reshape((-1, 9))
+  xiquat = d.xiquat.numpy()[world_id]
+  result.xiquat[:] = xiquat
+  result.ximat[:] = _quat_to_mat(xiquat).reshape((-1, 9))
   result.xanchor[:] = d.xanchor.numpy()[world_id]
   result.xaxis[:] = d.xaxis.numpy()[world_id]
   result.geom_xpos[:] = d.geom_xpos.numpy()[world_id]
-  result.geom_xmat[:] = d.geom_xmat.numpy()[world_id].reshape((-1, 9))
+  geom_xquat = d.geom_xquat.numpy()[world_id]
+  result.geom_xquat[:] = geom_xquat
+  result.geom_xmat[:] = _quat_to_mat(geom_xquat).reshape((-1, 9))
   result.site_xpos[:] = d.site_xpos.numpy()[world_id]
-  result.site_xmat[:] = d.site_xmat.numpy()[world_id].reshape((-1, 9))
+  site_xquat = d.site_xquat.numpy()[world_id]
+  result.site_xquat[:] = site_xquat
+  result.site_xmat[:] = _quat_to_mat(site_xquat).reshape((-1, 9))
   result.cam_xpos[:] = d.cam_xpos.numpy()[world_id]
   result.cam_xmat[:] = d.cam_xmat.numpy()[world_id].reshape((-1, 9))
   result.light_xpos[:] = d.light_xpos.numpy()[world_id]
@@ -3207,14 +3272,14 @@ def get_data_into(
     result.flexedge_J[:] = d.flexedge_J.numpy()[world_id].reshape(-1)
   result.flexedge_length[:] = d.flexedge_length.numpy()[world_id]
   result.flexedge_velocity[:] = d.flexedge_velocity.numpy()[world_id]
-  if mjm.nflex > 0 and util_pkg.check_version("mujoco>=3.14.1.dev990351372"):
+  if mjm.nflex > 0:
     result.flex_hessian_valid[:] = d.flex_hessian_valid.numpy()[world_id]
     result.flexvert_hessian[:] = d.flexvert_hessian.numpy()[world_id]
     result.flexedge_hessian[:] = d.flexedge_hessian.numpy()[world_id].reshape((-1, 9))
   result.actuator_length[:] = d.actuator_length.numpy()[world_id]
   result.moment_rownnz[:] = d.moment_rownnz.numpy()[world_id]
   result.moment_rowadr[:] = d.moment_rowadr.numpy()[world_id]
-  if mjm.nu:
+  if mjm.nJmom:
     result.moment_colind[:] = d.moment_colind.numpy()[world_id]
     result.actuator_moment[:] = d.actuator_moment.numpy()[world_id]
   result.crb[:] = d.crb.numpy()[world_id]
@@ -3242,7 +3307,7 @@ def get_data_into(
   if mjm.nhistory > 0:
     result.history[:] = d.history.numpy()[world_id]
 
-  if getattr(mjm, "nplastic", 0) > 0:
+  if mjm.nplastic > 0:
     result.plastic[:] = d.plastic.numpy()[world_id]
 
   if mjm.nuserdata > 0:
@@ -3258,8 +3323,7 @@ def get_data_into(
   result.contact.solreffriction[:ncon] = d.contact.solreffriction.numpy()[ncon_filter]
   result.contact.solimp[:ncon] = d.contact.solimp.numpy()[ncon_filter]
   result.contact.adhesion[:ncon] = d.contact.adhesion.numpy()[ncon_filter]
-  if util_pkg.check_version("mujoco>=3.17.1"):
-    result.contact.surfacevel[:ncon] = d.contact.surfacevel.numpy()[ncon_filter]
+  result.contact.surfacevel[:ncon] = d.contact.surfacevel.numpy()[ncon_filter]
   result.contact.dim[:ncon] = d.contact.dim.numpy()[ncon_filter]
   result.contact.geom[:ncon] = d.contact.geom.numpy()[ncon_filter]
   is_passive = (contact_type[ncon_filter] & types.ContactType.PASSIVE) != 0

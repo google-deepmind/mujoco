@@ -30,6 +30,7 @@ wp.set_module_options({"enable_backward": False})
 
 FLOAT_MIN = -1e30
 FLOAT_MAX = 1e30
+EPA_WITNESS_TOL = 1e-3
 
 MINVAL = 1e-15
 MINVAL2 = 1e-30
@@ -186,14 +187,27 @@ def support(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
       while imax != prev:
         prev = imax
         i = geom.graph[vert_edgeadr + imax]
-        subidx = geom.graph[edge_localid + i]
-        while subidx >= 0:
-          idx = geom.graph[vert_globalid + subidx]
-          dist = wp.dot(local_dir, geom.vert[geom.vertadr + idx])
-          imax = wp.where(dist > max_dist, subidx, imax)
-          max_dist = wp.where(dist > max_dist, dist, max_dist)
-          i += 1
-          subidx = geom.graph[edge_localid + i]
+        more = int(1)
+        while more != 0:
+          # load neighbors four at a time so their dependent loads overlap
+          # (face_globalid follows edge_localid, so reads past a list end stay in the graph)
+          near = wp.vec4i()
+          for k in range(4):
+            near[k] = geom.graph[edge_localid + i + k]
+          for k in range(4):
+            # mask entries after the -1 terminator
+            if near[k] < 0:
+              more = 0
+            if more == 0:
+              near[k] = -1
+          near_dist = wp.vec4()
+          for k in range(4):
+            near_dist[k] = wp.dot(local_dir, geom.vert[geom.vertadr + geom.graph[vert_globalid + wp.max(near[k], 0)]])
+          for k in range(4):
+            if near[k] >= 0 and near_dist[k] > max_dist:
+              imax = near[k]
+              max_dist = near_dist[k]
+          i += 4
 
       sp.cached_index = imax
       sp.vertex_index = geom.graph[vert_globalid + imax]
@@ -690,10 +704,13 @@ def gjk(
   # set initial guess
   x_k = x1_0 - x2_0
   xnorm = wp.sqrt(wp.dot(x_k, x_k))
+  if xnorm < MINVAL:
+    x_k = wp.vec3(1.0, 0.0, 0.0)
+    xnorm = 1.0
   xnorm_prev = float(0.0)
 
   for k in range(gjk_iterations):
-    if xnorm < min_norm or wp.abs(xnorm_prev - xnorm) < MINVAL:
+    if xnorm < wp.where(n > 1, min_norm, MINVAL) or wp.abs(xnorm_prev - xnorm) < MINVAL:
       break
 
     # compute the support point with direction tuning; the tests below read x_dir, x_k along the
@@ -712,7 +729,7 @@ def gjk(
 
     # stopping criteria using the Frank-Wolfe duality gap given by
     #  |f(x_k) - f(x_min)|^2 <= < grad f(x_k), (x_k - simplex[n]) >
-    if wp.dot(x_dir, x_dir - simplex[n]) < epsilon:
+    if k > 0 and wp.dot(x_dir, x_dir - simplex[n]) < epsilon:
       break
 
     # the lower bound on distance between the two geoms is (lower / x_norm)
@@ -982,7 +999,34 @@ def _epa_witness(
   v2 = pt.vert[2 * face[1]] - pt.vert[2 * face[1] + 1]
   v3 = pt.vert[2 * face[2]] - pt.vert[2 * face[2] + 1]
 
-  coordinates = _tri_affine_coord(v1, v2, v3, pt.face_pr[face_idx])
+  n = pt.face_pr[face_idx]
+  coordinates = _tri_affine_coord(v1, v2, v3, n)
+
+  # coplanar faces tie for closest, so the selected face may not contain the witness; extrapolating
+  # outside it is inaccurate and unbounded for sliver faces, so use the face the ray along n exits
+  if wp.min(coordinates) < -EPA_WITNESS_TOL:
+    for i in range(pt.nface):
+      if i == face_idx:
+        continue
+      fi = pt.face[i]
+      if _is_face_deleted(fi):
+        continue
+      face_i = _get_face_verts(fi)
+      u1 = pt.vert[2 * face_i[0]] - pt.vert[2 * face_i[0] + 1]
+      u2 = pt.vert[2 * face_i[1]] - pt.vert[2 * face_i[1] + 1]
+      u3 = pt.vert[2 * face_i[2]] - pt.vert[2 * face_i[2] + 1]
+      u2_x_u3 = wp.cross(u2, u3)
+      c = wp.vec3(wp.dot(u2_x_u3, n), wp.dot(wp.cross(u3, u1), n), wp.dot(wp.cross(u1, u2), n))
+      s = c[0] + c[1] + c[2]
+      # skip faces parallel to n or hit behind the origin
+      if not _same_sign(wp.dot(u1, u2_x_u3), s):
+        continue
+      coord_i = c / s
+      if wp.min(coord_i) >= -EPA_WITNESS_TOL:
+        face = face_i
+        coordinates = coord_i
+        break
+
   l1 = coordinates[0]
   l2 = coordinates[1]
   l3 = coordinates[2]
@@ -1594,12 +1638,12 @@ def _aligned_faces(
 # return 1 if found
 @wp.func
 def _aligned_face_edge(
-  edge: wp.array[wp.vec3], nedge: int, face: wp.array[wp.vec3], nface: int, dir: wp.vec3
+  edge: wp.array[wp.vec3], nedge: int, face: wp.array[wp.vec3], nface: int, dir: wp.vec3, dir_tol: float
 ) -> Tuple[int, wp.vec2i]:
   res = wp.vec2i()
   for i in range(nface):
-    # ignore faces pointing away from the collision direction (negative dot product)
-    if wp.dot(face[i], dir) <= MINVAL:
+    # ignore faces pointing away from the collision direction (dot product at most dir_tol)
+    if wp.dot(face[i], dir) <= dir_tol:
       continue
 
     for j in range(nedge):
@@ -2270,7 +2314,56 @@ def _set_edge(
   return 2
 
 
-# recover multiple contacts from EPA polytope
+# compute possible edge normals of a geom
+@wp.func
+def _geom_edge_normals(
+  # In:
+  geomtype: int,
+  geom: Geom,
+  dim: int,
+  feature_index: wp.vec3i,
+  feature_vertex: wp.vec3,
+  x: wp.vec3,
+  polyvertadr: wp.array[int],
+  polyvertnum: wp.array[int],
+  polyvert: wp.array[int],
+  polymapadr: wp.array[int],
+  polymapnum: wp.array[int],
+  polymap: wp.array[int],
+  # Out:
+  normals_out: wp.array[wp.vec3],
+  endvert_out: wp.array[wp.vec3],
+) -> Tuple[int, wp.vec3]:
+  if geomtype == GeomType.BOX:
+    return _box_edge_normals(dim, geom.rot, geom.pos, geom.size, feature_index[0], feature_index[1], normals_out, endvert_out)
+  if geomtype == GeomType.MESH:
+    return _mesh_edge_normals(
+      dim,
+      geom.rot,
+      geom.pos,
+      geom.vertadr,
+      geom.mesh_polyadr,
+      geom.vert,
+      polyvertadr,
+      polyvertnum,
+      polyvert,
+      polymapadr,
+      polymapnum,
+      polymap,
+      feature_index[0],
+      feature_index[1],
+      normals_out,
+      endvert_out,
+    )
+  if geomtype == GeomType.CYLINDER:
+    return _cylinder_edge_normals(
+      dim, geom.rot, geom.pos, geom.size, geom.margin, feature_vertex, feature_index[0], normals_out, endvert_out
+    )
+  if geomtype == GeomType.CAPSULE:
+    return _capsule_edge_normals(geom.rot, geom.pos, geom.size, x, normals_out, endvert_out)
+  return 0, feature_vertex
+
+
 @wp.func
 def multicontact(
   # In:
@@ -2282,6 +2375,7 @@ def multicontact(
   idx2: wp.array[int],
   n1: wp.array[wp.vec3],
   n2: wp.array[wp.vec3],
+  edge: wp.array[wp.vec3],
   endvert: wp.array[wp.vec3],
   face1: wp.array[wp.vec3],
   face2: wp.array[wp.vec3],
@@ -2290,16 +2384,23 @@ def multicontact(
   epa_face: int,
   x1: wp.vec3,
   x2: wp.vec3,
+  dist: float,
   geom1: Geom,
   geom2: Geom,
   geomtype1: int,
   geomtype2: int,
 ) -> Tuple[int, mat43, mat43, wp.vec4]:
+  """Recover clipped contacts from GJK/EPA features.
+
+  Returns clipped witnesses and their margin-inflated distances, or the original
+  GJK/EPA witness and distance as one fallback contact.
+  """
   witness1 = mat43()
   witness2 = mat43()
   dists = wp.vec4()
   witness1[0] = x1
   witness2[0] = x2
+  dists[0] = dist
 
   if geomtype1 == GeomType.MESH:
     vert = geom1.vert
@@ -2373,85 +2474,76 @@ def multicontact(
     nnorms2 = _cylinder_normals(nface2, feature_index2, geom2.rot, n2, idx2)
 
   # determine if any two face normals match
-  is_edge_contact_geom1 = 0
-  is_edge_contact_geom2 = 0
+  is_edge_contact_geom1 = int(0)
+  is_edge_contact_geom2 = int(0)
   nres, res = _aligned_faces(n1, nnorms1, n2, nnorms2, dir)
   if not nres:
-    # check if edge-face collision
-    if nface1 < 3 and nnorms2 and (nface1 <= nface2 or not nnorms1):
-      nnorms1 = 0
-      if geomtype1 == GeomType.BOX:
-        nnorms1, v1 = _box_edge_normals(
-          nface1, geom1.rot, geom1.pos, geom1.size, feature_index1[0], feature_index1[1], n1, endvert
-        )
-      elif geomtype1 == GeomType.MESH:
-        nnorms1, v1 = _mesh_edge_normals(
-          nface1,
-          geom1.rot,
-          geom1.pos,
-          geom1.vertadr,
-          geom1.mesh_polyadr,
-          geom1.vert,
-          polyvertadr,
-          polyvertnum,
-          polyvert,
-          polymapadr,
-          polymapnum,
-          polymap,
-          feature_index1[0],
-          feature_index1[1],
-          n1,
-          endvert,
-        )
-      elif geomtype1 == GeomType.CYLINDER:
-        nnorms1, v1 = _cylinder_edge_normals(
-          nface1, geom1.rot, geom1.pos, geom1.size, geom1.margin, feature_vertex1[0], feature_index1[0], n1, endvert
-        )
-      elif geomtype1 == GeomType.CAPSULE:
-        nnorms1, v1 = _capsule_edge_normals(geom1.rot, geom1.pos, geom1.size, x1, n1, endvert)
-      nres, res = _aligned_face_edge(n1, nnorms1, n2, nnorms2, dir)
-      if not nres:
-        return 1, witness1, witness2, dists
-      is_edge_contact_geom1 = 1
+    # check for an edge-face collision: test the edges of geom 2 first if its feature is
+    # smaller (or geom 2 has no face normals), then the edges of the other geom if they don't
+    # align with a face
+    geom2_first = (nface2 < nface1 or nnorms2 == 0) and nface2 < 3 and nnorms1 > 0
 
-    # check if face-edge collision
-    elif nface2 < 3:
-      nnorms2 = 0
-      if geomtype2 == GeomType.BOX:
-        nnorms2, v2 = _box_edge_normals(
-          nface2, geom2.rot, geom2.pos, geom2.size, feature_index2[0], feature_index2[1], n2, endvert
-        )
-      elif geomtype2 == GeomType.MESH:
-        nnorms2, v2 = _mesh_edge_normals(
+    # box-box pairs test the edges of one box only: MuJoCo collides two boxes with its box-box
+    # collider, which keeps one contact in most poses where the edges of the other box align
+    # with a face
+    ntest = wp.where(geomtype1 == GeomType.BOX and geomtype2 == GeomType.BOX, 1, 2)
+
+    # the second test also skips faces within the edge tolerance of perpendicular to the
+    # collision direction, as _aligned_faces does: the float32 contact normal can be a degree or
+    # two off MuJoCo's and tilt a face perpendicular to MuJoCo's normal (e.g., the cap of a
+    # cylinder touching at its rim) toward the contact
+    edge_dir_tol = EDGE_TOL * wp.norm_l2(dir)
+    for k in range(ntest):
+      dir_tol = wp.where(k == 0, MINVAL, edge_dir_tol)
+      test_geom1 = (k == 0) != geom2_first
+      if test_geom1:
+        # the edges of geom 1 against the faces of geom 2
+        if nface1 < 3 and nnorms2:
+          nedge, v1 = _geom_edge_normals(
+            geomtype1,
+            geom1,
+            nface1,
+            feature_index1,
+            feature_vertex1[0],
+            x1,
+            polyvertadr,
+            polyvertnum,
+            polyvert,
+            polymapadr,
+            polymapnum,
+            polymap,
+            edge,
+            endvert,
+          )
+          nres, res = _aligned_face_edge(edge, nedge, n2, nnorms2, dir, dir_tol)
+          if nres:
+            is_edge_contact_geom1 = 1
+            break
+      elif nface2 < 3 and nnorms1:
+        # the edges of geom 2 against the faces of geom 1
+        nedge, v2 = _geom_edge_normals(
+          geomtype2,
+          geom2,
           nface2,
-          geom2.rot,
-          geom2.pos,
-          geom2.vertadr,
-          geom2.mesh_polyadr,
-          geom2.vert,
+          feature_index2,
+          feature_vertex2[0],
+          x2,
           polyvertadr,
           polyvertnum,
           polyvert,
           polymapadr,
           polymapnum,
           polymap,
-          feature_index2[0],
-          feature_index2[1],
-          n2,
+          edge,
           endvert,
         )
-      elif geomtype2 == GeomType.CYLINDER:
-        nnorms2, v2 = _cylinder_edge_normals(
-          nface2, geom2.rot, geom2.pos, geom2.size, geom2.margin, feature_vertex2[0], feature_index2[0], n2, endvert
-        )
-      elif geomtype2 == GeomType.CAPSULE:
-        nnorms2, v2 = _capsule_edge_normals(geom2.rot, geom2.pos, geom2.size, x2, n2, endvert)
-      nres, res = _aligned_face_edge(n2, nnorms2, n1, nnorms1, dir_neg)
-      if not nres:
-        return 1, witness1, witness2, dists
-      is_edge_contact_geom2 = 1
-    else:
-      # no multi-contact
+        nres, res = _aligned_face_edge(edge, nedge, n1, nnorms1, dir_neg, dir_tol)
+        if nres:
+          is_edge_contact_geom2 = 1
+          break
+
+    # no multi-contact
+    if not nres:
       return 1, witness1, witness2, dists
 
   i = res[0]
@@ -2665,7 +2757,10 @@ def gjk_phase(
     full_margin2 = geom2.size[0] + 0.5 * orig_margin2
     geom2.margin = 0.0
     geom2.size = wp.vec3(0.0, geom2.size[1], geom2.size[2])
-  elif has_non_hfield_margin:
+  elif has_non_hfield_margin or (geomtype1 == GeomType.MESH and (geomtype2 == GeomType.TRIANGLE or geomtype2 == GeomType.FLEX)):
+    # mesh-vs-flex elements (always geom2) carry their radius in margin: run GJK on the bare
+    # element and only run EPA on the inflated element when the bare element overlaps, at a depth
+    # of at least the radius. MuJoCo C runs GJK/EPA on the inflated element, with the same result.
     full_margin2 = 0.5 * orig_margin2
     geom2.margin = 0.0
 

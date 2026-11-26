@@ -28,14 +28,16 @@ from mujoco.mjx.third_party.mujoco_warp._src import sensor
 from mujoco.mjx.third_party.mujoco_warp._src import sleep
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import solver
+from mujoco.mjx.third_party.mujoco_warp._src import sort
 from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import util_misc
 from mujoco.mjx.third_party.mujoco_warp._src.support import mat33_to_quat_polar
 from mujoco.mjx.third_party.mujoco_warp._src.support import next_act
 from mujoco.mjx.third_party.mujoco_warp._src.support import xfrc_accumulate
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
-from mujoco.mjx.third_party.mujoco_warp._src.types import ROD_HINGE_SIZE
 from mujoco.mjx.third_party.mujoco_warp._src.types import BiasType
+from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseType
+from mujoco.mjx.third_party.mujoco_warp._src.types import CtrlInput
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DeterminismType
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
@@ -65,9 +67,9 @@ def check_discrete(m: Model):
   if m.opt.integrator != IntegratorType.DISCRETE:
     if m.has_flex_snh:
       raise ValueError("stable Neo-Hookean elasticity requires integrator='discrete'")
-    if m.has_flex_passive:
+    if passive.flex_passive_contact(m):
       raise ValueError("passive flex contact requires an integrator with the effective metric: set integrator='discrete'")
-    if m.opt.integrator in (IntegratorType.IMPLICIT, IntegratorType.IMPLICITFAST) and (m.nefmK > 0 or m.has_non_simple_flex):
+    if m.opt.integrator in (IntegratorType.IMPLICIT, IntegratorType.IMPLICITFAST) and m.has_flex_stiff:
       raise ValueError(
         "flex elasticity is no longer integrated implicitly under integrator='implicit' and 'implicitfast': "
         "set integrator='discrete', or 'Euler' with a small timestep"
@@ -82,95 +84,122 @@ def check_discrete(m: Model):
   if m.opt.solver == SolverType.NEWTON and m.has_non_simple_flex:
     raise ValueError("discrete integrator: flex with general attachments requires solver='CG'")
   if m.opt.solver == SolverType.NEWTON and not m.flex_interp_assemblable:
-    raise ValueError(
-      "Discrete integrator: Newton solver requires interpolated flex nodes to be on 3-DOF slider bodies; use solver='CG'"
-    )
+    raise ValueError("discrete integrator: interpolated flex with non-simple nodes not yet supported with the Newton solver")
   if m.opt.enableflags & EnableBit.SLEEP:
     if m.opt.disableflags & DisableBit.ISLAND:
       raise ValueError("Discrete integrator: sleep without islands not yet supported")
-    if m.nefmK > 0 or m.nflexrodhinge > 0 or m.has_non_simple_flex or m.has_flex_passive or not m.flex_interp_assemblable:
+    if (
+      m.nefmK > 0
+      or m.nflexrodhinge > 0
+      or m.has_non_simple_flex
+      or passive.flex_passive_contact(m)
+      or not m.flex_interp_assemblable
+    ):
       raise ValueError("Discrete integrator: sleep with flex not yet supported")
 
 
-@wp.kernel
-def _next_position(
-  # Model:
-  opt_timestep: wp.array[float],
-  jnt_type: wp.array[int],
-  jnt_qposadr: wp.array[int],
-  jnt_dofadr: wp.array[int],
-  # Data in:
-  qpos_in: wp.array2d[float],
-  qvel_in: wp.array2d[float],
-  # In:
-  qvel_scale_in: float,
-  # Data out:
-  qpos_out: wp.array2d[float],
-):
-  worldid, jntid = wp.tid()
-  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+@cache_kernel
+def _next_position(enable_sleep: bool = False):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    opt_timestep: wp.array[float],
+    body_treeid: wp.array[int],
+    jnt_type: wp.array[int],
+    jnt_qposadr: wp.array[int],
+    jnt_dofadr: wp.array[int],
+    jnt_bodyid: wp.array[int],
+    # Data in:
+    qpos_in: wp.array2d[float],
+    qvel_in: wp.array2d[float],
+    tree_awake_in: wp.array2d[int],
+    # In:
+    qvel_scale_in: float,
+    # Data out:
+    qpos_out: wp.array2d[float],
+  ):
+    worldid, jntid = wp.tid()
+    if wp.static(enable_sleep):
+      treeid = body_treeid[jnt_bodyid[jntid]]
+      if treeid >= 0 and tree_awake_in[worldid, treeid] == 0:
+        return
 
-  jnttype = jnt_type[jntid]
-  qpos_adr = jnt_qposadr[jntid]
-  dof_adr = jnt_dofadr[jntid]
-  qpos = qpos_in[worldid]
-  qpos_next = qpos_out[worldid]
-  qvel = qvel_in[worldid]
+    timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
-  if jnttype == JointType.FREE:
-    qpos_pos = wp.vec3(qpos[qpos_adr], qpos[qpos_adr + 1], qpos[qpos_adr + 2])
-    qvel_lin = wp.vec3(qvel[dof_adr], qvel[dof_adr + 1], qvel[dof_adr + 2]) * qvel_scale_in
+    jnttype = jnt_type[jntid]
+    qpos_adr = jnt_qposadr[jntid]
+    dof_adr = jnt_dofadr[jntid]
+    qpos = qpos_in[worldid]
+    qpos_next = qpos_out[worldid]
+    qvel = qvel_in[worldid]
 
-    qpos_new = qpos_pos + timestep * qvel_lin
+    if jnttype == JointType.FREE:
+      qpos_pos = wp.vec3(qpos[qpos_adr], qpos[qpos_adr + 1], qpos[qpos_adr + 2])
+      qvel_lin = wp.vec3(qvel[dof_adr], qvel[dof_adr + 1], qvel[dof_adr + 2]) * qvel_scale_in
 
-    qpos_quat = wp.quat(
-      qpos[qpos_adr + 3],
-      qpos[qpos_adr + 4],
-      qpos[qpos_adr + 5],
-      qpos[qpos_adr + 6],
-    )
-    qvel_ang = wp.vec3(qvel[dof_adr + 3], qvel[dof_adr + 4], qvel[dof_adr + 5]) * qvel_scale_in
+      qpos_new = qpos_pos + timestep * qvel_lin
 
-    qpos_quat_new = math.quat_integrate(qpos_quat, qvel_ang, timestep)
+      qpos_quat = wp.quat(
+        qpos[qpos_adr + 3],
+        qpos[qpos_adr + 4],
+        qpos[qpos_adr + 5],
+        qpos[qpos_adr + 6],
+      )
+      qvel_ang = wp.vec3(qvel[dof_adr + 3], qvel[dof_adr + 4], qvel[dof_adr + 5]) * qvel_scale_in
 
-    qpos_next[qpos_adr + 0] = qpos_new[0]
-    qpos_next[qpos_adr + 1] = qpos_new[1]
-    qpos_next[qpos_adr + 2] = qpos_new[2]
-    qpos_next[qpos_adr + 3] = qpos_quat_new[0]
-    qpos_next[qpos_adr + 4] = qpos_quat_new[1]
-    qpos_next[qpos_adr + 5] = qpos_quat_new[2]
-    qpos_next[qpos_adr + 6] = qpos_quat_new[3]
+      qpos_quat_new = math.quat_integrate(qpos_quat, qvel_ang, timestep)
 
-  elif jnttype == JointType.BALL:
-    qpos_quat = wp.quat(qpos[qpos_adr + 0], qpos[qpos_adr + 1], qpos[qpos_adr + 2], qpos[qpos_adr + 3])
-    qvel_ang = wp.vec3(qvel[dof_adr], qvel[dof_adr + 1], qvel[dof_adr + 2]) * qvel_scale_in
+      qpos_next[qpos_adr + 0] = qpos_new[0]
+      qpos_next[qpos_adr + 1] = qpos_new[1]
+      qpos_next[qpos_adr + 2] = qpos_new[2]
+      qpos_next[qpos_adr + 3] = qpos_quat_new[0]
+      qpos_next[qpos_adr + 4] = qpos_quat_new[1]
+      qpos_next[qpos_adr + 5] = qpos_quat_new[2]
+      qpos_next[qpos_adr + 6] = qpos_quat_new[3]
 
-    qpos_quat_new = math.quat_integrate(qpos_quat, qvel_ang, timestep)
+    elif jnttype == JointType.BALL:
+      qpos_quat = wp.quat(qpos[qpos_adr + 0], qpos[qpos_adr + 1], qpos[qpos_adr + 2], qpos[qpos_adr + 3])
+      qvel_ang = wp.vec3(qvel[dof_adr], qvel[dof_adr + 1], qvel[dof_adr + 2]) * qvel_scale_in
 
-    qpos_next[qpos_adr + 0] = qpos_quat_new[0]
-    qpos_next[qpos_adr + 1] = qpos_quat_new[1]
-    qpos_next[qpos_adr + 2] = qpos_quat_new[2]
-    qpos_next[qpos_adr + 3] = qpos_quat_new[3]
+      qpos_quat_new = math.quat_integrate(qpos_quat, qvel_ang, timestep)
 
-  else:  # if jnt_type in (JointType.HINGE, JointType.SLIDE):
-    qpos_next[qpos_adr] = qpos[qpos_adr] + timestep * qvel[dof_adr] * qvel_scale_in
+      qpos_next[qpos_adr + 0] = qpos_quat_new[0]
+      qpos_next[qpos_adr + 1] = qpos_quat_new[1]
+      qpos_next[qpos_adr + 2] = qpos_quat_new[2]
+      qpos_next[qpos_adr + 3] = qpos_quat_new[3]
+
+    else:  # if jnt_type in (JointType.HINGE, JointType.SLIDE):
+      qpos_next[qpos_adr] = qpos[qpos_adr] + timestep * qvel[dof_adr] * qvel_scale_in
+
+  return kernel
 
 
-@wp.kernel
-def _next_velocity(
-  # Model:
-  opt_timestep: wp.array[float],
-  # Data in:
-  qvel_in: wp.array2d[float],
-  qacc_in: wp.array2d[float],
-  # In:
-  qacc_scale_in: float,
-  # Data out:
-  qvel_out: wp.array2d[float],
-):
-  worldid, dofid = wp.tid()
-  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
-  qvel_out[worldid, dofid] = qvel_in[worldid, dofid] + qacc_scale_in * qacc_in[worldid, dofid] * timestep
+@cache_kernel
+def _next_velocity(enable_sleep: bool = False):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    opt_timestep: wp.array[float],
+    dof_treeid: wp.array[int],
+    # Data in:
+    qvel_in: wp.array2d[float],
+    qacc_in: wp.array2d[float],
+    tree_awake_in: wp.array2d[int],
+    # In:
+    qacc_scale_in: float,
+    # Data out:
+    qvel_out: wp.array2d[float],
+  ):
+    worldid, dofid = wp.tid()
+    if wp.static(enable_sleep):
+      treeid = dof_treeid[dofid]
+      if treeid >= 0 and tree_awake_in[worldid, treeid] == 0:
+        return
+
+    timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+    qvel_out[worldid, dofid] = qvel_in[worldid, dofid] + qacc_scale_in * qacc_in[worldid, dofid] * timestep
+
+  return kernel
 
 
 @wp.func
@@ -196,7 +225,7 @@ def _wrap_period(
       dyntype == DynType.NONE or dyntype == DynType.INTEGRATOR or dyntype == DynType.FILTER or dyntype == DynType.FILTEREXACT
     )
   )
-  if not is_servo:
+  if not is_servo and gaintype != GainType.PID:
     return 0.0
 
   # site transmission with refsite and purely rotational gear
@@ -211,6 +240,23 @@ def _wrap_period(
       return wp.static(2.0 * wp.pi) * wp.length(lin_gear)
 
   return 0.0
+
+
+@wp.func
+def _slew_limit(
+  # In:
+  u: float,
+  u_prev: float,
+  slew_s: float,
+  dt: float,
+  period: float,
+) -> Tuple[float, float]:
+  # wrap setpoint nearest previous state before clamping rate
+  if period > 0.0:
+    u -= period * wp.round((u - u_prev) / period)
+  slew = slew_s * dt
+  u_eff = wp.clamp(u, u_prev - slew, u_prev + slew)
+  return u_eff, (u_eff - u_prev) / dt
 
 
 @wp.kernel
@@ -254,6 +300,13 @@ def _next_activation(
   dyntype = actuator_dyntype[uid]
 
   if dyntype == DynType.DCMOTOR:
+    if not limit:
+      # rk4 stage: explicit euler with the stage-scaled timestep, as in mj_RungeKutta
+      h = act_dot_scale * opt_timestep[opt_timestep_id]
+      for j in range(actadr, actadr + actnum):
+        act_out[worldid, j] = act_in[worldid, j] + act_dot_in[worldid, j] * h
+      return
+
     dynprm = actuator_dynprm[actuator_dynprm_id, uid]
     gainprm = actuator_gainprm[actuator_gainprm_id, uid]
     biasprm = actuator_biasprm[actuator_biasprm_id, uid]
@@ -405,7 +458,7 @@ def _next_rod_twist(
   flex_rodedge_jnt: wp.array[int],
   # Data in:
   plastic_in: wp.array2d[float],
-  xmat_in: wp.array2d[wp.mat33],
+  xquat_in: wp.array2d[wp.quat],
   flexvert_xpos_in: wp.array2d[wp.vec3],
   body_awake_in: wp.array2d[int],
   flex_rod_ref_ok_in: wp.array2d[bool],
@@ -417,7 +470,7 @@ def _next_rod_twist(
 ):
   """Carries per-edge (t_e, u_e) reference directors and unwrapped dpsi_h of 1D DER rods."""
   worldid, flexid = wp.tid()
-  if wp.static(ROD_HINGE_SIZE != 10) or not flex_rod_is_chain[flexid] or not flex_rod_ref_ok_in[worldid, flexid]:
+  if not flex_rod_is_chain[flexid] or not flex_rod_ref_ok_in[worldid, flexid]:
     return
   padr = flex_plasticadr[flexid]
   eadr = flex_rod_edgeadr[flexid]
@@ -452,7 +505,7 @@ def _next_rod_twist(
     flex_rod_edgenum,
     flex_rodedge_vert,
     plastic_in,
-    xmat_in,
+    xquat_in,
     flexvert_xpos_in,
     flex_rod_frame0_loc_in,
     flex_rod_frame0_ref_in,
@@ -476,7 +529,7 @@ def _next_rod_twist(
       flex_rod_edgenum,
       flex_rodedge_vert,
       plastic_in,
-      xmat_in,
+      xquat_in,
       flexvert_xpos_in,
       flex_rod_frame0_loc_in,
       flex_rod_frame0_ref_in,
@@ -511,7 +564,7 @@ def _next_rod_twist(
       flex_rod_edgenum,
       flex_rodedge_vert,
       plastic_in,
-      xmat_in,
+      xquat_in,
       flexvert_xpos_in,
       flex_rod_frame0_loc_in,
       flex_rod_frame0_ref_in,
@@ -1254,44 +1307,47 @@ def _next_plastic_flex_interp(
       plastic_out[worldid, padr + 5] = sp5
 
 
-def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None):
+def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None, act_dot: Optional[wp.array] = None):
   """Advance state and time given activation derivatives and acceleration."""
   # TODO(team): can we assume static timesteps?
 
   # advance activations
-  wp.launch(
-    _next_activation,
-    dim=(d.nworld, m.nactuator),
-    inputs=[
-      m.opt.timestep,
-      m.jnt_type,
-      m.actuator_trntype,
-      m.actuator_dyntype,
-      m.actuator_gaintype,
-      m.actuator_biastype,
-      m.actuator_actadr,
-      m.actuator_actnum,
-      m.actuator_trnid,
-      m.actuator_dynprm,
-      m.actuator_gainprm,
-      m.actuator_biasprm,
-      m.actuator_actlimited,
-      m.actuator_actrange,
-      m.actuator_gear,
-      d.act,
-      d.act_dot,
-      d.actuator_length,
-      d.actuator_velocity,
-      1.0,
-      True,
-    ],
-    outputs=[d.act],
-  )
+  if m.na:
+    wp.launch(
+      _next_activation,
+      dim=(d.nworld, m.nactuator),
+      inputs=[
+        m.opt.timestep,
+        m.jnt_type,
+        m.actuator_trntype,
+        m.actuator_dyntype,
+        m.actuator_gaintype,
+        m.actuator_biastype,
+        m.actuator_actadr,
+        m.actuator_actnum,
+        m.actuator_trnid,
+        m.actuator_dynprm,
+        m.actuator_gainprm,
+        m.actuator_biasprm,
+        m.actuator_actlimited,
+        m.actuator_actrange,
+        m.actuator_gear,
+        d.act,
+        d.act_dot if act_dot is None else act_dot,
+        d.actuator_length,
+        d.actuator_velocity,
+        1.0,
+        True,
+      ],
+      outputs=[d.act],
+    )
+
+  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP)
 
   wp.launch(
-    _next_velocity,
+    _next_velocity(sleep_enabled),
     dim=(d.nworld, m.nv),
-    inputs=[m.opt.timestep, d.qvel, qacc, 1.0],
+    inputs=[m.opt.timestep, m.dof_treeid, d.qvel, qacc, d.tree_awake, 1.0],
     outputs=[d.qvel],
   )
 
@@ -1299,9 +1355,20 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
   qvel_in = qvel or d.qvel
 
   wp.launch(
-    _next_position,
+    _next_position(sleep_enabled),
     dim=(d.nworld, m.njnt),
-    inputs=[m.opt.timestep, m.jnt_type, m.jnt_qposadr, m.jnt_dofadr, d.qpos, qvel_in, 1.0],
+    inputs=[
+      m.opt.timestep,
+      m.body_treeid,
+      m.jnt_type,
+      m.jnt_qposadr,
+      m.jnt_dofadr,
+      m.jnt_bodyid,
+      d.qpos,
+      qvel_in,
+      d.tree_awake,
+      1.0,
+    ],
     outputs=[d.qpos],
   )
 
@@ -1325,7 +1392,7 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
         m.flex_rodedge_vert,
         m.flex_rodedge_jnt,
         d.plastic,
-        d.xmat,
+        d.xquat,
         d.flexvert_xpos,
         d.body_awake,
         d.flex_rod_ref_ok,
@@ -1512,66 +1579,95 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
     outputs=[d.time, d.overflow],
   )
 
+  if sleep_enabled:
+    nslept = sleep.sleep(m, d)
+    can_capture_on_slept = m.opt.graph_conditional and m.nflex == 0 and not m.has_fluid
+    cfrc_int_in = wp.empty_like(d.cfrc_int) if can_capture_on_slept else None
+
+    def _on_slept():
+      fwd_velocity(m, d, cfrc_int_in=cfrc_int_in)
+      sleep.update_sleep(m, d)
+
+    if can_capture_on_slept:
+      wp.capture_if(nslept, on_true=_on_slept)
+    else:
+      _on_slept()
+
   wp.copy(d.qacc_warmstart, d.qacc)
 
-  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
-  if sleep_enabled:
-    sleep.sleep(m, d)
-    fwd_velocity(m, d)
-    sleep.update_sleep(m, d)
+
+@cache_kernel
+def _compute_damping_deriv(enable_sleep: bool = False):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    jnt_actuatorid: wp.array[int],
+    dof_jntid: wp.array[int],
+    dof_treeid: wp.array[int],
+    dof_damping: wp.array2d[float],
+    dof_dampingpoly: wp.array2d[wp.vec2],
+    actuator_trntype: wp.array[int],
+    actuator_trnid: wp.array[wp.vec2i],
+    actuator_damping: wp.array2d[float],
+    actuator_dampingpoly: wp.array2d[wp.vec2],
+    actuator_gear: wp.array2d[wp.spatial_vector],
+    # Data in:
+    qvel_in: wp.array2d[float],
+    tree_awake_in: wp.array2d[int],
+    # Out:
+    deriv_out: wp.array2d[float],
+  ):
+    worldid, tid = wp.tid()
+    if wp.static(enable_sleep):
+      treeid = dof_treeid[tid]
+      if treeid >= 0 and tree_awake_in[worldid, treeid] == 0:
+        return
+    damping, dpoly = util_misc.dof_damping_total(
+      jnt_actuatorid,
+      dof_jntid,
+      dof_damping,
+      dof_dampingpoly,
+      actuator_trntype,
+      actuator_trnid,
+      actuator_damping,
+      actuator_dampingpoly,
+      actuator_gear,
+      worldid,
+      tid,
+    )
+    v = qvel_in[worldid, tid]
+    deriv_out[worldid, tid] = util_misc._poly_force_deriv(damping, dpoly, v, 1)
+
+  return kernel
 
 
-@wp.kernel
-def _compute_damping_deriv(
-  # Model:
-  jnt_actuatorid: wp.array[int],
-  dof_jntid: wp.array[int],
-  dof_damping: wp.array2d[float],
-  dof_dampingpoly: wp.array2d[wp.vec2],
-  actuator_trntype: wp.array[int],
-  actuator_trnid: wp.array[wp.vec2i],
-  actuator_damping: wp.array2d[float],
-  actuator_dampingpoly: wp.array2d[wp.vec2],
-  actuator_gear: wp.array2d[wp.spatial_vector],
-  # Data in:
-  qvel_in: wp.array2d[float],
-  # Out:
-  deriv_out: wp.array2d[float],
-):
-  worldid, tid = wp.tid()
-  damping, dpoly = util_misc.dof_damping_total(
-    jnt_actuatorid,
-    dof_jntid,
-    dof_damping,
-    dof_dampingpoly,
-    actuator_trntype,
-    actuator_trnid,
-    actuator_damping,
-    actuator_dampingpoly,
-    actuator_gear,
-    worldid,
-    tid,
-  )
-  v = qvel_in[worldid, tid]
-  deriv_out[worldid, tid] = util_misc._poly_force_deriv(damping, dpoly, v, 1)
+@cache_kernel
+def _euler_damp_qfrc(enable_sleep: bool = False):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    opt_timestep: wp.array[float],
+    dof_treeid: wp.array[int],
+    M_rownnz: wp.array[int],
+    M_rowadr: wp.array[int],
+    # Data in:
+    tree_awake_in: wp.array2d[int],
+    # In:
+    damp_deriv: wp.array2d[float],
+    # Out:
+    M_integration_out: wp.array2d[float],
+  ):
+    worldid, tid = wp.tid()
+    if wp.static(enable_sleep):
+      treeid = dof_treeid[tid]
+      if treeid >= 0 and tree_awake_in[worldid, treeid] == 0:
+        return
+    timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
+    adr = M_rowadr[tid] + M_rownnz[tid] - 1
+    M_integration_out[worldid, adr] += timestep * damp_deriv[worldid, tid]
 
-@wp.kernel
-def _euler_damp_qfrc(
-  # Model:
-  opt_timestep: wp.array[float],
-  M_rownnz: wp.array[int],
-  M_rowadr: wp.array[int],
-  # In:
-  damp_deriv: wp.array2d[float],
-  # Out:
-  M_integration_out: wp.array2d[float],
-):
-  worldid, tid = wp.tid()
-  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
-
-  adr = M_rowadr[tid] + M_rownnz[tid] - 1
-  M_integration_out[worldid, adr] += timestep * damp_deriv[worldid, tid]
+  return kernel
 
 
 @event_scope
@@ -1579,16 +1675,18 @@ def euler(m: Model, d: Data):
   """Euler integrator, semi-implicit in velocity."""
   # integrate damping implicitly
   if not (m.opt.disableflags & (DisableBit.EULERDAMP | DisableBit.DAMPER)):
+    enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP)
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
 
     # Compute damping derivative
     damp_deriv = wp.empty((d.nworld, m.nv), dtype=float)
     wp.launch(
-      _compute_damping_deriv,
+      _compute_damping_deriv(enable_sleep),
       dim=(d.nworld, m.nv),
       inputs=[
         m.jnt_actuatorid,
         m.dof_jntid,
+        m.dof_treeid,
         m.dof_damping,
         m.dof_dampingpoly,
         m.actuator_trntype,
@@ -1597,25 +1695,44 @@ def euler(m: Model, d: Data):
         m.actuator_dampingpoly,
         m.actuator_gear,
         d.qvel,
+        d.tree_awake,
       ],
       outputs=[damp_deriv],
     )
 
-    # Clone M, add the damping to the diagonal, and factor-solve. factor_solve_i factors each block
-    # per-block (packed dense and/or sparse LDL); the scratch qLD matches d.qLD.
-    M = wp.clone(d.M)
+    # Copy M on awake trees, add damping to the diagonal, and factor-solve. factor_solve_i factors
+    # each block per-block (packed dense and/or sparse LDL); the scratch qLD matches d.qLD.
+    if enable_sleep:
+      M = wp.empty_like(d.M)
+      smooth.copy_M_awake(m, d, M)
+    else:
+      M = wp.clone(d.M)
     qLD = wp.empty_like(d.qLD)
     qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
     wp.launch(
-      _euler_damp_qfrc,
+      _euler_damp_qfrc(enable_sleep),
       dim=(d.nworld, m.nv),
-      inputs=[m.opt.timestep, m.M_rownnz, m.M_rowadr, damp_deriv],
+      inputs=[m.opt.timestep, m.dof_treeid, m.M_rownnz, m.M_rowadr, d.tree_awake, damp_deriv],
       outputs=[M],
     )
-    smooth.factor_solve_i(m, d, M, qLD, qLDiagInv, qacc, d.efc.Ma)
+    smooth.factor_solve_i(m, d, M, qLD, qLDiagInv, qacc, d.efc.Ma, store_factor=False)
     _advance(m, d, qacc)
   else:
     _advance(m, d, d.qacc)
+
+
+@wp.kernel
+def _rk_stage_time(
+  # Model:
+  opt_timestep: wp.array[float],
+  # In:
+  time_t0: wp.array[float],
+  scale: float,
+  # Data out:
+  time_out: wp.array[float],
+):
+  worldid = wp.tid()
+  time_out[worldid] = time_t0[worldid] + scale * opt_timestep[worldid % opt_timestep.shape[0]]
 
 
 def _rk_perturb_state(
@@ -1626,20 +1743,37 @@ def _rk_perturb_state(
   qvel_t0: wp.array2d[float],
   qvel_pos: wp.array2d[float],
   act_t0: Optional[wp.array] = None,
+  time_t0: Optional[wp.array] = None,
 ):
+  # time
+  if time_t0 is not None:
+    wp.launch(_rk_stage_time, dim=d.nworld, inputs=[m.opt.timestep, time_t0, scale], outputs=[d.time])
+  enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP)
+
   # position, integrated with the (corrected) previous stage velocity
   wp.launch(
-    _next_position,
+    _next_position(enable_sleep),
     dim=(d.nworld, m.njnt),
-    inputs=[m.opt.timestep, m.jnt_type, m.jnt_qposadr, m.jnt_dofadr, qpos_t0, qvel_pos, scale],
+    inputs=[
+      m.opt.timestep,
+      m.body_treeid,
+      m.jnt_type,
+      m.jnt_qposadr,
+      m.jnt_dofadr,
+      m.jnt_bodyid,
+      qpos_t0,
+      qvel_pos,
+      d.tree_awake,
+      scale,
+    ],
     outputs=[d.qpos],
   )
 
   # velocity
   wp.launch(
-    _next_velocity,
+    _next_velocity(enable_sleep),
     dim=(d.nworld, m.nv),
-    inputs=[m.opt.timestep, qvel_t0, d.qacc, scale],
+    inputs=[m.opt.timestep, m.dof_treeid, qvel_t0, d.qacc, d.tree_awake, scale],
     outputs=[d.qvel],
   )
 
@@ -1781,6 +1915,7 @@ def rungekutta4(m: Model, d: Data):
 
   qpos_t0 = wp.clone(d.qpos)
   qvel_t0 = wp.clone(d.qvel)
+  time_t0 = wp.clone(d.time)
   qvel_rk = wp.zeros((d.nworld, m.nv), dtype=float)
   qacc_rk = wp.zeros((d.nworld, m.nv), dtype=float)
 
@@ -1810,7 +1945,6 @@ def rungekutta4(m: Model, d: Data):
     subtree_com_t0 = wp.clone(d.subtree_com)
     xpos_t0 = wp.clone(d.xpos)
     xquat_t0 = wp.clone(d.xquat)
-    xmat_t0 = wp.clone(d.xmat)
   else:
     flexvert_xpos_t0 = None
     flexnode_xpos_t0 = None
@@ -1818,7 +1952,6 @@ def rungekutta4(m: Model, d: Data):
     subtree_com_t0 = None
     xpos_t0 = None
     xquat_t0 = None
-    xmat_t0 = None
 
   # stage velocities with the RKMK correction (rates of the rotation vectors of ball and
   # free joints); the first stage has a zero rotation vector, so it needs no correction
@@ -1828,7 +1961,8 @@ def rungekutta4(m: Model, d: Data):
 
   for i in range(3):
     a, b = float(A[i]), B[i + 1]
-    _rk_perturb_state(m, d, a, qpos_t0, qvel_t0, qvel_stage, act_t0)
+    _rk_perturb_state(m, d, a, qpos_t0, qvel_t0, qvel_stage, act_t0, time_t0)
+    # sensors keep their values from the start of the step, as in mj_RungeKutta
     _forward(m, d, skip_sensor=True)
     wp.launch(
       _rk_correct_velocity,
@@ -1840,13 +1974,14 @@ def rungekutta4(m: Model, d: Data):
 
   wp.copy(d.qpos, qpos_t0)
   wp.copy(d.qvel, qvel_t0)
+  wp.copy(d.time, time_t0)
 
   # last stage's acceleration, the most recent solve: warm start for the next step
   qacc_last = wp.clone(d.qacc)
 
+  # d.act_dot keeps the last stage's value, as in mj_RungeKutta
   if m.na:
     wp.copy(d.act, act_t0)
-    wp.copy(d.act_dot, act_dot_rk)
 
   if actuator_length_t0 is not None:
     wp.copy(d.actuator_length, actuator_length_t0)
@@ -1865,55 +2000,76 @@ def rungekutta4(m: Model, d: Data):
     wp.copy(d.subtree_com, subtree_com_t0)
     wp.copy(d.xpos, xpos_t0)
     wp.copy(d.xquat, xquat_t0)
-    wp.copy(d.xmat, xmat_t0)
 
-  _advance(m, d, qacc_rk, qvel_rk)
+  _advance(m, d, qacc_rk, qvel_rk, act_dot_rk)
 
   # effective acceleration of the step (RK weighted combination)
   wp.copy(d.qacc, qacc_rk)
   wp.copy(d.qacc_warmstart, qacc_last)
 
 
-@wp.kernel
-def _map_m2d(
-  # Model:
-  mapM2D: wp.array[int],
-  # In:
-  qH_M: wp.array2d[float],
-  # Data out:
-  qLU_out: wp.array2d[float],
-):
-  # Scatter qH_M (M-structure) into the D-structure qLU via mapM2D.
-  worldid, elemid = wp.tid()
-  m_idx = mapM2D[elemid]
-  if m_idx >= 0:
-    qLU_out[worldid, elemid] = qH_M[worldid, m_idx]
-  else:
-    qLU_out[worldid, elemid] = 0.0
+@cache_kernel
+def _map_m2d(enable_sleep: bool = False):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    dof_treeid: wp.array[int],
+    mapM2D: wp.array[int],
+    qD_fullm_i: wp.array[int],
+    # Data in:
+    tree_awake_in: wp.array2d[int],
+    # In:
+    qH_M: wp.array2d[float],
+    # Data out:
+    qLU_out: wp.array2d[float],
+  ):
+    # Scatter qH_M (M-structure) into the D-structure qLU via mapM2D.
+    worldid, elemid = wp.tid()
+    if wp.static(enable_sleep):
+      treeid = dof_treeid[qD_fullm_i[elemid]]
+      if treeid >= 0 and tree_awake_in[worldid, treeid] == 0:
+        return
+    m_idx = mapM2D[elemid]
+    if m_idx >= 0:
+      qLU_out[worldid, elemid] = qH_M[worldid, m_idx]
+    else:
+      qLU_out[worldid, elemid] = 0.0
+
+  return kernel
 
 
-@wp.kernel
-def _implicit_free_body_reset_m(
-  # Model:
-  body_dofadr: wp.array[int],
-  M_rownnz: wp.array[int],
-  M_rowadr: wp.array[int],
-  body_freeadr: wp.array[int],
-  # Data in:
-  M_in: wp.array2d[float],
-  # Data out:
-  qH_out: wp.array2d[float],
-):
-  worldid, freeid = wp.tid()
-  bodyid = body_freeadr[freeid]
+@cache_kernel
+def _implicit_free_body_reset_m(enable_sleep: bool = False):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    body_dofadr: wp.array[int],
+    body_treeid: wp.array[int],
+    M_rownnz: wp.array[int],
+    M_rowadr: wp.array[int],
+    body_freeadr: wp.array[int],
+    # Data in:
+    M_in: wp.array2d[float],
+    tree_awake_in: wp.array2d[int],
+    # Data out:
+    qH_out: wp.array2d[float],
+  ):
+    worldid, freeid = wp.tid()
+    bodyid = body_freeadr[freeid]
+    if wp.static(enable_sleep):
+      treeid = body_treeid[bodyid]
+      if treeid >= 0 and tree_awake_in[worldid, treeid] == 0:
+        return
 
-  dof_adr = body_dofadr[bodyid]
-  for r in range(6):
-    row = dof_adr + r
-    start = M_rowadr[row]
-    nnz = M_rownnz[row]
-    for k in range(nnz):
-      qH_out[worldid, start + k] = M_in[worldid, start + k]
+    dof_adr = body_dofadr[bodyid]
+    for r in range(6):
+      row = dof_adr + r
+      start = M_rowadr[row]
+      nnz = M_rownnz[row]
+      for k in range(nnz):
+        qH_out[worldid, start + k] = M_in[worldid, start + k]
+
+  return kernel
 
 
 @wp.func
@@ -2052,11 +2208,11 @@ def _implicit_free_body(
   # Data in:
   qvel_in: wp.array2d[float],
   xpos_in: wp.array2d[wp.vec3],
-  xmat_in: wp.array2d[wp.mat33],
+  xquat_in: wp.array2d[wp.quat],
   xipos_in: wp.array2d[wp.vec3],
-  ximat_in: wp.array2d[wp.mat33],
+  xiquat_in: wp.array2d[wp.quat],
   geom_xpos_in: wp.array2d[wp.vec3],
-  geom_xmat_in: wp.array2d[wp.mat33],
+  geom_xquat_in: wp.array2d[wp.quat],
   subtree_com_in: wp.array2d[wp.vec3],
   cdof_in: wp.array2d[wp.spatial_vector],
   crb_in: wp.array2d[vec10],
@@ -2117,7 +2273,7 @@ def _implicit_free_body(
   # 3. Add gyroscopic bias velocity derivative
   crb = crb_in[worldid, bodyid]
   subtree_mass = crb[9]
-  R = xmat_in[worldid, bodyid]
+  R = math.quat_to_mat(xquat_in[worldid, bodyid])
   Iw = wp.mat33(
     crb[0],
     crb[3],
@@ -2172,7 +2328,7 @@ def _implicit_free_body(
 
           size = geom_size[worldid % geom_size.shape[0], geomid]
           semiaxes = passive.geom_semiaxes(size, geom_type[geomid])
-          geom_rot = geom_xmat_in[worldid, geomid]
+          geom_rot = math.quat_to_mat(geom_xquat_in[worldid, geomid])
           geom_rotT = wp.transpose(geom_rot)
           geom_pos = geom_xpos_in[worldid, geomid]
 
@@ -2221,7 +2377,7 @@ def _implicit_free_body(
 
       elif body_mass[worldid % body_mass.shape[0], b] >= MJ_MINVAL:
         b_ipos = xipos_in[worldid, b]
-        b_imat = ximat_in[worldid, b]
+        b_imat = math.quat_to_mat(xiquat_in[worldid, b])
 
         cvel = cvel_in[worldid, b]
         v_subtree_ang = wp.vec3(cvel[0], cvel[1], cvel[2])
@@ -2327,11 +2483,11 @@ def implicit_free_body(m: Model, d: Data, vec_in: wp.array2d[float], vec_out: wp
       m.body_freeadr,
       d.qvel,
       d.xpos,
-      d.xmat,
+      d.xquat,
       d.xipos,
-      d.ximat,
+      d.xiquat,
       d.geom_xpos,
-      d.geom_xmat,
+      d.geom_xquat,
       d.subtree_com,
       d.cdof,
       d.crb,
@@ -2346,16 +2502,31 @@ def implicit_free_body(m: Model, d: Data, vec_in: wp.array2d[float], vec_out: wp
 
 
 @cache_kernel
-def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inverse: bool, is_sparse: bool):
-  @wp.kernel(module="unique")
+def _discrete_free_gyro_kernel(
+  has_fluid: bool,
+  has_flex_passive: bool,
+  has_flex_stiff: bool,
+  is_inverse: bool,
+  is_sparse: bool,
+):
+  @wp.kernel(module="unique", enable_backward=False)
   def _discrete_free_gyro(
     # Model:
     nactuator: int,
+    nflex: int,
     ntendon: int,
     opt_timestep: wp.array[float],
     opt_enableflags: int,
     body_dofadr: wp.array[int],
+    body_treeid: wp.array[int],
     dof_treeid: wp.array[int],
+    flex_interp: wp.array[int],
+    flex_nodeadr: wp.array[int],
+    flex_nodenum: wp.array[int],
+    flex_vertadr: wp.array[int],
+    flex_vertnum: wp.array[int],
+    flex_nodebodyid: wp.array[int],
+    flex_vertbodyid: wp.array[int],
     ten_J_rownnz: wp.array[int],
     ten_J_rowadr: wp.array[int],
     ten_J_colind: wp.array[int],
@@ -2364,12 +2535,13 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
     M_colind: wp.array[int],
     efm_K_rownnz: wp.array[int],
     body_freeadr: wp.array[int],
+    flex_stiff_possible: wp.array[bool],
     # Data in:
     nefc_in: wp.array[int],
     qvel_in: wp.array2d[float],
     qacc_in: wp.array2d[float],
     xpos_in: wp.array2d[wp.vec3],
-    xmat_in: wp.array2d[wp.mat33],
+    xquat_in: wp.array2d[wp.quat],
     subtree_com_in: wp.array2d[wp.vec3],
     moment_rownnz_in: wp.array2d[int],
     moment_rowadr_in: wp.array2d[int],
@@ -2397,7 +2569,9 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
     # Out:
     out: wp.array2d[float],
   ):
-    worldid, freeid = wp.tid()
+    """One block per free body: the threads scan the couplings, then one thread solves."""
+    worldid, freeid, tid = wp.tid()
+    nthread = wp.block_dim()
     bodyid = body_freeadr[freeid]
     dof_adr = body_dofadr[bodyid]
 
@@ -2410,8 +2584,19 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
     for r in range(6):
       if efm_K_rownnz[dof_adr + r] != 0:
         return
-    nefc = nefc_in[worldid]
-    for i in range(nefc):
+    coupled = int(0)
+    if wp.static(has_flex_stiff):
+      for f in range(nflex):
+        if flex_stiff_possible[f]:
+          is_interp = flex_interp[f] != 0
+          vadr = flex_nodeadr[f] if is_interp else flex_vertadr[f]
+          vnum = flex_nodenum[f] if is_interp else flex_vertnum[f]
+          for v in range(vadr + tid, vadr + vnum, nthread):
+            b = flex_nodebodyid[v] if is_interp else flex_vertbodyid[v]
+            if b >= 0 and body_treeid[b] == treeid:
+              coupled = 1
+    nefc = wp.min(nefc_in[worldid], efc_J_rownnz_in.shape[1] if wp.static(is_sparse) else efc_J_in.shape[1])
+    for i in range(tid, nefc, nthread):
       if wp.static(is_sparse):
         radr = efc_J_rowadr_in[worldid, i]
         rnnz = efc_J_rownnz_in[worldid, i]
@@ -2419,34 +2604,36 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
           c = efc_J_colind_in[worldid, 0, radr + j]
           if c >= dof_adr and c < dof_adr + 6:
             if efc_J_in[worldid, 0, radr + j] != 0.0:
-              return
+              coupled = 1
       else:
         for r in range(6):
           if efc_J_in[worldid, i, dof_adr + r] != 0.0:
-            return
-    for t in range(ntendon):
+            coupled = 1
+    for t in range(tid, ntendon, nthread):
       if efm_ts_in[worldid, t] != 0.0:
         radr = ten_J_rowadr[t]
         for j in range(ten_J_rownnz[t]):
           c = ten_J_colind[radr + j]
           if c >= dof_adr and c < dof_adr + 6:
-            return
-    for a in range(nactuator):
+            coupled = 1
+    for a in range(tid, nactuator, nthread):
       if efm_as_in[worldid, a] != 0.0:
         radr = moment_rowadr_in[worldid, a]
         for j in range(moment_rownnz_in[worldid, a]):
           c = moment_colind_in[worldid, radr + j]
           if c >= dof_adr and c < dof_adr + 6:
-            return
+            coupled = 1
     if wp.static(has_flex_passive):
-      nacon = nacon_in[0]
-      for cid in range(nacon):
+      nacon = wp.min(nacon_in[0], contact_worldid_in.shape[0])
+      for cid in range(tid, nacon, nthread):
         if contact_worldid_in[cid] == worldid and efm_con_scale_in[cid] != 0.0:
           nnz = efm_con_nnz_in[cid]
           for j in range(nnz):
             c = efm_con_dof_in[cid, j]
             if c >= dof_adr and c < dof_adr + 6:
-              return
+              coupled = 1
+    if wp.tile_max(wp.tile(coupled))[0] != 0 or tid != 0:
+      return
 
     timestep = opt_timestep[worldid % opt_timestep.shape[0]]
     crb = crb_in[worldid, bodyid]
@@ -2493,7 +2680,7 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
             A[c, r] += val
 
     s = subtree_com_in[worldid, bodyid] - xpos_in[worldid, bodyid]
-    lin, rot = math.free_bias_vel_blocks(subtree_mass, xmat_in[worldid, bodyid], Iw, s, qvel_rot)
+    lin, rot = math.free_bias_vel_blocks(subtree_mass, math.quat_to_mat(xquat_in[worldid, bodyid]), Iw, s, qvel_rot)
     h_mass = -timestep * subtree_mass
     for r in range(3):
       for c in range(3):
@@ -2521,25 +2708,35 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
 
 
 def _launch_discrete_free_gyro(m: Model, d: Data, out: wp.array2d[float], qacc: wp.array2d[float], is_inverse: bool):
-  if m.opt.integrator != IntegratorType.DISCRETE or not m.flex_interp_assemblable or m.has_non_simple_flex:
+  if m.opt.integrator != IntegratorType.DISCRETE:
     return
   has_fluid = m.has_fluid and not ((m.opt.disableflags & DisableBit.SPRING) and (m.opt.disableflags & DisableBit.DAMPER))
-  if m.has_flex_passive and m.body_freeadr.size > 0:
+  if passive.flex_passive_contact(m) and m.body_freeadr.size > 0:
     efm_con_dof, _, efm_con_scale, _, efm_con_nnz = passive.build_efm_contact(m, d)
   else:
     efm_con_dof = wp.empty((0, 0), dtype=int, device=d.qacc.device)
     efm_con_scale = wp.empty(0, dtype=float, device=d.qacc.device)
     efm_con_nnz = wp.empty(0, dtype=int, device=d.qacc.device)
-  wp.launch(
-    _discrete_free_gyro_kernel(has_fluid, m.has_flex_passive, is_inverse, m.is_sparse),
+  wp.launch_tiled(
+    _discrete_free_gyro_kernel(has_fluid, passive.flex_passive_contact(m), m.has_flex_stiff, is_inverse, m.is_sparse),
     dim=(d.nworld, m.body_freeadr.size),
+    block_dim=m.block_dim.discrete_free_gyro,
     inputs=[
       m.nactuator,
+      m.nflex,
       m.ntendon,
       m.opt.timestep,
       m.opt.enableflags,
       m.body_dofadr,
+      m.body_treeid,
       m.dof_treeid,
+      m.flex_interp,
+      m.flex_nodeadr,
+      m.flex_nodenum,
+      m.flex_vertadr,
+      m.flex_vertnum,
+      m.flex_nodebodyid,
+      m.flex_vertbodyid,
       m.ten_J_rownnz,
       m.ten_J_rowadr,
       m.ten_J_colind,
@@ -2548,11 +2745,12 @@ def _launch_discrete_free_gyro(m: Model, d: Data, out: wp.array2d[float], qacc: 
       m.M_colind,
       m.efm_K_rownnz,
       m.body_freeadr,
+      m.flex_stiff_possible,
       d.nefc,
       d.qvel,
       qacc,
       d.xpos,
-      d.xmat,
+      d.xquat,
       d.subtree_com,
       d.moment_rownnz,
       d.moment_rowadr,
@@ -2584,16 +2782,16 @@ def _launch_discrete_free_gyro(m: Model, d: Data, out: wp.array2d[float], qacc: 
 def implicit_qlu(m: Model, d: Data, qLU: Optional[wp.array2d[float]] = None):
   """Sets qLU (d.qLU if None) = M - dt * qDeriv in D-structure, including RNE derivatives."""
   qLU = d.qLU if qLU is None else qLU
-
+  enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP)
   # Smooth velocity derivatives into M-structure
   qH_M = wp.empty((d.nworld, m.nC), dtype=float)
   derivative.deriv_smooth_vel(m, d, qH_M)
 
   # Map qH_M (M-structure) to qLU (D-structure) via mapM2D.
   wp.launch(
-    _map_m2d,
+    _map_m2d(enable_sleep),
     dim=(d.nworld, m.nD),
-    inputs=[m.mapM2D, qH_M],
+    inputs=[m.dof_treeid, m.mapM2D, m.qD_fullm_i, d.tree_awake, qH_M],
     outputs=[qLU],
   )
 
@@ -2617,25 +2815,28 @@ def implicit(m: Model, d: Data):
   elif (m.opt.disableflags & (DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)) != (
     DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER
   ):
+    enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP)
     # qDeriv is in M-structure; the scratch qLD matches d.qLD (per-block).
     qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
     qLD = wp.empty_like(d.qLD)
     qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     wp.launch(
-      _implicit_free_body_reset_m,
+      _implicit_free_body_reset_m(enable_sleep),
       dim=(d.nworld, m.body_freeadr.size),
       inputs=[
         m.body_dofadr,
+        m.body_treeid,
         m.M_rownnz,
         m.M_rowadr,
         m.body_freeadr,
         d.M,
+        d.tree_awake,
       ],
       outputs=[qDeriv],
     )
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
-    smooth.factor_solve_i(m, d, qDeriv, qLD, qLDiagInv, qacc, d.efc.Ma)
+    smooth.factor_solve_i(m, d, qDeriv, qLD, qLDiagInv, qacc, d.efc.Ma, store_factor=False)
     implicit_free_body(m, d, d.efc.Ma, qacc, solve=True)
     _advance(m, d, qacc)
   else:
@@ -2650,16 +2851,35 @@ def fwd_kinematics(m: Model, d: Data):
     m: The model containing kinematic and dynamic information.
     d: The data object containing the current state and output arrays.
   """
+  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP)
+  if sleep_enabled:
+    woke = wp.zeros(1, dtype=int) if m.opt.graph_conditional else None
+    sleep.wake(m, d, woke=woke)
+    if woke is not None:
+      wp.capture_if(woke, on_true=sleep.update_sleep, m=m, d=d)
+    else:
+      sleep.update_sleep(m, d)
+
   smooth.kinematics(m, d)
   smooth.com_pos(m, d)
   smooth.camlight(m, d)
   smooth.flex(m, d)
   smooth.tendon(m, d)
 
-  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
   if sleep_enabled and m.ntendon > 0:
-    sleep.wake_tendon(m, d)
-    sleep.update_sleep_trees(m, d)
+    woke_ten = wp.zeros(1, dtype=int) if m.opt.graph_conditional else None
+    sleep.wake_tendon(m, d, woke=woke_ten)
+    if woke_ten is not None:
+      wp.capture_if(woke_ten, on_true=sleep.update_sleep, m=m, d=d)
+    else:
+      sleep.update_sleep(m, d)
+
+
+def needs_eq_com_vel(m: Model) -> bool:
+  """Whether connect/weld targets need velocity kinematics during constraint assembly."""
+  return bool(m.eq_connect_adr.size or m.eq_wld_adr.size) and not bool(
+    m.opt.disableflags & (DisableBit.CONSTRAINT | DisableBit.EQUALITY)
+  )
 
 
 @event_scope
@@ -2673,36 +2893,60 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   """
   fwd_kinematics(m, d)
 
-  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
+  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP)
+
+  if m.opt.run_collision_detection:
+    if sleep_enabled:
+      ctx = collision_driver.prepare_collision_context(m, d)
+      collision_driver.collision(m, d, ctx=ctx, sort_contacts=False)
+
+      ctx.woke.zero_()
+      sleep.wake_collision(m, d, woke=ctx.woke)
+
+      if m.opt.graph_conditional and m.opt.broadphase == BroadphaseType.NXN:
+
+        def finish_wake():
+          wp.copy(ctx.awake_prev, d.body_awake)
+          sleep.update_sleep(m, d)
+          collision_driver.collision(m, d, ctx=ctx, awake_prev=ctx.awake_prev, sort_contacts=False)
+
+        wp.capture_if(ctx.woke, on_true=finish_wake)
+      else:
+        collision_driver.copy_body_awake_if_woke(m, d, ctx.woke, ctx.awake_prev)
+        sleep.update_sleep(m, d, woke=ctx.woke)
+        collision_driver.collision(m, d, ctx=ctx, awake_prev=ctx.awake_prev, woke=ctx.woke, sort_contacts=False)
+
+      # Sort once after both passes. The second pass only appends contacts, and sorting allocates
+      # scratch buffers, which CUDA conditional bodies do not support.
+      if (
+        d.naconmax > 0
+        and not (m.opt.disableflags & (DisableBit.CONSTRAINT | DisableBit.CONTACT))
+        and (m.opt.deterministic & DeterminismType.CONTACTS)
+      ):
+        sort.contacts(d)
+    else:
+      collision_driver.collision(m, d)
+
+  # Connect/weld Jdot*v reads cvel and cdof_dot while constructing acceleration targets.
+  if needs_eq_com_vel(m):
+    smooth.com_vel(m, d)
+  constraint.make_constraint(m, d)
+
+  if sleep_enabled:
+    if m.neq > 0:
+      woke_eq = wp.zeros(1, dtype=int) if m.opt.graph_conditional else None
+      sleep.wake_equality(m, d, woke=woke_eq)
+      if woke_eq is not None:
+        wp.capture_if(woke_eq, on_true=sleep.update_sleep, m=m, d=d)
+      else:
+        sleep.update_sleep(m, d)
 
   smooth.crb(m, d)
   smooth.tendon_armature(m, d)
   if factorize:
     smooth.factor_m(m, d)
-  if m.opt.run_collision_detection:
-    if sleep_enabled:
-      # pass 1
-      collision_driver.collision(m, d)
-      # wake any sleeping tree touched by an awake one
-      sleep.wake_collision(m, d)
-      # snapshot the awake state pass 1 used, before update_sleep overwrites it. a body is "newly
-      # awakened" if it was asleep here but awake after update_sleep below.
-      awake_prev = wp.clone(d.body_awake)
-      sleep.update_sleep(m, d)
-      # pass 2: passing awake_prev runs the incremental pass, emitting only pairs involving a
-      # newly-awakened body and appending them to the pass-1 buffer.
-      collision_driver.collision(m, d, awake_prev=awake_prev)
-    else:
-      collision_driver.collision(m, d)
 
-  constraint.make_constraint(m, d)
-
-  if sleep_enabled:
-    if m.neq > 0:
-      sleep.wake_equality(m, d)
-    sleep.update_sleep(m, d)
-
-  if sleep_enabled:
+  if sleep_enabled and not (m.opt.disableflags & DisableBit.ISLAND):
     island.island(m, d)
   smooth.transmission(m, d)
   if m.opt.integrator == IntegratorType.DISCRETE:
@@ -2762,8 +3006,12 @@ def _tendon_velocity(
 
 
 @event_scope
-def fwd_velocity(m: Model, d: Data):
-  """Velocity-dependent computations."""
+def fwd_velocity(m: Model, d: Data, cfrc_int_in: Optional[wp.array] = None, skip_com_vel: bool = False):
+  """Velocity-dependent computations.
+
+  ``skip_com_vel`` reuses velocity kinematics prepared for connect/weld targets by
+  ``fwd_position``. Keep it false when equality waking may have changed the active trees.
+  """
   wp.launch(
     _actuator_velocity,
     dim=(d.nworld, m.nactuator),
@@ -2778,9 +3026,10 @@ def fwd_velocity(m: Model, d: Data):
     outputs=[d.ten_velocity],
   )
 
-  smooth.com_vel(m, d)
+  if not skip_com_vel:
+    smooth.com_vel(m, d)
   passive.passive(m, d)
-  smooth.rne(m, d)
+  smooth.rne(m, d, cfrc_int_in=cfrc_int_in)
   smooth.tendon_bias(m, d, d.qfrc_bias)
   if m.opt.integrator == IntegratorType.DISCRETE:
     derivative.eff_shift(m, d)
@@ -2829,16 +3078,11 @@ def _actuator_force(
 ):
   worldid, uid = wp.tid()
 
-  actuator_ctrlrange_id = worldid % actuator_ctrlrange.shape[0]
-
   uadr = actuator_ctrladr[uid]
   ctrlnum = actuator_ctrlnum[uid]
   ctrl = 0.0
   if ctrlnum > 0:
-    ctrl = ctrl_in[worldid, uadr]
-    if actuator_ctrllimited[uadr] and not dsbl_clampctrl:
-      ctrlrange = actuator_ctrlrange[actuator_ctrlrange_id, uadr]
-      ctrl = wp.clamp(ctrl, ctrlrange[0], ctrlrange[1])
+    ctrl = util_misc.clamp_ctrl(actuator_ctrllimited, actuator_ctrlrange, ctrl_in, worldid, uadr, dsbl_clampctrl)
   ctrl_act = ctrl
   u_first = ctrl
 
@@ -2888,13 +3132,18 @@ def _actuator_force(
 
       # slew rate
       if slots[0] >= 0:
-        u_prev = act_in[worldid, adr]
-        slew_s = dynprm[7]
-        slew = slew_s * opt_timestep[worldid % opt_timestep.shape[0]]
-        u_eff = wp.clamp(u_first, u_prev - slew, u_prev + slew)
-        act_dot = (u_eff - u_prev) / opt_timestep[worldid % opt_timestep.shape[0]]
+        if ctrlnum > 0:
+          u_first, act_dot = _slew_limit(
+            u_first,
+            act_in[worldid, adr],
+            dynprm[7],
+            opt_timestep[worldid % opt_timestep.shape[0]],
+            0.0,
+          )
+        else:
+          u_first = 0.0
+          act_dot = 0.0
         act_dot_out[worldid, adr] = act_dot
-        u_first = u_eff
         adr += 1
 
       # integral
@@ -2917,6 +3166,8 @@ def _actuator_force(
       V = 0.0
       if ctrlnum > 0:
         V = util_misc.dcmotor_voltage(
+          actuator_ctrllimited,
+          actuator_ctrlrange,
           ctrl_in,
           worldid,
           uadr,
@@ -2926,6 +3177,7 @@ def _actuator_force(
           actuator_velocity_in[worldid, uid],
           x_I,
           gainprm,
+          dsbl_clampctrl,
         )
 
       # temperature
@@ -2973,6 +3225,43 @@ def _actuator_force(
           act_dot = wp.clamp(act_dot, -dimax, dimax)
         act_dot_out[worldid, act_last] = act_dot
 
+    elif dyntype == DynType.PID:
+      actnum = actuator_actnum[uid]
+      act_dot = 0.0
+
+      # slew rate limit on position setpoint (slot 0 when actnum == 2)
+      if actnum == 2 or dynprm[1] > 0.0:
+        slew_dot = 0.0
+        if dynprm[1] > 0.0:
+          if ctrlnum > 0:
+            u_first, slew_dot = _slew_limit(
+              u_first,
+              act_in[worldid, act_first],
+              dynprm[1],
+              opt_timestep[worldid % opt_timestep.shape[0]],
+              period,
+            )
+          else:
+            u_first = 0.0
+        if actnum == 2:
+          act_dot_out[worldid, act_first] = slew_dot
+        else:
+          act_dot = slew_dot
+
+      # integral of position error (kept in act_last even if slewmax == 0 in batch)
+      if gainprm[0] > 0.0 and (actnum == 2 or dynprm[1] <= 0.0):
+        err = u_first - actuator_length_in[worldid, uid]
+        if period > 0.0:
+          err -= period * wp.round(err / period)
+        imax = dynprm[0]
+        if imax > 0.0:
+          z = act_in[worldid, act_last]
+          if z >= imax:
+            err = wp.min(err, 0.0)
+          elif z <= -imax:
+            err = wp.max(err, 0.0)
+        act_dot = err
+
     elif dyntype == DynType.USER:
       act_dot = 0.0  # set by act_dyn_callback
     else:  # DynType.NONE
@@ -2981,7 +3270,7 @@ def _actuator_force(
     act_dot_out[worldid, act_last] = act_dot
 
     if actuator_actearly[uid]:
-      if dyntype == DynType.INTEGRATOR or dyntype == DynType.NONE or dyntype == DynType.DCMOTOR:
+      if dyntype == DynType.INTEGRATOR or dyntype == DynType.NONE or dyntype == DynType.DCMOTOR or dyntype == DynType.PID:
         act = act_in[worldid, act_last]
 
       if dyntype == DynType.DCMOTOR:
@@ -3053,13 +3342,15 @@ def _actuator_force(
     if te <= 0.0:
       if ctrlnum == 0:
         ctrl_act = 0.0
-      elif (actuator_ctrlspec[uid] & 7) != 0:
+      elif (actuator_ctrlspec[uid] & (CtrlInput.POS | CtrlInput.VEL | CtrlInput.FF)) != 0:
         x_I = 0.0
         if na and act_first >= 0:
           slots = util_misc.dcmotor_slots(dynprm, gainprm)
           if slots[1] >= 0:
             x_I = act_in[worldid, act_first + slots[1]]
         ctrl_act = util_misc.dcmotor_voltage(
+          actuator_ctrllimited,
+          actuator_ctrlrange,
           ctrl_in,
           worldid,
           uadr,
@@ -3069,6 +3360,7 @@ def _actuator_force(
           velocity,
           x_I,
           gainprm,
+          dsbl_clampctrl,
         )
       else:
         ctrl_act = u_first
@@ -3087,11 +3379,30 @@ def _actuator_force(
       K = gainprm[1]
       bias -= gain * K * velocity
 
-  if period > 0.0:
-    err = ctrl_act - length
-    ctrl_act -= period * wp.round(err / period)
+  if gaintype == GainType.PID:
+    u4 = util_misc.unpack_servo_inputs(
+      actuator_ctrllimited,
+      actuator_ctrlrange,
+      ctrl_in,
+      worldid,
+      uadr,
+      actuator_ctrlspec[uid],
+      u_first,
+      dsbl_clampctrl,
+    )
+    qref = u4[0]
+    if period > 0.0:
+      qref -= period * wp.round((qref - length) / period)
+    force = -biasprm[1] * qref - biasprm[2] * u4[1] + u4[2]
+    if na and act_first >= 0 and gainprm[0] > 0.0 and (actuator_actnum[uid] == 2 or dynprm[1] <= 0.0):
+      force += gainprm[0] * ctrl_act
+    force += bias
+  else:
+    if period > 0.0:
+      err = ctrl_act - length
+      ctrl_act -= period * wp.round(err / period)
 
-  force = gain * ctrl_act + bias
+    force = gain * ctrl_act + bias
 
   if not (ntendon > 0 and trntype == TrnType.TENDON):
     if actuator_forcelimited[uid]:
@@ -3452,7 +3763,7 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
     d: The data object containing the current state and output arrays.
     factorize: Flag to factorize inertia matrix.
   """
-  enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
+  enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP)
   wp.launch(
     _qfrc_smooth(enable_sleep),
     dim=(d.nworld, m.nv),
@@ -3470,52 +3781,44 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
   xfrc_accumulate(m, d, d.qfrc_smooth)
 
   if smooth.skip_qacc_smooth(m, d):
-    if enable_sleep and m.opt.integrator != IntegratorType.DISCRETE:
-      island.update_active_dofs(m, d)
-  elif m.opt.integrator == IntegratorType.DISCRETE:
+    return
+  if m.opt.integrator == IntegratorType.DISCRETE:
     derivative.eff_solve(m, d, d.qacc_smooth)
-  elif enable_sleep:
-    # update the active-DOF set (needs contacts from fwd_position) and solve
-    # the smooth acceleration in compacted dense space.
-    island.update_active_dofs(m, d)
-    solver.smooth_solve_compact(m, d)
   elif factorize:
-    smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, d.qacc_smooth, d.qfrc_smooth)
+    # the CG solver (solve_m for Mgrad) and noslip (M^-1 J') read the factor
+    store_factor = (m.opt.solver == SolverType.CG) or (m.opt.noslip_iterations > 0)
+    smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, d.qacc_smooth, d.qfrc_smooth, store_factor=store_factor)
   else:
     smooth.solve_m(m, d, d.qacc_smooth, d.qfrc_smooth)
 
 
-def _energy_pos(m: Model, d: Data):
+def _energy_pos(m: Model, d: Data, skip_sensor: bool = False):
   if m.opt.enableflags & EnableBit.ENERGY:
-    if m.sensor_e_potential == 0:  # not computed by sensor
+    if m.sensor_e_potential == 0 or (m.opt.disableflags & DisableBit.SENSOR) or skip_sensor:  # not computed by sensor
       sensor.energy_pos(m, d)
   else:
     d.energy.zero_()
 
 
-def _energy_vel(m: Model, d: Data):
+def _energy_vel(m: Model, d: Data, skip_sensor: bool = False):
   if m.opt.enableflags & EnableBit.ENERGY:
-    if m.sensor_e_kinetic == 0:  # not computed by sensor
+    if m.sensor_e_kinetic == 0 or (m.opt.disableflags & DisableBit.SENSOR) or skip_sensor:  # not computed by sensor
       sensor.energy_vel(m, d)
 
 
 def _forward(m: Model, d: Data, skip_sensor: bool = False):
   check_discrete(m)
-  sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
-  if sleep_enabled:
-    sleep.wake(m, d)
-    sleep.update_sleep(m, d)
 
   fwd_position(m, d, factorize=False)
   if not skip_sensor:
     d.sensordata.zero_()
     sensor.sensor_pos(m, d)
-  _energy_pos(m, d)
+  _energy_pos(m, d, skip_sensor)
 
-  fwd_velocity(m, d)
+  fwd_velocity(m, d, skip_com_vel=needs_eq_com_vel(m) and not bool(m.opt.enableflags & EnableBit.SLEEP))
   if not skip_sensor:
     sensor.sensor_vel(m, d)
-  _energy_vel(m, d)
+  _energy_vel(m, d, skip_sensor)
 
   if not (m.opt.disableflags & DisableBit.ACTUATION):
     if m.callback.control:
@@ -3573,7 +3876,7 @@ def step1(m: Model, d: Data):
 
   _energy_pos(m, d)
 
-  fwd_velocity(m, d)
+  fwd_velocity(m, d, skip_com_vel=needs_eq_com_vel(m) and not bool(m.opt.enableflags & EnableBit.SLEEP))
   sensor.sensor_vel(m, d)
 
   _energy_vel(m, d)

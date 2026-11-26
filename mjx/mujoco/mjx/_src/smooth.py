@@ -43,7 +43,8 @@ def kinematics(m: Model, d: Data) -> Data:
   """Converts position/velocity from generalized coordinates to maximal."""
   if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
     from mujoco.mjx.warp import smooth as mjxw_smooth  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
-    return mjxw_smooth.kinematics(m, d)
+
+    return support.sync_warp_xmat(mjxw_smooth.kinematics(m, d))
 
   def fn(carry, jnt_typs, jnt_pos, jnt_axis, qpos, qpos0, pos, quat):
     # calculate joint anchors, axes, body pos and quat in global frame

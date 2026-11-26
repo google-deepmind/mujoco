@@ -17,6 +17,7 @@ from typing import Tuple
 
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src.math import quat_to_mat
 from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
@@ -475,6 +476,64 @@ def ray_box(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.ve
   return x, all, normal
 
 
+def make_ray_primitive(geom_ray_types: Tuple[int, ...] = tuple(GeomType)) -> wp.Function:
+  """Build a ray-primitive intersection specialized to the given geom types.
+
+  Branches for absent types are removed at compile time via wp.static. The returned func
+  returns the distance along the ray to the intersection and the normal there, or -1 and a
+  zero vector if there is none (including for non-primitive geom types).
+  """
+
+  @wp.func
+  def ray_primitive(
+    pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.vec3, geomtype: int
+  ) -> Tuple[float, wp.vec3]:
+    d = float(-1.0)
+    n = wp.vec3(0.0, 0.0, 0.0)
+    if wp.static(int(GeomType.PLANE) in geom_ray_types):
+      if geomtype == GeomType.PLANE:
+        d, n = ray_plane(pos, mat, size, pnt, vec)
+    if wp.static(int(GeomType.SPHERE) in geom_ray_types):
+      if geomtype == GeomType.SPHERE:
+        d, n = ray_sphere(pos, size[0] * size[0], pnt, vec)
+    if wp.static(int(GeomType.CAPSULE) in geom_ray_types):
+      if geomtype == GeomType.CAPSULE:
+        d, n = ray_capsule(pos, mat, size, pnt, vec)
+    if wp.static(int(GeomType.ELLIPSOID) in geom_ray_types):
+      if geomtype == GeomType.ELLIPSOID:
+        d, n = ray_ellipsoid(pos, mat, size, pnt, vec)
+    if wp.static(int(GeomType.CYLINDER) in geom_ray_types):
+      if geomtype == GeomType.CYLINDER:
+        d, n = ray_cylinder(pos, mat, size, pnt, vec)
+    if wp.static(int(GeomType.BOX) in geom_ray_types):
+      if geomtype == GeomType.BOX:
+        d, _, n = ray_box(pos, mat, size, pnt, vec)
+    return d, n
+
+  return ray_primitive
+
+
+ray_geom = make_ray_primitive()
+
+
+@wp.func
+def geom_color(
+  # Model:
+  geom_matid: wp.array2d[int],
+  geom_rgba: wp.array2d[wp.vec4],
+  mat_rgba: wp.array2d[wp.vec4],
+  # In:
+  worldid: int,
+  geom_id: int,
+) -> Tuple[wp.vec4, int]:
+  """Returns a geom's rendered color, which falls back to its material color, and material id."""
+  g_rgba = geom_rgba[worldid % geom_rgba.shape[0], geom_id]
+  mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
+  if mat_id >= 0 and g_rgba[0] == 0.5 and g_rgba[1] == 0.5 and g_rgba[2] == 0.5 and g_rgba[3] == 1.0:
+    return mat_rgba[worldid % mat_rgba.shape[0], mat_id], mat_id
+  return g_rgba, mat_id
+
+
 @wp.func
 def ray_hfield(
   # Model:
@@ -525,7 +584,7 @@ def ray_hfield(
   lpnt, lvec = _ray_map(pos, mat, pnt, vec)
 
   # construct basis vectors of normal plane
-  b0, b1 = _orthogonal_basis(lvec)
+  b0, b1 = _orthogonal_basis(wp.normalize(lvec))
 
   # find ray segment intersecting top box
   seg = wp.vec2(0.0, top_intersect)
@@ -654,7 +713,7 @@ def ray_mesh(
   pnt, vec = _ray_map(pos, mat, pnt, vec)
 
   # compute orthogonal basis vectors
-  b0, b1 = _orthogonal_basis(vec)
+  b0, b1 = _orthogonal_basis(wp.normalize(vec))
 
   x = float(-1.0)
   normal = wp.vec3()
@@ -803,30 +862,6 @@ def ray_flex_with_bvh_anyhit(
 
 
 @wp.func
-def ray_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.vec3, geomtype: int) -> Tuple[float, wp.vec3]:
-  """Returns distance along ray to intersection with geom and normal at intersection point.
-
-  If no intersection is found, returns -1 and zero vector.
-  """
-  # TODO(team): static loop unrolling to remove unnecessary branching
-  if geomtype == GeomType.PLANE:
-    return ray_plane(pos, mat, size, pnt, vec)
-  elif geomtype == GeomType.SPHERE:
-    return ray_sphere(pos, size[0] * size[0], pnt, vec)
-  elif geomtype == GeomType.CAPSULE:
-    return ray_capsule(pos, mat, size, pnt, vec)
-  elif geomtype == GeomType.ELLIPSOID:
-    return ray_ellipsoid(pos, mat, size, pnt, vec)
-  elif geomtype == GeomType.CYLINDER:
-    return ray_cylinder(pos, mat, size, pnt, vec)
-  elif geomtype == GeomType.BOX:
-    dist, _, normal = ray_box(pos, mat, size, pnt, vec)
-    return dist, normal
-  else:
-    return -1.0, wp.vec3()
-
-
-@wp.func
 def _ray_geom_mesh(
   # Model:
   nmeshface: int,
@@ -850,7 +885,7 @@ def _ray_geom_mesh(
   mat_rgba: wp.array2d[wp.vec4],
   # Data in:
   geom_xpos_in: wp.array2d[wp.vec3],
-  geom_xmat_in: wp.array2d[wp.mat33],
+  geom_xquat_in: wp.array2d[wp.quat],
   # In:
   worldid: int,
   pnt: wp.vec3,
@@ -873,7 +908,7 @@ def _ray_geom_mesh(
     bodyexclude,
   ):
     pos = geom_xpos_in[worldid, geomid]
-    mat = geom_xmat_in[worldid, geomid]
+    mat = quat_to_mat(geom_xquat_in[worldid, geomid])
     type = geom_type[geomid]
 
     if type == GeomType.MESH:
@@ -936,7 +971,7 @@ def _ray(
   mat_rgba: wp.array2d[wp.vec4],
   # Data in:
   geom_xpos_in: wp.array2d[wp.vec3],
-  geom_xmat_in: wp.array2d[wp.mat33],
+  geom_xquat_in: wp.array2d[wp.quat],
   # In:
   pnt: wp.array2d[wp.vec3],
   vec: wp.array2d[wp.vec3],
@@ -983,7 +1018,7 @@ def _ray(
         hfield_data,
         mat_rgba,
         geom_xpos_in,
-        geom_xmat_in,
+        geom_xquat_in,
         worldid,
         ray_origin,
         ray_dir,
@@ -1032,7 +1067,7 @@ def _ray_geom_mesh_bvh(
   mat_rgba: wp.array2d[wp.vec4],
   # Data in:
   geom_xpos_in: wp.array2d[wp.vec3],
-  geom_xmat_in: wp.array2d[wp.mat33],
+  geom_xquat_in: wp.array2d[wp.quat],
   # In:
   worldid: int,
   pnt: wp.vec3,
@@ -1041,7 +1076,9 @@ def _ray_geom_mesh_bvh(
   flg_static: bool,
   bodyexclude: int,
   geomid: int,
+  has_reframed_meshes: bool,
   mesh_bvh_id: wp.array[wp.uint64],
+  mesh_bvh_rot: wp.array[wp.mat33],
   hfield_bvh_id: wp.array[wp.uint64],
   min_dist: float,
 ) -> Tuple[float, wp.vec3]:
@@ -1058,16 +1095,19 @@ def _ray_geom_mesh_bvh(
     bodyexclude,
   ):
     pos = geom_xpos_in[worldid, geomid]
-    mat = geom_xmat_in[worldid, geomid]
+    mat = quat_to_mat(geom_xquat_in[worldid, geomid])
     gtype = geom_type[geomid]
 
     if gtype == GeomType.MESH or gtype == GeomType.HFIELD:
       bvh_ids = mesh_bvh_id if gtype == GeomType.MESH else hfield_bvh_id
+      data_id = geom_dataid[worldid % geom_dataid.shape[0], geomid]
+      if gtype == GeomType.MESH and has_reframed_meshes:
+        mat = mat @ mesh_bvh_rot[data_id]
       # Public ray API (mjw.ray / mjw.rays) preserves MuJoCo's mj_ray cull rule:
       # rangefinder sensors and user-facing ray casts always cull back-faces.
       t, n, u, v, f, geom_mesh_id = ray_mesh_with_bvh(
         bvh_ids,
-        geom_dataid[worldid % geom_dataid.shape[0], geomid],
+        data_id,
         pos,
         mat,
         pnt,
@@ -1105,7 +1145,7 @@ def _ray_bvh(
   mat_rgba: wp.array2d[wp.vec4],
   # Data in:
   geom_xpos_in: wp.array2d[wp.vec3],
-  geom_xmat_in: wp.array2d[wp.mat33],
+  geom_xquat_in: wp.array2d[wp.quat],
   # In:
   pnt: wp.array2d[wp.vec3],
   vec: wp.array2d[wp.vec3],
@@ -1115,7 +1155,9 @@ def _ray_bvh(
   bvh_id: wp.uint64,
   group_root: wp.array[int],
   enabled_geom_ids: wp.array[int],
+  has_reframed_meshes: bool,
   mesh_bvh_id: wp.array[wp.uint64],
+  mesh_bvh_rot: wp.array[wp.mat33],
   hfield_bvh_id: wp.array[wp.uint64],
   # Out:
   dist_out: wp.array2d[float],
@@ -1150,7 +1192,7 @@ def _ray_bvh(
       geom_rgba,
       mat_rgba,
       geom_xpos_in,
-      geom_xmat_in,
+      geom_xquat_in,
       worldid,
       ray_origin,
       ray_dir,
@@ -1158,7 +1200,9 @@ def _ray_bvh(
       flg_static,
       body_exclude,
       geomid,
+      has_reframed_meshes,
       mesh_bvh_id,
+      mesh_bvh_rot,
       hfield_bvh_id,
       min_dist,
     )
@@ -1255,6 +1299,8 @@ def rays(
     rc: Optional Render context containing BVH information for BVH accelerated ray
       intersections.
   """
+  if rc is not None and rc.backend != "warp":
+    raise ValueError(f"rays() requires a render context with backend='warp', got {rc.backend!r}")
   assert pnt.shape[0] in (1, d.nworld), f"pnt.shape[0] must be 1 or d.nworld ({d.nworld}), got {pnt.shape[0]}"
   assert pnt.shape == vec.shape, f"pnt.shape {pnt.shape} != vec.shape {vec.shape}"
   assert bodyexclude.shape[0] == pnt.shape[1], f"bodyexclude length {bodyexclude.shape[0]} != nray {pnt.shape[1]}"
@@ -1288,7 +1334,7 @@ def rays(
         m.hfield_data,
         m.mat_rgba,
         d.geom_xpos,
-        d.geom_xmat,
+        d.geom_xquat,
         pnt,
         vec,
         geomgroup,
@@ -1316,7 +1362,7 @@ def rays(
         m.geom_rgba,
         m.mat_rgba,
         d.geom_xpos,
-        d.geom_xmat,
+        d.geom_xquat,
         pnt,
         vec,
         geomgroup,
@@ -1325,7 +1371,9 @@ def rays(
         rc.bvh_id,
         rc.group_root,
         rc.enabled_geom_ids,
+        rc.has_reframed_meshes,
         rc.mesh_bvh_id,
+        rc.mesh_bvh_rot,
         rc.hfield_bvh_id,
       ],
       outputs=[dist, geomid, normal],

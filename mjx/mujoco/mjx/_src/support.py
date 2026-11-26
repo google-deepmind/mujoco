@@ -217,6 +217,19 @@ def local_to_global(
   return pos, mat
 
 
+def sync_warp_xmat(d: Data) -> Data:
+  """Populates public Data rotation matrices from Warp quaternion poses."""
+  quat_to_mat = jax.vmap(math.quat_to_mat)
+  # pylint: disable=protected-access
+  return d.replace(
+      xmat=quat_to_mat(d.xquat),
+      ximat=quat_to_mat(d._impl.xiquat),  # pyrefly: ignore[missing-attribute]
+      geom_xmat=quat_to_mat(d._impl.geom_xquat),  # pyrefly: ignore[missing-attribute]
+      site_xmat=quat_to_mat(d._impl.site_xquat),  # pyrefly: ignore[missing-attribute]
+  )
+  # pylint: enable=protected-access
+
+
 def _getnum(m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj) -> int:
   """Gets the number of objects for the given object type."""
   counts = {

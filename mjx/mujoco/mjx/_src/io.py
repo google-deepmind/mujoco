@@ -206,17 +206,24 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
 
   # warp arrays
   if isinstance(wp_field, wp.array):
-    return wp_field.numpy()
+    arr = wp_field.numpy()
+    if arr.dtype == np.uint64:
+      # Pack uint64 as (..., 2) uint32 so jax_enable_x64=False does not
+      # truncate the upper 32 bits.
+      return arr.view(np.uint32).reshape(*arr.shape, 2)
+    return arr
 
   # static
   if isinstance(wp_field, (float, np.floating)):
     return np.float32(wp_field)
   if isinstance(wp_field, np.ndarray):
-    return (
-        wp_field.astype(np.float32)
-        if np.issubdtype(wp_field.dtype, np.floating)
-        else wp_field
-    )
+    if np.issubdtype(wp_field.dtype, np.floating):
+      return wp_field.astype(np.float32)
+    if wp_field.dtype == np.uint64:
+      # Pack uint64 as (..., 2) uint32 so jax_enable_x64=False does not
+      # truncate the upper 32 bits.
+      return wp_field.view(np.uint32).reshape(*wp_field.shape, 2)
+    return wp_field
   static_types = (bool, int, float, np.bool, np.int32, np.int64,
                   np.float32, np.float64)  # fmt: skip
   is_static = lambda x: isinstance(x, static_types)
@@ -227,7 +234,7 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
   if isinstance(wp_field, tuple) and len(wp_field) == 0:
     return ()
   if isinstance(wp_field, tuple) and isinstance(wp_field[0], wp.array):
-    return tuple(f.numpy() for f in wp_field)
+    return tuple(_wp_to_np_type(f, name) for f in wp_field)
   if isinstance(wp_field, tuple) and isinstance(
       wp_field[0], mjwp_types.TileSet
   ):
@@ -810,7 +817,16 @@ def _make_data_warp(
 
   fields = _make_data_public_fields(m)  # pyrefly: ignore[bad-argument-type]
   for k in fields:
-    if k in {'userdata', 'plugin_state', 'history'}:
+    # Skip public Data fields that are omitted from mjwarp.Data.
+    if k in {
+        'userdata',
+        'plugin_state',
+        'history',
+        'xmat',
+        'ximat',
+        'geom_xmat',
+        'site_xmat',
+    }:
       continue
     if not hasattr(dw, k):
       raise ValueError(f'Public data field {k} not found in Warp data.')
@@ -1245,6 +1261,9 @@ def _put_data_warp(
       _impl=mjxw.types.DataWarp(**impl_fields),
   )
 
+  # Cast host MjData float64 fields omitted from mjwarp.Data (e.g. xmat, ximat,
+  # geom_xmat, site_xmat) to float32 to match Warp outputs under jax_enable_x64.
+  data = _tree_to_float32(data)
   data = jax.device_put(data, device=device)
   return data
 

@@ -580,7 +580,8 @@ def forward(m: Model, d: Data) -> Data:
   """Forward dynamics."""
   if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
     from mujoco.mjx.warp import forward as mjxw_forward  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
-    return mjxw_forward.forward(m, d)
+
+    return support.sync_warp_xmat(mjxw_forward.forward(m, d))
 
   return _forward(m, d)
 
@@ -590,7 +591,8 @@ def step(m: Model, d: Data) -> Data:
   """Advance simulation."""
   if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
     from mujoco.mjx.warp import forward as mjxw_forward  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
-    return mjxw_forward.step(m, d)
+
+    return support.sync_warp_xmat(mjxw_forward.step(m, d))
 
   d = forward(m, d)
 

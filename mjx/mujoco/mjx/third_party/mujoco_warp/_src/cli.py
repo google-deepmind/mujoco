@@ -73,6 +73,7 @@ RENDER_BACKFACE_CULLING = flags.DEFINE_bool(
   "enable renderer backface culling (RenderContext.enable_backface_culling)",
 )
 RENDER_SKYBOX = flags.DEFINE_bool("render_skybox", True, "render skybox texture if available")
+RENDER_BACKEND = flags.DEFINE_enum("render_backend", "warp", ["warp", "optix"], "ray-casting backend for rendering")
 
 
 def load_model(path: epath.Path) -> mujoco.MjModel:
@@ -232,6 +233,7 @@ def init_structs(
       use_shadows=RENDER_SHADOWS.value,
       enable_backface_culling=RENDER_BACKFACE_CULLING.value,
       render_skybox=RENDER_SKYBOX.value,
+      backend=RENDER_BACKEND.value,
     )
 
     return m, d, rc, ctrls
@@ -261,8 +263,15 @@ def unroll(
   with wp.ScopedDevice(wp.get_device(DEVICE.value)):
     with warp_util.EventTracer(enabled=EVENT_TRACE.value) as tracer:
       jit_beg = time.perf_counter()
-      with wp.ScopedCapture() as capture:
-        fn(*(m, d) if rc is None else (m, d, rc))
+      args = (m, d) if rc is None else (m, d, rc)
+      # OptiX work cannot be recorded into CUDA graphs, so the OptiX backend runs directly.
+      graph = None
+      if rc is None or rc.backend != "optix":
+        with wp.ScopedCapture() as capture:
+          fn(*args)
+        graph = capture.graph
+      else:
+        fn(*args)
       jit_end = time.perf_counter()
 
       for i in range(NSTEP.value):
@@ -287,7 +296,10 @@ def unroll(
             wp.synchronize()
 
           run_beg = time.perf_counter()
-          wp.capture_launch(capture.graph)
+          if graph is None:
+            fn(*args)
+          else:
+            wp.capture_launch(graph)
           wp.synchronize()
           run_end = time.perf_counter()
 

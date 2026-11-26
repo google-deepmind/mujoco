@@ -39,6 +39,17 @@ except ImportError:
 _FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
 
 
+def _assert_impl_xquats(d: mujoco.MjData, dx: mjx.Data):
+  """Asserts Warp quaternion orientations match MuJoCo rotation matrices."""
+  quat_to_mat = jax.vmap(math.quat_to_mat)
+  for mat, quat, name in (
+      (d.ximat, dx._impl.xiquat, 'xiquat'),
+      (d.geom_xmat, dx._impl.geom_xquat, 'geom_xquat'),
+      (d.site_xmat, dx._impl.site_xquat, 'site_xquat'),
+  ):
+    tu.assert_eq(mat.reshape((-1, 3, 3)), quat_to_mat(quat), name)
+
+
 class SmoothTest(parameterized.TestCase):
 
   @classmethod
@@ -92,13 +103,10 @@ class SmoothTest(parameterized.TestCase):
     tu.assert_attr_eq(d, dx, 'xaxis')
     tu.assert_attr_eq(d, dx, 'xpos')
     tu.assert_attr_eq(d, dx, 'xquat')
-    tu.assert_eq(d.xmat.reshape((-1, 3, 3)), dx.xmat, 'xmat')
     tu.assert_attr_eq(d, dx, 'xipos')
-    tu.assert_eq(d.ximat.reshape((-1, 3, 3)), dx.ximat, 'ximat')
     tu.assert_attr_eq(d, dx, 'geom_xpos')
-    tu.assert_eq(d.geom_xmat.reshape((-1, 3, 3)), dx.geom_xmat, 'geom_xmat')
     tu.assert_attr_eq(d, dx, 'site_xpos')
-    tu.assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
+    _assert_impl_xquats(d, dx)
 
   def test_com_pos(self):
     """Tests com_pos with unbatched data."""
@@ -157,6 +165,10 @@ class SmoothTest(parameterized.TestCase):
     mujoco.mj_kinematics(m, d)
     mujoco.mj_comPos(m, d)
 
+    tu.assert_eq(d.xmat.reshape((-1, 3, 3)), dx.xmat, 'xmat')
+    tu.assert_eq(d.ximat.reshape((-1, 3, 3)), dx.ximat, 'ximat')
+    tu.assert_eq(d.geom_xmat.reshape((-1, 3, 3)), dx.geom_xmat, 'geom_xmat')
+    tu.assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
     tu.assert_attr_eq(d, dx, 'subtree_com')
     tu.assert_attr_eq(d, dx, 'cdof')
     tu.assert_eq(d.cinert, dx._impl.cinert, 'cinert')
@@ -177,10 +189,13 @@ class SmoothTest(parameterized.TestCase):
 
     worldids = jp.arange(batch_size)
     dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
-    # don't zero xmat, ximat, xquat, geom_xpos, or geom_xmat
+    # don't zero xquat, xiquat, geom_xpos, or geom_xquat
     # these fields are precomputed in make_data
-    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos', 'site_xmat'):
+    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos'):
       dx_batch = dx_batch.replace(**{f: jp.zeros_like(getattr(dx_batch, f))})
+    dx_batch = dx_batch.tree_replace(
+        {'_impl.site_xquat': jp.zeros_like(dx_batch._impl.site_xquat)}
+    )
 
     dx_batch = jax.jit(jax.vmap(smooth.kinematics, in_axes=(None, 0)))(
         mx, dx_batch
@@ -198,13 +213,10 @@ class SmoothTest(parameterized.TestCase):
       tu.assert_attr_eq(d, dx, 'xaxis')
       tu.assert_attr_eq(d, dx, 'xpos')
       tu.assert_attr_eq(d, dx, 'xquat')
-      tu.assert_eq(d.xmat.reshape((-1, 3, 3)), dx.xmat, 'xmat')
       tu.assert_attr_eq(d, dx, 'xipos')
-      tu.assert_eq(d.ximat.reshape((-1, 3, 3)), dx.ximat, 'ximat')
       tu.assert_attr_eq(d, dx, 'geom_xpos')
-      tu.assert_eq(d.geom_xmat.reshape((-1, 3, 3)), dx.geom_xmat, 'geom_xmat')
       tu.assert_attr_eq(d, dx, 'site_xpos')
-      tu.assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
+      _assert_impl_xquats(d, dx)
 
   def test_com_pos_vmap(self):
     """Tests com_pos with batched data."""
@@ -272,10 +284,13 @@ class SmoothTest(parameterized.TestCase):
 
     worldids = jp.arange(16).reshape((4, 4))
     dx_batch = jax.vmap(jax.vmap(functools.partial(tu.make_data, m)))(worldids)
-    # don't zero xmat, ximat, xquat, geom_xpos, or geom_xmat
+    # don't zero xquat, xiquat, geom_xpos, or geom_xquat
     # these fields are precomputed in make_data
-    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos', 'site_xmat'):
+    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos'):
       dx_batch = dx_batch.replace(**{f: jp.zeros_like(getattr(dx_batch, f))})
+    dx_batch = dx_batch.tree_replace(
+        {'_impl.site_xquat': jp.zeros_like(dx_batch._impl.site_xquat)}
+    )
 
     dx_batch = jax.jit(
         jax.vmap(
@@ -296,13 +311,10 @@ class SmoothTest(parameterized.TestCase):
         tu.assert_attr_eq(d, dx, 'xaxis')
         tu.assert_attr_eq(d, dx, 'xpos')
         tu.assert_attr_eq(d, dx, 'xquat')
-        tu.assert_eq(d.xmat.reshape((-1, 3, 3)), dx.xmat, 'xmat')
         tu.assert_attr_eq(d, dx, 'xipos')
-        tu.assert_eq(d.ximat.reshape((-1, 3, 3)), dx.ximat, 'ximat')
         tu.assert_attr_eq(d, dx, 'geom_xpos')
-        tu.assert_eq(d.geom_xmat.reshape((-1, 3, 3)), dx.geom_xmat, 'geom_xmat')
         tu.assert_attr_eq(d, dx, 'site_xpos')
-        tu.assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
+        _assert_impl_xquats(d, dx)
 
   def test_kinematics_model_vmap(self):
     """Tests kinematics with vmap on model and data fields."""
@@ -326,10 +338,13 @@ class SmoothTest(parameterized.TestCase):
 
     worldids = jp.arange(batch_size)
     dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
-    # don't zero xmat, ximat, xquat, geom_xpos, or geom_xmat
+    # don't zero xquat, xiquat, geom_xpos, or geom_xquat
     # these fields are precomputed in make_data
-    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos', 'site_xmat'):
+    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos'):
       dx_batch = dx_batch.replace(**{f: jp.zeros_like(getattr(dx_batch, f))})
+    dx_batch = dx_batch.tree_replace(
+        {'_impl.site_xquat': jp.zeros_like(dx_batch._impl.site_xquat)}
+    )
 
     dx_batch = jax.jit(jax.vmap(smooth.kinematics, in_axes=(None, 0)))(
         mx, dx_batch
@@ -348,13 +363,10 @@ class SmoothTest(parameterized.TestCase):
       tu.assert_attr_eq(d, dx, 'xaxis')
       tu.assert_attr_eq(d, dx, 'xpos')
       tu.assert_attr_eq(d, dx, 'xquat')
-      tu.assert_eq(d.xmat.reshape((-1, 3, 3)), dx.xmat, 'xmat')
       tu.assert_attr_eq(d, dx, 'xipos')
-      tu.assert_eq(d.ximat.reshape((-1, 3, 3)), dx.ximat, 'ximat')
       tu.assert_attr_eq(d, dx, 'geom_xpos')
-      tu.assert_eq(d.geom_xmat.reshape((-1, 3, 3)), dx.geom_xmat, 'geom_xmat')
       tu.assert_attr_eq(d, dx, 'site_xpos')
-      tu.assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
+      _assert_impl_xquats(d, dx)
 
 if __name__ == '__main__':
   absltest.main()

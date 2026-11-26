@@ -758,6 +758,28 @@ def gradient_descent(
 
 
 @wp.kernel
+def _sdf_candidates(
+  # Model:
+  geom_type: wp.array[int],
+  # Data in:
+  naconmax_in: int,
+  ncollision_in: wp.array[int],
+  # In:
+  collision_pair_in: wp.array[wp.vec2i],
+  # Out:
+  nsdf_out: wp.array[int],
+  sdf_collisionid_out: wp.array[int],
+):
+  """Lists the collision candidates that involve an SDF geom."""
+  collisionid = wp.tid()
+  if collisionid >= wp.min(ncollision_in[0], naconmax_in):
+    return
+  if geom_type[collision_pair_in[collisionid][1]] == GeomType.SDF:
+    sdfid = wp.atomic_add(nsdf_out, 0, 1)  # kernel_analyzer: ignore[atomic]
+    sdf_collisionid_out[sdfid] = collisionid
+
+
+@wp.kernel
 def _sdf_narrowphase(
   # Model:
   nmeshface: int,
@@ -807,14 +829,14 @@ def _sdf_narrowphase(
   geom_plugin_index: wp.array[int],
   # Data in:
   geom_xpos_in: wp.array2d[wp.vec3],
-  geom_xmat_in: wp.array2d[wp.mat33],
+  geom_xquat_in: wp.array2d[wp.quat],
   naconmax_in: int,
-  ncollision_in: wp.array[int],
   # In:
   collision_pair_in: wp.array[wp.vec2i],
   collision_pairid_in: wp.array[wp.vec2i],
   collision_worldid_in: wp.array[int],
-  sdf_initpoints: int,
+  nsdf_in: wp.array[int],
+  sdf_collisionid_in: wp.array[int],
   sdf_iterations: int,
   linesearch_alpha0: float,
   # Data out:
@@ -835,16 +857,14 @@ def _sdf_narrowphase(
   contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
-  i, contact_tid = wp.tid()
-  if i >= sdf_initpoints:
+  # a candidate's initial points are adjacent threads, so a warp works on one geom pair
+  sdfid, i = wp.tid()
+  if sdfid >= nsdf_in[0]:
     return
-  if contact_tid >= ncollision_in[0]:
-    return
+  contact_tid = sdf_collisionid_in[sdfid]
   geoms = collision_pair_in[contact_tid]
   g2 = geoms[1]
   type2 = geom_type[g2]
-  if type2 != GeomType.SDF:
-    return
   worldid = collision_worldid_in[contact_tid]
   _, margin, gap, condim, friction, solref, solreffriction, solimp, adhesion = contact_params(
     geom_condim,
@@ -889,7 +909,7 @@ def _sdf_narrowphase(
     mesh_polymapnum,
     mesh_polymap,
     geom_xpos_in,
-    geom_xmat_in,
+    geom_xquat_in,
     geoms,
     worldid,
   )
@@ -1041,11 +1061,29 @@ def _sdf_narrowphase(
   )
 
 
+def prepare_sdf_context(d: Data, ctx: CollisionContext):
+  """Allocates the list of SDF collision candidates."""
+  ctx.nsdf = wp.empty(1, dtype=int)
+  ctx.sdf_collisionid = wp.empty(d.naconmax, dtype=int)
+
+
 @event_scope
 def sdf_narrowphase(m: Model, d: Data, ctx: CollisionContext):
+  if ctx.sdf_collisionid is None:
+    prepare_sdf_context(d, ctx)
+
+  # list the SDF candidates so that the threads of a warp do not wait for one candidate
+  ctx.nsdf.zero_()
+  wp.launch(
+    _sdf_candidates,
+    dim=d.naconmax,
+    inputs=[m.geom_type, d.naconmax, d.ncollision, ctx.collision_pair],
+    outputs=[ctx.nsdf, ctx.sdf_collisionid],
+  )
+
   wp.launch(
     _sdf_narrowphase,
-    dim=(m.opt.sdf_initpoints, d.naconmax),
+    dim=(d.naconmax, m.opt.sdf_initpoints),
     inputs=[
       m.nmeshface,
       m.oct_child,
@@ -1093,13 +1131,13 @@ def sdf_narrowphase(m: Model, d: Data, ctx: CollisionContext):
       m.plugin_attr,
       m.geom_plugin_index,
       d.geom_xpos,
-      d.geom_xmat,
+      d.geom_xquat,
       d.naconmax,
-      d.ncollision,
       ctx.collision_pair,
       ctx.collision_pairid,
       ctx.collision_worldid,
-      m.opt.sdf_initpoints,
+      ctx.nsdf,
+      ctx.sdf_collisionid,
       m.opt.sdf_iterations,
       # initial line-search step; passed at launch so NVRTC 13.1+ cannot unroll the line search
       2.0,

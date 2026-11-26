@@ -50,14 +50,14 @@ def _forward_shim(
     nworld: int,
     M_colind: wp.array[int],
     M_elemid: wp.array2d[int],
-    M_fullm_i: wp.array[int],
-    M_fullm_j: wp.array[int],
     M_hinit_i: wp.array[int],
-    M_mulm_col: wp.array[int],
-    M_mulm_madr: wp.array[int],
+    M_mulm_entry: wp.array[wp.uint64],
     M_mulm_rowadr: wp.array[int],
     M_rowadr: wp.array[int],
     M_rownnz: wp.array[int],
+    M_tile_colmask: wp.array2d[wp.uint64],
+    M_tile_full: bool,
+    M_tile_offdiag: wp.array[int],
     M_tiles: tuple[mjwp_types.TileSet, ...],
     actuator_acc0: wp.array2d[float],
     actuator_actadr: wp.array[int],
@@ -119,8 +119,11 @@ def _forward_shim(
     body_simple: wp.array[int],
     body_subtreemass: wp.array2d[float],
     body_subtreenum: wp.array[int],
+    body_tree: tuple[wp.array[int], ...],
     body_treeid: wp.array[int],
     body_weldid: wp.array[int],
+    bvh_child: wp.array[wp.vec2i],
+    bvh_nodeid: wp.array[int],
     cam_bodyid: wp.array[int],
     cam_fovy: wp.array2d[float],
     cam_intrinsic: wp.array2d[wp.vec4],
@@ -145,9 +148,8 @@ def _forward_shim(
     dof_parentid: wp.array[int],
     dof_solimp: wp.array2d[mjwp_types.vec5],
     dof_solref: wp.array2d[wp.vec2],
+    dof_subtreenum: wp.array[int],
     dof_treeid: wp.array[int],
-    dof_tri_col: wp.array[int],
-    dof_tri_row: wp.array[int],
     efm0_L: wp.array[float],
     efm0_L_colind: wp.array[int],
     efm0_L_rowadr: wp.array[int],
@@ -188,6 +190,9 @@ def _forward_shim(
     flex_bend_interp_map: wp.array[wp.vec2i],
     flex_bending: wp.array[float],
     flex_bendingadr: wp.array[int],
+    flex_bvh_tree: tuple[wp.array[int], ...],
+    flex_bvhadr: wp.array[int],
+    flex_bvhflexid: wp.array[int],
     flex_cell_map: wp.array[wp.vec4i],
     flex_celladr: wp.array[int],
     flex_cellempty: wp.array[bool],
@@ -255,6 +260,7 @@ def _forward_shim(
     flex_solimp: wp.array[mjwp_types.vec5],
     flex_solmix: wp.array[float],
     flex_solref: wp.array[wp.vec2],
+    flex_stiff_possible: wp.array[bool],
     flex_stiffness: wp.array[float],
     flex_stiffnessadr: wp.array[int],
     flex_vert: wp.array[wp.vec3],
@@ -305,13 +311,16 @@ def _forward_shim(
     geom_surfacevel: wp.array2d[mjwp_types.vec6],
     geom_type: wp.array[int],
     has_1d_flex: bool,
+    has_2d_flex: bool,
     has_3d_flex: bool,
+    has_cylinder_geom: bool,
     has_efm_actuator: bool,
     has_ellipsoid_geom: bool,
     has_flex_edge_stiff_damp: bool,
     has_flex_passive: bool,
     has_flex_selfcollide: bool,
     has_flex_snh: bool,
+    has_flex_stiff: bool,
     has_fluid: bool,
     has_non_simple_flex: bool,
     has_plane_geom: bool,
@@ -378,11 +387,14 @@ def _forward_shim(
     mesh_vertnum: wp.array[int],
     nC: int,
     nJten: int,
+    nM: int,
     na: int,
     nacttrnbody: int,
     nactuator: int,
     nbody: int,
     nbranch: int,
+    nbvhdynamic: int,
+    nbvhstatic: int,
     ncam: int,
     nefm0dof: int,
     nefmK: int,
@@ -442,6 +454,9 @@ def _forward_shim(
     qLD_all_updates: wp.array[wp.vec3i],
     qLD_block_adr: wp.array[int],
     qLD_block_total: int,
+    qLD_fused_level_adr: wp.array[int],
+    qLD_fused_pair_adr: wp.array[int],
+    qLD_fused_pairs: wp.array[wp.vec2i],
     qLD_level_offsets: wp.array[int],
     qLD_updates: tuple[wp.array[wp.vec3i], ...],
     qpos0: wp.array2d[float],
@@ -500,6 +515,7 @@ def _forward_shim(
     tendon_dampingpoly: wp.array2d[wp.vec2],
     tendon_frictionloss: wp.array2d[float],
     tendon_geom_adr: wp.array[int],
+    tendon_geom_wrapadr: wp.array[int],
     tendon_invweight0: wp.array2d[float],
     tendon_jnt_adr: wp.array[int],
     tendon_length0: wp.array2d[float],
@@ -523,11 +539,13 @@ def _forward_shim(
     tree_sleep_policy: wp.array[int],
     weld_tactile_id: wp.array[int],
     wrap_geom_adr: wp.array[int],
+    wrap_geom_lca: wp.array[wp.vec3i],
     wrap_jnt_adr: wp.array[int],
     wrap_objid: wp.array[int],
     wrap_prm: wp.array[float],
     wrap_pulley_scale: wp.array[float],
     wrap_site_pair_adr: wp.array[int],
+    wrap_site_pair_lca: wp.array[int],
     wrap_type: wp.array[int],
     opt__broadphase: int,
     opt__broadphase_filter: int,
@@ -565,6 +583,7 @@ def _forward_shim(
     naconmax: int,
     njmax: int,
     njmax_nnz: int,
+    njmax_pad: int,
     nvmax: int,
     nvmax_pad: int,
     M: wp.array2d[float],
@@ -585,22 +604,17 @@ def _forward_shim(
     cdof: wp.array2d[wp.spatial_vector],
     cdof_dof: wp.array2d[int],
     cdof_dot: wp.array2d[wp.spatial_vector],
-    cdof_tri_col: wp.array[int],
-    cdof_tri_row: wp.array[int],
     cfrc_ext: wp.array2d[wp.spatial_vector],
     cfrc_int: wp.array2d[wp.spatial_vector],
     cinert: wp.array2d[mjwp_types.vec10],
-    cqLD: wp.array3d[float],
     cqacc: wp.array2d[float],
     cqacc_smooth: wp.array2d[float],
     cqacc_warmstart: wp.array2d[float],
     cqfrc_constraint: wp.array2d[float],
     cqfrc_smooth: wp.array2d[float],
     crb: wp.array2d[mjwp_types.vec10],
-    crhs: wp.array3d[float],
     ctrl: wp.array2d[float],
     cvel: wp.array2d[wp.spatial_vector],
-    cx: wp.array3d[float],
     dof_awake_ind: wp.array2d[int],
     dof_cdof: wp.array2d[int],
     dof_frictionadr: wp.array2d[int],
@@ -644,8 +658,8 @@ def _forward_shim(
     flexnode_xpos: wp.array2d[wp.vec3],
     flexvert_hessian: wp.array2d[mjwp_types.vec6],
     flexvert_xpos: wp.array2d[wp.vec3],
-    geom_xmat: wp.array2d[wp.mat33],
     geom_xpos: wp.array2d[wp.vec3],
+    geom_xquat: wp.array2d[wp.quat],
     history: wp.array2d[float],
     island_dofadr: wp.array2d[int],
     island_idofadr: wp.array2d[int],
@@ -701,8 +715,8 @@ def _forward_shim(
     qpos: wp.array2d[float],
     qvel: wp.array2d[float],
     sensordata: wp.array2d[float],
-    site_xmat: wp.array2d[wp.mat33],
     site_xpos: wp.array2d[wp.vec3],
+    site_xquat: wp.array2d[wp.quat],
     solver_niter: wp.array[int],
     subtree_angmom: wp.array2d[wp.vec3],
     subtree_com: wp.array2d[wp.vec3],
@@ -721,9 +735,8 @@ def _forward_shim(
     xanchor: wp.array2d[wp.vec3],
     xaxis: wp.array2d[wp.vec3],
     xfrc_applied: wp.array2d[wp.spatial_vector],
-    ximat: wp.array2d[wp.mat33],
     xipos: wp.array2d[wp.vec3],
-    xmat: wp.array2d[wp.mat33],
+    xiquat: wp.array2d[wp.quat],
     xpos: wp.array2d[wp.vec3],
     xquat: wp.array2d[wp.quat],
     contact__adhesion: wp.array[float],
@@ -772,14 +785,14 @@ def _forward_shim(
   _d.contact = _c
   _m.M_colind = M_colind
   _m.M_elemid = M_elemid
-  _m.M_fullm_i = M_fullm_i
-  _m.M_fullm_j = M_fullm_j
   _m.M_hinit_i = M_hinit_i
-  _m.M_mulm_col = M_mulm_col
-  _m.M_mulm_madr = M_mulm_madr
+  _m.M_mulm_entry = M_mulm_entry
   _m.M_mulm_rowadr = M_mulm_rowadr
   _m.M_rowadr = M_rowadr
   _m.M_rownnz = M_rownnz
+  _m.M_tile_colmask = M_tile_colmask
+  _m.M_tile_full = M_tile_full
+  _m.M_tile_offdiag = M_tile_offdiag
   _m.M_tiles = M_tiles
   _m.actuator_acc0 = actuator_acc0
   _m.actuator_actadr = actuator_actadr
@@ -841,8 +854,11 @@ def _forward_shim(
   _m.body_simple = body_simple
   _m.body_subtreemass = body_subtreemass
   _m.body_subtreenum = body_subtreenum
+  _m.body_tree = body_tree
   _m.body_treeid = body_treeid
   _m.body_weldid = body_weldid
+  _m.bvh_child = bvh_child
+  _m.bvh_nodeid = bvh_nodeid
   _m.cam_bodyid = cam_bodyid
   _m.cam_fovy = cam_fovy
   _m.cam_intrinsic = cam_intrinsic
@@ -867,9 +883,8 @@ def _forward_shim(
   _m.dof_parentid = dof_parentid
   _m.dof_solimp = dof_solimp
   _m.dof_solref = dof_solref
+  _m.dof_subtreenum = dof_subtreenum
   _m.dof_treeid = dof_treeid
-  _m.dof_tri_col = dof_tri_col
-  _m.dof_tri_row = dof_tri_row
   _m.efm0_L = efm0_L
   _m.efm0_L_colind = efm0_L_colind
   _m.efm0_L_rowadr = efm0_L_rowadr
@@ -910,6 +925,9 @@ def _forward_shim(
   _m.flex_bend_interp_map = flex_bend_interp_map
   _m.flex_bending = flex_bending
   _m.flex_bendingadr = flex_bendingadr
+  _m.flex_bvh_tree = flex_bvh_tree
+  _m.flex_bvhadr = flex_bvhadr
+  _m.flex_bvhflexid = flex_bvhflexid
   _m.flex_cell_map = flex_cell_map
   _m.flex_celladr = flex_celladr
   _m.flex_cellempty = flex_cellempty
@@ -977,6 +995,7 @@ def _forward_shim(
   _m.flex_solimp = flex_solimp
   _m.flex_solmix = flex_solmix
   _m.flex_solref = flex_solref
+  _m.flex_stiff_possible = flex_stiff_possible
   _m.flex_stiffness = flex_stiffness
   _m.flex_stiffnessadr = flex_stiffnessadr
   _m.flex_vert = flex_vert
@@ -1027,13 +1046,16 @@ def _forward_shim(
   _m.geom_surfacevel = geom_surfacevel
   _m.geom_type = geom_type
   _m.has_1d_flex = has_1d_flex
+  _m.has_2d_flex = has_2d_flex
   _m.has_3d_flex = has_3d_flex
+  _m.has_cylinder_geom = has_cylinder_geom
   _m.has_efm_actuator = has_efm_actuator
   _m.has_ellipsoid_geom = has_ellipsoid_geom
   _m.has_flex_edge_stiff_damp = has_flex_edge_stiff_damp
   _m.has_flex_passive = has_flex_passive
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_flex_snh = has_flex_snh
+  _m.has_flex_stiff = has_flex_stiff
   _m.has_fluid = has_fluid
   _m.has_non_simple_flex = has_non_simple_flex
   _m.has_plane_geom = has_plane_geom
@@ -1100,11 +1122,14 @@ def _forward_shim(
   _m.mesh_vertnum = mesh_vertnum
   _m.nC = nC
   _m.nJten = nJten
+  _m.nM = nM
   _m.na = na
   _m.nacttrnbody = nacttrnbody
   _m.nactuator = nactuator
   _m.nbody = nbody
   _m.nbranch = nbranch
+  _m.nbvhdynamic = nbvhdynamic
+  _m.nbvhstatic = nbvhstatic
   _m.ncam = ncam
   _m.nefm0dof = nefm0dof
   _m.nefmK = nefmK
@@ -1195,6 +1220,9 @@ def _forward_shim(
   _m.qLD_all_updates = qLD_all_updates
   _m.qLD_block_adr = qLD_block_adr
   _m.qLD_block_total = qLD_block_total
+  _m.qLD_fused_level_adr = qLD_fused_level_adr
+  _m.qLD_fused_pair_adr = qLD_fused_pair_adr
+  _m.qLD_fused_pairs = qLD_fused_pairs
   _m.qLD_level_offsets = qLD_level_offsets
   _m.qLD_updates = qLD_updates
   _m.qpos0 = qpos0
@@ -1253,6 +1281,7 @@ def _forward_shim(
   _m.tendon_dampingpoly = tendon_dampingpoly
   _m.tendon_frictionloss = tendon_frictionloss
   _m.tendon_geom_adr = tendon_geom_adr
+  _m.tendon_geom_wrapadr = tendon_geom_wrapadr
   _m.tendon_invweight0 = tendon_invweight0
   _m.tendon_jnt_adr = tendon_jnt_adr
   _m.tendon_length0 = tendon_length0
@@ -1276,11 +1305,13 @@ def _forward_shim(
   _m.tree_sleep_policy = tree_sleep_policy
   _m.weld_tactile_id = weld_tactile_id
   _m.wrap_geom_adr = wrap_geom_adr
+  _m.wrap_geom_lca = wrap_geom_lca
   _m.wrap_jnt_adr = wrap_jnt_adr
   _m.wrap_objid = wrap_objid
   _m.wrap_prm = wrap_prm
   _m.wrap_pulley_scale = wrap_pulley_scale
   _m.wrap_site_pair_adr = wrap_site_pair_adr
+  _m.wrap_site_pair_lca = wrap_site_pair_lca
   _m.wrap_type = wrap_type
   _d.M = M
   _d.act = act
@@ -1300,8 +1331,6 @@ def _forward_shim(
   _d.cdof = cdof
   _d.cdof_dof = cdof_dof
   _d.cdof_dot = cdof_dot
-  _d.cdof_tri_col = cdof_tri_col
-  _d.cdof_tri_row = cdof_tri_row
   _d.cfrc_ext = cfrc_ext
   _d.cfrc_int = cfrc_int
   _d.cinert = cinert
@@ -1324,17 +1353,14 @@ def _forward_shim(
   _d.contact.type = contact__type
   _d.contact.vert = contact__vert
   _d.contact.worldid = contact__worldid
-  _d.cqLD = cqLD
   _d.cqacc = cqacc
   _d.cqacc_smooth = cqacc_smooth
   _d.cqacc_warmstart = cqacc_warmstart
   _d.cqfrc_constraint = cqfrc_constraint
   _d.cqfrc_smooth = cqfrc_smooth
   _d.crb = crb
-  _d.crhs = crhs
   _d.ctrl = ctrl
   _d.cvel = cvel
-  _d.cx = cx
   _d.dof_awake_ind = dof_awake_ind
   _d.dof_cdof = dof_cdof
   _d.dof_frictionadr = dof_frictionadr
@@ -1398,8 +1424,8 @@ def _forward_shim(
   _d.flexnode_xpos = flexnode_xpos
   _d.flexvert_hessian = flexvert_hessian
   _d.flexvert_xpos = flexvert_xpos
-  _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
+  _d.geom_xquat = geom_xquat
   _d.history = history
   _d.island_dofadr = island_dofadr
   _d.island_idofadr = island_idofadr
@@ -1432,6 +1458,7 @@ def _forward_shim(
   _d.nisland = nisland
   _d.njmax = njmax
   _d.njmax_nnz = njmax_nnz
+  _d.njmax_pad = njmax_pad
   _d.nl = nl
   _d.ntree_awake = ntree_awake
   _d.nv_awake = nv_awake
@@ -1461,8 +1488,8 @@ def _forward_shim(
   _d.qpos = qpos
   _d.qvel = qvel
   _d.sensordata = sensordata
-  _d.site_xmat = site_xmat
   _d.site_xpos = site_xpos
+  _d.site_xquat = site_xquat
   _d.solver_niter = solver_niter
   _d.subtree_angmom = subtree_angmom
   _d.subtree_com = subtree_com
@@ -1481,9 +1508,8 @@ def _forward_shim(
   _d.xanchor = xanchor
   _d.xaxis = xaxis
   _d.xfrc_applied = xfrc_applied
-  _d.ximat = ximat
   _d.xipos = xipos
-  _d.xmat = xmat
+  _d.xiquat = xiquat
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
@@ -1511,14 +1537,11 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'cfrc_ext': d._impl.cfrc_ext.shape,
       'cfrc_int': d._impl.cfrc_int.shape,
       'cinert': d._impl.cinert.shape,
-      'cqLD': d._impl.cqLD.shape,
       'cqacc_smooth': d._impl.cqacc_smooth.shape,
       'cqacc_warmstart': d._impl.cqacc_warmstart.shape,
       'cqfrc_smooth': d._impl.cqfrc_smooth.shape,
       'crb': d._impl.crb.shape,
-      'crhs': d._impl.crhs.shape,
       'cvel': d.cvel.shape,
-      'cx': d._impl.cx.shape,
       'dof_awake_ind': d._impl.dof_awake_ind.shape,
       'dof_cdof': d._impl.dof_cdof.shape,
       'dof_frictionadr': d._impl.dof_frictionadr.shape,
@@ -1560,8 +1583,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'flexnode_xpos': d._impl.flexnode_xpos.shape,
       'flexvert_hessian': d._impl.flexvert_hessian.shape,
       'flexvert_xpos': d._impl.flexvert_xpos.shape,
-      'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
+      'geom_xquat': d._impl.geom_xquat.shape,
       'history': d.history.shape,
       'island_dofadr': d._impl.island_dofadr.shape,
       'island_idofadr': d._impl.island_idofadr.shape,
@@ -1611,8 +1634,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'qfrc_spring': d._impl.qfrc_spring.shape,
       'qvel': d.qvel.shape,
       'sensordata': d.sensordata.shape,
-      'site_xmat': d.site_xmat.shape,
       'site_xpos': d.site_xpos.shape,
+      'site_xquat': d._impl.site_xquat.shape,
       'solver_niter': d._impl.solver_niter.shape,
       'subtree_angmom': d._impl.subtree_angmom.shape,
       'subtree_com': d.subtree_com.shape,
@@ -1629,9 +1652,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'wrap_xpos': d._impl.wrap_xpos.shape,
       'xanchor': d.xanchor.shape,
       'xaxis': d.xaxis.shape,
-      'ximat': d.ximat.shape,
       'xipos': d.xipos.shape,
-      'xmat': d.xmat.shape,
+      'xiquat': d._impl.xiquat.shape,
       'xpos': d.xpos.shape,
       'xquat': d.xquat.shape,
       'contact__adhesion': d._impl.contact__adhesion.shape,
@@ -1676,7 +1698,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _forward_shim,
-      num_outputs=181,
+      num_outputs=177,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
@@ -1699,14 +1721,11 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'cfrc_ext',
           'cfrc_int',
           'cinert',
-          'cqLD',
           'cqacc_smooth',
           'cqacc_warmstart',
           'cqfrc_smooth',
           'crb',
-          'crhs',
           'cvel',
-          'cx',
           'dof_awake_ind',
           'dof_cdof',
           'dof_frictionadr',
@@ -1748,8 +1767,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'flexnode_xpos',
           'flexvert_hessian',
           'flexvert_xpos',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'history',
           'island_dofadr',
           'island_idofadr',
@@ -1799,8 +1818,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'qfrc_spring',
           'qvel',
           'sensordata',
-          'site_xmat',
           'site_xpos',
+          'site_xquat',
           'solver_niter',
           'subtree_angmom',
           'subtree_com',
@@ -1817,9 +1836,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'wrap_xpos',
           'xanchor',
           'xaxis',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
           'contact__adhesion',
@@ -1913,8 +1931,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'cdof',
           'cdof_dof',
           'cdof_dot',
-          'cdof_tri_col',
-          'cdof_tri_row',
           'cfrc_ext',
           'cfrc_int',
           'cinert',
@@ -1937,17 +1953,14 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'contact__type',
           'contact__vert',
           'contact__worldid',
-          'cqLD',
           'cqacc',
           'cqacc_smooth',
           'cqacc_warmstart',
           'cqfrc_constraint',
           'cqfrc_smooth',
           'crb',
-          'crhs',
           'ctrl',
           'cvel',
-          'cx',
           'dof_armature',
           'dof_awake_ind',
           'dof_cdof',
@@ -2036,8 +2049,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'geom_solmix',
           'geom_solref',
           'geom_surfacevel',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'hfield_data',
           'history',
           'island_dofadr',
@@ -2135,8 +2148,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'sensordata',
           'site_pos',
           'site_quat',
-          'site_xmat',
           'site_xpos',
+          'site_xquat',
           'solver_niter',
           'subtree_angmom',
           'subtree_com',
@@ -2171,9 +2184,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'xanchor',
           'xaxis',
           'xfrc_applied',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
       ]),
@@ -2216,14 +2228,11 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'contact__type',
           'contact__vert',
           'contact__worldid',
-          'cqLD',
           'cqacc_smooth',
           'cqacc_warmstart',
           'cqfrc_smooth',
           'crb',
-          'crhs',
           'cvel',
-          'cx',
           'dof_awake_ind',
           'dof_cdof',
           'dof_frictionadr',
@@ -2285,8 +2294,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'flexnode_xpos',
           'flexvert_hessian',
           'flexvert_xpos',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'history',
           'island_dofadr',
           'island_idofadr',
@@ -2336,8 +2345,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'qfrc_spring',
           'qvel',
           'sensordata',
-          'site_xmat',
           'site_xpos',
+          'site_xquat',
           'solver_niter',
           'subtree_angmom',
           'subtree_com',
@@ -2354,9 +2363,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'wrap_xpos',
           'xanchor',
           'xaxis',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
       ]),
@@ -2367,14 +2375,14 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d.qpos.shape[0],
       m.M_colind,
       m._impl.M_elemid,
-      m._impl.M_fullm_i,
-      m._impl.M_fullm_j,
       m._impl.M_hinit_i,
-      m._impl.M_mulm_col,
-      m._impl.M_mulm_madr,
+      m._impl.M_mulm_entry,
       m._impl.M_mulm_rowadr,
       m.M_rowadr,
       m.M_rownnz,
+      m._impl.M_tile_colmask,
+      m._impl.M_tile_full,
+      m._impl.M_tile_offdiag,
       m._impl.M_tiles,
       m.actuator_acc0,
       m.actuator_actadr,
@@ -2436,8 +2444,11 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.body_simple,
       m.body_subtreemass,
       m._impl.body_subtreenum,
+      m._impl.body_tree,
       m.body_treeid,
       m.body_weldid,
+      m._impl.bvh_child,
+      m._impl.bvh_nodeid,
       m.cam_bodyid,
       m.cam_fovy,
       m.cam_intrinsic,
@@ -2462,9 +2473,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.dof_parentid,
       m.dof_solimp,
       m.dof_solref,
+      m._impl.dof_subtreenum,
       m.dof_treeid,
-      m._impl.dof_tri_col,
-      m._impl.dof_tri_row,
       m._impl.efm0_L,
       m._impl.efm0_L_colind,
       m._impl.efm0_L_rowadr,
@@ -2505,6 +2515,9 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_bend_interp_map,
       m._impl.flex_bending,
       m._impl.flex_bendingadr,
+      m._impl.flex_bvh_tree,
+      m._impl.flex_bvhadr,
+      m._impl.flex_bvhflexid,
       m._impl.flex_cell_map,
       m._impl.flex_celladr,
       m._impl.flex_cellempty,
@@ -2572,6 +2585,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_solimp,
       m._impl.flex_solmix,
       m._impl.flex_solref,
+      m._impl.flex_stiff_possible,
       m._impl.flex_stiffness,
       m._impl.flex_stiffnessadr,
       m._impl.flex_vert,
@@ -2622,13 +2636,16 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.geom_surfacevel,
       m.geom_type,
       m._impl.has_1d_flex,
+      m._impl.has_2d_flex,
       m._impl.has_3d_flex,
+      m._impl.has_cylinder_geom,
       m._impl.has_efm_actuator,
       m._impl.has_ellipsoid_geom,
       m._impl.has_flex_edge_stiff_damp,
       m._impl.has_flex_passive,
       m._impl.has_flex_selfcollide,
       m._impl.has_flex_snh,
+      m._impl.has_flex_stiff,
       m._impl.has_fluid,
       m._impl.has_non_simple_flex,
       m._impl.has_plane_geom,
@@ -2695,11 +2712,14 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.mesh_vertnum,
       m.nC,
       m.nJten,
+      m.nM,
       m.na,
       m._impl.nacttrnbody,
       m._impl.nactuator,
       m.nbody,
       m._impl.nbranch,
+      m._impl.nbvhdynamic,
+      m._impl.nbvhstatic,
       m.ncam,
       m._impl.nefm0dof,
       m._impl.nefmK,
@@ -2759,6 +2779,9 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.qLD_all_updates,
       m._impl.qLD_block_adr,
       m._impl.qLD_block_total,
+      m._impl.qLD_fused_level_adr,
+      m._impl.qLD_fused_pair_adr,
+      m._impl.qLD_fused_pairs,
       m._impl.qLD_level_offsets,
       m._impl.qLD_updates,
       m.qpos0,
@@ -2817,6 +2840,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.tendon_dampingpoly,
       m.tendon_frictionloss,
       m._impl.tendon_geom_adr,
+      m._impl.tendon_geom_wrapadr,
       m.tendon_invweight0,
       m._impl.tendon_jnt_adr,
       m.tendon_length0,
@@ -2840,11 +2864,13 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.tree_sleep_policy,
       m._impl.weld_tactile_id,
       m._impl.wrap_geom_adr,
+      m._impl.wrap_geom_lca,
       m._impl.wrap_jnt_adr,
       m.wrap_objid,
       m.wrap_prm,
       m._impl.wrap_pulley_scale,
       m._impl.wrap_site_pair_adr,
+      m._impl.wrap_site_pair_lca,
       m.wrap_type,
       m.opt._impl.broadphase,
       m.opt._impl.broadphase_filter,
@@ -2881,6 +2907,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.naconmax,
       d._impl.njmax,
       d._impl.njmax_nnz,
+      d._impl.njmax_pad,
       d._impl.nvmax,
       d._impl.nvmax_pad,
       d._impl.M,
@@ -2901,22 +2928,17 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d.cdof,
       d._impl.cdof_dof,
       d.cdof_dot,
-      d._impl.cdof_tri_col,
-      d._impl.cdof_tri_row,
       d._impl.cfrc_ext,
       d._impl.cfrc_int,
       d._impl.cinert,
-      d._impl.cqLD,
       d._impl.cqacc,
       d._impl.cqacc_smooth,
       d._impl.cqacc_warmstart,
       d._impl.cqfrc_constraint,
       d._impl.cqfrc_smooth,
       d._impl.crb,
-      d._impl.crhs,
       d.ctrl,
       d.cvel,
-      d._impl.cx,
       d._impl.dof_awake_ind,
       d._impl.dof_cdof,
       d._impl.dof_frictionadr,
@@ -2960,8 +2982,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.flexnode_xpos,
       d._impl.flexvert_hessian,
       d._impl.flexvert_xpos,
-      d.geom_xmat,
       d.geom_xpos,
+      d._impl.geom_xquat,
       d.history,
       d._impl.island_dofadr,
       d._impl.island_idofadr,
@@ -3017,8 +3039,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d.qpos,
       d.qvel,
       d.sensordata,
-      d.site_xmat,
       d.site_xpos,
+      d._impl.site_xquat,
       d._impl.solver_niter,
       d._impl.subtree_angmom,
       d.subtree_com,
@@ -3037,9 +3059,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d.xanchor,
       d.xaxis,
       d.xfrc_applied,
-      d.ximat,
       d.xipos,
-      d.xmat,
+      d._impl.xiquat,
       d.xpos,
       d.xquat,
       d._impl.contact__adhesion,
@@ -3102,168 +3123,164 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       '_impl.cfrc_ext': out[16],
       '_impl.cfrc_int': out[17],
       '_impl.cinert': out[18],
-      '_impl.cqLD': out[19],
-      '_impl.cqacc_smooth': out[20],
-      '_impl.cqacc_warmstart': out[21],
-      '_impl.cqfrc_smooth': out[22],
-      '_impl.crb': out[23],
-      '_impl.crhs': out[24],
-      'cvel': out[25],
-      '_impl.cx': out[26],
-      '_impl.dof_awake_ind': out[27],
-      '_impl.dof_cdof': out[28],
-      '_impl.dof_frictionadr': out[29],
-      '_impl.dof_island': out[30],
-      '_impl.dof_islandid': out[31],
-      '_impl.efc_islandid': out[32],
-      '_impl.efm_K_val': out[33],
-      '_impl.efm_L_val': out[34],
-      '_impl.efm_as': out[35],
-      '_impl.efm_c': out[36],
-      '_impl.efm_ca': out[37],
-      '_impl.efm_diag': out[38],
-      '_impl.efm_fluid': out[39],
-      '_impl.efm_ts': out[40],
-      '_impl.energy': out[41],
-      '_impl.face_quat': out[42],
-      '_impl.face_xpos': out[43],
-      '_impl.flex_aabb_max': out[44],
-      '_impl.flex_aabb_min': out[45],
-      '_impl.flex_rod_chain_ok': out[46],
-      '_impl.flex_rod_chain_valid': out[47],
-      '_impl.flex_rod_end_torque': out[48],
-      '_impl.flex_rod_frame0_loc': out[49],
-      '_impl.flex_rod_frame0_ref': out[50],
-      '_impl.flex_rod_ref_ok': out[51],
-      '_impl.flex_rod_tail_loc': out[52],
-      '_impl.flex_rodedge_frc': out[53],
-      '_impl.flex_rodedge_grad': out[54],
-      '_impl.flex_rodedge_ktheta': out[55],
-      '_impl.flex_rodedge_tridiag': out[56],
-      '_impl.flex_rodhinge_Wd': out[57],
-      '_impl.flex_rodhinge_Wk': out[58],
-      '_impl.flex_rodhinge_g': out[59],
-      '_impl.flex_rodhinge_om0': out[60],
-      '_impl.flexedge_J': out[61],
-      '_impl.flexedge_hessian': out[62],
-      '_impl.flexedge_length': out[63],
-      '_impl.flexedge_velocity': out[64],
-      '_impl.flexnode_xpos': out[65],
-      '_impl.flexvert_hessian': out[66],
-      '_impl.flexvert_xpos': out[67],
-      'geom_xmat': out[68],
-      'geom_xpos': out[69],
-      'history': out[70],
-      '_impl.island_dofadr': out[71],
-      '_impl.island_idofadr': out[72],
-      '_impl.island_iefcadr': out[73],
-      '_impl.island_ne': out[74],
-      '_impl.island_nefc': out[75],
-      '_impl.island_nf': out[76],
-      '_impl.island_nv': out[77],
-      '_impl.light_xdir': out[78],
-      '_impl.light_xpos': out[79],
-      '_impl.map_dof2idof': out[80],
-      '_impl.map_efc2iefc': out[81],
-      '_impl.map_idof2dof': out[82],
-      '_impl.map_iefc2efc': out[83],
-      '_impl.moment_colind': out[84],
-      '_impl.moment_rowadr': out[85],
-      '_impl.moment_rownnz': out[86],
-      '_impl.nacon': out[87],
-      '_impl.nbody_awake': out[88],
-      '_impl.ncdof': out[89],
-      '_impl.ncollision': out[90],
-      '_impl.ne': out[91],
-      '_impl.nefc': out[92],
-      '_impl.nf': out[93],
-      '_impl.nidof': out[94],
-      '_impl.nisland': out[95],
-      '_impl.nl': out[96],
-      '_impl.ntree_awake': out[97],
-      '_impl.nv_awake': out[98],
-      '_impl.overflow': out[99],
-      '_impl.qH': out[100],
-      '_impl.qHDiagInv': out[101],
-      '_impl.qHLD': out[102],
-      '_impl.qLD': out[103],
-      '_impl.qLDiagInv': out[104],
-      'qacc': out[105],
-      'qacc_smooth': out[106],
-      'qfrc_actuator': out[107],
-      '_impl.qfrc_adhesion': out[108],
-      'qfrc_bias': out[109],
-      'qfrc_constraint': out[110],
-      '_impl.qfrc_damper': out[111],
-      'qfrc_fluid': out[112],
-      'qfrc_gravcomp': out[113],
-      'qfrc_passive': out[114],
-      'qfrc_smooth': out[115],
-      '_impl.qfrc_spring': out[116],
-      'qvel': out[117],
-      'sensordata': out[118],
-      'site_xmat': out[119],
-      'site_xpos': out[120],
-      '_impl.solver_niter': out[121],
-      '_impl.subtree_angmom': out[122],
-      'subtree_com': out[123],
-      '_impl.subtree_linvel': out[124],
-      '_impl.ten_J': out[125],
-      'ten_length': out[126],
-      '_impl.ten_velocity': out[127],
-      '_impl.ten_wrapadr': out[128],
-      '_impl.ten_wrapnum': out[129],
-      '_impl.tree_asleep': out[130],
-      '_impl.tree_awake': out[131],
-      '_impl.tree_island': out[132],
-      '_impl.wrap_obj': out[133],
-      '_impl.wrap_xpos': out[134],
-      'xanchor': out[135],
-      'xaxis': out[136],
-      'ximat': out[137],
-      'xipos': out[138],
-      'xmat': out[139],
-      'xpos': out[140],
-      'xquat': out[141],
-      '_impl.contact__adhesion': out[142],
-      '_impl.contact__dim': out[143],
-      '_impl.contact__dist': out[144],
-      '_impl.contact__efc_address': out[145],
-      '_impl.contact__elem': out[146],
-      '_impl.contact__flex': out[147],
-      '_impl.contact__frame': out[148],
-      '_impl.contact__friction': out[149],
-      '_impl.contact__geom': out[150],
-      '_impl.contact__geomcollisionid': out[151],
-      '_impl.contact__includemargin': out[152],
-      '_impl.contact__pos': out[153],
-      '_impl.contact__solimp': out[154],
-      '_impl.contact__solref': out[155],
-      '_impl.contact__solreffriction': out[156],
-      '_impl.contact__surfacevel': out[157],
-      '_impl.contact__type': out[158],
-      '_impl.contact__vert': out[159],
-      '_impl.contact__worldid': out[160],
-      '_impl.efc__D': out[161],
-      '_impl.efc__J': out[162],
-      '_impl.efc__J_colind': out[163],
-      '_impl.efc__J_rowadr': out[164],
-      '_impl.efc__J_rownnz': out[165],
-      '_impl.efc__Jqvel': out[166],
-      '_impl.efc__Ma': out[167],
-      '_impl.efc__aref': out[168],
-      '_impl.efc__force': out[169],
-      '_impl.efc__frictionloss': out[170],
-      '_impl.efc__id': out[171],
-      '_impl.efc__island': out[172],
-      '_impl.efc__jtdaj_adr': out[173],
-      '_impl.efc__jtdaj_nblock': out[174],
-      '_impl.efc__jtdaj_nrow': out[175],
-      '_impl.efc__margin': out[176],
-      '_impl.efc__pos': out[177],
-      '_impl.efc__state': out[178],
-      '_impl.efc__type': out[179],
-      '_impl.efc__vel': out[180],
+      '_impl.cqacc_smooth': out[19],
+      '_impl.cqacc_warmstart': out[20],
+      '_impl.cqfrc_smooth': out[21],
+      '_impl.crb': out[22],
+      'cvel': out[23],
+      '_impl.dof_awake_ind': out[24],
+      '_impl.dof_cdof': out[25],
+      '_impl.dof_frictionadr': out[26],
+      '_impl.dof_island': out[27],
+      '_impl.dof_islandid': out[28],
+      '_impl.efc_islandid': out[29],
+      '_impl.efm_K_val': out[30],
+      '_impl.efm_L_val': out[31],
+      '_impl.efm_as': out[32],
+      '_impl.efm_c': out[33],
+      '_impl.efm_ca': out[34],
+      '_impl.efm_diag': out[35],
+      '_impl.efm_fluid': out[36],
+      '_impl.efm_ts': out[37],
+      '_impl.energy': out[38],
+      '_impl.face_quat': out[39],
+      '_impl.face_xpos': out[40],
+      '_impl.flex_aabb_max': out[41],
+      '_impl.flex_aabb_min': out[42],
+      '_impl.flex_rod_chain_ok': out[43],
+      '_impl.flex_rod_chain_valid': out[44],
+      '_impl.flex_rod_end_torque': out[45],
+      '_impl.flex_rod_frame0_loc': out[46],
+      '_impl.flex_rod_frame0_ref': out[47],
+      '_impl.flex_rod_ref_ok': out[48],
+      '_impl.flex_rod_tail_loc': out[49],
+      '_impl.flex_rodedge_frc': out[50],
+      '_impl.flex_rodedge_grad': out[51],
+      '_impl.flex_rodedge_ktheta': out[52],
+      '_impl.flex_rodedge_tridiag': out[53],
+      '_impl.flex_rodhinge_Wd': out[54],
+      '_impl.flex_rodhinge_Wk': out[55],
+      '_impl.flex_rodhinge_g': out[56],
+      '_impl.flex_rodhinge_om0': out[57],
+      '_impl.flexedge_J': out[58],
+      '_impl.flexedge_hessian': out[59],
+      '_impl.flexedge_length': out[60],
+      '_impl.flexedge_velocity': out[61],
+      '_impl.flexnode_xpos': out[62],
+      '_impl.flexvert_hessian': out[63],
+      '_impl.flexvert_xpos': out[64],
+      'geom_xpos': out[65],
+      '_impl.geom_xquat': out[66],
+      'history': out[67],
+      '_impl.island_dofadr': out[68],
+      '_impl.island_idofadr': out[69],
+      '_impl.island_iefcadr': out[70],
+      '_impl.island_ne': out[71],
+      '_impl.island_nefc': out[72],
+      '_impl.island_nf': out[73],
+      '_impl.island_nv': out[74],
+      '_impl.light_xdir': out[75],
+      '_impl.light_xpos': out[76],
+      '_impl.map_dof2idof': out[77],
+      '_impl.map_efc2iefc': out[78],
+      '_impl.map_idof2dof': out[79],
+      '_impl.map_iefc2efc': out[80],
+      '_impl.moment_colind': out[81],
+      '_impl.moment_rowadr': out[82],
+      '_impl.moment_rownnz': out[83],
+      '_impl.nacon': out[84],
+      '_impl.nbody_awake': out[85],
+      '_impl.ncdof': out[86],
+      '_impl.ncollision': out[87],
+      '_impl.ne': out[88],
+      '_impl.nefc': out[89],
+      '_impl.nf': out[90],
+      '_impl.nidof': out[91],
+      '_impl.nisland': out[92],
+      '_impl.nl': out[93],
+      '_impl.ntree_awake': out[94],
+      '_impl.nv_awake': out[95],
+      '_impl.overflow': out[96],
+      '_impl.qH': out[97],
+      '_impl.qHDiagInv': out[98],
+      '_impl.qHLD': out[99],
+      '_impl.qLD': out[100],
+      '_impl.qLDiagInv': out[101],
+      'qacc': out[102],
+      'qacc_smooth': out[103],
+      'qfrc_actuator': out[104],
+      '_impl.qfrc_adhesion': out[105],
+      'qfrc_bias': out[106],
+      'qfrc_constraint': out[107],
+      '_impl.qfrc_damper': out[108],
+      'qfrc_fluid': out[109],
+      'qfrc_gravcomp': out[110],
+      'qfrc_passive': out[111],
+      'qfrc_smooth': out[112],
+      '_impl.qfrc_spring': out[113],
+      'qvel': out[114],
+      'sensordata': out[115],
+      'site_xpos': out[116],
+      '_impl.site_xquat': out[117],
+      '_impl.solver_niter': out[118],
+      '_impl.subtree_angmom': out[119],
+      'subtree_com': out[120],
+      '_impl.subtree_linvel': out[121],
+      '_impl.ten_J': out[122],
+      'ten_length': out[123],
+      '_impl.ten_velocity': out[124],
+      '_impl.ten_wrapadr': out[125],
+      '_impl.ten_wrapnum': out[126],
+      '_impl.tree_asleep': out[127],
+      '_impl.tree_awake': out[128],
+      '_impl.tree_island': out[129],
+      '_impl.wrap_obj': out[130],
+      '_impl.wrap_xpos': out[131],
+      'xanchor': out[132],
+      'xaxis': out[133],
+      'xipos': out[134],
+      '_impl.xiquat': out[135],
+      'xpos': out[136],
+      'xquat': out[137],
+      '_impl.contact__adhesion': out[138],
+      '_impl.contact__dim': out[139],
+      '_impl.contact__dist': out[140],
+      '_impl.contact__efc_address': out[141],
+      '_impl.contact__elem': out[142],
+      '_impl.contact__flex': out[143],
+      '_impl.contact__frame': out[144],
+      '_impl.contact__friction': out[145],
+      '_impl.contact__geom': out[146],
+      '_impl.contact__geomcollisionid': out[147],
+      '_impl.contact__includemargin': out[148],
+      '_impl.contact__pos': out[149],
+      '_impl.contact__solimp': out[150],
+      '_impl.contact__solref': out[151],
+      '_impl.contact__solreffriction': out[152],
+      '_impl.contact__surfacevel': out[153],
+      '_impl.contact__type': out[154],
+      '_impl.contact__vert': out[155],
+      '_impl.contact__worldid': out[156],
+      '_impl.efc__D': out[157],
+      '_impl.efc__J': out[158],
+      '_impl.efc__J_colind': out[159],
+      '_impl.efc__J_rowadr': out[160],
+      '_impl.efc__J_rownnz': out[161],
+      '_impl.efc__Jqvel': out[162],
+      '_impl.efc__Ma': out[163],
+      '_impl.efc__aref': out[164],
+      '_impl.efc__force': out[165],
+      '_impl.efc__frictionloss': out[166],
+      '_impl.efc__id': out[167],
+      '_impl.efc__island': out[168],
+      '_impl.efc__jtdaj_adr': out[169],
+      '_impl.efc__jtdaj_nblock': out[170],
+      '_impl.efc__jtdaj_nrow': out[171],
+      '_impl.efc__margin': out[172],
+      '_impl.efc__pos': out[173],
+      '_impl.efc__state': out[174],
+      '_impl.efc__type': out[175],
+      '_impl.efc__vel': out[176],
   })
   return d
 
@@ -3292,14 +3309,14 @@ def _step_shim(
     D_rownnz: wp.array[int],
     M_colind: wp.array[int],
     M_elemid: wp.array2d[int],
-    M_fullm_i: wp.array[int],
-    M_fullm_j: wp.array[int],
     M_hinit_i: wp.array[int],
-    M_mulm_col: wp.array[int],
-    M_mulm_madr: wp.array[int],
+    M_mulm_entry: wp.array[wp.uint64],
     M_mulm_rowadr: wp.array[int],
     M_rowadr: wp.array[int],
     M_rownnz: wp.array[int],
+    M_tile_colmask: wp.array2d[wp.uint64],
+    M_tile_full: bool,
+    M_tile_offdiag: wp.array[int],
     M_tiles: tuple[mjwp_types.TileSet, ...],
     actuator_acc0: wp.array2d[float],
     actuator_actadr: wp.array[int],
@@ -3364,6 +3381,8 @@ def _step_shim(
     body_tree: tuple[wp.array[int], ...],
     body_treeid: wp.array[int],
     body_weldid: wp.array[int],
+    bvh_child: wp.array[wp.vec2i],
+    bvh_nodeid: wp.array[int],
     cam_bodyid: wp.array[int],
     cam_fovy: wp.array2d[float],
     cam_intrinsic: wp.array2d[wp.vec4],
@@ -3388,9 +3407,8 @@ def _step_shim(
     dof_parentid: wp.array[int],
     dof_solimp: wp.array2d[mjwp_types.vec5],
     dof_solref: wp.array2d[wp.vec2],
+    dof_subtreenum: wp.array[int],
     dof_treeid: wp.array[int],
-    dof_tri_col: wp.array[int],
-    dof_tri_row: wp.array[int],
     efm0_L: wp.array[float],
     efm0_L_colind: wp.array[int],
     efm0_L_rowadr: wp.array[int],
@@ -3431,6 +3449,9 @@ def _step_shim(
     flex_bend_interp_map: wp.array[wp.vec2i],
     flex_bending: wp.array[float],
     flex_bendingadr: wp.array[int],
+    flex_bvh_tree: tuple[wp.array[int], ...],
+    flex_bvhadr: wp.array[int],
+    flex_bvhflexid: wp.array[int],
     flex_cell_map: wp.array[wp.vec4i],
     flex_celladr: wp.array[int],
     flex_cellempty: wp.array[bool],
@@ -3498,6 +3519,7 @@ def _step_shim(
     flex_solimp: wp.array[mjwp_types.vec5],
     flex_solmix: wp.array[float],
     flex_solref: wp.array[wp.vec2],
+    flex_stiff_possible: wp.array[bool],
     flex_stiffness: wp.array[float],
     flex_stiffnessadr: wp.array[int],
     flex_vert: wp.array[wp.vec3],
@@ -3549,15 +3571,18 @@ def _step_shim(
     geom_surfacevel: wp.array2d[mjwp_types.vec6],
     geom_type: wp.array[int],
     has_1d_flex: bool,
+    has_2d_flex: bool,
     has_3d_flex: bool,
     has_actuator_dcmotor: bool,
     has_actuator_wrap: bool,
+    has_cylinder_geom: bool,
     has_efm_actuator: bool,
     has_ellipsoid_geom: bool,
     has_flex_edge_stiff_damp: bool,
     has_flex_passive: bool,
     has_flex_selfcollide: bool,
     has_flex_snh: bool,
+    has_flex_stiff: bool,
     has_fluid: bool,
     has_non_simple_flex: bool,
     has_plane_geom: bool,
@@ -3633,6 +3658,8 @@ def _step_shim(
     nactuator: int,
     nbody: int,
     nbranch: int,
+    nbvhdynamic: int,
+    nbvhstatic: int,
     ncam: int,
     nefm0dof: int,
     nefmK: int,
@@ -3695,6 +3722,9 @@ def _step_shim(
     qLD_all_updates: wp.array[wp.vec3i],
     qLD_block_adr: wp.array[int],
     qLD_block_total: int,
+    qLD_fused_level_adr: wp.array[int],
+    qLD_fused_pair_adr: wp.array[int],
+    qLD_fused_pairs: wp.array[wp.vec2i],
     qLD_level_offsets: wp.array[int],
     qLD_updates: tuple[wp.array[wp.vec3i], ...],
     qpos0: wp.array2d[float],
@@ -3753,6 +3783,7 @@ def _step_shim(
     tendon_dampingpoly: wp.array2d[wp.vec2],
     tendon_frictionloss: wp.array2d[float],
     tendon_geom_adr: wp.array[int],
+    tendon_geom_wrapadr: wp.array[int],
     tendon_invweight0: wp.array2d[float],
     tendon_jnt_adr: wp.array[int],
     tendon_length0: wp.array2d[float],
@@ -3777,11 +3808,13 @@ def _step_shim(
     tree_sleep_policy: wp.array[int],
     weld_tactile_id: wp.array[int],
     wrap_geom_adr: wp.array[int],
+    wrap_geom_lca: wp.array[wp.vec3i],
     wrap_jnt_adr: wp.array[int],
     wrap_objid: wp.array[int],
     wrap_prm: wp.array[float],
     wrap_pulley_scale: wp.array[float],
     wrap_site_pair_adr: wp.array[int],
+    wrap_site_pair_lca: wp.array[int],
     wrap_type: wp.array[int],
     opt__broadphase: int,
     opt__broadphase_filter: int,
@@ -3820,6 +3853,7 @@ def _step_shim(
     naconmax: int,
     njmax: int,
     njmax_nnz: int,
+    njmax_pad: int,
     nvmax: int,
     nvmax_pad: int,
     M: wp.array2d[float],
@@ -3840,22 +3874,17 @@ def _step_shim(
     cdof: wp.array2d[wp.spatial_vector],
     cdof_dof: wp.array2d[int],
     cdof_dot: wp.array2d[wp.spatial_vector],
-    cdof_tri_col: wp.array[int],
-    cdof_tri_row: wp.array[int],
     cfrc_ext: wp.array2d[wp.spatial_vector],
     cfrc_int: wp.array2d[wp.spatial_vector],
     cinert: wp.array2d[mjwp_types.vec10],
-    cqLD: wp.array3d[float],
     cqacc: wp.array2d[float],
     cqacc_smooth: wp.array2d[float],
     cqacc_warmstart: wp.array2d[float],
     cqfrc_constraint: wp.array2d[float],
     cqfrc_smooth: wp.array2d[float],
     crb: wp.array2d[mjwp_types.vec10],
-    crhs: wp.array3d[float],
     ctrl: wp.array2d[float],
     cvel: wp.array2d[wp.spatial_vector],
-    cx: wp.array3d[float],
     dof_awake_ind: wp.array2d[int],
     dof_cdof: wp.array2d[int],
     dof_frictionadr: wp.array2d[int],
@@ -3899,8 +3928,8 @@ def _step_shim(
     flexnode_xpos: wp.array2d[wp.vec3],
     flexvert_hessian: wp.array2d[mjwp_types.vec6],
     flexvert_xpos: wp.array2d[wp.vec3],
-    geom_xmat: wp.array2d[wp.mat33],
     geom_xpos: wp.array2d[wp.vec3],
+    geom_xquat: wp.array2d[wp.quat],
     history: wp.array2d[float],
     island_dofadr: wp.array2d[int],
     island_idofadr: wp.array2d[int],
@@ -3957,8 +3986,8 @@ def _step_shim(
     qpos: wp.array2d[float],
     qvel: wp.array2d[float],
     sensordata: wp.array2d[float],
-    site_xmat: wp.array2d[wp.mat33],
     site_xpos: wp.array2d[wp.vec3],
+    site_xquat: wp.array2d[wp.quat],
     solver_niter: wp.array[int],
     subtree_angmom: wp.array2d[wp.vec3],
     subtree_com: wp.array2d[wp.vec3],
@@ -3977,9 +4006,8 @@ def _step_shim(
     xanchor: wp.array2d[wp.vec3],
     xaxis: wp.array2d[wp.vec3],
     xfrc_applied: wp.array2d[wp.spatial_vector],
-    ximat: wp.array2d[wp.mat33],
     xipos: wp.array2d[wp.vec3],
-    xmat: wp.array2d[wp.mat33],
+    xiquat: wp.array2d[wp.quat],
     xpos: wp.array2d[wp.vec3],
     xquat: wp.array2d[wp.quat],
     contact__adhesion: wp.array[float],
@@ -4032,14 +4060,14 @@ def _step_shim(
   _m.D_rownnz = D_rownnz
   _m.M_colind = M_colind
   _m.M_elemid = M_elemid
-  _m.M_fullm_i = M_fullm_i
-  _m.M_fullm_j = M_fullm_j
   _m.M_hinit_i = M_hinit_i
-  _m.M_mulm_col = M_mulm_col
-  _m.M_mulm_madr = M_mulm_madr
+  _m.M_mulm_entry = M_mulm_entry
   _m.M_mulm_rowadr = M_mulm_rowadr
   _m.M_rowadr = M_rowadr
   _m.M_rownnz = M_rownnz
+  _m.M_tile_colmask = M_tile_colmask
+  _m.M_tile_full = M_tile_full
+  _m.M_tile_offdiag = M_tile_offdiag
   _m.M_tiles = M_tiles
   _m.actuator_acc0 = actuator_acc0
   _m.actuator_actadr = actuator_actadr
@@ -4104,6 +4132,8 @@ def _step_shim(
   _m.body_tree = body_tree
   _m.body_treeid = body_treeid
   _m.body_weldid = body_weldid
+  _m.bvh_child = bvh_child
+  _m.bvh_nodeid = bvh_nodeid
   _m.cam_bodyid = cam_bodyid
   _m.cam_fovy = cam_fovy
   _m.cam_intrinsic = cam_intrinsic
@@ -4128,9 +4158,8 @@ def _step_shim(
   _m.dof_parentid = dof_parentid
   _m.dof_solimp = dof_solimp
   _m.dof_solref = dof_solref
+  _m.dof_subtreenum = dof_subtreenum
   _m.dof_treeid = dof_treeid
-  _m.dof_tri_col = dof_tri_col
-  _m.dof_tri_row = dof_tri_row
   _m.efm0_L = efm0_L
   _m.efm0_L_colind = efm0_L_colind
   _m.efm0_L_rowadr = efm0_L_rowadr
@@ -4171,6 +4200,9 @@ def _step_shim(
   _m.flex_bend_interp_map = flex_bend_interp_map
   _m.flex_bending = flex_bending
   _m.flex_bendingadr = flex_bendingadr
+  _m.flex_bvh_tree = flex_bvh_tree
+  _m.flex_bvhadr = flex_bvhadr
+  _m.flex_bvhflexid = flex_bvhflexid
   _m.flex_cell_map = flex_cell_map
   _m.flex_celladr = flex_celladr
   _m.flex_cellempty = flex_cellempty
@@ -4238,6 +4270,7 @@ def _step_shim(
   _m.flex_solimp = flex_solimp
   _m.flex_solmix = flex_solmix
   _m.flex_solref = flex_solref
+  _m.flex_stiff_possible = flex_stiff_possible
   _m.flex_stiffness = flex_stiffness
   _m.flex_stiffnessadr = flex_stiffnessadr
   _m.flex_vert = flex_vert
@@ -4289,15 +4322,18 @@ def _step_shim(
   _m.geom_surfacevel = geom_surfacevel
   _m.geom_type = geom_type
   _m.has_1d_flex = has_1d_flex
+  _m.has_2d_flex = has_2d_flex
   _m.has_3d_flex = has_3d_flex
   _m.has_actuator_dcmotor = has_actuator_dcmotor
   _m.has_actuator_wrap = has_actuator_wrap
+  _m.has_cylinder_geom = has_cylinder_geom
   _m.has_efm_actuator = has_efm_actuator
   _m.has_ellipsoid_geom = has_ellipsoid_geom
   _m.has_flex_edge_stiff_damp = has_flex_edge_stiff_damp
   _m.has_flex_passive = has_flex_passive
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_flex_snh = has_flex_snh
+  _m.has_flex_stiff = has_flex_stiff
   _m.has_fluid = has_fluid
   _m.has_non_simple_flex = has_non_simple_flex
   _m.has_plane_geom = has_plane_geom
@@ -4373,6 +4409,8 @@ def _step_shim(
   _m.nactuator = nactuator
   _m.nbody = nbody
   _m.nbranch = nbranch
+  _m.nbvhdynamic = nbvhdynamic
+  _m.nbvhstatic = nbvhstatic
   _m.ncam = ncam
   _m.nefm0dof = nefm0dof
   _m.nefmK = nefmK
@@ -4467,6 +4505,9 @@ def _step_shim(
   _m.qLD_all_updates = qLD_all_updates
   _m.qLD_block_adr = qLD_block_adr
   _m.qLD_block_total = qLD_block_total
+  _m.qLD_fused_level_adr = qLD_fused_level_adr
+  _m.qLD_fused_pair_adr = qLD_fused_pair_adr
+  _m.qLD_fused_pairs = qLD_fused_pairs
   _m.qLD_level_offsets = qLD_level_offsets
   _m.qLD_updates = qLD_updates
   _m.qpos0 = qpos0
@@ -4525,6 +4566,7 @@ def _step_shim(
   _m.tendon_dampingpoly = tendon_dampingpoly
   _m.tendon_frictionloss = tendon_frictionloss
   _m.tendon_geom_adr = tendon_geom_adr
+  _m.tendon_geom_wrapadr = tendon_geom_wrapadr
   _m.tendon_invweight0 = tendon_invweight0
   _m.tendon_jnt_adr = tendon_jnt_adr
   _m.tendon_length0 = tendon_length0
@@ -4549,11 +4591,13 @@ def _step_shim(
   _m.tree_sleep_policy = tree_sleep_policy
   _m.weld_tactile_id = weld_tactile_id
   _m.wrap_geom_adr = wrap_geom_adr
+  _m.wrap_geom_lca = wrap_geom_lca
   _m.wrap_jnt_adr = wrap_jnt_adr
   _m.wrap_objid = wrap_objid
   _m.wrap_prm = wrap_prm
   _m.wrap_pulley_scale = wrap_pulley_scale
   _m.wrap_site_pair_adr = wrap_site_pair_adr
+  _m.wrap_site_pair_lca = wrap_site_pair_lca
   _m.wrap_type = wrap_type
   _d.M = M
   _d.act = act
@@ -4573,8 +4617,6 @@ def _step_shim(
   _d.cdof = cdof
   _d.cdof_dof = cdof_dof
   _d.cdof_dot = cdof_dot
-  _d.cdof_tri_col = cdof_tri_col
-  _d.cdof_tri_row = cdof_tri_row
   _d.cfrc_ext = cfrc_ext
   _d.cfrc_int = cfrc_int
   _d.cinert = cinert
@@ -4597,17 +4639,14 @@ def _step_shim(
   _d.contact.type = contact__type
   _d.contact.vert = contact__vert
   _d.contact.worldid = contact__worldid
-  _d.cqLD = cqLD
   _d.cqacc = cqacc
   _d.cqacc_smooth = cqacc_smooth
   _d.cqacc_warmstart = cqacc_warmstart
   _d.cqfrc_constraint = cqfrc_constraint
   _d.cqfrc_smooth = cqfrc_smooth
   _d.crb = crb
-  _d.crhs = crhs
   _d.ctrl = ctrl
   _d.cvel = cvel
-  _d.cx = cx
   _d.dof_awake_ind = dof_awake_ind
   _d.dof_cdof = dof_cdof
   _d.dof_frictionadr = dof_frictionadr
@@ -4671,8 +4710,8 @@ def _step_shim(
   _d.flexnode_xpos = flexnode_xpos
   _d.flexvert_hessian = flexvert_hessian
   _d.flexvert_xpos = flexvert_xpos
-  _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
+  _d.geom_xquat = geom_xquat
   _d.history = history
   _d.island_dofadr = island_dofadr
   _d.island_idofadr = island_idofadr
@@ -4705,6 +4744,7 @@ def _step_shim(
   _d.nisland = nisland
   _d.njmax = njmax
   _d.njmax_nnz = njmax_nnz
+  _d.njmax_pad = njmax_pad
   _d.nl = nl
   _d.ntree_awake = ntree_awake
   _d.nv_awake = nv_awake
@@ -4735,8 +4775,8 @@ def _step_shim(
   _d.qpos = qpos
   _d.qvel = qvel
   _d.sensordata = sensordata
-  _d.site_xmat = site_xmat
   _d.site_xpos = site_xpos
+  _d.site_xquat = site_xquat
   _d.solver_niter = solver_niter
   _d.subtree_angmom = subtree_angmom
   _d.subtree_com = subtree_com
@@ -4755,9 +4795,8 @@ def _step_shim(
   _d.xanchor = xanchor
   _d.xaxis = xaxis
   _d.xfrc_applied = xfrc_applied
-  _d.ximat = ximat
   _d.xipos = xipos
-  _d.xmat = xmat
+  _d.xiquat = xiquat
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
@@ -4786,14 +4825,11 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'cfrc_ext': d._impl.cfrc_ext.shape,
       'cfrc_int': d._impl.cfrc_int.shape,
       'cinert': d._impl.cinert.shape,
-      'cqLD': d._impl.cqLD.shape,
       'cqacc_smooth': d._impl.cqacc_smooth.shape,
       'cqacc_warmstart': d._impl.cqacc_warmstart.shape,
       'cqfrc_smooth': d._impl.cqfrc_smooth.shape,
       'crb': d._impl.crb.shape,
-      'crhs': d._impl.crhs.shape,
       'cvel': d.cvel.shape,
-      'cx': d._impl.cx.shape,
       'dof_awake_ind': d._impl.dof_awake_ind.shape,
       'dof_cdof': d._impl.dof_cdof.shape,
       'dof_frictionadr': d._impl.dof_frictionadr.shape,
@@ -4836,8 +4872,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'flexnode_xpos': d._impl.flexnode_xpos.shape,
       'flexvert_hessian': d._impl.flexvert_hessian.shape,
       'flexvert_xpos': d._impl.flexvert_xpos.shape,
-      'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
+      'geom_xquat': d._impl.geom_xquat.shape,
       'history': d.history.shape,
       'island_dofadr': d._impl.island_dofadr.shape,
       'island_idofadr': d._impl.island_idofadr.shape,
@@ -4891,8 +4927,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'qpos': d.qpos.shape,
       'qvel': d.qvel.shape,
       'sensordata': d.sensordata.shape,
-      'site_xmat': d.site_xmat.shape,
       'site_xpos': d.site_xpos.shape,
+      'site_xquat': d._impl.site_xquat.shape,
       'solver_niter': d._impl.solver_niter.shape,
       'subtree_angmom': d._impl.subtree_angmom.shape,
       'subtree_com': d.subtree_com.shape,
@@ -4910,9 +4946,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'wrap_xpos': d._impl.wrap_xpos.shape,
       'xanchor': d.xanchor.shape,
       'xaxis': d.xaxis.shape,
-      'ximat': d.ximat.shape,
       'xipos': d.xipos.shape,
-      'xmat': d.xmat.shape,
+      'xiquat': d._impl.xiquat.shape,
       'xpos': d.xpos.shape,
       'xquat': d.xquat.shape,
       'contact__adhesion': d._impl.contact__adhesion.shape,
@@ -4957,7 +4992,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _step_shim,
-      num_outputs=188,
+      num_outputs=184,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
@@ -4981,14 +5016,11 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'cfrc_ext',
           'cfrc_int',
           'cinert',
-          'cqLD',
           'cqacc_smooth',
           'cqacc_warmstart',
           'cqfrc_smooth',
           'crb',
-          'crhs',
           'cvel',
-          'cx',
           'dof_awake_ind',
           'dof_cdof',
           'dof_frictionadr',
@@ -5031,8 +5063,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'flexnode_xpos',
           'flexvert_hessian',
           'flexvert_xpos',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'history',
           'island_dofadr',
           'island_idofadr',
@@ -5086,8 +5118,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'qpos',
           'qvel',
           'sensordata',
-          'site_xmat',
           'site_xpos',
+          'site_xquat',
           'solver_niter',
           'subtree_angmom',
           'subtree_com',
@@ -5105,9 +5137,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'wrap_xpos',
           'xanchor',
           'xaxis',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
           'contact__adhesion',
@@ -5201,8 +5232,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'cdof',
           'cdof_dof',
           'cdof_dot',
-          'cdof_tri_col',
-          'cdof_tri_row',
           'cfrc_ext',
           'cfrc_int',
           'cinert',
@@ -5225,17 +5254,14 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'contact__type',
           'contact__vert',
           'contact__worldid',
-          'cqLD',
           'cqacc',
           'cqacc_smooth',
           'cqacc_warmstart',
           'cqfrc_constraint',
           'cqfrc_smooth',
           'crb',
-          'crhs',
           'ctrl',
           'cvel',
-          'cx',
           'dof_armature',
           'dof_awake_ind',
           'dof_cdof',
@@ -5324,8 +5350,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'geom_solmix',
           'geom_solref',
           'geom_surfacevel',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'hfield_data',
           'history',
           'island_dofadr',
@@ -5426,8 +5452,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'sensordata',
           'site_pos',
           'site_quat',
-          'site_xmat',
           'site_xpos',
+          'site_xquat',
           'solver_niter',
           'subtree_angmom',
           'subtree_com',
@@ -5463,9 +5489,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'xanchor',
           'xaxis',
           'xfrc_applied',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
       ]),
@@ -5509,14 +5534,11 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'contact__type',
           'contact__vert',
           'contact__worldid',
-          'cqLD',
           'cqacc_smooth',
           'cqacc_warmstart',
           'cqfrc_smooth',
           'crb',
-          'crhs',
           'cvel',
-          'cx',
           'dof_awake_ind',
           'dof_cdof',
           'dof_frictionadr',
@@ -5579,8 +5601,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'flexnode_xpos',
           'flexvert_hessian',
           'flexvert_xpos',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'history',
           'island_dofadr',
           'island_idofadr',
@@ -5634,8 +5656,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'qpos',
           'qvel',
           'sensordata',
-          'site_xmat',
           'site_xpos',
+          'site_xquat',
           'solver_niter',
           'subtree_angmom',
           'subtree_com',
@@ -5653,9 +5675,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'wrap_xpos',
           'xanchor',
           'xaxis',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
       ]),
@@ -5670,14 +5691,14 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.D_rownnz,
       m.M_colind,
       m._impl.M_elemid,
-      m._impl.M_fullm_i,
-      m._impl.M_fullm_j,
       m._impl.M_hinit_i,
-      m._impl.M_mulm_col,
-      m._impl.M_mulm_madr,
+      m._impl.M_mulm_entry,
       m._impl.M_mulm_rowadr,
       m.M_rowadr,
       m.M_rownnz,
+      m._impl.M_tile_colmask,
+      m._impl.M_tile_full,
+      m._impl.M_tile_offdiag,
       m._impl.M_tiles,
       m.actuator_acc0,
       m.actuator_actadr,
@@ -5742,6 +5763,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.body_tree,
       m.body_treeid,
       m.body_weldid,
+      m._impl.bvh_child,
+      m._impl.bvh_nodeid,
       m.cam_bodyid,
       m.cam_fovy,
       m.cam_intrinsic,
@@ -5766,9 +5789,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.dof_parentid,
       m.dof_solimp,
       m.dof_solref,
+      m._impl.dof_subtreenum,
       m.dof_treeid,
-      m._impl.dof_tri_col,
-      m._impl.dof_tri_row,
       m._impl.efm0_L,
       m._impl.efm0_L_colind,
       m._impl.efm0_L_rowadr,
@@ -5809,6 +5831,9 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_bend_interp_map,
       m._impl.flex_bending,
       m._impl.flex_bendingadr,
+      m._impl.flex_bvh_tree,
+      m._impl.flex_bvhadr,
+      m._impl.flex_bvhflexid,
       m._impl.flex_cell_map,
       m._impl.flex_celladr,
       m._impl.flex_cellempty,
@@ -5876,6 +5901,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_solimp,
       m._impl.flex_solmix,
       m._impl.flex_solref,
+      m._impl.flex_stiff_possible,
       m._impl.flex_stiffness,
       m._impl.flex_stiffnessadr,
       m._impl.flex_vert,
@@ -5927,15 +5953,18 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.geom_surfacevel,
       m.geom_type,
       m._impl.has_1d_flex,
+      m._impl.has_2d_flex,
       m._impl.has_3d_flex,
       m._impl.has_actuator_dcmotor,
       m._impl.has_actuator_wrap,
+      m._impl.has_cylinder_geom,
       m._impl.has_efm_actuator,
       m._impl.has_ellipsoid_geom,
       m._impl.has_flex_edge_stiff_damp,
       m._impl.has_flex_passive,
       m._impl.has_flex_selfcollide,
       m._impl.has_flex_snh,
+      m._impl.has_flex_stiff,
       m._impl.has_fluid,
       m._impl.has_non_simple_flex,
       m._impl.has_plane_geom,
@@ -6011,6 +6040,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.nactuator,
       m.nbody,
       m._impl.nbranch,
+      m._impl.nbvhdynamic,
+      m._impl.nbvhstatic,
       m.ncam,
       m._impl.nefm0dof,
       m._impl.nefmK,
@@ -6073,6 +6104,9 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.qLD_all_updates,
       m._impl.qLD_block_adr,
       m._impl.qLD_block_total,
+      m._impl.qLD_fused_level_adr,
+      m._impl.qLD_fused_pair_adr,
+      m._impl.qLD_fused_pairs,
       m._impl.qLD_level_offsets,
       m._impl.qLD_updates,
       m.qpos0,
@@ -6131,6 +6165,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.tendon_dampingpoly,
       m.tendon_frictionloss,
       m._impl.tendon_geom_adr,
+      m._impl.tendon_geom_wrapadr,
       m.tendon_invweight0,
       m._impl.tendon_jnt_adr,
       m.tendon_length0,
@@ -6155,11 +6190,13 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.tree_sleep_policy,
       m._impl.weld_tactile_id,
       m._impl.wrap_geom_adr,
+      m._impl.wrap_geom_lca,
       m._impl.wrap_jnt_adr,
       m.wrap_objid,
       m.wrap_prm,
       m._impl.wrap_pulley_scale,
       m._impl.wrap_site_pair_adr,
+      m._impl.wrap_site_pair_lca,
       m.wrap_type,
       m.opt._impl.broadphase,
       m.opt._impl.broadphase_filter,
@@ -6197,6 +6234,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.naconmax,
       d._impl.njmax,
       d._impl.njmax_nnz,
+      d._impl.njmax_pad,
       d._impl.nvmax,
       d._impl.nvmax_pad,
       d._impl.M,
@@ -6217,22 +6255,17 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d.cdof,
       d._impl.cdof_dof,
       d.cdof_dot,
-      d._impl.cdof_tri_col,
-      d._impl.cdof_tri_row,
       d._impl.cfrc_ext,
       d._impl.cfrc_int,
       d._impl.cinert,
-      d._impl.cqLD,
       d._impl.cqacc,
       d._impl.cqacc_smooth,
       d._impl.cqacc_warmstart,
       d._impl.cqfrc_constraint,
       d._impl.cqfrc_smooth,
       d._impl.crb,
-      d._impl.crhs,
       d.ctrl,
       d.cvel,
-      d._impl.cx,
       d._impl.dof_awake_ind,
       d._impl.dof_cdof,
       d._impl.dof_frictionadr,
@@ -6276,8 +6309,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.flexnode_xpos,
       d._impl.flexvert_hessian,
       d._impl.flexvert_xpos,
-      d.geom_xmat,
       d.geom_xpos,
+      d._impl.geom_xquat,
       d.history,
       d._impl.island_dofadr,
       d._impl.island_idofadr,
@@ -6334,8 +6367,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d.qpos,
       d.qvel,
       d.sensordata,
-      d.site_xmat,
       d.site_xpos,
+      d._impl.site_xquat,
       d._impl.solver_niter,
       d._impl.subtree_angmom,
       d.subtree_com,
@@ -6354,9 +6387,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d.xanchor,
       d.xaxis,
       d.xfrc_applied,
-      d.ximat,
       d.xipos,
-      d.xmat,
+      d._impl.xiquat,
       d.xpos,
       d.xquat,
       d._impl.contact__adhesion,
@@ -6420,174 +6452,170 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       '_impl.cfrc_ext': out[17],
       '_impl.cfrc_int': out[18],
       '_impl.cinert': out[19],
-      '_impl.cqLD': out[20],
-      '_impl.cqacc_smooth': out[21],
-      '_impl.cqacc_warmstart': out[22],
-      '_impl.cqfrc_smooth': out[23],
-      '_impl.crb': out[24],
-      '_impl.crhs': out[25],
-      'cvel': out[26],
-      '_impl.cx': out[27],
-      '_impl.dof_awake_ind': out[28],
-      '_impl.dof_cdof': out[29],
-      '_impl.dof_frictionadr': out[30],
-      '_impl.dof_island': out[31],
-      '_impl.dof_islandid': out[32],
-      '_impl.efc_islandid': out[33],
-      '_impl.efm_K_val': out[34],
-      '_impl.efm_L_val': out[35],
-      '_impl.efm_as': out[36],
-      '_impl.efm_c': out[37],
-      '_impl.efm_ca': out[38],
-      '_impl.efm_diag': out[39],
-      '_impl.efm_fluid': out[40],
-      '_impl.efm_ts': out[41],
-      '_impl.energy': out[42],
-      '_impl.face_quat': out[43],
-      '_impl.face_xpos': out[44],
-      '_impl.flex_aabb_max': out[45],
-      '_impl.flex_aabb_min': out[46],
-      '_impl.flex_hessian_valid': out[47],
-      '_impl.flex_rod_chain_ok': out[48],
-      '_impl.flex_rod_chain_valid': out[49],
-      '_impl.flex_rod_end_torque': out[50],
-      '_impl.flex_rod_frame0_loc': out[51],
-      '_impl.flex_rod_frame0_ref': out[52],
-      '_impl.flex_rod_ref_ok': out[53],
-      '_impl.flex_rod_tail_loc': out[54],
-      '_impl.flex_rodedge_frc': out[55],
-      '_impl.flex_rodedge_grad': out[56],
-      '_impl.flex_rodedge_ktheta': out[57],
-      '_impl.flex_rodedge_tridiag': out[58],
-      '_impl.flex_rodhinge_Wd': out[59],
-      '_impl.flex_rodhinge_Wk': out[60],
-      '_impl.flex_rodhinge_g': out[61],
-      '_impl.flex_rodhinge_om0': out[62],
-      '_impl.flexedge_J': out[63],
-      '_impl.flexedge_hessian': out[64],
-      '_impl.flexedge_length': out[65],
-      '_impl.flexedge_velocity': out[66],
-      '_impl.flexnode_xpos': out[67],
-      '_impl.flexvert_hessian': out[68],
-      '_impl.flexvert_xpos': out[69],
-      'geom_xmat': out[70],
-      'geom_xpos': out[71],
-      'history': out[72],
-      '_impl.island_dofadr': out[73],
-      '_impl.island_idofadr': out[74],
-      '_impl.island_iefcadr': out[75],
-      '_impl.island_ne': out[76],
-      '_impl.island_nefc': out[77],
-      '_impl.island_nf': out[78],
-      '_impl.island_nv': out[79],
-      '_impl.light_xdir': out[80],
-      '_impl.light_xpos': out[81],
-      '_impl.map_dof2idof': out[82],
-      '_impl.map_efc2iefc': out[83],
-      '_impl.map_idof2dof': out[84],
-      '_impl.map_iefc2efc': out[85],
-      '_impl.moment_colind': out[86],
-      '_impl.moment_rowadr': out[87],
-      '_impl.moment_rownnz': out[88],
-      '_impl.nacon': out[89],
-      '_impl.nbody_awake': out[90],
-      '_impl.ncdof': out[91],
-      '_impl.ncollision': out[92],
-      '_impl.ne': out[93],
-      '_impl.nefc': out[94],
-      '_impl.nf': out[95],
-      '_impl.nidof': out[96],
-      '_impl.nisland': out[97],
-      '_impl.nl': out[98],
-      '_impl.ntree_awake': out[99],
-      '_impl.nv_awake': out[100],
-      '_impl.overflow': out[101],
-      'plastic': out[102],
-      '_impl.qH': out[103],
-      '_impl.qHDiagInv': out[104],
-      '_impl.qHLD': out[105],
-      '_impl.qLD': out[106],
-      '_impl.qLDiagInv': out[107],
-      '_impl.qLU': out[108],
-      'qacc': out[109],
-      'qacc_smooth': out[110],
-      'qacc_warmstart': out[111],
-      'qfrc_actuator': out[112],
-      '_impl.qfrc_adhesion': out[113],
-      'qfrc_bias': out[114],
-      'qfrc_constraint': out[115],
-      '_impl.qfrc_damper': out[116],
-      'qfrc_fluid': out[117],
-      'qfrc_gravcomp': out[118],
-      'qfrc_passive': out[119],
-      'qfrc_smooth': out[120],
-      '_impl.qfrc_spring': out[121],
-      'qpos': out[122],
-      'qvel': out[123],
-      'sensordata': out[124],
-      'site_xmat': out[125],
-      'site_xpos': out[126],
-      '_impl.solver_niter': out[127],
-      '_impl.subtree_angmom': out[128],
-      'subtree_com': out[129],
-      '_impl.subtree_linvel': out[130],
-      '_impl.ten_J': out[131],
-      'ten_length': out[132],
-      '_impl.ten_velocity': out[133],
-      '_impl.ten_wrapadr': out[134],
-      '_impl.ten_wrapnum': out[135],
-      'time': out[136],
-      '_impl.tree_asleep': out[137],
-      '_impl.tree_awake': out[138],
-      '_impl.tree_island': out[139],
-      '_impl.wrap_obj': out[140],
-      '_impl.wrap_xpos': out[141],
-      'xanchor': out[142],
-      'xaxis': out[143],
-      'ximat': out[144],
-      'xipos': out[145],
-      'xmat': out[146],
-      'xpos': out[147],
-      'xquat': out[148],
-      '_impl.contact__adhesion': out[149],
-      '_impl.contact__dim': out[150],
-      '_impl.contact__dist': out[151],
-      '_impl.contact__efc_address': out[152],
-      '_impl.contact__elem': out[153],
-      '_impl.contact__flex': out[154],
-      '_impl.contact__frame': out[155],
-      '_impl.contact__friction': out[156],
-      '_impl.contact__geom': out[157],
-      '_impl.contact__geomcollisionid': out[158],
-      '_impl.contact__includemargin': out[159],
-      '_impl.contact__pos': out[160],
-      '_impl.contact__solimp': out[161],
-      '_impl.contact__solref': out[162],
-      '_impl.contact__solreffriction': out[163],
-      '_impl.contact__surfacevel': out[164],
-      '_impl.contact__type': out[165],
-      '_impl.contact__vert': out[166],
-      '_impl.contact__worldid': out[167],
-      '_impl.efc__D': out[168],
-      '_impl.efc__J': out[169],
-      '_impl.efc__J_colind': out[170],
-      '_impl.efc__J_rowadr': out[171],
-      '_impl.efc__J_rownnz': out[172],
-      '_impl.efc__Jqvel': out[173],
-      '_impl.efc__Ma': out[174],
-      '_impl.efc__aref': out[175],
-      '_impl.efc__force': out[176],
-      '_impl.efc__frictionloss': out[177],
-      '_impl.efc__id': out[178],
-      '_impl.efc__island': out[179],
-      '_impl.efc__jtdaj_adr': out[180],
-      '_impl.efc__jtdaj_nblock': out[181],
-      '_impl.efc__jtdaj_nrow': out[182],
-      '_impl.efc__margin': out[183],
-      '_impl.efc__pos': out[184],
-      '_impl.efc__state': out[185],
-      '_impl.efc__type': out[186],
-      '_impl.efc__vel': out[187],
+      '_impl.cqacc_smooth': out[20],
+      '_impl.cqacc_warmstart': out[21],
+      '_impl.cqfrc_smooth': out[22],
+      '_impl.crb': out[23],
+      'cvel': out[24],
+      '_impl.dof_awake_ind': out[25],
+      '_impl.dof_cdof': out[26],
+      '_impl.dof_frictionadr': out[27],
+      '_impl.dof_island': out[28],
+      '_impl.dof_islandid': out[29],
+      '_impl.efc_islandid': out[30],
+      '_impl.efm_K_val': out[31],
+      '_impl.efm_L_val': out[32],
+      '_impl.efm_as': out[33],
+      '_impl.efm_c': out[34],
+      '_impl.efm_ca': out[35],
+      '_impl.efm_diag': out[36],
+      '_impl.efm_fluid': out[37],
+      '_impl.efm_ts': out[38],
+      '_impl.energy': out[39],
+      '_impl.face_quat': out[40],
+      '_impl.face_xpos': out[41],
+      '_impl.flex_aabb_max': out[42],
+      '_impl.flex_aabb_min': out[43],
+      '_impl.flex_hessian_valid': out[44],
+      '_impl.flex_rod_chain_ok': out[45],
+      '_impl.flex_rod_chain_valid': out[46],
+      '_impl.flex_rod_end_torque': out[47],
+      '_impl.flex_rod_frame0_loc': out[48],
+      '_impl.flex_rod_frame0_ref': out[49],
+      '_impl.flex_rod_ref_ok': out[50],
+      '_impl.flex_rod_tail_loc': out[51],
+      '_impl.flex_rodedge_frc': out[52],
+      '_impl.flex_rodedge_grad': out[53],
+      '_impl.flex_rodedge_ktheta': out[54],
+      '_impl.flex_rodedge_tridiag': out[55],
+      '_impl.flex_rodhinge_Wd': out[56],
+      '_impl.flex_rodhinge_Wk': out[57],
+      '_impl.flex_rodhinge_g': out[58],
+      '_impl.flex_rodhinge_om0': out[59],
+      '_impl.flexedge_J': out[60],
+      '_impl.flexedge_hessian': out[61],
+      '_impl.flexedge_length': out[62],
+      '_impl.flexedge_velocity': out[63],
+      '_impl.flexnode_xpos': out[64],
+      '_impl.flexvert_hessian': out[65],
+      '_impl.flexvert_xpos': out[66],
+      'geom_xpos': out[67],
+      '_impl.geom_xquat': out[68],
+      'history': out[69],
+      '_impl.island_dofadr': out[70],
+      '_impl.island_idofadr': out[71],
+      '_impl.island_iefcadr': out[72],
+      '_impl.island_ne': out[73],
+      '_impl.island_nefc': out[74],
+      '_impl.island_nf': out[75],
+      '_impl.island_nv': out[76],
+      '_impl.light_xdir': out[77],
+      '_impl.light_xpos': out[78],
+      '_impl.map_dof2idof': out[79],
+      '_impl.map_efc2iefc': out[80],
+      '_impl.map_idof2dof': out[81],
+      '_impl.map_iefc2efc': out[82],
+      '_impl.moment_colind': out[83],
+      '_impl.moment_rowadr': out[84],
+      '_impl.moment_rownnz': out[85],
+      '_impl.nacon': out[86],
+      '_impl.nbody_awake': out[87],
+      '_impl.ncdof': out[88],
+      '_impl.ncollision': out[89],
+      '_impl.ne': out[90],
+      '_impl.nefc': out[91],
+      '_impl.nf': out[92],
+      '_impl.nidof': out[93],
+      '_impl.nisland': out[94],
+      '_impl.nl': out[95],
+      '_impl.ntree_awake': out[96],
+      '_impl.nv_awake': out[97],
+      '_impl.overflow': out[98],
+      'plastic': out[99],
+      '_impl.qH': out[100],
+      '_impl.qHDiagInv': out[101],
+      '_impl.qHLD': out[102],
+      '_impl.qLD': out[103],
+      '_impl.qLDiagInv': out[104],
+      '_impl.qLU': out[105],
+      'qacc': out[106],
+      'qacc_smooth': out[107],
+      'qacc_warmstart': out[108],
+      'qfrc_actuator': out[109],
+      '_impl.qfrc_adhesion': out[110],
+      'qfrc_bias': out[111],
+      'qfrc_constraint': out[112],
+      '_impl.qfrc_damper': out[113],
+      'qfrc_fluid': out[114],
+      'qfrc_gravcomp': out[115],
+      'qfrc_passive': out[116],
+      'qfrc_smooth': out[117],
+      '_impl.qfrc_spring': out[118],
+      'qpos': out[119],
+      'qvel': out[120],
+      'sensordata': out[121],
+      'site_xpos': out[122],
+      '_impl.site_xquat': out[123],
+      '_impl.solver_niter': out[124],
+      '_impl.subtree_angmom': out[125],
+      'subtree_com': out[126],
+      '_impl.subtree_linvel': out[127],
+      '_impl.ten_J': out[128],
+      'ten_length': out[129],
+      '_impl.ten_velocity': out[130],
+      '_impl.ten_wrapadr': out[131],
+      '_impl.ten_wrapnum': out[132],
+      'time': out[133],
+      '_impl.tree_asleep': out[134],
+      '_impl.tree_awake': out[135],
+      '_impl.tree_island': out[136],
+      '_impl.wrap_obj': out[137],
+      '_impl.wrap_xpos': out[138],
+      'xanchor': out[139],
+      'xaxis': out[140],
+      'xipos': out[141],
+      '_impl.xiquat': out[142],
+      'xpos': out[143],
+      'xquat': out[144],
+      '_impl.contact__adhesion': out[145],
+      '_impl.contact__dim': out[146],
+      '_impl.contact__dist': out[147],
+      '_impl.contact__efc_address': out[148],
+      '_impl.contact__elem': out[149],
+      '_impl.contact__flex': out[150],
+      '_impl.contact__frame': out[151],
+      '_impl.contact__friction': out[152],
+      '_impl.contact__geom': out[153],
+      '_impl.contact__geomcollisionid': out[154],
+      '_impl.contact__includemargin': out[155],
+      '_impl.contact__pos': out[156],
+      '_impl.contact__solimp': out[157],
+      '_impl.contact__solref': out[158],
+      '_impl.contact__solreffriction': out[159],
+      '_impl.contact__surfacevel': out[160],
+      '_impl.contact__type': out[161],
+      '_impl.contact__vert': out[162],
+      '_impl.contact__worldid': out[163],
+      '_impl.efc__D': out[164],
+      '_impl.efc__J': out[165],
+      '_impl.efc__J_colind': out[166],
+      '_impl.efc__J_rowadr': out[167],
+      '_impl.efc__J_rownnz': out[168],
+      '_impl.efc__Jqvel': out[169],
+      '_impl.efc__Ma': out[170],
+      '_impl.efc__aref': out[171],
+      '_impl.efc__force': out[172],
+      '_impl.efc__frictionloss': out[173],
+      '_impl.efc__id': out[174],
+      '_impl.efc__island': out[175],
+      '_impl.efc__jtdaj_adr': out[176],
+      '_impl.efc__jtdaj_nblock': out[177],
+      '_impl.efc__jtdaj_nrow': out[178],
+      '_impl.efc__margin': out[179],
+      '_impl.efc__pos': out[180],
+      '_impl.efc__state': out[181],
+      '_impl.efc__type': out[182],
+      '_impl.efc__vel': out[183],
   })
   return d
 

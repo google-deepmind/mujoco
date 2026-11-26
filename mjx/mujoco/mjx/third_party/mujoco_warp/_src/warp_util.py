@@ -167,6 +167,34 @@ def cache_kernel(func):
   return wrapper
 
 
+_SIDE_STREAMS = {}
+
+
+def side_stream(device: wp.Device) -> wp.Stream | None:
+  """Returns a second stream while the device's stream is capturing a graph, else None.
+
+  Launches under wp.ScopedStream(side) fork the captured node chain until
+  wp.wait_stream(side) joins it, so they run beside the launches issued in between.
+  """
+  if not device.is_cuda or not device.stream.is_capturing:
+    return None
+  # one per capturing stream, so that concurrent captures do not share a branch
+  key = (device.alias, device.stream.cuda_stream)
+  if key not in _SIDE_STREAMS:
+    _SIDE_STREAMS[key] = wp.Stream(device)
+  return _SIDE_STREAMS[key]
+
+
+def efc_threads_per_world(nworld: int, njmax: int, device, kernel: wp.Kernel, num_waves: int = 6) -> int:
+  """Size row launches from kernel occupancy, capped at capacity and aligned to warps."""
+  if not device.is_cuda or njmax <= 32:
+    return njmax
+  block_size, min_grid_size = wp.get_suggested_block_size(kernel, device)
+  # Iterative updates need extra waves as converged worlds stop contributing work.
+  warps = max(1, num_waves * block_size * min_grid_size // (32 * max(1, nworld)))
+  return 32 * min(njmax // 32, warps)
+
+
 def check_toolkit_driver():
   wp.init()
   if wp.get_device().is_cuda:

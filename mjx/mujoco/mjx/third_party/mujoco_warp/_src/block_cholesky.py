@@ -307,6 +307,18 @@ def create_blocked_cholesky_solve_newton_func(block_size: int, matrix_size_stati
 def ctz64(x: wp.uint64) -> int: ...
 
 
+@wp.func_native(
+  snippet="""
+#if defined(__CUDA_ARCH__)
+    return __clzll((long long)x);
+#else
+    return __builtin_clzll((unsigned long long)x);
+#endif
+"""
+)
+def clz64(x: wp.uint64) -> int: ...
+
+
 @lru_cache(maxsize=None)
 def create_blocked_cholesky_sparse_tiles_factorize_solve_newton_func(
   block_size: int,

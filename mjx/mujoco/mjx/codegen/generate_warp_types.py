@@ -508,6 +508,9 @@ def _to_jax_ndim(name: str, wp_type: Any) -> int:
       raise NotImplementedError('Only variadic tuples are supported.')
     return -1  # signals that dim should be untouched in downstream code.
   ffi_arg = FfiArg(name, wp_type)
+  # uint64 arrays are packed as (..., 2) uint32 to survive jax_enable_x64=False.
+  if _is_array_spec(wp_type) and wp_type.dtype == wp.uint64:
+    return ffi_arg.jax_ndim + 1
   return ffi_arg.jax_ndim
 
 

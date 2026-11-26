@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="mujoco-warp"
-version = "4.0.0"
+version = "4.0.1"
 # TODO(team): create a distribution list
 authors = [
     {name = "Newton Developers", email = "mujoco@deepmind.com"},
@@ -28,7 +28,7 @@ requires-python = ">=3.11"
 dependencies = [
     "absl-py",
     "etils[epath]",
-    "mujoco-core[rendering]>=4.0.0",
+    "mujoco-core>=4.0.0",
     "numpy",
     "warp-lang>=1.15",
 ]
@@ -48,10 +48,19 @@ url = "https://py.mujoco.org/"
 
 [tool.uv.sources]
 warp-lang = {index = "nvidia"}
-mujoco = {index = "mujoco"}
 mujoco-core = {index = "mujoco"}
+mujoco-studio = {index = "mujoco"}
+mujoco-studio-wasm = {index = "mujoco"}
 
 [project.optional-dependencies]
+# mjwarp-viewer and mjwarp-record
+viewer = [
+    "mujoco-core[rendering]>=4.0.0",
+    "mujoco-studio>=4.0.0",
+    # Listed explicitly so [tool.uv.sources] resolves dev builds from py.mujoco.org.
+    "mujoco-studio-wasm>=4.0.0",
+    "pillow",
+]
 dev = [
     "pre-commit",
     "pytest",
@@ -59,10 +68,8 @@ dev = [
     "ruff",
     "pygls>=1.0.0,<2.0.0",
     "lsprotocol>=2023.0.1,<2024.0.0",
-    "mujoco-core[rendering]>=4.0.0",
+    "mujoco-warp[viewer]",
     "warp-lang>=1.15",
-    "mjviser>=0.0.13",
-    "pillow",
 ]
 # TODO(team): cpu and cuda JAX optional dependencies are temporary, remove after we land MJX:Warp
 cpu = [
@@ -70,6 +77,9 @@ cpu = [
 ]
 cuda = [
     "jax[cuda12]"
+]
+optix = [
+    "warp-optix>=0.3.0; python_version == '3.12'",
 ]
 
 [project.scripts]

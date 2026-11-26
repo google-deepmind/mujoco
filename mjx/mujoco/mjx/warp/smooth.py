@@ -43,6 +43,7 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _kinematics_shim(
     # Model
@@ -75,18 +76,17 @@ def _kinematics_shim(
     site_pos: wp.array2d[wp.vec3],
     site_quat: wp.array2d[wp.quat],
     # Data
-    geom_xmat: wp.array2d[wp.mat33],
     geom_xpos: wp.array2d[wp.vec3],
+    geom_xquat: wp.array2d[wp.quat],
     mocap_pos: wp.array2d[wp.vec3],
     mocap_quat: wp.array2d[wp.quat],
     qpos: wp.array2d[float],
-    site_xmat: wp.array2d[wp.mat33],
     site_xpos: wp.array2d[wp.vec3],
+    site_xquat: wp.array2d[wp.quat],
     xanchor: wp.array2d[wp.vec3],
     xaxis: wp.array2d[wp.vec3],
-    ximat: wp.array2d[wp.mat33],
     xipos: wp.array2d[wp.vec3],
-    xmat: wp.array2d[wp.mat33],
+    xiquat: wp.array2d[wp.quat],
     xpos: wp.array2d[wp.vec3],
     xquat: wp.array2d[wp.quat],
 ):
@@ -121,18 +121,17 @@ def _kinematics_shim(
   _m.site_bodyid = site_bodyid
   _m.site_pos = site_pos
   _m.site_quat = site_quat
-  _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
+  _d.geom_xquat = geom_xquat
   _d.mocap_pos = mocap_pos
   _d.mocap_quat = mocap_quat
   _d.qpos = qpos
-  _d.site_xmat = site_xmat
   _d.site_xpos = site_xpos
+  _d.site_xquat = site_xquat
   _d.xanchor = xanchor
   _d.xaxis = xaxis
-  _d.ximat = ximat
   _d.xipos = xipos
-  _d.xmat = xmat
+  _d.xiquat = xiquat
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
@@ -141,33 +140,31 @@ def _kinematics_shim(
 
 def _kinematics_jax_impl(m: types.Model, d: types.Data):
   output_dims = {
-      'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
-      'site_xmat': d.site_xmat.shape,
+      'geom_xquat': d._impl.geom_xquat.shape,
       'site_xpos': d.site_xpos.shape,
+      'site_xquat': d._impl.site_xquat.shape,
       'xanchor': d.xanchor.shape,
       'xaxis': d.xaxis.shape,
-      'ximat': d.ximat.shape,
       'xipos': d.xipos.shape,
-      'xmat': d.xmat.shape,
+      'xiquat': d._impl.xiquat.shape,
       'xpos': d.xpos.shape,
       'xquat': d.xquat.shape,
   }
   jf = ffi.jax_callable_variadic_tuple(
       _kinematics_shim,
-      num_outputs=11,
+      num_outputs=10,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
-          'geom_xmat',
           'geom_xpos',
-          'site_xmat',
+          'geom_xquat',
           'site_xpos',
+          'site_xquat',
           'xanchor',
           'xaxis',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
       ]),
@@ -178,8 +175,8 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
           'body_quat',
           'geom_pos',
           'geom_quat',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'jnt_axis',
           'jnt_pos',
           'mocap_pos',
@@ -188,26 +185,24 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
           'qpos0',
           'site_pos',
           'site_quat',
-          'site_xmat',
           'site_xpos',
+          'site_xquat',
           'xanchor',
           'xaxis',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
       ]),
       stage_out_argnames=set([
-          'geom_xmat',
           'geom_xpos',
-          'site_xmat',
+          'geom_xquat',
           'site_xpos',
+          'site_xquat',
           'xanchor',
           'xaxis',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
           'xpos',
           'xquat',
       ]),
@@ -243,33 +238,31 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       m.site_bodyid,
       m.site_pos,
       m.site_quat,
-      d.geom_xmat,
       d.geom_xpos,
+      d._impl.geom_xquat,
       d.mocap_pos,
       d.mocap_quat,
       d.qpos,
-      d.site_xmat,
       d.site_xpos,
+      d._impl.site_xquat,
       d.xanchor,
       d.xaxis,
-      d.ximat,
       d.xipos,
-      d.xmat,
+      d._impl.xiquat,
       d.xpos,
       d.xquat,
   )
   d = d.tree_replace({
-      'geom_xmat': out[0],
-      'geom_xpos': out[1],
-      'site_xmat': out[2],
-      'site_xpos': out[3],
+      'geom_xpos': out[0],
+      '_impl.geom_xquat': out[1],
+      'site_xpos': out[2],
+      '_impl.site_xquat': out[3],
       'xanchor': out[4],
       'xaxis': out[5],
-      'ximat': out[6],
-      'xipos': out[7],
-      'xmat': out[8],
-      'xpos': out[9],
-      'xquat': out[10],
+      'xipos': out[6],
+      '_impl.xiquat': out[7],
+      'xpos': out[8],
+      'xquat': out[9],
   })
   return d
 
@@ -311,22 +304,25 @@ def _tendon_shim(
     ten_J_rownnz: wp.array[int],
     tendon_adr: wp.array[int],
     tendon_geom_adr: wp.array[int],
+    tendon_geom_wrapadr: wp.array[int],
     tendon_jnt_adr: wp.array[int],
     tendon_num: wp.array[int],
     tendon_site_pair_adr: wp.array[int],
     tendon_type: wp.array[int],
     wrap_geom_adr: wp.array[int],
+    wrap_geom_lca: wp.array[wp.vec3i],
     wrap_jnt_adr: wp.array[int],
     wrap_objid: wp.array[int],
     wrap_prm: wp.array[float],
     wrap_pulley_scale: wp.array[float],
     wrap_site_pair_adr: wp.array[int],
+    wrap_site_pair_lca: wp.array[int],
     wrap_type: wp.array[int],
     opt__deterministic: int,
     # Data
     cdof: wp.array2d[wp.spatial_vector],
-    geom_xmat: wp.array2d[wp.mat33],
     geom_xpos: wp.array2d[wp.vec3],
+    geom_xquat: wp.array2d[wp.quat],
     qpos: wp.array2d[float],
     site_xpos: wp.array2d[wp.vec3],
     subtree_com: wp.array2d[wp.vec3],
@@ -359,20 +355,23 @@ def _tendon_shim(
   _m.ten_J_rownnz = ten_J_rownnz
   _m.tendon_adr = tendon_adr
   _m.tendon_geom_adr = tendon_geom_adr
+  _m.tendon_geom_wrapadr = tendon_geom_wrapadr
   _m.tendon_jnt_adr = tendon_jnt_adr
   _m.tendon_num = tendon_num
   _m.tendon_site_pair_adr = tendon_site_pair_adr
   _m.tendon_type = tendon_type
   _m.wrap_geom_adr = wrap_geom_adr
+  _m.wrap_geom_lca = wrap_geom_lca
   _m.wrap_jnt_adr = wrap_jnt_adr
   _m.wrap_objid = wrap_objid
   _m.wrap_prm = wrap_prm
   _m.wrap_pulley_scale = wrap_pulley_scale
   _m.wrap_site_pair_adr = wrap_site_pair_adr
+  _m.wrap_site_pair_lca = wrap_site_pair_lca
   _m.wrap_type = wrap_type
   _d.cdof = cdof
-  _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
+  _d.geom_xquat = geom_xquat
   _d.qpos = qpos
   _d.site_xpos = site_xpos
   _d.subtree_com = subtree_com
@@ -411,8 +410,8 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       stage_in_argnames=set([
           'cdof',
           'geom_size',
-          'geom_xmat',
           'geom_xpos',
+          'geom_xquat',
           'qpos',
           'site_xpos',
           'subtree_com',
@@ -453,21 +452,24 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       m._impl.ten_J_rownnz,
       m.tendon_adr,
       m._impl.tendon_geom_adr,
+      m._impl.tendon_geom_wrapadr,
       m._impl.tendon_jnt_adr,
       m.tendon_num,
       m._impl.tendon_site_pair_adr,
       m.tendon_type,
       m._impl.wrap_geom_adr,
+      m._impl.wrap_geom_lca,
       m._impl.wrap_jnt_adr,
       m.wrap_objid,
       m.wrap_prm,
       m._impl.wrap_pulley_scale,
       m._impl.wrap_site_pair_adr,
+      m._impl.wrap_site_pair_lca,
       m.wrap_type,
       m.opt._impl.deterministic,
       d.cdof,
-      d.geom_xmat,
       d.geom_xpos,
+      d._impl.geom_xquat,
       d.qpos,
       d.site_xpos,
       d.subtree_com,
@@ -512,6 +514,7 @@ def _com_pos_shim(
     body_rootid: wp.array[int],
     body_subtreemass: wp.array2d[float],
     body_subtreenum: wp.array[int],
+    body_tree: tuple[wp.array[int], ...],
     jnt_bodyid: wp.array[int],
     jnt_dofadr: wp.array[int],
     jnt_type: wp.array[int],
@@ -523,9 +526,9 @@ def _com_pos_shim(
     subtree_com: wp.array2d[wp.vec3],
     xanchor: wp.array2d[wp.vec3],
     xaxis: wp.array2d[wp.vec3],
-    ximat: wp.array2d[wp.mat33],
     xipos: wp.array2d[wp.vec3],
-    xmat: wp.array2d[wp.mat33],
+    xiquat: wp.array2d[wp.quat],
+    xquat: wp.array2d[wp.quat],
 ):
   _m.opt = _o
   _m.callback = _cb
@@ -536,6 +539,7 @@ def _com_pos_shim(
   _m.body_rootid = body_rootid
   _m.body_subtreemass = body_subtreemass
   _m.body_subtreenum = body_subtreenum
+  _m.body_tree = body_tree
   _m.jnt_bodyid = jnt_bodyid
   _m.jnt_dofadr = jnt_dofadr
   _m.jnt_type = jnt_type
@@ -546,9 +550,9 @@ def _com_pos_shim(
   _d.subtree_com = subtree_com
   _d.xanchor = xanchor
   _d.xaxis = xaxis
-  _d.ximat = ximat
   _d.xipos = xipos
-  _d.xmat = xmat
+  _d.xiquat = xiquat
+  _d.xquat = xquat
   _d.nworld = nworld
   mjwarp.com_pos(_m, _d)
 
@@ -574,9 +578,9 @@ def _com_pos_jax_impl(m: types.Model, d: types.Data):
           'subtree_com',
           'xanchor',
           'xaxis',
-          'ximat',
           'xipos',
-          'xmat',
+          'xiquat',
+          'xquat',
       ]),
       stage_out_argnames=set(['cdof', 'cinert', 'subtree_com']),
       graph_mode=m.opt._impl.graph_mode,
@@ -589,6 +593,7 @@ def _com_pos_jax_impl(m: types.Model, d: types.Data):
       m.body_rootid,
       m.body_subtreemass,
       m._impl.body_subtreenum,
+      m._impl.body_tree,
       m.jnt_bodyid,
       m.jnt_dofadr,
       m.jnt_type,
@@ -599,9 +604,9 @@ def _com_pos_jax_impl(m: types.Model, d: types.Data):
       d.subtree_com,
       d.xanchor,
       d.xaxis,
-      d.ximat,
       d.xipos,
-      d.xmat,
+      d._impl.xiquat,
+      d.xquat,
   )
   d = d.tree_replace(
       {'cdof': out[0], '_impl.cinert': out[1], 'subtree_com': out[2]}

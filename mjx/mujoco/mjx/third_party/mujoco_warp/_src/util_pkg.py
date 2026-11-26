@@ -18,6 +18,10 @@ import importlib.metadata
 import operator
 import re
 
+# the mujoco module ships in mujoco-core; the mujoco metapackage is optional
+_DIST_NAMES = {"mujoco": ("mujoco", "mujoco-core"), "mujoco-core": ("mujoco-core", "mujoco")}
+_MODULE_NAMES = {"mujoco-core": "mujoco"}
+
 
 def _parse_version(version_str: str) -> tuple[tuple[int, int | str], ...]:
   """Parse a version string into comparable components.
@@ -72,17 +76,21 @@ def check_version(spec: str) -> bool:
 
   required_version = _parse_version(version_str)
 
-  try:
-    installed_str = importlib.metadata.version(package_name)
-  except importlib.metadata.PackageNotFoundError as e:
+  for dist_name in _DIST_NAMES.get(package_name, (package_name,)):
+    try:
+      installed_str = importlib.metadata.version(dist_name)
+      break
+    except importlib.metadata.PackageNotFoundError:
+      pass
+  else:
     # Fallback: import the package and read __version__
     try:
       import importlib as _importlib  # noqa: F811
 
-      mod = _importlib.import_module(package_name)
+      mod = _importlib.import_module(_MODULE_NAMES.get(package_name, package_name))
       installed_str = mod.__version__
-    except (ImportError, AttributeError):
-      raise e
+    except (ImportError, AttributeError) as err:
+      raise importlib.metadata.PackageNotFoundError(package_name) from err
 
   installed_version = _parse_version(installed_str)
 

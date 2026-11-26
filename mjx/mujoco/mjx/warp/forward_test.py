@@ -114,9 +114,8 @@ class ForwardTest(parameterized.TestCase):
     worldids = jp.arange(batch_size)
     dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
 
-    dx_batch = jax.jit(jax.vmap(forward.forward, in_axes=(None, 0)))(
-        mx, dx_batch
-    )
+    # Use mjx.forward so support.sync_warp_xmat populates xmat fields.
+    dx_batch = jax.jit(jax.vmap(mjx.forward, in_axes=(None, 0)))(mx, dx_batch)
 
     for i in range(batch_size):
       dx = dx_batch[i]

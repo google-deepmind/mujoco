@@ -38,6 +38,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import primitiv
 from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sdf_narrowphase as sdf_narrowphase
 from mujoco.mjx.third_party.mujoco_warp._src.constraint import make_constraint as make_constraint
 from mujoco.mjx.third_party.mujoco_warp._src.derivative import deriv_smooth_vel as deriv_smooth_vel
+from mujoco.mjx.third_party.mujoco_warp._src.diff import differentiable as _differentiable
 from mujoco.mjx.third_party.mujoco_warp._src.forward import discrete as discrete
 from mujoco.mjx.third_party.mujoco_warp._src.forward import euler as euler
 from mujoco.mjx.third_party.mujoco_warp._src.forward import forward as forward
@@ -127,3 +128,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import SetConstGroup as SetCo
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType as SolverType
 from mujoco.mjx.third_party.mujoco_warp._src.types import State as State
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType as TrnType
+
+# Wrap all public API functions exported by this module.
+# Internal module bindings stay unchanged; register adjoint rules after this call.
+_differentiable(locals())

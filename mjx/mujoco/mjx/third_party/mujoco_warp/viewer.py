@@ -23,13 +23,11 @@ Example:
 
 import copy
 import enum
-import logging
 import sys
 import time
 from typing import Sequence
 
 import mujoco
-import mujoco.viewer
 import numpy as np
 import warp as wp
 from absl import app
@@ -48,18 +46,6 @@ class EngineOptions(enum.IntEnum):
 
 _ENGINE = flags.DEFINE_enum_class("engine", EngineOptions.WARP, EngineOptions, "Simulation engine")
 from mujoco.mjx.third_party.mujoco_warp._src import cli
-
-_VIEWER = flags.DEFINE_enum("viewer", "mujoco", ["mujoco", "viser"], "Viewer backend (mujoco native or mjviser web)")
-
-_VIEWER_GLOBAL_STATE = {"running": True, "step_once": False}
-
-
-def key_callback(key: int) -> None:
-  if key == 32:  # Space bar
-    _VIEWER_GLOBAL_STATE["running"] = not _VIEWER_GLOBAL_STATE["running"]
-    logging.info("RUNNING = %s", _VIEWER_GLOBAL_STATE["running"])
-  elif key == 46:  # period
-    _VIEWER_GLOBAL_STATE["step_once"] = True
 
 
 def _compile_step(m, d):
@@ -118,31 +104,25 @@ def _make_c_step_fn(ctrls=None):
   return step_fn
 
 
-def _run_viser_viewer(mjm, mjd, step_fn):
-  from mjviser import Viewer as MjViserViewer
-
-  MjViserViewer(mjm, mjd, step_fn=step_fn).run()
-
-
-def _run_passive_viewer(mjm, mjd, step_fn):
-  with mujoco.viewer.launch_passive(mjm, mjd, key_callback=key_callback) as viewer:
-    while viewer.is_running():
-      start = time.time()
-      if _VIEWER_GLOBAL_STATE["running"] or _VIEWER_GLOBAL_STATE["step_once"]:
-        _VIEWER_GLOBAL_STATE["step_once"] = False
-        step_fn(mjm, mjd)
-      viewer.sync()
-      elapsed = time.time() - start
-      if elapsed < mjm.opt.timestep:
-        time.sleep(mjm.opt.timestep - elapsed)
-
-
 def _main(argv: Sequence[str]) -> None:
   """Runs viewer app."""
   if len(argv) < 2:
     raise app.UsageError("Missing required input: mjcf path.")
   elif len(argv) > 2:
     raise app.UsageError("Too many command-line arguments.")
+
+  try:
+    from mujoco.studio import app as studio_app
+    from mujoco.studio import launch_web
+    from mujoco.studio import messages
+    from mujoco.studio import plugin
+    from mujoco.studio import sim
+    from mujoco.studio import sim_history
+    from mujoco.studio import viewer_protocol
+  except ModuleNotFoundError as e:
+    raise ImportError(
+      'MuJoCo Studio viewer requires `mujoco-studio`. Install it with `pip install "mujoco-warp[viewer]"`.'
+    ) from e
 
   wp.config.log_level = wp.LOG_WARNING if flags.FLAGS["verbosity"].value < 1 else wp.LOG_INFO
   wp.init()
@@ -186,10 +166,39 @@ def _main(argv: Sequence[str]) -> None:
 
   mjd = mujoco.MjData(mjm)
   mjw.get_data_into(mjd, mjm, d)
-  if _VIEWER.value == "viser":
-    _run_viser_viewer(mjm, mjd, step_fn)
-  else:
-    _run_passive_viewer(mjm, mjd, step_fn)
+
+  class _StepPlugin(plugin.SimPlugin):
+    def __init__(self) -> None:
+      self.paused = False
+      self.speed = 100.0
+      self.single_step = False
+
+    @messages.handler
+    def _on_step_control(self, snapshot: messages.StepControlSnapshot) -> None:
+      self.paused = snapshot.pause_state != sim.PauseState.UNPAUSED
+      self.speed = snapshot.speed
+
+    @messages.handler
+    def _on_single_step(self, _: messages.SingleStepEvent) -> None:
+      self.single_step = True
+
+    @messages.handler
+    def _on_pause(self, event: messages.RequestPauseEvent) -> None:
+      self.paused = event.pause_state != sim.PauseState.UNPAUSED
+      self.handle.send_to_viewer(messages.StepControlSnapshot(pause_state=event.pause_state, speed=self.speed))
+
+    @messages.handler
+    def _on_step(self, event: messages.StepEvent) -> None:
+      tick = time.perf_counter()
+      if not self.paused or self.single_step:
+        self.single_step = False
+        step_fn(event.model, event.data)
+      # Pace stepping to the requested speed while yielding the GIL to viewer threads.
+      period = event.model.opt.timestep * 100.0 / max(0.1, self.speed)
+      time.sleep(max(0.001, period - (time.perf_counter() - tick)))
+
+  config = viewer_protocol.ViewerConfig(title="MuJoCo Warp", gfx="web", open_browser=True)
+  launch_web.run(config, model=mjm, data=mjd, plugins=[studio_app.App(), _StepPlugin(), sim_history.SimHistory()])
 
 
 def main():

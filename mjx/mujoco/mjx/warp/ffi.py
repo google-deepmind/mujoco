@@ -105,6 +105,14 @@ def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
   )
 
 
+def _is_uint64_array_annotation(annotation: Any) -> bool:
+  """Returns True if annotation is a Warp array of wp.uint64."""
+  return (
+      wp._src.types.matches_array_class(annotation, wp.array)  # pylint: disable=protected-access
+      and annotation.dtype == wp.uint64
+  )
+
+
 def jax_callable_variadic_tuple(
     func: Callable,  # pylint: disable=g-bare-generic
     num_outputs: int = 1,
@@ -173,18 +181,28 @@ def jax_callable_variadic_tuple(
           return func(*unflat_args, *output_buffers, **kwargs)
 
         # Warp derives the FFI ABI from this synthetic signature and
-        # annotations.
+        # annotations. Map uint64 arrays to vec2ui so jax_enable_x64=False
+        # preserves all 64 bits across the JAX/Warp FFI boundary.
+        ffi_parameters = [
+            p.replace(
+                annotation=wp.array(dtype=wp.vec2ui, ndim=p.annotation.ndim)
+            )
+            if _is_uint64_array_annotation(p.annotation)
+            else p
+            for p in new_signature.parameters.values()
+        ]
+        ffi_signature = new_signature.replace(parameters=ffi_parameters)
         func_wrapper.__signature__ = (  # pyrefly: ignore[missing-attribute]
-            new_signature
+            ffi_signature
         )
         func_wrapper.__annotations__ = {
             p.name: p.annotation
-            for p in new_signature.parameters.values()
+            for p in ffi_signature.parameters.values()
             if p.annotation is not inspect.Parameter.empty
         }
-        if new_signature.return_annotation is not inspect.Signature.empty:
+        if ffi_signature.return_annotation is not inspect.Signature.empty:
           func_wrapper.__annotations__['return'] = (
-              new_signature.return_annotation
+              ffi_signature.return_annotation
           )
 
         # Constructing the callable registers its FFI target.
@@ -222,6 +240,10 @@ def _format_arg(arg: Any, name: str, annotation: Any, verbose: bool):
         _format_arg(arg[i], name + f'_{i}', typ_args[0], verbose)
         for i in range(len(arg))
     )
+
+  if _is_uint64_array_annotation(annotation) and arg.dtype == wp.vec2ui:
+    # Zero-copy view of packed vec2ui FFI buffer back as uint64 for Warp kernels.
+    arg = arg.view(wp.uint64)
 
   if not isinstance(annotation, wp.array):
     if verbose:

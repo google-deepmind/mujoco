@@ -23,6 +23,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import CtrlInput
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
@@ -847,7 +848,29 @@ def lugre_stribeck(velocity: float, F_C: float, F_S: float, v_S: float) -> float
 
 
 @wp.func
+def clamp_ctrl(
+  # Model:
+  actuator_ctrllimited: wp.array[bool],
+  actuator_ctrlrange: wp.array2d[wp.vec2],
+  # Data in:
+  ctrl_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  adr: int,
+  dsbl_clampctrl: int,
+) -> float:
+  u = ctrl_in[worldid, adr]
+  if actuator_ctrllimited[adr] and not dsbl_clampctrl:
+    ctrlrange = actuator_ctrlrange[worldid % actuator_ctrlrange.shape[0], adr]
+    u = wp.clamp(u, ctrlrange[0], ctrlrange[1])
+  return u
+
+
+@wp.func
 def unpack_servo_inputs(
+  # Model:
+  actuator_ctrllimited: wp.array[bool],
+  actuator_ctrlrange: wp.array2d[wp.vec2],
   # Data in:
   ctrl_in: wp.array2d[float],
   # In:
@@ -855,29 +878,39 @@ def unpack_servo_inputs(
   uadr: int,
   spec: int,
   u_first: float,
+  dsbl_clampctrl: int,
 ) -> wp.vec4:
   out = wp.vec4(0.0, 0.0, 0.0, 0.0)
   adr = uadr
   first_set = False
-  if (spec & 1) != 0:  # POS
-    out[0] = u_first if not first_set else ctrl_in[worldid, adr]
+  if (spec & CtrlInput.POS) != 0:
+    out[0] = u_first
     first_set = True
     adr += 1
-  if (spec & 2) != 0:  # VEL
-    out[1] = u_first if not first_set else ctrl_in[worldid, adr]
+  if (spec & CtrlInput.VEL) != 0:
+    out[1] = (
+      u_first if not first_set else clamp_ctrl(actuator_ctrllimited, actuator_ctrlrange, ctrl_in, worldid, adr, dsbl_clampctrl)
+    )
     first_set = True
     adr += 1
-  if (spec & 4) != 0:  # FF
-    out[2] = u_first if not first_set else ctrl_in[worldid, adr]
+  if (spec & CtrlInput.FF) != 0:
+    out[2] = (
+      u_first if not first_set else clamp_ctrl(actuator_ctrllimited, actuator_ctrlrange, ctrl_in, worldid, adr, dsbl_clampctrl)
+    )
     first_set = True
     adr += 1
-  if (spec & 8) != 0:  # VOLTAGE
-    out[3] = u_first if not first_set else ctrl_in[worldid, adr]
+  if (spec & CtrlInput.VOLTAGE) != 0:
+    out[3] = (
+      u_first if not first_set else clamp_ctrl(actuator_ctrllimited, actuator_ctrlrange, ctrl_in, worldid, adr, dsbl_clampctrl)
+    )
   return out
 
 
 @wp.func
 def dcmotor_voltage(
+  # Model:
+  actuator_ctrllimited: wp.array[bool],
+  actuator_ctrlrange: wp.array2d[wp.vec2],
   # Data in:
   ctrl_in: wp.array2d[float],
   # In:
@@ -889,11 +922,21 @@ def dcmotor_voltage(
   velocity: float,
   x_I: float,
   gainprm: types.vec10,
+  dsbl_clampctrl: int,
 ) -> float:
   voltage = 0.0
-  u4 = unpack_servo_inputs(ctrl_in, worldid, uadr, spec, u_first)
+  u4 = unpack_servo_inputs(
+    actuator_ctrllimited,
+    actuator_ctrlrange,
+    ctrl_in,
+    worldid,
+    uadr,
+    spec,
+    u_first,
+    dsbl_clampctrl,
+  )
 
-  if (spec & 7) != 0:  # POS (1) | VEL (2) | FF (4)
+  if (spec & (CtrlInput.POS | CtrlInput.VEL | CtrlInput.FF)) != 0:
     kp = gainprm[4]
     ki = gainprm[5]
     kd = gainprm[6]
