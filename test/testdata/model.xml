@@ -77,7 +77,8 @@
         <geom type="box" size=".05" rgba="1 0 0 1" fromto=".3 0 0 .4 0 -.3"/>
         <body pos=".45 0 -.3">
           <joint name="wheel_1" axis="1 0 0" class="wheel"/>
-          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0"/>
+          <!-- condim 4 and 6 on wheel_1/wheel_2 exercise all contact dims alongside default 3 -->
+          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0" condim="4"/>
           <site name="wheel_1" type="box" size=".02 .11 .11" pos=".015 0 0"/>
         </body>
       </body>
@@ -89,7 +90,7 @@
         <site name="knee_2" pos=".3 0 .05"/>
         <body pos=".45 0 -.3">
           <joint name="wheel_2" axis="1 0 0" class="wheel"/>
-          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0" margin="0.01"/>
+          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0" margin="0.01" condim="6"/>
           <site name="wheel_2" size=".13"  rgba="0 0 0 0.1" type="cylinder" fromto="-.01 0 0 .04 0 0"/>
         </body>
       </body>
