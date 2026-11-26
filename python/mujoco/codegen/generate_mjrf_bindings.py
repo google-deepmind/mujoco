@@ -26,6 +26,7 @@ import typing
 from absl import app
 from codegen import code_builder
 from introspect import ast_nodes
+from introspect import enums
 from introspect.codegen import ast_processor
 
 import subprocess
@@ -190,12 +191,17 @@ def _is_bindable_property(
   return True
 
 
-def _make_enum(code: code_builder.CodeBuilder, enum: ast_nodes.EnumDecl) -> None:
+def _make_enum(
+    code: code_builder.CodeBuilder,
+    enum: ast_nodes.EnumDecl,
+    module_local: bool = False,
+) -> None:
   """Generates a Python enum binding for a MuJoCo enum."""
   ident = _snake_case(enum.name)
   stripped = _try_strip_all_prefixes(enum.name)
 
-  code.line(f'py::enum_<{enum.name}> {ident}(m, "{stripped}", py::module_local());')
+  local = ', py::module_local()' if module_local else ''
+  code.line(f'py::enum_<{enum.name}> {ident}(m, "{stripped}"{local});')
   for value in enum.values.keys():
     stripped = _try_strip_all_prefixes(value)
     code.line(f'{ident}.value("{stripped}", {value});')
@@ -332,9 +338,8 @@ def _make_struct(code: code_builder.CodeBuilder, struct: ast_nodes.StructDecl) -
       if field.decltype == 'mjrfCallback':
         has_del = True
 
-  code.line(
-      f'py::class_<{struct.name}> {ident}(m, "{stripped}", py::module_local());'
-  )
+  local = ', py::module_local()' if struct.name in _EXTERNAL_STRUCTS else ''
+  code.line(f'py::class_<{struct.name}> {ident}(m, "{stripped}"{local});')
 
   # Add an initializer that takes all fields as optional arguments. Each
   # argument is then optionally assigned to the corresponding field in the
@@ -511,7 +516,7 @@ def main(_) -> None:
     if _is_bindable_enum(alias):
       enum.name = alias
     if _is_bindable_enum(enum.name):
-      _make_enum(code, enum)
+      _make_enum(code, enum, module_local=(name in enums.ENUMS))
       code.newline()
 
   for name, struct in visitor.exported_structs.items():
