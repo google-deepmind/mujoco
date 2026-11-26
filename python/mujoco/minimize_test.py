@@ -257,6 +257,18 @@ class MinimizeTest(absltest.TestCase):
         else:
           self.assertAlmostEqual(grad[i].item(), 0, places=4)
 
+  def test_bounds_with_different_shapes(self) -> None:
+    # Compare the bounds after flattening them to avoid cross-coordinate
+    # comparisons caused by NumPy broadcasting.
+    target = np.array([[-1.0], [1.5]])
+    x, _ = minimize.least_squares(
+        np.zeros(2),
+        lambda x: x - target,
+        bounds=[np.array([[-2.0], [1.0]]), np.array([0.0, 2.0])],
+        verbose=minimize.Verbosity.SILENT,
+    )
+    np.testing.assert_allclose(x, target.ravel(), atol=1e-7)
+
   def test_bad_bounds(self) -> None:
     def residual(x):
       return np.array([1 - x[0], 10 * (x[1] - x[0] ** 2)])

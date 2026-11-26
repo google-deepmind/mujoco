@@ -261,12 +261,11 @@ def least_squares(
       raise ValueError('bounds must have the same size as x0.')
     if not np.all(np.isfinite(bounds[0])) or not np.all(np.isfinite(bounds[1])):
       raise ValueError('bounds must be finite.')
-    if not np.all(bounds[0] < bounds[1]):
-      raise ValueError('bounds[0] must be smaller than bounds[1].')
-
-    # Reshape and clip.
+    # Reshape before comparing corresponding coordinates, then clip.
     bounds[0] = bounds[0].reshape(n, 1)
     bounds[1] = bounds[1].reshape(n, 1)
+    if not np.all(bounds[0] < bounds[1]):
+      raise ValueError('bounds[0] must be smaller than bounds[1].')
     np.clip(x, bounds[0], bounds[1], out=x)
 
   # Check for NaNs.
