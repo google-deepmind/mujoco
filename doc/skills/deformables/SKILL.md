@@ -6,12 +6,13 @@ description: >-
   (make_flex, add_flex). Covers 1D elastic rods (cables, ropes, wires, coils),
   2D cloth draping, garments, and thin shells, and 3D FEM/tetrahedral soft
   bodies (sponges, foam, rubber, elasto-plastic clay, compliant gripper pads),
-  plus implicit position-stiffness integration and reduced-DOF interpolation.
-  Use when creating, migrating (from removed composite or cable plugins),
-  attaching, or debugging unstable flex or soft-body simulations. Don't use for
-  rigid-only modeling (mujoco-spec-editing), general stepping loops
-  (mujoco-python), GPU rollout setup (mujoco-accelerated), cross-engine parity
-  (mujoco-parity), or rendering (mujoco-rendering).
+  plus implicit position-stiffness integration, reduced-DOF interpolation, and
+  CPU vs. MJWarp GPU flex benchmarks/solver regimes. Use when creating,
+  migrating (from removed composite or cable plugins), attaching, debugging, or
+  benchmarking flex or soft-body simulations. Don't use for rigid-only modeling
+  (mujoco-spec-editing), general stepping loops (mujoco-python), non-flex GPU
+  rollout setup (mujoco-accelerated), cross-engine parity (mujoco-parity), or
+  rendering (mujoco-rendering).
 metadata:
   publisher: google
 ---

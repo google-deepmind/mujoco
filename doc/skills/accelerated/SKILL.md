@@ -42,6 +42,8 @@ metadata:
 >     and `float32` baseline rollouts).
 > -   [mujoco-studio](../studio/SKILL.md) — Interactive simulation and Studio
 >     viewer plugins.
+> -   [mujoco-deformables](../deformables/SKILL.md) — Flex/soft-body modeling
+>     and CPU vs. MJWarp GPU benchmark regimes (`references/mjwarp.md`).
 
 > [!IMPORTANT]
 >
