@@ -19,19 +19,13 @@
 #include <cstring>
 #include <optional>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 
-#include <math/mat3.h>
-#include <math/vec3.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/core/filament_context.h"
-#include "render/filament/core/light.h"
-#include "render/filament/core/mesh.h"
-#include "render/filament/core/render_target.h"
-#include "render/filament/core/renderable.h"
-#include "render/filament/core/scene_view.h"
-#include "render/filament/core/texture.h"
 #include "render/filament/support/filament_util.h"
+#include "render/filament/private/types.h"
 
 template <int N>
 static void setf(float (&arr)[N], const std::array<float, N>& values) {
@@ -109,6 +103,40 @@ struct ModelReader {
   }
   const mjModel* model;
 };
+
+// Calls the function on the object. Warns if either object or function is null.
+template <auto Function, typename T, typename... Args>
+static auto Call(T* obj, const char* fname, Args&&... args) {
+  using Result = decltype((obj->vtable->*Function)(obj, std::forward<Args>(args)...));
+  if (obj == nullptr) {
+    mju_warning("Invalid (nullptr) object: %s", fname);
+    if constexpr (std::is_void_v<Result>) {
+      return;
+    } else {
+      return Result{};
+    }
+  } else if (obj->vtable == nullptr) {
+    mju_warning("Invalid vtable: %s", fname);
+    if constexpr (std::is_void_v<Result>) {
+      return;
+    } else {
+      return Result{};
+    }
+  } else if (obj->vtable->*Function == nullptr) {
+    mju_warning("Not implemented: %s", fname);
+    if constexpr (std::is_void_v<Result>) {
+      return;
+    } else {
+      return Result{};
+    }
+  } else {
+    return (obj->vtable->*Function)(obj, std::forward<Args>(args)...);
+  }
+}
+
+#define MJRF_CALL(obj, func, ...)                           \
+  Call<&std::remove_cvref_t<decltype(*obj->vtable)>::func>( \
+      obj, #func __VA_OPT__(, ) __VA_ARGS__)
 
 extern "C" {
 
@@ -340,252 +368,222 @@ void mjrf_defaultRenderOpts(mjrfRenderOpts* opts) {
   opts->post_processing = true;
 }
 
-mjrfContext* mjrf_createContext(const mjrfContextConfig* config) {
-  return new mujoco::FilamentContext(config);
-}
-
 void mjrf_destroyContext(mjrfContext* ctx) {
-  delete mujoco::FilamentContext::downcast(ctx);
+  MJRF_CALL(ctx, destroyContext);
 }
 
 void mjrf_getRendererInfo(mjrfContext* ctx, mjrRendererInfo* info) {
   memset(info, 0, sizeof(mjrRendererInfo));
   info->renderer = "filament";
-  info->backend = ctx ? mujoco::FilamentContext::downcast(ctx)->GetBackendName() : "";
+  info->backend = "";
+  MJRF_CALL(ctx, getRendererInfo, info);
 }
 
 mjrfTexture* mjrf_createTexture(mjrfContext* ctx,
                                 const mjrfTextureConfig* config) {
-  return new mujoco::Texture(
-      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *config);
+  return MJRF_CALL(ctx, createTexture, config);
 }
 
 void mjrf_destroyTexture(mjrfTexture* texture) {
-  delete mujoco::Texture::downcast(texture);
+  MJRF_CALL(texture, destroyTexture);
 }
 
 mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshConfig* config) {
-  return new mujoco::Mesh(mujoco::FilamentContext::downcast(ctx)->GetEngine(),
-                          *config);
+  return MJRF_CALL(ctx, createMesh, config);
 }
 
-void mjrf_destroyMesh(mjrfMesh* mesh) { delete mujoco::Mesh::downcast(mesh); }
+void mjrf_destroyMesh(mjrfMesh* mesh) {
+  MJRF_CALL(mesh, destroyMesh);
+}
 
 mjrfScene* mjrf_createScene(mjrfContext* ctx, const mjrfSceneParams* params) {
-  return new mujoco::SceneView(
-      mujoco::FilamentContext::downcast(ctx)->GetObjectManager(),
-      mujoco::FilamentContext::downcast(ctx)->GetMaterialManager(), *params);
+  return MJRF_CALL(ctx, createScene, params);
 }
 
 void mjrf_destroyScene(mjrfScene* scene) {
-  delete mujoco::SceneView::downcast(scene);
+  MJRF_CALL(scene, destroyScene);
 }
 
 mjrfLight* mjrf_createLight(mjrfContext* ctx, const mjrfLightParams* params) {
-  return new mujoco::Light(mujoco::FilamentContext::downcast(ctx)->GetEngine(),
-                           *params);
+  return MJRF_CALL(ctx, createLight, params);
 }
 
 void mjrf_destroyLight(mjrfLight* light) {
-  delete mujoco::Light::downcast(light);
+  MJRF_CALL(light, destroyLight);
 }
 
 mjrfRenderable* mjrf_createRenderable(mjrfContext* ctx,
                                       const mjrfRenderableParams* params) {
-  return new mujoco::Renderable(
-      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *params,
-      mujoco::FilamentContext::downcast(ctx)->GetMaterialManager());
+  return MJRF_CALL(ctx, createRenderable, params);
 }
 
 void mjrf_destroyRenderable(mjrfRenderable* renderable) {
-  delete mujoco::Renderable::downcast(renderable);
+  MJRF_CALL(renderable, destroyRenderable);
 }
 
 mjrfRenderTarget* mjrf_createRenderTarget(
     mjrfContext* ctx, const mjrfRenderTargetConfig* config) {
-  return new mujoco::RenderTarget(
-      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *config);
+  return MJRF_CALL(ctx, createRenderTarget, config);
 }
 
 void mjrf_destroyRenderTarget(mjrfRenderTarget* render_target) {
-  delete mujoco::RenderTarget::downcast(render_target);
+  MJRF_CALL(render_target, destroyRenderTarget);
 }
 
 void mjrf_uploadTexture(mjrfTexture* texture, const mjrfTextureData* data) {
-  mujoco::Texture::downcast(texture)->Upload(*data);
+  MJRF_CALL(texture, uploadTexture, data);
 }
 
 void mjrf_uploadMesh(mjrfMesh* mesh, const mjrfMeshData* data) {
-  mujoco::Mesh::downcast(mesh)->Upload(*data);
+  MJRF_CALL(mesh, uploadMesh, data);
 }
 
 int mjrf_getTextureWidth(const mjrfTexture* texture) {
-  return mujoco::Texture::downcast(texture)->GetWidth();
+  return MJRF_CALL(texture, getTextureWidth);
 }
 
 int mjrf_getTextureHeight(const mjrfTexture* texture) {
-  return mujoco::Texture::downcast(texture)->GetHeight();
+  return MJRF_CALL(texture, getTextureHeight);
 }
 
 int mjrf_getTextureSamplerType(const mjrfTexture* texture) {
-  return mujoco::Texture::downcast(texture)->GetSamplerType();
+  return MJRF_CALL(texture, getTextureSamplerType);
 }
 
 void mjrf_setLightActive(mjrfLight* light, mjtBool active) {
-  if (active) {
-    mujoco::Light::downcast(light)->Enable();
-  } else {
-    mujoco::Light::downcast(light)->Disable();
-  }
+  MJRF_CALL(light, setLightActive, active);
 }
 
 void mjrf_setLightCastShadow(mjrfLight* light, mjtBool enabled) {
-  mujoco::Light::downcast(light)->SetShadowsEnabled(enabled);
+  MJRF_CALL(light, setLightCastShadow, enabled);
 }
 
 void mjrf_setLightColor(mjrfLight* light, const float color[3]) {
-  mujoco::Light::downcast(light)->SetColor({color[0], color[1], color[2]});
+  MJRF_CALL(light, setLightColor, color);
 }
 
 void mjrf_setLightIntensity(mjrfLight* light, float intensity) {
-  mujoco::Light::downcast(light)->SetIntensity(intensity);
+  MJRF_CALL(light, setLightIntensity, intensity);
 }
 
 void mjrf_setLightRange(mjrfLight* light, float range) {
-  mujoco::Light::downcast(light)->SetRange(range);
+  MJRF_CALL(light, setLightRange, range);
 }
 
 void mjrf_setLightCutoff(mjrfLight* light, float cutoff) {
-  mujoco::Light::downcast(light)->SetCutoffAngle(cutoff);
+  MJRF_CALL(light, setLightCutoff, cutoff);
 }
 
 void mjrf_setLightSoftness(mjrfLight* light, float softness) {
-  mujoco::Light::downcast(light)->SetSoftness(softness);
+  MJRF_CALL(light, setLightSoftness, softness);
 }
 
 void mjrf_setLightBulbRadius(mjrfLight* light, float radius) {
-  mujoco::Light::downcast(light)->SetBulbRadius(radius);
+  MJRF_CALL(light, setLightBulbRadius, radius);
 }
 
 void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size) {
-  mujoco::Light::downcast(light)->SetShadowMapSize(map_size);
+  MJRF_CALL(light, setLightShadowMapSize, map_size);
 }
 
 void mjrf_setLightPose(mjrfLight* light, const float position[3],
-                            const float direction[3]) {
-  mujoco::Light::downcast(light)->SetTransform(
-      {position[0], position[1], position[2]},
-      {direction[0], direction[1], direction[2]});
+                       const float direction[3]) {
+  MJRF_CALL(light, setLightPose, position, direction);
 }
 
 int mjrf_getLightType(const mjrfLight* light) {
-  return mujoco::Light::downcast(light)->GetType();
+  return MJRF_CALL(light, getLightType);
 }
 
 void mjrf_setRenderableMesh(mjrfRenderable* renderable, const mjrfMesh* mesh,
                             int elem_offset, int elem_count) {
-  mujoco::Renderable::downcast(renderable)
-      ->SetMesh(mujoco::Mesh::downcast(mesh), elem_offset, elem_count);
+  MJRF_CALL(renderable, setRenderableMesh, mesh, elem_offset, elem_count);
 }
 
 void mjrf_setRenderableGeomMesh(mjrfRenderable* renderable, int type,
                                 int nstack, int nslice, int nquad) {
-  mujoco::Renderable::downcast(renderable)
-      ->SetGeomMesh(static_cast<mjtGeom>(type), nstack, nslice, nquad);
+  MJRF_CALL(renderable, setRenderableGeomMesh, type, nstack, nslice, nquad);
 }
 
 void mjrf_setRenderableMaterial(mjrfRenderable* renderable,
                                 const mjrfMaterial* material) {
-  mujoco::Renderable::downcast(renderable)->UpdateMaterial(*material);
+  MJRF_CALL(renderable, setRenderableMaterial, material);
 }
 
 void mjrf_getRenderableMaterial(mjrfRenderable* renderable,
                                 mjrfMaterial* material) {
-  *material = mujoco::Renderable::downcast(renderable)->GetMaterial();
+  MJRF_CALL(renderable, getRenderableMaterial, material);
 }
 
 void mjrf_setRenderablePose(mjrfRenderable* renderable,
                             const float position[3],
                             const float rotation[9]) {
-  const filament::math::float3 fposition{position[0], position[1], position[2]};
-  const filament::math::mat3f frotation{rotation[0], rotation[3], rotation[6],
-                                        rotation[1], rotation[4], rotation[7],
-                                        rotation[2], rotation[5], rotation[8]};
-  mujoco::Renderable::downcast(renderable)->SetTransform(fposition, frotation);
+  MJRF_CALL(renderable, setRenderablePose, position, rotation);
 }
 
 void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]) {
-  const filament::math::float3 fsize{size[0], size[1], size[2]};
-  mujoco::Renderable::downcast(renderable)->SetSize(fsize);
+  MJRF_CALL(renderable, setRenderableSize, size);
 }
 
 void mjrf_setRenderableCastShadow(mjrfRenderable* renderable, mjtBool enabled) {
-  mujoco::Renderable::downcast(renderable)->SetCastShadows(enabled);
+  MJRF_CALL(renderable, setRenderableCastShadow, enabled);
 }
 
 void mjrf_addSceneLight(mjrfScene* scene, mjrfLight* light) {
-  mujoco::SceneView::downcast(scene)->AddToScene(
-      mujoco::Light::downcast(light));
+  MJRF_CALL(scene, addSceneLight, light);
 }
 
 void mjrf_removeSceneLight(mjrfScene* scene, mjrfLight* light) {
-  mujoco::SceneView::downcast(scene)->RemoveFromScene(
-      mujoco::Light::downcast(light));
+  MJRF_CALL(scene, removeSceneLight, light);
 }
 
 void mjrf_addSceneRenderable(mjrfScene* scene, mjrfRenderable* renderable) {
-  mujoco::SceneView::downcast(scene)->AddToScene(
-      mujoco::Renderable::downcast(renderable));
+  MJRF_CALL(scene, addSceneRenderable, renderable);
 }
 
 void mjrf_removeSceneRenderable(mjrfScene* scene,
-                                    mjrfRenderable* renderable) {
-  mujoco::SceneView::downcast(scene)->RemoveFromScene(
-      mujoco::Renderable::downcast(renderable));
+                                mjrfRenderable* renderable) {
+  MJRF_CALL(scene, removeSceneRenderable, renderable);
 }
 
 void mjrf_setSceneSkybox(mjrfScene* scene, const mjrfTexture* texture) {
-  mujoco::SceneView::downcast(scene)->SetSkybox(
-      mujoco::Texture::downcast(texture));
+  MJRF_CALL(scene, setSceneSkybox, texture);
 }
 
 void mjrf_configureSceneFromModel(mjrfScene* scene, const mjModel* model) {
-  mujoco::SceneView::downcast(scene)->Configure(model);
+  MJRF_CALL(scene, configureSceneFromModel, model);
 }
 
 void mjrf_setSceneMsaa(mjrfScene* scene, int samples) {
-  mujoco::SceneView::downcast(scene)->SetMsaa(samples);
+  MJRF_CALL(scene, setSceneMsaa, samples);
 }
 
 void mjrf_resizeRenderTarget(mjrfRenderTarget* render_target, int width,
                              int height) {
-  mujoco::RenderTarget::downcast(render_target)->Prepare(width, height);
+  MJRF_CALL(render_target, resizeRenderTarget, width, height);
 }
 
 mjrfFrameHandle mjrf_render(mjrfContext* ctx, const mjrfRenderRequest* req,
                             int nreq, const mjrfReadRequest* read_req,
                             int nread_req) {
-  return mujoco::FilamentContext::downcast(ctx)->Render(
-      {req, static_cast<size_t>(nreq)},
-      {read_req, static_cast<size_t>(nread_req)});
+  return MJRF_CALL(ctx, render, req, nreq, read_req, nread_req);
 }
 
 void mjrf_waitForFrame(mjrfContext* ctx, mjrfFrameHandle frame) {
-  mujoco::FilamentContext::downcast(ctx)->WaitForFrame(frame);
+  MJRF_CALL(ctx, waitForFrame, frame);
 }
 
 void mjrf_flush(mjrfContext* ctx) {
-  mujoco::FilamentContext::downcast(ctx)->Flush();
+  MJRF_CALL(ctx, flush);
 }
 
 void mjrf_setClearColor(mjrfContext* ctx, const float color[3]) {
-  mujoco::FilamentContext::downcast(ctx)->SetClearColor(
-      {color[0], color[1], color[2], 1.0f});
+  MJRF_CALL(ctx, setClearColor, color);
 }
 
 void mjrf_getFrameStats(mjrfContext* ctx, mjrfFrameHandle frame,
                         mjrfFrameStats* stats_out) {
-  mujoco::FilamentContext::downcast(ctx)->GetFrameStats(frame, stats_out);
+  MJRF_CALL(ctx, getFrameStats, frame, stats_out);
 }
 
 void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model) {

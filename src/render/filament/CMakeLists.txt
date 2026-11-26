@@ -52,6 +52,7 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         core/scene_view.h
         core/texture.cc
         core/texture.h
+        core/vtable.cc
         support/filament_util.h
         support/filament_util.cc
         support/imgui_bridge.h
