@@ -36,6 +36,7 @@ Engine
   `1733 <https://github.com/google-deepmind/mujoco_warp/issues/1733>`__ and to :github:user:`vishalkotak` for the
   implementation in :doc:`MJWarp <mjwarp/index>` pull request
   `2014 <https://github.com/google-deepmind/mujoco_warp/pull/2014>`__.
+- Fixed capsule-box collisions when the capsule's centerline intersects the box, which could miss the contact.
 
 Deformables
 ^^^^^^^^^^^

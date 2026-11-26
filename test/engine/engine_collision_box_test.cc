@@ -15,6 +15,7 @@
 // Tests for engine/engine_collision_box.c.
 
 #include <cmath>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -864,6 +865,98 @@ TEST_F(MjCollisionBoxTest, CapsuleBoxLargeMarginDistance) {
   mjtNum dist_edge =
       mj_geomDistance(model.get(), data.get(), 0, 1, distmax, fromto);
   EXPECT_NEAR(dist_edge, expected_edge, MjTol(1e-12, 1e-5));
+}
+
+static constexpr char kCapsuleBox[] = R"(
+<mujoco>
+  <worldbody>
+    <geom name="box" type="box" size="0.4 0.3 0.2"/>
+    <body>
+      <freejoint/>
+      <geom type="capsule" size="0.1 0.5"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+TEST_F(MjCollisionBoxTest, CapsuleSkewersBox) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kCapsuleBox, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // capsule along z with both ends outside the box: shallowest exit is
+  // through a y face, so the distance is -0.3 - 0.1 and the normal is +-y
+  for (mjtNum z : {0.0, 0.001, -0.05}) {
+    data->qpos[2] = z;
+    mj_forward(model.get(), data.get());
+    EXPECT_NEAR(mj_geomDistance(model.get(), data.get(), 0, 1, 1, nullptr),
+                -0.4, MjTol(1e-12, 1e-5));
+    ASSERT_GT(data->ncon, 0);
+    for (int i = 0; i < data->ncon; i++) {
+      EXPECT_NEAR(mju_abs(data->contact[i].frame[1]), 1, MjTol(1e-12, 1e-5));
+    }
+  }
+}
+
+TEST_F(MjCollisionBoxTest, CapsuleSkewersBoxDiagonally) {
+  // capsule along the yz diagonal of a thin box: shallowest exit is across an
+  // edge, by half the diagonal of the 0.2 x 0.2 cross-section, with normal
+  // (0, +-1, +-1)/sqrt(2)
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="1 0.1 0.1"/>
+      <body>
+        <freejoint/>
+        <geom type="capsule" size="0.05 1" euler="45 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  EXPECT_NEAR(mj_geomDistance(model.get(), data.get(), 0, 1, 1, nullptr),
+              -0.1 * std::sqrt(2.0) - 0.05, MjTol(1e-12, 1e-5));
+  ASSERT_GT(data->ncon, 0);
+  const mjtNum* normal = data->contact[0].frame;
+  EXPECT_NEAR(normal[0], 0, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(mju_abs(normal[1]), 1 / std::sqrt(2.0), MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(mju_abs(normal[2]), 1 / std::sqrt(2.0), MjTol(1e-12, 1e-5));
+}
+
+TEST_F(MjCollisionBoxTest, CapsuleCenterlineInBoxMatchesConvex) {
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kCapsuleBox, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // random poses with the capsule center inside the box; loose tolerance since
+  // the convex collider approximates the capsule's curved surface
+  std::mt19937 rng(0);
+  std::uniform_real_distribution<double> uniform(-1.0, 1.0);
+  const mjtNum* box_size =
+      model->geom_size + 3 * mj_name2id(model.get(), mjOBJ_GEOM, "box");
+  mjPreContact ref[mjMAXCONPAIR];
+  for (int it = 0; it < 500; it++) {
+    for (int i = 0; i < 3; i++) {
+      data->qpos[i] = 0.95 * box_size[i] * uniform(rng);
+    }
+    for (int i = 3; i < 7; i++) data->qpos[i] = uniform(rng);
+    mju_normalize4(data->qpos + 3);
+    mj_kinematics(model.get(), data.get());
+
+    int nref = mjc_Convex(model.get(), data.get(), ref, 1, 0, 0);
+    ASSERT_GT(nref, 0);
+    mjtNum dist = ref[0].dist;
+    for (int i = 1; i < nref; i++) dist = mju_min(dist, ref[i].dist);
+    EXPECT_NEAR(mj_geomDistance(model.get(), data.get(), 0, 1, 1, nullptr),
+                dist, 5e-3)
+        << "iteration " << it;
+  }
 }
 
 }  // namespace

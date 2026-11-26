@@ -248,6 +248,9 @@ def _capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
   ])
 
   # Get support from face normals.
+  # TODO(kevintracy): When the capsule segment penetrates the convex, also
+  # consider the axes edge x segment direction; with face normals alone the
+  # penetration is overestimated when the shallowest exit is across an edge.
   @jax.vmap
   def get_support(face, normal):
     pts = cap_pts - normal * cap.size[0]

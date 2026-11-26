@@ -527,6 +527,7 @@ cc_library(
         ":engine_inline",
         ":engine_util_blas",
         ":engine_util_misc",
+        "//:mjtype_hdrs",
     ],
 )
 

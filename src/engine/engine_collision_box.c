@@ -14,6 +14,7 @@
 
 #include <math.h>
 
+#include <mujoco/mjtype.h>
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
@@ -99,6 +100,30 @@ int mjc_SphereBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2
 }
 
 
+// return depth of segment p + t*u, |t| <= L, inside box [-h, h] (not positive if they do not
+//  intersect), set n to the exit direction: normal of the nearest face of zonotope box - segment
+static mjtNum segmentBoxDepth(mjtNum n[3], const mjtNum p[3], const mjtNum u[3], mjtNum L,
+                              const mjtNum h[3]) {
+  mjtNum depth = mjMAXVAL;
+  for (int k = 0; k < 6; k++) {
+    mjtNum e[3] = {0, 0, 0}, c[3] = {0, 0, 0};
+    e[k % 3] = c[k % 3] = 1;
+    if (k >= 3) {
+      mji_cross(c, e, u);
+      if (mju_normalize3(c) < mjMINVAL) continue;
+    }
+    mjtNum cp = mju_dot3(c, p);
+    mjtNum d = mju_abs(h[0]*c[0]) + mju_abs(h[1]*c[1]) + mju_abs(h[2]*c[2]) +
+               L*mju_abs(mju_dot3(c, u)) - mju_abs(cp);
+    if (d < depth) {
+      depth = d;
+      mji_scl3(n, c, cp < 0 ? -1 : 1);
+    }
+  }
+  return depth;
+}
+
+
 /* GENERAL THEORY OF OPERATION
    the following code is mostly for finding (line segment)/(box) collision
    after which box-sphere is called
@@ -155,6 +180,22 @@ int mjraw_CapsuleBox(mjPreContact* con, mjtNum margin,
 
   mji_mulMatTVec3(axis, mat2, tmp1);      // do the same for the capsule axis
   mji_scl3(halfaxis, axis, halflength);  // scale to get actual capsule half-axis
+
+  // centerline inside the box: shift out until touching, collide, shift contacts back
+  mjtNum out[3], shift = segmentBoxDepth(out, pos, axis, halflength, size2);
+  if (shift > 0) {
+    shift += size1[0];
+    mji_mulMatVec3(dif, mat2, out);
+    mji_addScl3(tmp1, pos1, dif, shift);
+    // recurses at most once: the shifted centerline is radius outside the box
+    n = mjraw_CapsuleBox(con, margin + shift, tmp1, mat1, size1,
+                         pos2, mat2, size2);
+    for (i = 0; i < n; i++) {
+      con[i].dist -= shift;
+      mji_addToScl3(con[i].pos, dif, -shift/2);
+    }
+    return n;
+  }
 
   axisdir = 0;
   if (halfaxis[0] > 0)

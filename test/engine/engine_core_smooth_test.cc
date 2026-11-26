@@ -869,7 +869,7 @@ TEST_F(CoreSmoothTest, RnePostBodyForcesAreExternal) {
         <geom geom="wrap" sidesite="side"/>
         <site site="box"/>
       </spatial>
-      <spatial name="pulley" limited="true" range="1.3 2" frictionloss=".2">
+      <spatial name="pulley" limited="true" range="1.4 2" frictionloss=".2">
         <site site="tip"/>
         <site site="anchor2"/>
         <pulley divisor="2"/>

@@ -1072,6 +1072,29 @@ def sphere_box(
 
 
 @wp.func
+def _segment_box_depth(p: wp.vec3, u: wp.vec3, half_length: float, h: wp.vec3) -> Tuple[float, wp.vec3]:
+  """Depth of segment p + t*u, |t| <= half_length, inside box [-h, h], and exit direction.
+
+  Nearest plane of the zonotope box - segment (normals e_i, e_i x u); not positive if they do
+  not intersect.
+  """
+  depth = float(MJ_MAXVAL)
+  n = wp.vec3()
+  for k in range(6):
+    c = wp.vec3()
+    c[k % 3] = 1.0
+    norm = float(1.0)
+    if k >= 3:
+      c, norm = normalize_with_norm(wp.cross(c, u))
+    cp = wp.dot(c, p)
+    d = wp.abs(h[0] * c[0]) + wp.abs(h[1] * c[1]) + wp.abs(h[2] * c[2]) + half_length * wp.abs(wp.dot(c, u)) - wp.abs(cp)
+    if norm >= MJ_MINVAL and d < depth:
+      depth = d
+      n = wp.where(cp < 0.0, -c, c)
+  return depth, n
+
+
+@wp.func
 def capsule_box(
   # In:
   capsule_pos: wp.vec3,
@@ -1102,6 +1125,12 @@ def capsule_box(
   boxmatT = wp.transpose(box_rot)
   pos = boxmatT @ (capsule_pos - box_pos)
   axis = boxmatT @ capsule_axis
+
+  # centerline inside the box: shift out until touching, collide, shift contacts back
+  shift, out = _segment_box_depth(pos, axis, capsule_half_length, box_size)
+  shift = wp.where(shift > 0.0, shift + capsule_radius, 0.0)
+  pos += out * shift
+
   halfaxis = axis * capsule_half_length  # halfaxis is the capsule direction
   axisdir = wp.int32(halfaxis[0] > 0.0) + 2 * wp.int32(halfaxis[1] > 0.0) + 4 * wp.int32(halfaxis[2] > 0.0)
 
@@ -1390,13 +1419,21 @@ def capsule_box(
   # collide with sphere using core function
   dist1, pos1, normal1 = sphere_box(s1_pos_g, capsule_radius, box_pos, box_rot, box_size)
 
+  # shift contacts back from the shifted capsule
+  back = box_rot @ out * (0.5 * shift)
+  dist1 -= shift
+  pos1 -= back
+
   if secondpos > -3:  # secondpos was modified
     s2_pos_l = pos + halfaxis * (secondpos + bestsegmentpos)
     s2_pos_g = box_rot @ s2_pos_l + box_pos
 
     # collide with sphere using core function
     dist2, pos2, normal2 = sphere_box(s2_pos_g, capsule_radius, box_pos, box_rot, box_size)
+    dist2 -= shift
+    pos2 -= back
   else:
+    # no second contact: keep the unpopulated sentinel values
     dist2 = MJ_MAXVAL
     pos2 = wp.vec3()
     normal2 = wp.vec3()
