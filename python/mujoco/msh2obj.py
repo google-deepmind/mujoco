@@ -69,6 +69,9 @@ class Msh:
           f"Invalid number of faces: {face_vertex_indices.size} != 3*{nface}."
       )
 
+    if np.any(face_vertex_indices < 0) or np.any(face_vertex_indices >= nvertex):
+      raise ValueError("Face vertex index out of range.")
+
     vertex_positions = vertex_positions.reshape(-1, 3)
     vertex_normals = vertex_normals.reshape(-1, 3)
     face_vertex_indices = face_vertex_indices.reshape(-1, 3)

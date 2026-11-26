@@ -114,6 +114,24 @@ class MshTest(parameterized.TestCase):
       self.assertEqual(model.mesh_vertnum[0], 4)
       self.assertEqual(model.mesh_facenum[0], 4)
 
+  @parameterized.parameters(-2, 4)
+  def test_rejects_invalid_face_indices(self, invalid_index):
+    vertices = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32
+    )
+    faces = np.array(
+        [[invalid_index, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
+        dtype=np.int32,
+    )
+    header = np.array([4, 0, 0, 4], dtype=np.int32)
+    with tempfile.TemporaryDirectory() as tmpdir:
+      msh_path = epath.Path(tmpdir) / "invalid.msh"
+      with msh_path.open("wb") as f:
+        for array in (header, vertices, faces):
+          f.write(array.tobytes())
+      with self.assertRaisesRegex(ValueError, "Face vertex index"):
+        msh2obj.msh_to_obj(msh_path)
+
   def test_obj_model_matches_msh_model(self) -> None:
     test_path = epath.resource_path("mujoco") / "testdata"
 
