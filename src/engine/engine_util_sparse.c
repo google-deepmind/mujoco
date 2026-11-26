@@ -416,7 +416,7 @@ void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNu
 void mju_addToSclSparseInc(mjtNum* restrict dst, const mjtNum* restrict src,
                            int nnzdst, const int* restrict inddst,
                            int nnzsrc, const int* restrict indsrc, mjtNum scl) {
-  if (!nnzdst || !nnzsrc) {
+  if (nnzdst <= 0 || nnzsrc <= 0 || !scl) {
     return;
   }
 

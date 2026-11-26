@@ -1952,5 +1952,66 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparseSymbolicLargeSupernodes) {
   }
 }
 
+TEST_F(EngineUtilSparseTest, MjuAddToSclSparseIncParity) {
+  auto ref_add_inc = [](mjtNum* dst, const mjtNum* src, int nnzdst,
+                        const int* inddst, int nnzsrc, const int* indsrc,
+                        mjtNum scl) {
+    if (nnzdst <= 0 || nnzsrc <= 0) return;
+    int adrs = 0, adrd = 0;
+    while (adrs < nnzsrc && adrd < nnzdst) {
+      if (indsrc[adrs] == inddst[adrd]) {
+        dst[adrd] += scl * src[adrs];
+        adrs++;
+        adrd++;
+      } else if (indsrc[adrs] < inddst[adrd]) {
+        adrs++;
+      } else {
+        adrd++;
+      }
+    }
+  };
+
+  auto check_case = [&](const std::vector<int>& inddst,
+                        const std::vector<int>& indsrc, mjtNum scl) {
+    const int nd = static_cast<int>(inddst.size());
+    const int ns = static_cast<int>(indsrc.size());
+    std::vector<mjtNum> dst_ref(nd), src(ns);
+    for (int i = 0; i < nd; ++i) {
+      dst_ref[i] = mjtNum(1.5) / (i + 2) - mjtNum(0.3) * (i % 3);
+    }
+    for (int i = 0; i < ns; ++i) {
+      src[i] = mjtNum(2.25) / (i + 3) + mjtNum(-0.7) * (i & 1);
+    }
+    std::vector<mjtNum> dst_got = dst_ref;
+
+    ref_add_inc(dst_ref.data(), src.data(), nd, inddst.data(), ns,
+                indsrc.data(), scl);
+    mju_addToSclSparseInc(dst_got.data(), src.data(), nd, inddst.data(), ns,
+                          indsrc.data(), scl);
+    if (nd > 0) {
+      EXPECT_EQ(
+          std::memcmp(dst_got.data(), dst_ref.data(), nd * sizeof(mjtNum)), 0)
+          << "nd=" << nd << " ns=" << ns << " scl=" << scl;
+    }
+  };
+
+  // empty and zero-scale cases (including -0.0)
+  check_case({}, {0, 1, 2}, mjtNum(2.5));
+  check_case({0, 1, 2}, {}, mjtNum(2.5));
+  check_case({0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4, 5}, mjtNum(0));
+  check_case({0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4, 5}, mjtNum(-0.0));
+
+  // negative nnz guard
+  mju_addToSclSparseInc(nullptr, nullptr, -1, nullptr, 3, nullptr, mjtNum(1.0));
+  mju_addToSclSparseInc(nullptr, nullptr, 3, nullptr, -1, nullptr, mjtNum(1.0));
+
+  // disjoint, identical, subset, and partial overlap
+  check_case({10, 11, 12, 13}, {0, 1, 2, 3}, mjtNum(-1.5));
+  check_case({5, 6, 7, 8, 9, 10}, {5, 6, 7, 8, 9, 10}, mjtNum(-0.75));
+  check_case({4, 5, 6, 7, 8, 9, 10, 11}, {4, 6, 7, 10, 11}, mjtNum(1.75));
+  check_case({0, 2, 5, 7, 10}, {0, 3, 5, 8, 10}, mjtNum(-0.625));
+  check_case({1, 4, 6, 9, 12, 15}, {0, 4, 5, 9, 11, 15, 20}, mjtNum(3.125));
+}
+
 }  // namespace
 }  // namespace mujoco
