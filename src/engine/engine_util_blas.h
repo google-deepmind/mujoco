@@ -19,6 +19,7 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjtype.h>
+#include "engine/engine_simd.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -203,6 +204,54 @@ MJAPI mjtNum mju_norm(const mjtNum* res, int n);
 
 // vector dot-product
 MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n);
+
+// three dot-products sharing vec2, each with the same result as mju_dot
+static inline
+void mju_dotX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
+               const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
+               const mjtNum* vec2, int n) {
+  int i = 0;
+  int n_4 = n - 4;
+  mjtNum r0 = 0, r1 = 0, r2 = 0;
+
+  if (n_4 >= 0) {
+    mjtNum4 v = v4_load(vec2);
+    mjtNum4 s0 = v4_mul(v4_load(vec10), v);
+    mjtNum4 s1 = v4_mul(v4_load(vec11), v);
+    mjtNum4 s2 = v4_mul(v4_load(vec12), v);
+    for (i = 4; i <= n_4; i += 4) {
+      v = v4_load(vec2 + i);
+      s0 = v4_add(s0, v4_mul(v4_load(vec10 + i), v));
+      s1 = v4_add(s1, v4_mul(v4_load(vec11 + i), v));
+      s2 = v4_add(s2, v4_mul(v4_load(vec12 + i), v));
+    }
+    r0 = v4_sum(s0);
+    r1 = v4_sum(s1);
+    r2 = v4_sum(s2);
+  }
+
+  // process remaining, grouped as in mju_dot
+  int n_i = n - i;
+  if (n_i == 3) {
+    mjtNum v0 = vec2[i+0], v1 = vec2[i+1], v2 = vec2[i+2];
+    r0 += vec10[i+0]*v0 + vec10[i+1]*v1 + vec10[i+2]*v2;
+    r1 += vec11[i+0]*v0 + vec11[i+1]*v1 + vec11[i+2]*v2;
+    r2 += vec12[i+0]*v0 + vec12[i+1]*v1 + vec12[i+2]*v2;
+  } else if (n_i == 2) {
+    mjtNum v0 = vec2[i+0], v1 = vec2[i+1];
+    r0 += vec10[i+0]*v0 + vec10[i+1]*v1;
+    r1 += vec11[i+0]*v0 + vec11[i+1]*v1;
+    r2 += vec12[i+0]*v0 + vec12[i+1]*v1;
+  } else if (n_i == 1) {
+    r0 += vec10[i]*vec2[i];
+    r1 += vec11[i]*vec2[i];
+    r2 += vec12[i]*vec2[i];
+  }
+
+  *res0 = r0;
+  *res1 = r1;
+  *res2 = r2;
+}
 
 //------------------------------ matrix-vector operations ------------------------------------------
 

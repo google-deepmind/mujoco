@@ -1653,4 +1653,20 @@ int f4_movemask(mjtFloatMask4 m) {
 
 #endif  // backend selection
 
+//------------------------------ backend-independent helpers ---------------------------------------
+
+// lane-wise absolute value (adding +0 maps a -0 result to +0, matching mju_abs)
+static inline
+mjtNum4 v4_abs(mjtNum4 a) {
+  return v4_add(v4_max(v4_xorsign(a, 1, 1, 1, 1), a), v4_splat(0));
+}
+
+
+// linear combination of three vectors: c0*x0 + c1*x1 + c2*x2
+static inline
+mjtNum4 v4_lincomb3(mjtNum4 c0, mjtNum4 c1, mjtNum4 c2, mjtNum x0, mjtNum x1, mjtNum x2) {
+  return v4_add(v4_add(v4_mul(c0, v4_splat(x0)), v4_mul(c1, v4_splat(x1))),
+                v4_mul(c2, v4_splat(x2)));
+}
+
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_

@@ -486,6 +486,26 @@ TEST_F(EngineUtilBlasTest, ElementwiseSimdAndInPlaceParity) {
   }
 }
 
+TEST_F(EngineUtilBlasTest, MjuDotX3MatchesDot) {
+  std::mt19937_64 rng(3);
+  std::uniform_real_distribution<mjtNum> dist(-2.0, 2.0);
+  for (int n = 0; n <= 19; ++n) {
+    std::vector<mjtNum> a(n), b(n), c(n), v(n);
+    for (int k = 0; k < n; ++k) {
+      a[k] = dist(rng);
+      b[k] = dist(rng);
+      c[k] = dist(rng);
+      v[k] = dist(rng);
+    }
+    mjtNum res[3];
+    mju_dotX3(res, res + 1, res + 2, a.data(), b.data(), c.data(), v.data(), n);
+    mjtNum ref[3] = {mju_dot(a.data(), v.data(), n),
+                     mju_dot(b.data(), v.data(), n),
+                     mju_dot(c.data(), v.data(), n)};
+    EXPECT_EQ(std::memcmp(res, ref, sizeof(res)), 0) << "n=" << n;
+  }
+}
+
 TEST_F(EngineUtilBlasTest, MjuMulMatVecAndTVecExact) {
   std::mt19937_64 rng(42);
   std::uniform_real_distribution<mjtNum> dist(-2.0, 2.0);

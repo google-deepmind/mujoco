@@ -418,6 +418,7 @@ void VerifyBackendParity(const std::vector<Vec4>& vecs) {
                       "div");
     expect_vec_eq(simd_scalar::v4_min(sa, sb), Backend::v4_min(ba, bb), "min");
     expect_vec_eq(simd_scalar::v4_max(sa, sb), Backend::v4_max(ba, bb), "max");
+    expect_vec_eq(simd_scalar::v4_abs(sa), Backend::v4_abs(ba), "abs");
     expect_vec_nan_eq(simd_scalar::v4_sqrt(sa), Backend::v4_sqrt(ba), "sqrt");
     expect_vec_eq(simd_scalar::v4_fma(sa, sb, sc), Backend::v4_fma(ba, bb, bc),
                   "fma");
@@ -735,6 +736,7 @@ void VerifyBackendParity(const std::vector<Vec4>& vecs) {
     static int v4_all(mjtMask4 m) { return Ns::v4_all(m); }                   \
     static mjtNum4 v4_min(mjtNum4 a, mjtNum4 b) { return Ns::v4_min(a, b); }  \
     static mjtNum4 v4_max(mjtNum4 a, mjtNum4 b) { return Ns::v4_max(a, b); }  \
+    static mjtNum4 v4_abs(mjtNum4 a) { return Ns::v4_abs(a); }                \
     static mjtNum4 v4_sqrt(mjtNum4 a) { return Ns::v4_sqrt(a); }              \
     static mjtNum4 v4_xorsign(mjtNum4 a, int s0, int s1, int s2, int s3) {    \
       return Ns::v4_xorsign(a, s0, s1, s2, s3);                               \
@@ -792,6 +794,21 @@ MJ_DEFINE_BACKEND_ADAPTER(VecextBackendAdapter, simd_vecext)
 #ifdef MJ_HAS_AVX_BACKEND
 MJ_DEFINE_BACKEND_ADAPTER(AvxBackendAdapter, simd_avx)
 #endif
+
+TEST_F(EngineSimdTest, AbsMatchesFabs) {
+  const mjtNum tiny = static_cast<mjtNum>(1e-30);
+  const mjtNum vals[] = {0.0, -0.0, 1.5, -1.5, tiny, -tiny, 3.0, -7.25};
+  for (int k = 0; k < 8; k += 4) {
+    mjtNum res[4];
+    simd_default::v4_store(
+        res, simd_default::v4_abs(simd_default::v4_load(vals + k)));
+    for (int j = 0; j < 4; ++j) {
+      mjtNum expected = std::fabs(vals[k + j]);
+      EXPECT_EQ(std::memcmp(&res[j], &expected, sizeof(mjtNum)), 0)
+          << "v4_abs(" << vals[k + j] << ")";
+    }
+  }
+}
 
 TEST_F(EngineSimdTest, DefaultBackendMatchesScalar) {
   VerifyBackendParity<DefaultBackendAdapter>(BuildTestVectors());
