@@ -2014,6 +2014,10 @@ void mj_solveM_wrapper(const MjModel& m, MjData& d, const val& x, const NumberAr
   UNPACK_VALUE(mjtNum, x);
   UNPACK_ARRAY(mjtNum, y);
   CHECK_SIZES(x, y);
+  if (m.nv() == 0) {
+    CHECK_SIZE(x, 0);
+    return;
+  }
   CHECK_DIVISIBLE(x, m.nv());
   int n = x_div.quot;
   mj_solveM(m.get(), d.get(), x_.data(), y_.data(), n);
@@ -2025,6 +2029,10 @@ void mj_solveM2_wrapper(const MjModel& m, MjData& d, const val& x, const NumberA
   UNPACK_ARRAY(mjtNum, sqrtInvD);
   CHECK_SIZES(x, y);
   CHECK_SIZE(sqrtInvD, m.nv());
+  if (m.nv() == 0) {
+    CHECK_SIZE(x, 0);
+    return;
+  }
   CHECK_DIVISIBLE(x, m.nv());
   int n = x_div.quot;
   mj_solveM2(m.get(), d.get(), x_.data(), y_.data(), sqrtInvD_.data(), n);
