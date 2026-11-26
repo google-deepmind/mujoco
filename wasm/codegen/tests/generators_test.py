@@ -177,6 +177,24 @@ class FunctionUtilsTest(absltest.TestCase):
     result = functions.get_param_string(param)
     self.assertEqual(result, "Mystruct& my_struct")
 
+  def test_numeric_array_parameter_nullability(self):
+    for name in ("int", "float", "double", "mjtNum", "mjtByte", "mjtBool"):
+      for nullable in (False, True):
+        for array in (False, True):
+          with self.subTest(name=name, nullable=nullable, array=array):
+            inner = ast_nodes.ValueType(name, is_const=True)
+            param_type = (
+                ast_nodes.ArrayType(inner, extents=(3,))
+                if array else ast_nodes.PointerType(inner)
+            )
+            param = ast_nodes.FunctionParameterDecl(
+                name="values", type=param_type, nullable=nullable
+            )
+            expected = "NumberArrayOrNull" if nullable else "NumberArray"
+            self.assertEqual(
+                functions.get_param_string(param), f"const {expected}& values"
+            )
+
   def test_get_params_string_maybe_with_conversion_struct_ptr(self):
     param = ast_nodes.FunctionParameterDecl(
         name="s",

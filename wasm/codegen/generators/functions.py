@@ -151,7 +151,8 @@ def get_param_string(p: ast_nodes.FunctionParameterDecl) -> str:
         in ["int", "float", "double", "mjtNum", "mjtByte", "mjtBool"]
         and p.type.inner_type.is_const
     ):
-      return f"const NumberArray& {p.name}"
+      array_type = "NumberArrayOrNull" if p.nullable else "NumberArray"
+      return f"const {array_type}& {p.name}"
     else:
       return f"const val& {p.name}"
   elif common.is_struct_value_type(p.type):

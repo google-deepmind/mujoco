@@ -603,6 +603,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   // get an accessor by name (string) or id (number).
   emscripten::register_type<NumberOrString>("number|string");
   emscripten::register_type<NumberArray>("number[]");
+  emscripten::register_type<NumberArrayOrNull>("number[]|null");
   emscripten::register_type<String>("string");
   emscripten::register_type<StringOrNull>("string|null");
 

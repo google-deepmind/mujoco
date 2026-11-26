@@ -39,6 +39,14 @@ class FunctionsTest(absltest.TestCase):
         func_decl.doc, 'Copy mjData. '
         'm is only required to contain the size fields from MJMODEL_INTS.')
 
+  def test_optional_math_parameters(self):
+    for function, optional in (
+        ('mju_sqrMatTD', 'diag'), ('mju_standardNormal', 'num2')):
+      with self.subTest(function=function):
+        self.assertEqual(
+            {p.name for p in functions.FUNCTIONS[function].parameters
+             if p.nullable}, {optional})
+
   def test_mju_transformSpatial(self):  # pylint: disable=invalid-name
     func_decl = functions.FUNCTIONS['mju_transformSpatial']
     self.assertEqual(func_decl.name, 'mju_transformSpatial')
