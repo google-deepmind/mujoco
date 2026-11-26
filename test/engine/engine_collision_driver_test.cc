@@ -2513,5 +2513,102 @@ TEST_F(MjCollisionTest, HFieldFlexCollisionAndPinnedSkip) {
   mj_forward(m_pin.get(), d_pin.get());
   EXPECT_EQ(d_pin->ncon, 0);
 }
+
+TEST_F(MjCollisionTest, PlaneCapsuleNearParallelFrame) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <default>
+      <geom margin="1"/>
+    </default>
+    <worldbody>
+      <geom type="plane" size="1 1 .1" zaxis=".4 .3 .866"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom type="capsule" size=".08 .2" zaxis=".401 .3 .866" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  mj_forward(m.get(), d.get());
+  ASSERT_EQ(d->ncon, 2);
+
+  const mjtNum ortho_tol = MjTol(1e-12, 1e-6);
+  const mjtNum normal[3] = {d->geom_xmat[2], d->geom_xmat[5], d->geom_xmat[8]};
+  for (int c = 0; c < d->ncon; ++c) {
+    const mjtNum* f = d->contact[c].frame;
+    for (int i = 0; i < 3; ++i) {
+      EXPECT_NEAR(f[i], normal[i], ortho_tol);
+      for (int j = 0; j < 3; ++j) {
+        EXPECT_NEAR(mju_dot3(f + 3 * i, f + 3 * j), (i == j) ? 1 : 0,
+                    ortho_tol);
+      }
+    }
+  }
+}
+
+TEST_F(MjCollisionTest, PlaneCylinderAlignedOnTiltedPlane) {
+  const char* kEulers[] = {"17 23 9", "11 78 4", "3 0 0"};
+  const mjtNum tol = MjTol(1e-13, 1e-5);
+
+  for (const char* euler : kEulers) {
+    std::string xml = std::string(R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <default>
+      <geom condim="1"/>
+    </default>
+    <worldbody>
+      <geom type="plane" size="2 2 .1" euler=")") +
+                      euler + R"("/>
+      <body>
+        <freejoint/>
+        <geom type="cylinder" size=".05 .1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+
+    // Align the cylinder with the tilted plane normal so the bottom cap
+    // penetrates by 0.05.
+    mj_kinematics(m.get(), d.get());
+    const mjtNum normal[3] = {d->geom_xmat[2], d->geom_xmat[5],
+                              d->geom_xmat[8]};
+    for (int i = 0; i < 3; ++i) {
+      d->qpos[i] = static_cast<mjtNum>(0.05) * normal[i];
+    }
+    for (int i = 0; i < 4; ++i) {
+      d->qpos[3 + i] = m->geom_quat[i];
+    }
+    mj_forward(m.get(), d.get());
+
+    ASSERT_EQ(d->ncon, 3);
+    const mjtNum* cmat = d->geom_xmat + 9;
+    const mjtNum cpos[3] = {d->geom_xpos[3], d->geom_xpos[4], d->geom_xpos[5]};
+    const mjtNum radius = m->geom_size[3];
+    const mjtNum half_height = m->geom_size[4];
+    mjtNum expected_pos0[3];
+    for (int i = 0; i < 3; ++i) {
+      expected_pos0[i] = cpos[i] + cmat[3 * i] * radius -
+                         cmat[3 * i + 2] * half_height +
+                         normal[i] * static_cast<mjtNum>(0.025);
+    }
+    for (int c = 0; c < d->ncon; ++c) {
+      EXPECT_NEAR(d->contact[c].dist, static_cast<mjtNum>(-0.05), tol);
+    }
+    for (int i = 0; i < 3; ++i) {
+      EXPECT_NEAR(d->contact[0].pos[i], expected_pos0[i], tol);
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

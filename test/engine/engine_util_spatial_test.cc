@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -572,6 +573,74 @@ TEST_F(MulQuatTest, PoseOperationsInPlace) {
   mjtNum inplace_trn_pos[3] = {pos1[0], pos1[1], pos1[2]};
   mju_trnVecPose(inplace_trn_pos, inplace_trn_pos, quat1, pos2);
   EXPECT_THAT(inplace_trn_pos, Pointwise(MjNear(1e-12, 1e-5), expected_trn));
+}
+
+using MakeFrameTest = MujocoTest;
+
+// Verifies that a 3x3 row-major frame is right-handed orthonormal.
+void ExpectOrthonormalFrame(const mjtNum frame[9], mjtNum tol) {
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      mjtNum expected = (i == j) ? 1 : 0;
+      EXPECT_NEAR(mju_dot3(frame + 3 * i, frame + 3 * j), expected, tol);
+    }
+  }
+  mjtNum cross[3];
+  mju_cross(cross, frame, frame + 3);
+  EXPECT_NEAR(mju_dot3(cross, frame + 6), 1, tol);
+}
+
+TEST_F(MakeFrameTest, ParallelAndNearParallelOrthonormal) {
+  const mjtNum ortho_tol = MjTol(1e-12, 1e-6);
+
+  // Standard z- and y-aligned normals keep the (1, 0, 0) fallback tangent.
+  const mjtNum axis_normals[][3] = {{0, 0, 1}, {0, 1, 0}};
+  for (const auto& n_in : axis_normals) {
+    mjtNum frame[9] = {n_in[0], n_in[1], n_in[2], n_in[0], n_in[1],
+                       n_in[2], 0,       0,       0};
+    mju_makeFrame(frame);
+    ExpectOrthonormalFrame(frame, ortho_tol);
+    EXPECT_THAT(AsVector(frame + 3, 3),
+                Pointwise(MjNear(1e-14, 1e-6), std::vector<mjtNum>{1, 0, 0}));
+  }
+
+  // X-aligned normal hits the second (0, 1, 0) fallback branch.
+  {
+    mjtNum frame[9] = {1, 0, 0, 1, 0, 0, 0, 0, 0};
+    mju_makeFrame(frame);
+    ExpectOrthonormalFrame(frame, ortho_tol);
+    EXPECT_THAT(AsVector(frame + 3, 3),
+                Pointwise(MjNear(1e-14, 1e-6), std::vector<mjtNum>{0, 1, 0}));
+  }
+
+  // Exact-parallel tilted normal projects the (1, 0, 0) fallback onto the
+  // plane.
+  {
+    mjtNum frame[9] = {1, 1, 1, 1, 1, 1, 0, 0, 0};
+    mju_normalize3(frame);
+    mju_normalize3(frame + 3);
+    mju_makeFrame(frame);
+    ExpectOrthonormalFrame(frame, ortho_tol);
+    mjtNum expected_y[3] = {2, -1, -1};
+    mju_normalize3(expected_y);
+    EXPECT_THAT(AsVector(frame + 3, 3),
+                Pointwise(MjNear(1e-14, 1e-6), AsVector(expected_y, 3)));
+  }
+
+  // Near-parallel tilted hint must stay orthonormal in both precisions.
+  mjtNum near_frame[9] = {static_cast<mjtNum>(0.4),
+                          static_cast<mjtNum>(0.3),
+                          static_cast<mjtNum>(0.866),
+                          static_cast<mjtNum>(0.401),
+                          static_cast<mjtNum>(0.3),
+                          static_cast<mjtNum>(0.866),
+                          0,
+                          0,
+                          0};
+  mju_normalize3(near_frame);
+  mju_normalize3(near_frame + 3);
+  mju_makeFrame(near_frame);
+  ExpectOrthonormalFrame(near_frame, ortho_tol);
 }
 
 }  // namespace

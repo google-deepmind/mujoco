@@ -125,7 +125,7 @@ MJAPI void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_forc
                                 const mjtNum rotnew2old[9]);
 
 // make 3D frame given X axis (and possibly Y axis)
-void mju_makeFrame(mjtNum frame[9]);
+MJAPI void mju_makeFrame(mjtNum frame[9]);
 
 #ifdef __cplusplus
 }

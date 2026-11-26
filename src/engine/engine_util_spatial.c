@@ -740,13 +740,40 @@ void mju_makeFrame(mjtNum frame[9]) {
     }
   }
 
-  // make yaxis orthogonal to xaxis
-  mji_scl3(tmp, frame, mju_dot3(frame, frame+3));
-  mji_subFrom3(frame+3, tmp);
-  mju_normalize3(frame+3);
-
-  // zaxis = cross(xaxis, yaxis)
-  mji_cross(frame+6, frame, frame+3);
+  // make yaxis orthogonal to xaxis; double cross product avoids cancellation along xaxis
+#ifdef mjUSESINGLE
+  const mjtNum eps_sqr = 1e-12f;
+#else
+  const mjtNum eps_sqr = mjMINVAL*mjMINVAL;
+#endif
+  mji_cross(tmp, frame, frame+3);
+  if (mju_dot3(tmp, tmp) < eps_sqr) {
+    // fallback: zaxis = xaxis x (1,0,0), or xaxis x (0,1,0) if xaxis is parallel to (1,0,0)
+    mjtNum norm2 = frame[1]*frame[1] + frame[2]*frame[2];
+    if (norm2 >= eps_sqr) {
+      frame[6] = 0;
+      frame[7] = frame[2];
+      frame[8] = -frame[1];
+    } else {
+      frame[6] = -frame[2];
+      frame[7] = 0;
+      frame[8] = frame[0];
+      norm2 = frame[0]*frame[0] + frame[2]*frame[2];
+    }
+    mjtNum inv = 1 / mju_sqrt(norm2);
+    frame[6] *= inv;
+    frame[7] *= inv;
+    frame[8] *= inv;
+    mji_cross(frame+3, frame+6, frame);
+  } else {
+    // second cross product annihilates parallel rounding error in tmp before normalizing yaxis
+    mji_cross(frame+3, tmp, frame);
+    mjtNum inv = 1 / mju_sqrt(mju_dot3(frame+3, frame+3));
+    frame[3] *= inv;
+    frame[4] *= inv;
+    frame[5] *= inv;
+    mji_cross(frame+6, frame, frame+3);
+  }
 }
 
 

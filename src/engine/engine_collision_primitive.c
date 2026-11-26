@@ -120,13 +120,19 @@ int mjc_PlaneCylinder(const mjModel* m, mjData* d, mjPreContact* con, int g1, in
   mjtNum vec[3] = {pos2[0] - pos1[0], pos2[1] - pos1[1], pos2[2] - pos1[2]};
   mjtNum dist0 = mju_dot3(vec, normal);
 
-  // remove component of -normal along axis, compute length
-  mju_scl3(vec, axis, prjaxis);
-  mju_subFrom3(vec, normal);
+  // remove component of -normal along axis via double cross product, compute length
+  mjtNum tmp[3];
+  mji_cross(tmp, axis, normal);
+  mji_cross(vec, axis, tmp);
+#ifdef mjUSESINGLE
+  const mjtNum eps_sqr = 1e-12f;
+#else
+  const mjtNum eps_sqr = mjMINVAL*mjMINVAL;
+#endif
   mjtNum len_sqr = mju_dot3(vec, vec);
 
   // general configuration: normalize vector, scale by radius
-  if (len_sqr >= mjMINVAL*mjMINVAL) {
+  if (len_sqr >= eps_sqr) {
     mjtNum scl = size2[0]/mju_sqrt(len_sqr);
     vec[0] *= scl;
     vec[1] *= scl;
