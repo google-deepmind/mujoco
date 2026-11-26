@@ -1447,7 +1447,8 @@ void mj_RungeKutta_wrapper(const MjModel& m, MjData& d, int N) {
 }
 
 std::string mj_actuatorInputName_wrapper(const MjModel& m, int id, int input) {
-  return std::string(mj_actuatorInputName(m.get(), id, input));
+  const char* result = mj_actuatorInputName(m.get(), id, input);
+  return result ? std::string(result) : "";
 }
 
 int mj_addContact_wrapper(const MjModel& m, MjData& d, const MjContact& con) {
@@ -1646,7 +1647,8 @@ mjtNum mj_getTotalmass_wrapper(const MjModel& m) {
 }
 
 std::string mj_id2name_wrapper(const MjModel& m, int type, int id) {
-  return std::string(mj_id2name(m.get(), type, id));
+  const char* result = mj_id2name(m.get(), type, id);
+  return result ? std::string(result) : "";
 }
 
 void mj_implicit_wrapper(const MjModel& m, MjData& d) {
@@ -2059,7 +2061,8 @@ void mj_transmission_wrapper(const MjModel& m, MjData& d) {
 }
 
 std::string mj_versionString_wrapper() {
-  return std::string(mj_versionString());
+  const char* result = mj_versionString();
+  return result ? std::string(result) : "";
 }
 
 void mjd_inverseFD_wrapper(const MjModel& m, MjData& d, mjtNum eps, mjtBool flg_actuation, const val& DfDq, const val& DfDv, const val& DfDa, const val& DsDq, const val& DsDv, const val& DsDa, const val& DmDq) {
@@ -2740,7 +2743,8 @@ std::optional<MjsDefault> mjs_getDefault_wrapper(const MjsElement& element) {
 }
 
 std::string mjs_getError_wrapper(MjSpec& s) {
-  return std::string(mjs_getError(s.get()));
+  const char* result = mjs_getError(s.get());
+  return result ? std::string(result) : "";
 }
 
 std::optional<MjsFrame> mjs_getFrame_wrapper(const MjsElement& element) {
@@ -2792,7 +2796,8 @@ std::optional<MjsDefault> mjs_getSpecDefault_wrapper(const MjSpec& s) {
 }
 
 std::string mjs_getWarning_wrapper(const MjSpec& spec, int index) {
-  return std::string(mjs_getWarning(spec.get(), index));
+  const char* result = mjs_getWarning(spec.get(), index);
+  return result ? std::string(result) : "";
 }
 
 std::optional<MjsWrap> mjs_getWrap_wrapper(const MjsTendon& tendonspec, int i) {
@@ -2879,7 +2884,8 @@ int mjs_numWarnings_wrapper(const MjSpec& spec) {
 std::string mjs_resolveOrientation_wrapper(const val& quat, mjtByte degree, const String& sequence, const MjsOrientation& orientation) {
   CHECK_VAL(sequence);
   UNPACK_VALUE(double, quat);
-  return std::string(mjs_resolveOrientation(quat_.data(), degree, sequence.as<const std::string>().data(), orientation.get()));
+  const char* result = mjs_resolveOrientation(quat_.data(), degree, sequence.as<const std::string>().data(), orientation.get());
+  return result ? std::string(result) : "";
 }
 
 int mjs_sensorDim_wrapper(const MjsSensor& sensor) {
@@ -2904,11 +2910,13 @@ int mjs_setName_wrapper(MjsElement& element, const String& name) {
 }
 
 std::string mjs_setToAdhesion_wrapper(MjsActuator& actuator, double gain) {
-  return std::string(mjs_setToAdhesion(actuator.get(), gain));
+  const char* result = mjs_setToAdhesion(actuator.get(), gain);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToCylinder_wrapper(MjsActuator& actuator, double timeconst, double bias, double area, double diameter) {
-  return std::string(mjs_setToCylinder(actuator.get(), timeconst, bias, area, diameter));
+  const char* result = mjs_setToCylinder(actuator.get(), timeconst, bias, area, diameter);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToDCMotor_wrapper(MjsActuator& actuator, const val& motorconst, double resistance, const val& nominal, const val& saturation, const val& inductance, const val& cogging, const val& controller, const val& thermal, const val& lugre, int ctrlspec) {
@@ -2920,34 +2928,40 @@ std::string mjs_setToDCMotor_wrapper(MjsActuator& actuator, const val& motorcons
   UNPACK_NULLABLE_VALUE(double, controller);
   UNPACK_NULLABLE_VALUE(double, thermal);
   UNPACK_NULLABLE_VALUE(double, lugre);
-  return std::string(mjs_setToDCMotor(actuator.get(), motorconst_.data(), resistance, nominal_.data(), saturation_.data(), inductance_.data(), cogging_.data(), controller_.data(), thermal_.data(), lugre_.data(), ctrlspec));
+  const char* result = mjs_setToDCMotor(actuator.get(), motorconst_.data(), resistance, nominal_.data(), saturation_.data(), inductance_.data(), cogging_.data(), controller_.data(), thermal_.data(), lugre_.data(), ctrlspec);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToDamper_wrapper(MjsActuator& actuator, double kv) {
-  return std::string(mjs_setToDamper(actuator.get(), kv));
+  const char* result = mjs_setToDamper(actuator.get(), kv);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToIntVelocity_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
   UNPACK_VALUE(double, timeconst);
-  return std::string(mjs_setToIntVelocity(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange));
+  const char* result = mjs_setToIntVelocity(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToMotor_wrapper(MjsActuator& actuator) {
-  return std::string(mjs_setToMotor(actuator.get()));
+  const char* result = mjs_setToMotor(actuator.get());
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToMuscle_wrapper(MjsActuator& actuator, const val& timeconst, double tausmooth, const val& range, double force, double scale, double lmin, double lmax, double vmax, double fpmax, double fvmax) {
   UNPACK_VALUE(double, timeconst);
   UNPACK_VALUE(double, range);
-  return std::string(mjs_setToMuscle(actuator.get(), timeconst_.data(), tausmooth, range_.data(), force, scale, lmin, lmax, vmax, fpmax, fvmax));
+  const char* result = mjs_setToMuscle(actuator.get(), timeconst_.data(), tausmooth, range_.data(), force, scale, lmin, lmax, vmax, fpmax, fvmax);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToOrientation_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, int ctrlspec) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
-  return std::string(mjs_setToOrientation(actuator.get(), kp, kv_.data(), dampratio_.data(), ctrlspec));
+  const char* result = mjs_setToOrientation(actuator.get(), kp, kv_.data(), dampratio_.data(), ctrlspec);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToPID_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& ki, const val& imax, const val& slewmax, double inheritrange, int ctrlspec) {
@@ -2956,18 +2970,21 @@ std::string mjs_setToPID_wrapper(MjsActuator& actuator, double kp, const val& kv
   UNPACK_VALUE(double, ki);
   UNPACK_VALUE(double, imax);
   UNPACK_VALUE(double, slewmax);
-  return std::string(mjs_setToPID(actuator.get(), kp, kv_.data(), dampratio_.data(), ki_.data(), imax_.data(), slewmax_.data(), inheritrange, ctrlspec));
+  const char* result = mjs_setToPID(actuator.get(), kp, kv_.data(), dampratio_.data(), ki_.data(), imax_.data(), slewmax_.data(), inheritrange, ctrlspec);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToPosition_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
   UNPACK_VALUE(double, timeconst);
-  return std::string(mjs_setToPosition(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange));
+  const char* result = mjs_setToPosition(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange);
+  return result ? std::string(result) : "";
 }
 
 std::string mjs_setToVelocity_wrapper(MjsActuator& actuator, double kv) {
-  return std::string(mjs_setToVelocity(actuator.get(), kv));
+  const char* result = mjs_setToVelocity(actuator.get(), kv);
+  return result ? std::string(result) : "";
 }
 
 std::optional<MjsWrap> mjs_wrapGeom_wrapper(MjsTendon& tendon, const String& name, const String& sidesite) {
@@ -3712,7 +3729,8 @@ void mju_trnVecPose_wrapper(const val& res, const NumberArray& pos, const Number
 }
 
 std::string mju_type2Str_wrapper(int type) {
-  return std::string(mju_type2Str(type));
+  const char* result = mju_type2Str(type);
+  return result ? std::string(result) : "";
 }
 
 void mju_unit4_wrapper(const val& res) {
@@ -3721,7 +3739,8 @@ void mju_unit4_wrapper(const val& res) {
 }
 
 std::string mju_warningText_wrapper(int warning, size_t info) {
-  return std::string(mju_warningText(warning, info));
+  const char* result = mju_warningText(warning, info);
+  return result ? std::string(result) : "";
 }
 
 void mju_writeLog_wrapper(const String& type, const String& msg) {
@@ -3731,7 +3750,8 @@ void mju_writeLog_wrapper(const String& type, const String& msg) {
 }
 
 std::string mju_writeNumBytes_wrapper(size_t nbytes) {
-  return std::string(mju_writeNumBytes(nbytes));
+  const char* result = mju_writeNumBytes(nbytes);
+  return result ? std::string(result) : "";
 }
 
 void mju_zero_wrapper(const val& res, int n) {
