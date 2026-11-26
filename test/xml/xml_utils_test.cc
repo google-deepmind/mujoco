@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <filesystem>  // NOLINT
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <set>
 #include <string>
@@ -185,6 +187,131 @@ TEST_F(MujocoTest, GetXMLDependenciesExpandsIncludesIntoTheModel) {
                            "incxml:/meshes/hand.obj", "incxml:/sub/sub.xml",
                            "incxml:/sub/wheel.obj"));
 
+  memxml::g_files = nullptr;
+}
+
+// Dependency discovery must use the same directories as compilation, including
+// compiler elements expanded in place from included files.
+TEST_F(MujocoTest, GetXMLDependenciesCompilerDirectoryOrder) {
+  struct Case {
+    const char* sections;
+    const char* included;
+    const char* directory;
+  };
+  const Case cases[] = {
+      {R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
+          <compiler assetdir="final" meshdir="final" texturedir="final"/>)", "", "final/"},
+      {R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
+          <include file="child.xml"/>)",
+       R"(<compiler assetdir="final" meshdir="final" texturedir="final"/>)", "final/"},
+      {R"(<include file="child.xml"/>
+          <compiler assetdir="final" meshdir="final" texturedir="final"/>)",
+       R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>)", "final/"},
+      {R"(<include file="child.xml"/>)",
+       R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
+          <compiler assetdir="final" meshdir="final" texturedir="final"/>)", "final/"},
+      {R"(<compiler assetdir="final" meshdir="old" texturedir="old"/>
+          <compiler meshdir="" texturedir=""/>)", "", ""},
+      {R"(<compiler meshdir="old" texturedir="old"/>
+          <compiler assetdir="final"/>)", "", "final/"},
+      {R"(<compiler assetdir="old" meshdir="final" texturedir="final"/>)", "", "final/"},
+      {R"(<compiler assetdir="old" meshdir="" texturedir=""/>)", "", ""},
+  };
+  std::ifstream image(GetTestDataFilePath("xml/testdata/hfield.png"), std::ios::binary);
+  const std::string png((std::istreambuf_iterator<char>(image)), std::istreambuf_iterator<char>());
+  ASSERT_FALSE(png.empty());
+  mjpResourceProvider provider = {
+      .prefix = "dirxml",
+      .open = memxml::Open,
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  for (const auto& [sections, included, directory] : cases) {
+    SCOPED_TRACE(sections);
+    const std::string prefix = std::string("dirxml:/") + directory;
+    const std::map<std::string, std::string> files = {
+        {"dirxml:/scene.xml", std::string("<mujoco>") + sections + R"(
+          <asset>
+            <mesh name="mesh" file="mesh.obj"/>
+            <texture name="texture" type="2d" file="texture.png"/>
+            <hfield name="height" size="1 1 1 1" file="height.png"/>
+          </asset>
+        </mujoco>)"},
+        {"dirxml:/child.xml", std::string("<mujoco>") + included + "</mujoco>"},
+        {prefix + "mesh.obj", "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n"
+                              "f 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n"},
+        {prefix + "texture.png", png},
+        {prefix + "height.png", png},
+    };
+    memxml::g_files = &files;
+
+    mjStringVec dependencies;
+    mju_getXMLDependencies("dirxml:/scene.xml", &dependencies);
+    std::set<std::string> dep_set(dependencies.begin(), dependencies.end());
+    std::set<std::string> expected = {
+        "dirxml:/scene.xml", prefix + "mesh.obj",
+        prefix + "texture.png", prefix + "height.png",
+    };
+    if (*included) { expected.insert("dirxml:/child.xml"); }
+    EXPECT_EQ(dep_set, expected);
+
+    // Only the expected resources are available. Compilation, rather than
+    // parsing alone, must succeed with these paths.
+    char error[1024];
+    mjModel* model = mj_loadXML("dirxml:/scene.xml", nullptr, error, sizeof(error));
+    EXPECT_NE(model, nullptr) << error;
+    if (model) {
+      EXPECT_EQ(model->nmesh, 1);
+      EXPECT_EQ(model->ntex, 1);
+      EXPECT_EQ(model->nhfield, 1);
+      mj_deleteModel(model);
+    }
+    memxml::g_files = nullptr;
+  }
+}
+
+// Height fields use meshdir during compilation, just like mesh files.
+TEST_F(MujocoTest, GetXMLDependenciesHeightFieldDirectory) {
+  const int dimensions[] = {2, 2};
+  const float elevation[] = {0, 1, 2, 3};
+  const std::string height =
+      std::string(reinterpret_cast<const char*>(dimensions), sizeof(dimensions)) +
+      std::string(reinterpret_cast<const char*>(elevation), sizeof(elevation));
+  const std::map<std::string, std::string> files = {
+      {"hdirxml:/scene.xml", R"(
+        <mujoco>
+          <compiler assetdir="assets" meshdir="heights"/>
+          <asset><hfield name="height" size="1 1 1 1" file="height.bin"/></asset>
+          <worldbody><geom type="hfield" hfield="height"/></worldbody>
+        </mujoco>)"},
+      {"hdirxml:/heights/height.bin", height},
+  };
+  memxml::g_files = &files;
+  mjpResourceProvider provider = {
+      .prefix = "hdirxml",
+      .open = memxml::Open,
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  // Only the file in meshdir is available: a successful compile proves the
+  // dependency path agrees with the compiler, not just the XML parser.
+  char error[1024];
+  mjModel* model = mj_loadXML("hdirxml:/scene.xml", nullptr, error, sizeof(error));
+  EXPECT_NE(model, nullptr) << error;
+  if (model) {
+    EXPECT_EQ(model->nhfield, 1);
+    EXPECT_EQ(model->nhfielddata, 4);
+    mj_deleteModel(model);
+  }
+
+  mjStringVec dependencies;
+  mju_getXMLDependencies("hdirxml:/scene.xml", &dependencies);
+  EXPECT_THAT(dependencies, testing::UnorderedElementsAre(
+                                "hdirxml:/scene.xml", "hdirxml:/heights/height.bin"));
   memxml::g_files = nullptr;
 }
 
