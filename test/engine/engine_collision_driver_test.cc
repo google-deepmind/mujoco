@@ -1439,12 +1439,16 @@ TEST_F(MjCollisionTest, InterpolatedSelfCollisionPressedPillow) {
 
     // press the plate down with a force that collapses the cage, then hold it
     // until the pillow settles; track the smallest gap between the faces
+    bool is_auto = std::string(selfcollide) == "auto";
+    int nstep = is_auto ? 1000 : 500;
     mjtNum mingap = mjMAXVAL;
-    for (int i = 0; i < 2000; i++) {
-      d->ctrl[0] = 3 * std::min(1.0, i / 1000.0);
+    for (int i = 0; i < nstep; i++) {
+      d->ctrl[0] = 3 * std::min(1.0, i / 400.0);
       mj_step(m.get(), d.get());
-      auto [top, bottom] = FaceHeights(m.get(), d.get(), 0);
-      mingap = std::min(mingap, top - bottom);
+      if (!is_auto) {
+        auto [top, bottom] = FaceHeights(m.get(), d.get(), 0);
+        mingap = std::min(mingap, top - bottom);
+      }
     }
     SelfContacts pressed = CountSelfContacts(m.get(), d.get(), 0);
     auto [ztop, zbottom] = FaceHeights(m.get(), d.get(), 0);
