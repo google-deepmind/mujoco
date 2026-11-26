@@ -1655,10 +1655,13 @@ int f4_movemask(mjtFloatMask4 m) {
 
 //------------------------------ backend-independent helpers ---------------------------------------
 
-// lane-wise absolute value (adding +0 maps a -0 result to +0, matching mju_abs)
+// lane-wise absolute value (zero results are selected as +0, matching mju_abs)
 static inline
 mjtNum4 v4_abs(mjtNum4 a) {
-  return v4_add(v4_max(v4_xorsign(a, 1, 1, 1, 1), a), v4_splat(0));
+  // max(-a, a) is -0 for a = -0; select +0 explicitly rather than adding +0, which MSVC folds away
+  mjtNum4 zero = v4_splat(0);
+  mjtNum4 r = v4_max(v4_xorsign(a, 1, 1, 1, 1), a);
+  return v4_select(v4_cmple(r, zero), zero, r);
 }
 
 
