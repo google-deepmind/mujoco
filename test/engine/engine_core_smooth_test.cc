@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -2673,6 +2674,304 @@ TEST_F(CoreSmoothTest, FactorMClampsSingularPivotAndWarns) {
   EXPECT_EQ(data->warning[mjWARN_INERTIA].lastinfo, 0);
   for (int i = 0; i < model->nv; i++) {
     EXPECT_TRUE(std::isfinite(data->qacc[i]));
+  }
+}
+
+// Scalar reference for mj_factorI implementing the textbook backward L'*D*L.
+int FactorIReference(mjtNum* mat, mjtNum* diaginv, int nv, const int* rownnz,
+                     const int* rowadr, const int* colind, const int* index) {
+  int clamped = -1;
+  for (int j = nv - 1; j >= 0; j--) {
+    int k = index ? index[j] : j;
+    int start = rowadr[k];
+    int diag = rownnz[k] - 1;
+    int end = start + diag;
+    if (mat[end] < mjMINVAL) {
+      mat[end] = mjMINVAL;
+      if (clamped < 0) clamped = k;
+    }
+    mjtNum invD = 1 / mat[end];
+    if (diaginv) diaginv[k] = invD;
+    for (int adr = end - 1; adr >= start; adr--) {
+      int i = colind[adr];
+      mjtNum f = -mat[adr] * invD;
+      mjtNum* dst = mat + rowadr[i];
+      const mjtNum* src = mat + start;
+      for (int q = 0; q < rownnz[i]; q++) {
+        dst[q] += src[q] * f;
+      }
+    }
+    for (int q = 0; q < diag; q++) {
+      mat[start + q] *= invD;
+    }
+  }
+  return clamped;
+}
+
+// Check that mj_factorI matches FactorIReference exactly on mat, diaginv, and
+// clamped return value; return the clamped dof index.
+int ExpectFactorIMatchesReference(absl::Span<const mjtNum> mat_in,
+                                  bool with_diaginv, int nv_run, int nv_total,
+                                  const int* rownnz, const int* rowadr,
+                                  const int* colind, const int* index) {
+  vector<mjtNum> mat_got(mat_in.begin(), mat_in.end());
+  vector<mjtNum> mat_ref = mat_got;
+  vector<mjtNum> inv_got(nv_total, -1);
+  vector<mjtNum> inv_ref(nv_total, -1);
+
+  int c_got =
+      mj_factorI(mat_got.data(), with_diaginv ? inv_got.data() : nullptr,
+                 nv_run, rownnz, rowadr, colind, index);
+  int c_ref =
+      FactorIReference(mat_ref.data(), with_diaginv ? inv_ref.data() : nullptr,
+                       nv_run, rownnz, rowadr, colind, index);
+  EXPECT_EQ(c_got, c_ref);
+  EXPECT_EQ(std::memcmp(mat_got.data(), mat_ref.data(),
+                        mat_in.size() * sizeof(mjtNum)),
+            0);
+  if (with_diaginv) {
+    EXPECT_EQ(
+        std::memcmp(inv_got.data(), inv_ref.data(), nv_total * sizeof(mjtNum)),
+        0);
+  }
+  return c_got;
+}
+
+// Verify mj_factorI matches the scalar reference across articulated trees,
+// deep chains (diag 0..17), sleep index filtering, and diaginv == nullptr.
+TEST_F(CoreSmoothTest, FactorIMatchesReference) {
+  // 1. Real articulated benchmark model (inertia.xml: mixed diagonal runs,
+  //    short rows diag=1..3, branches, and deep chains).
+  {
+    const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+    char error[1024];
+    MjModelPtr model(
+        mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error)));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    mjModel* m = model.get();
+    MjDataPtr data = MakeData(model);
+    mjData* d = data.get();
+    for (int i = 0; i < m->nv; i++) {
+      d->qvel[i] = 0.2 * std::sin(0.5 * i + 0.1);
+    }
+    mj_step(m, d);
+    mj_forward(m, d);
+
+    absl::Span<const mjtNum> M(d->M, m->nC);
+    for (bool with_diaginv : {true, false}) {
+      ExpectFactorIMatchesReference(M, with_diaginv, m->nv, m->nv, m->M_rownnz,
+                                    m->M_rowadr, m->M_colind, nullptr);
+    }
+
+    // Sleep-filtered factorization (largest tree awake)
+    int best_tree = 0;
+    for (int t = 1; t < m->ntree; t++) {
+      if (m->tree_dofnum[t] > m->tree_dofnum[best_tree]) best_tree = t;
+    }
+    vector<int> awake_ind;
+    for (int i = 0; i < m->nv; i++) {
+      if (m->dof_treeid[i] == best_tree) awake_ind.push_back(i);
+    }
+    ASSERT_GE(awake_ind.size(), 6u);
+    ExpectFactorIMatchesReference(
+        M, /*with_diaginv=*/true, static_cast<int>(awake_ind.size()), m->nv,
+        m->M_rownnz, m->M_rowadr, m->M_colind, awake_ind.data());
+  }
+
+  // 2. Deep serial chain (18 DOFs: diag 0..17) + side branches so every
+  //    diag % 4 remainder is hit in both single-row and fused-chain paths.
+  static constexpr char kChainXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 2">
+        <freejoint/>
+        <geom size="0.1" mass="1"/>
+        <body pos="0 0 -0.2">
+          <joint axis="1 0 0"/>
+          <geom size="0.05" mass="0.5"/>
+          <body pos="0 0 -0.2">
+            <joint axis="0 1 0"/>
+            <geom size="0.05" mass="0.5"/>
+            <body pos="0 0 -0.2">
+              <joint axis="0 0 1"/>
+              <geom size="0.05" mass="0.5"/>
+              <body pos="0 0 -0.2">
+                <joint axis="1 1 0"/>
+                <geom size="0.05" mass="0.5"/>
+                <body pos="0 0 -0.2">
+                  <joint axis="0 1 1"/>
+                  <geom size="0.05" mass="0.5"/>
+                  <body pos="0 0 -0.2">
+                    <joint axis="1 0 1"/>
+                    <geom size="0.05" mass="0.5"/>
+                    <body pos="0 0 -0.2">
+                      <joint axis="1 -1 0"/>
+                      <geom size="0.05" mass="0.5"/>
+                      <body pos="0 0 -0.2">
+                        <joint axis="0 1 -1"/>
+                        <geom size="0.05" mass="0.5"/>
+                        <body pos="0 0 -0.2">
+                          <joint axis="1 0 -1"/>
+                          <geom size="0.05" mass="0.5"/>
+                          <body pos="0 0 -0.2">
+                            <joint axis="1 2 0"/>
+                            <geom size="0.05" mass="0.5"/>
+                            <body pos="0 0 -0.2">
+                              <joint axis="0 1 2"/>
+                              <geom size="0.05" mass="0.5"/>
+                              <body pos="0 0 -0.2">
+                                <joint axis="2 0 1"/>
+                                <geom size="0.05" mass="0.5"/>
+                              </body>
+                            </body>
+                          </body>
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+          <body pos="0.2 0 0">
+            <joint axis="1 0 0"/>
+            <geom size="0.05" mass="0.4"/>
+            <body pos="0.2 0 0">
+              <joint axis="0 1 0"/>
+              <geom size="0.05" mass="0.4"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kChainXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  for (int i = 0; i < model->nv; i++) {
+    data->qvel[i] = 0.3 * (i % 3 - 1);
+  }
+  mj_step(model.get(), data.get());
+  mj_forward(model.get(), data.get());
+
+  absl::Span<const mjtNum> M(data->M, model->nC);
+  ExpectFactorIMatchesReference(M, /*with_diaginv=*/true, model->nv, model->nv,
+                                model->M_rownnz, model->M_rowadr,
+                                model->M_colind, nullptr);
+
+  // Non-contiguous awake index subset: root freejoint + first hinge (0..6) and
+  // side branch (18..19), skipping main branch (7..17); hits chain2 with
+  // index != nullptr on (19, 18) and index[j-1] != k - 1 on (18, 6).
+  ASSERT_EQ(model->nv, 20);
+  const int sub_ind[] = {0, 1, 2, 3, 4, 5, 6, 18, 19};
+  constexpr int nsub = sizeof(sub_ind) / sizeof(sub_ind[0]);
+  ExpectFactorIMatchesReference(M, /*with_diaginv=*/true, nsub, model->nv,
+                                model->M_rownnz, model->M_rowadr,
+                                model->M_colind, sub_ind);
+}
+
+// Verify diagonal-only SIMD batching edge cases (run lengths, non-contiguous
+// rowadr, per-lane clamping, diaginv == nullptr) and singular clamping inside
+// fused chain rows.
+TEST_F(CoreSmoothTest, FactorIDiagonalAndChainClamping) {
+  // 1. Contiguous diagonal-only runs of lengths 1..11, clamping each lane
+  for (int nv = 1; nv <= 11; nv++) {
+    vector<int> rownnz(nv, 1), rowadr(nv), colind(nv);
+    vector<mjtNum> base_mat(nv);
+    for (int i = 0; i < nv; i++) {
+      rowadr[i] = i;
+      colind[i] = i;
+      base_mat[i] = mjtNum(1.5) + mjtNum(0.25) * i;
+    }
+
+    // No clamping, single clamped dof at each position, and two clamped dofs
+    for (int bad = -1; bad < nv; bad++) {
+      vector<mjtNum> mat_in = base_mat;
+      if (bad >= 0) {
+        mat_in[bad] = (bad % 2 == 0) ? mjtNum(-1) : mjtNum(0);
+        if (bad >= 2) mat_in[bad - 2] = mjtNum(-0.5);
+      }
+      int c_got = ExpectFactorIMatchesReference(
+          mat_in, /*with_diaginv=*/true, nv, nv, rownnz.data(), rowadr.data(),
+          colind.data(), nullptr);
+      EXPECT_EQ(c_got, bad) << "nv=" << nv << " bad=" << bad;
+      if (nv == 9 && (bad == -1 || bad == 5)) {
+        int c_noinv = ExpectFactorIMatchesReference(
+            mat_in, /*with_diaginv=*/false, nv, nv, rownnz.data(),
+            rowadr.data(), colind.data(), nullptr);
+        EXPECT_EQ(c_noinv, bad);
+      }
+    }
+  }
+
+  // 2. Non-contiguous rowadr for diagonal-only rows (must break out cleanly)
+  {
+    constexpr int nv = 6;
+    const int rownnz[nv] = {1, 1, 1, 1, 1, 1};
+    const int rowadr[nv] = {10, 8, 6, 4, 2, 0};
+    const int colind[11] = {5, 0, 4, 0, 3, 0, 2, 0, 1, 0, 0};
+    const mjtNum mat_in[11] = {2, 0, 3, 0, -1, 0, 5, 0, 6, 0, 7};
+
+    int c_got = ExpectFactorIMatchesReference(
+        mat_in, /*with_diaginv=*/true, nv, nv, rownnz, rowadr, colind, nullptr);
+    EXPECT_EQ(c_got, 3);
+  }
+
+  // 3. Singular clamping inside a fused chain pair (diag >= 5):
+  //    coincident hinges at dofs 6 and 7 on top of a freejoint (dofs 0..5)
+  //    make dof 6's pivot vanish after eliminating dof 7 (diag=7, diag1=6);
+  //    independent body at dof 8 (diag=0) lets us test pre-existing clamping.
+  static constexpr char kSingularChainXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size="0.2" mass="1"/>
+        <body pos="0 0 -0.2">
+          <joint axis="0 0 1"/>
+          <joint axis="0 0 1"/>
+          <geom size="0.1" mass="0.5"/>
+        </body>
+      </body>
+      <body pos="2 0 0">
+        <joint axis="1 0 0"/>
+        <geom size="0.1" mass="0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mock_warning_handler.ExpectWarnings(
+      "Inertia matrix is too close to singular");
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(kSingularChainXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(model->nv, 9);
+  ASSERT_EQ(model->M_rownnz[8], 1);  // independent dof 8
+  ASSERT_EQ(model->M_rownnz[7], 8);  // diag = 7 -> fuses with dof 6 (diag1 = 6)
+
+  // Case A: dof 7 positive, dof 6 vanishes after elimination -> clamped == 6
+  // Case B: earlier dof 8 already clamped -> must keep clamped == 8
+  // Case C: dof 7 itself clamped -> must keep clamped == 7
+  for (int mode = 0; mode < 3; mode++) {
+    vector<mjtNum> mat_in(data->M, data->M + model->nC);
+    if (mode == 1) {
+      mat_in[model->M_rowadr[8] + model->M_rownnz[8] - 1] = mjtNum(-1);
+    } else if (mode == 2) {
+      mat_in[model->M_rowadr[7] + model->M_rownnz[7] - 1] = mjtNum(-1);
+    }
+    int expected = mode == 0 ? 6 : (mode == 1 ? 8 : 7);
+    for (bool with_diaginv : {true, false}) {
+      int c_got = ExpectFactorIMatchesReference(
+          mat_in, with_diaginv, model->nv, model->nv, model->M_rownnz,
+          model->M_rowadr, model->M_colind, nullptr);
+      EXPECT_EQ(c_got, expected) << "mode=" << mode;
+    }
   }
 }
 

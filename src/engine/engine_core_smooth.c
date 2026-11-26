@@ -1800,6 +1800,255 @@ void mj_factorM(const mjModel* m, mjData* d) {
 }
 
 
+// r[0..3][0..n-1] += s[0..n-1] * f[0..3]  (n > 0, multiple of 4)
+static inline void factorIAddToScl4(mjtNum* const r[4], const mjtNum* restrict s,
+                                    const mjtNum f[4], int n) {
+  mjtNum* restrict r0 = r[0];
+  mjtNum* restrict r1 = r[1];
+  mjtNum* restrict r2 = r[2];
+  mjtNum* restrict r3 = r[3];
+  mjtNum4 vf0 = v4_splat(f[0]);
+  mjtNum4 vf1 = v4_splat(f[1]);
+  mjtNum4 vf2 = v4_splat(f[2]);
+  mjtNum4 vf3 = v4_splat(f[3]);
+
+  // scalar equivalent: r[m][q] += s[q] * f[m]
+  for (int q=0; q < n; q += 4) {
+    mjtNum4 sv = v4_load(s + q);
+    v4_store(r3 + q, v4_add(v4_load(r3 + q), v4_mul(sv, vf3)));
+    v4_store(r2 + q, v4_add(v4_load(r2 + q), v4_mul(sv, vf2)));
+    v4_store(r1 + q, v4_add(v4_load(r1 + q), v4_mul(sv, vf1)));
+    v4_store(r0 + q, v4_add(v4_load(r0 + q), v4_mul(sv, vf0)));
+  }
+}
+
+
+// r0[0..n-1] = (r0 + s0*f0) + s1*f1  (n > 0, multiple of 4)
+static inline void factorIAddToScl1x2(mjtNum* restrict r0, const mjtNum* restrict s0,
+                                      const mjtNum* restrict s1,
+                                      mjtNum f0, mjtNum f1, int n) {
+  mjtNum4 vf0 = v4_splat(f0);
+  mjtNum4 vf1 = v4_splat(f1);
+
+  // scalar equivalent: r0[q] = (r0[q] + s0[q] * f0) + s1[q] * f1
+  for (int q=0; q < n; q += 4) {
+    mjtNum4 rv = v4_add(v4_load(r0 + q), v4_mul(v4_load(s0 + q), vf0));
+    v4_store(r0 + q, v4_add(rv, v4_mul(v4_load(s1 + q), vf1)));
+  }
+}
+
+
+// r[0..3][0..n-1] = (r + s0*f0) + s1*f1  (n > 0, multiple of 4)
+static inline void factorIAddToScl4x2(mjtNum* const r[4], const mjtNum* restrict s0,
+                                      const mjtNum* restrict s1, const mjtNum f0[4],
+                                      const mjtNum f1[4], int n) {
+  mjtNum* restrict r0 = r[0];
+  mjtNum* restrict r1 = r[1];
+  mjtNum* restrict r2 = r[2];
+  mjtNum* restrict r3 = r[3];
+  mjtNum4 vf00 = v4_splat(f0[0]), vf01 = v4_splat(f0[1]);
+  mjtNum4 vf02 = v4_splat(f0[2]), vf03 = v4_splat(f0[3]);
+  mjtNum4 vf10 = v4_splat(f1[0]), vf11 = v4_splat(f1[1]);
+  mjtNum4 vf12 = v4_splat(f1[2]), vf13 = v4_splat(f1[3]);
+
+  // scalar equivalent: r[m][q] = (r[m][q] + s0[q] * f0[m]) + s1[q] * f1[m]
+  for (int q=0; q < n; q += 4) {
+    mjtNum4 v0 = v4_load(s0 + q);
+    mjtNum4 v1 = v4_load(s1 + q);
+    v4_store(r3 + q, v4_add(v4_add(v4_load(r3 + q), v4_mul(v0, vf03)), v4_mul(v1, vf13)));
+    v4_store(r2 + q, v4_add(v4_add(v4_load(r2 + q), v4_mul(v0, vf02)), v4_mul(v1, vf12)));
+    v4_store(r1 + q, v4_add(v4_add(v4_load(r1 + q), v4_mul(v0, vf01)), v4_mul(v1, vf11)));
+    v4_store(r0 + q, v4_add(v4_add(v4_load(r0 + q), v4_mul(v0, vf00)), v4_mul(v1, vf10)));
+  }
+}
+
+
+// unrolled scalar update and in-place scaling for short rows (1 <= diag <= 3)
+static inline void factorIUpdateShort(mjtNum* mat, const int* rowadr, const int* colind,
+                                      int start, int diag, mjtNum invD) {
+  mjtNum* s = mat + start;
+  const int* col = colind + start;
+
+  if (diag == 1) {
+    mjtNum s0 = s[0];
+    mjtNum t0 = s0 * invD;
+    mat[rowadr[col[0]]] += s0 * (-t0);
+    s[0] = t0;
+  } else if (diag == 2) {
+    mjtNum s0 = s[0], s1 = s[1];
+    mjtNum t0 = s0 * invD, t1 = s1 * invD;
+    mjtNum f0 = -t0, f1 = -t1;
+    mjtNum* r1 = mat + rowadr[col[1]];
+    r1[0] += s0 * f1;
+    r1[1] += s1 * f1;
+    mat[rowadr[col[0]]] += s0 * f0;
+    s[0] = t0;
+    s[1] = t1;
+  } else {
+    mjtNum s0 = s[0], s1 = s[1], s2 = s[2];
+    mjtNum t0 = s0 * invD, t1 = s1 * invD, t2 = s2 * invD;
+    mjtNum f0 = -t0, f1 = -t1, f2 = -t2;
+    mjtNum* r2 = mat + rowadr[col[2]];
+    mjtNum* r1 = mat + rowadr[col[1]];
+    r2[0] += s0 * f2;
+    r2[1] += s1 * f2;
+    r2[2] += s2 * f2;
+    r1[0] += s0 * f1;
+    r1[1] += s1 * f1;
+    mat[rowadr[col[0]]] += s0 * f0;
+    s[0] = t0;
+    s[1] = t1;
+    s[2] = t2;
+  }
+}
+
+
+// update triangle above row k (diag >= 4) and scale L(k, 0..diag-1) in place;
+// outlined so diagonal-only and short rows keep a small frame in mj_factorI
+// tree-sparse invariant: ancestor i = colind[start + p] has rownnz[i] == p + 1
+static mjNOINLINE void factorIUpdateRow(mjtNum* mat, const int* rowadr, const int* colind,
+                                        int start, int diag, mjtNum invD) {
+  mjtNum* s = mat + start;
+  const int* col = colind + start;
+  int b = diag & ~3;
+
+  // top rem (0..3) ancestor rows above the 4-aligned blocks
+  for (int p=diag-1; p >= b; p--) {
+    mjtNum* rp = mat + rowadr[col[p]];
+    mjtNum tp = s[p] * invD;
+    mji_addToScl(rp, s, -tp, p + 1);
+    s[p] = tp;
+  }
+
+  // remaining ancestor rows in 4-row blocks, writing scaled L(k, :) in place
+  mjtNum4 v_invD = v4_splat(invD);
+  for (int base=b-4; base >= 0; base -= 4) {
+    mjtNum* r[4] = {
+      mat + rowadr[col[base+0]],
+      mat + rowadr[col[base+1]],
+      mat + rowadr[col[base+2]],
+      mat + rowadr[col[base+3]],
+    };
+
+    // scale 4 entries of row k and negate for rank-1 updates
+    mjtNum4 sb = v4_load(s + base);
+    mjtNum4 tb = v4_mul(sb, v_invD);
+    mjtNum t[4];
+    v4_store(t, tb);
+    mjtNum f[4] = {-t[0], -t[1], -t[2], -t[3]};
+
+    // update prefix columns 0..base-1 of the 4 ancestor rows
+    if (base) {
+      factorIAddToScl4(r, s, f, base);
+    }
+
+    // 4x4 lower-triangular corner at base;
+    // scalar equivalent: r[3][base+q] += s[base+q] * f[3]
+    mjtNum s0 = s[base+0], s1 = s[base+1], s2 = s[base+2];
+    v4_store(r[3] + base, v4_add(v4_load(r[3] + base), v4_mul(sb, v4_splat(f[3]))));
+    r[2][base+0] += s0 * f[2];
+    r[2][base+1] += s1 * f[2];
+    r[2][base+2] += s2 * f[2];
+    r[1][base+0] += s0 * f[1];
+    r[1][base+1] += s1 * f[1];
+    r[0][base+0] += s0 * f[0];
+
+    // update row k:  L(k, :) /= L(k, k)
+    v4_store(s + base, tb);
+  }
+}
+
+
+// fuse elimination for two consecutive chain rows (k and k-1, diag >= 5);
+// return 1 if row k-1's pivot was clamped, 0 otherwise;
+// outlined so diagonal-only and short rows keep a small frame in mj_factorI
+static mjNOINLINE int factorIUpdateChain2(mjtNum* mat, mjtNum* diaginv,
+                                          const int* rowadr, const int* colind,
+                                          int k, int diag, mjtNum invD0) {
+  int start0 = rowadr[k];
+  int start1 = rowadr[k-1];
+  int diag1 = diag - 1;
+  mjtNum* s0 = mat + start0;
+  mjtNum* s1 = mat + start1;
+  const int* col = colind + start0;
+
+  // eliminate row k into row k-1 first so k-1's pivot is ready
+  mjtNum t_top = s0[diag1] * invD0;
+  mji_addToScl(s1, s0, -t_top, diag);
+  s0[diag1] = t_top;
+
+  // clamp small or non-positive pivot of row k-1 from below
+  int k1_clamped = 0;
+  if (s1[diag1] < mjMINVAL) {
+    s1[diag1] = mjMINVAL;
+    k1_clamped = 1;
+  }
+  mjtNum invD1 = 1 / s1[diag1];
+  if (diaginv) diaginv[k-1] = invD1;
+
+  // top rem (0..3) shared ancestor rows above the 4-aligned blocks
+  int b = diag1 & ~3;
+  for (int p=diag1-1; p >= b; p--) {
+    mjtNum* rp = mat + rowadr[col[p]];
+    mjtNum t0 = s0[p] * invD0;
+    mjtNum t1 = s1[p] * invD1;
+    mjtNum f0 = -t0;
+    mjtNum f1 = -t1;
+    factorIAddToScl1x2(rp, s0, s1, f0, f1, b);
+    for (int q=b; q <= p; q++) {
+      rp[q] = (rp[q] + s0[q] * f0) + s1[q] * f1;
+    }
+    s0[p] = t0;
+    s1[p] = t1;
+  }
+
+  // remaining shared ancestor rows in 4-row blocks, row k then row k-1
+  mjtNum4 v_invD0 = v4_splat(invD0);
+  mjtNum4 v_invD1 = v4_splat(invD1);
+  for (int base=b-4; base >= 0; base -= 4) {
+    mjtNum* r[4] = {
+      mat + rowadr[col[base+0]],
+      mat + rowadr[col[base+1]],
+      mat + rowadr[col[base+2]],
+      mat + rowadr[col[base+3]],
+    };
+
+    // scale 4 entries of rows k and k-1 and negate for rank-1 updates
+    mjtNum4 sb0 = v4_load(s0 + base);
+    mjtNum4 sb1 = v4_load(s1 + base);
+    mjtNum4 tb0 = v4_mul(sb0, v_invD0);
+    mjtNum4 tb1 = v4_mul(sb1, v_invD1);
+    mjtNum t0[4], t1[4];
+    v4_store(t0, tb0);
+    v4_store(t1, tb1);
+    mjtNum f0[4] = {-t0[0], -t0[1], -t0[2], -t0[3]};
+    mjtNum f1[4] = {-t1[0], -t1[1], -t1[2], -t1[3]};
+
+    // update prefix columns 0..base-1 of the 4 ancestor rows
+    if (base) {
+      factorIAddToScl4x2(r, s0, s1, f0, f1, base);
+    }
+
+    // 4x4 lower-triangular corner at base;
+    // scalar equivalent: r[3][base+q] = (r[3][base+q] + s0[base+q]*f0[3]) + s1[base+q]*f1[3]
+    v4_store(r[3] + base, v4_add(v4_add(v4_load(r[3] + base), v4_mul(sb0, v4_splat(f0[3]))),
+                                 v4_mul(sb1, v4_splat(f1[3]))));
+    r[2][base+0] = (r[2][base+0] + s0[base+0] * f0[2]) + s1[base+0] * f1[2];
+    r[2][base+1] = (r[2][base+1] + s0[base+1] * f0[2]) + s1[base+1] * f1[2];
+    r[2][base+2] = (r[2][base+2] + s0[base+2] * f0[2]) + s1[base+2] * f1[2];
+    r[1][base+0] = (r[1][base+0] + s0[base+0] * f0[1]) + s1[base+0] * f1[1];
+    r[1][base+1] = (r[1][base+1] + s0[base+1] * f0[1]) + s1[base+1] * f1[1];
+    r[0][base+0] = (r[0][base+0] + s0[base+0] * f0[0]) + s1[base+0] * f1[0];
+
+    // update rows k and k-1:  L(k, :) /= L(k, k)
+    v4_store(s0 + base, tb0);
+    v4_store(s1 + base, tb1);
+  }
+
+  return k1_clamped;
+}
+
+
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd (with dof skipping);
 // clamp non-positive pivots up to mjMINVAL, return first clamped dof index or -1 if none
 int mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
@@ -1808,12 +2057,46 @@ int mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
   int clamped = -1;
 
   // backward loop over rows
-  for (int j=nv-1; j >= 0; j--) {
+  for (int j=nv-1; j >= 0; ) {
     int k = index ? index[j] : j;
 
     // get row k's address, diagonal index
     int start = rowadr[k];
     int diag = rownnz[k] - 1;
+
+    // diagonal-only rows: stream contiguous runs 4-wide with SIMD division
+    if (!diag && !index) {
+      const mjtNum4 v_minval = v4_splat(mjMINVAL);
+      const mjtNum4 v_one = v4_splat(1);
+
+      // scalar equivalent: check mat[s0-3..s0] >= mjMINVAL, diaginv[j-3..j] = 1 / mat[s0-3..s0]
+      while (j >= 3 &&
+             rownnz[j] == 1 && rownnz[j-1] == 1 && rownnz[j-2] == 1 && rownnz[j-3] == 1) {
+        // require contiguous storage
+        int s0 = rowadr[j];
+        if (rowadr[j-1] != s0 - 1 || rowadr[j-2] != s0 - 2 || rowadr[j-3] != s0 - 3) {
+          break;
+        }
+
+        // fall back to scalar if any pivot needs clamping
+        mjtNum4 piv = v4_load(mat + s0 - 3);
+        if (v4_any(v4_cmplt(piv, v_minval))) {
+          break;
+        }
+        if (diaginv) {
+          v4_store(diaginv + j - 3, v4_div(v_one, piv));
+        }
+        j -= 4;
+      }
+
+      // batch ended on a non-diagonal row or finished all rows
+      if (j < 0 || rownnz[j] != 1) {
+        continue;
+      }
+      k = j;
+      start = rowadr[k];
+    }
+
     int end = start + diag;
 
     // clamp small or non-positive pivot from below, save first clamped dof
@@ -1828,15 +2111,33 @@ int mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
     mjtNum invD = 1 / mat[end];
     if (diaginv) diaginv[k] = invD;
 
-    // update triangle above row k
-    for (int adr=end - 1; adr >= start; adr--) {
-      // update row i < k:  L(i, 0..i) -= L(i, 0..i) * L(k, i) / L(k, k)
-      int i = colind[adr];
-      mju_addToScl(mat + rowadr[i], mat + start, -mat[adr] * invD, rownnz[i]);
+    // nothing above a diagonal-only row
+    if (!diag) {
+      j--;
+      continue;
     }
 
-    // update row k:  L(k, :) /= L(k, k)
-    if (diag) mju_scl(mat + start, mat + start, invD, diag);
+    // short rows (diag <= 3): unrolled scalar update and in-place scaling
+    if (diag <= 3) {
+      factorIUpdateShort(mat, rowadr, colind, start, diag, invD);
+      j--;
+      continue;
+    }
+
+    // fuse two consecutive chain rows when k-1 is k's immediate parent
+    if (diag >= 5 && j >= 1 && (!index || index[j-1] == k - 1) &&
+        rownnz[k-1] == diag && colind[end-1] == k - 1) {
+      if (factorIUpdateChain2(mat, diaginv, rowadr, colind, k, diag, invD) && clamped < 0) {
+        clamped = k - 1;
+      }
+      j -= 2;
+      continue;
+    }
+
+    // update triangle above row k:  L(i, 0..i) -= L(i, 0..i) * L(k, i) / L(k, k)
+    // and update row k:  L(k, :) /= L(k, k)
+    factorIUpdateRow(mat, rowadr, colind, start, diag, invD);
+    j--;
   }
 
   return clamped;

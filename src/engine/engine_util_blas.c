@@ -488,25 +488,7 @@ void mju_subFrom(mjtNum* res, const mjtNum* vec, int n) {
 
 // res += vec*scl
 void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
-  int i = 0;
-  if (n >= 4) {
-    mjtNum4 s = v4_splat(scl);
-    for (; i <= n - 4; i += 4) {
-      v4_store(res + i, v4_add(v4_load(res + i), v4_mul(v4_load(vec + i), s)));
-    }
-  }
-
-  int n_i = n - i;
-  if (n_i == 3) {
-    res[i+0] += vec[i+0]*scl;
-    res[i+1] += vec[i+1]*scl;
-    res[i+2] += vec[i+2]*scl;
-  } else if (n_i == 2) {
-    res[i+0] += vec[i+0]*scl;
-    res[i+1] += vec[i+1]*scl;
-  } else if (n_i == 1) {
-    res[i] += vec[i]*scl;
-  }
+  mji_addToScl(res, vec, scl, n);
 }
 
 
