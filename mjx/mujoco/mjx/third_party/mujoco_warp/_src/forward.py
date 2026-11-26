@@ -81,10 +81,11 @@ def check_discrete(m: Model):
     )
   if m.has_unsupported_flex_interp:
     raise NotImplementedError("Discrete integrator: quadratic (abs(flex_interp) >= 2) interpolated flexes are not supported")
-  if m.opt.solver == SolverType.NEWTON and m.has_non_simple_flex:
-    raise ValueError("discrete integrator: flex with general attachments requires solver='CG'")
-  if m.opt.solver == SolverType.NEWTON and not m.flex_interp_assemblable:
-    raise ValueError("discrete integrator: interpolated flex with non-simple nodes not yet supported with the Newton solver")
+  if m.opt.solver == SolverType.NEWTON and (m.has_non_simple_flex or not m.flex_interp_assemblable) and not m.efm_general_csr:
+    raise ValueError(
+      "discrete integrator: switching solver to 'Newton' with articulated flex "
+      "attachments requires re-running put_model and make_data"
+    )
   if m.opt.enableflags & EnableBit.SLEEP:
     if m.opt.disableflags & DisableBit.ISLAND:
       raise ValueError("Discrete integrator: sleep without islands not yet supported")
@@ -2580,7 +2581,7 @@ def _discrete_free_gyro_kernel(
     if (opt_enableflags & EnableBit.SLEEP) and (tree_awake_in[worldid, treeid] == 0):
       return
 
-    # Decoupling guards (mjd_freeGyroJoints): skip if K, constraints, or rank-1 touch DOFs
+    # Decoupling guards (mjd_freeGyroJoints): skip if K, flex, constraints, or rank-1 terms touch DOFs
     for r in range(6):
       if efm_K_rownnz[dof_adr + r] != 0:
         return

@@ -286,7 +286,10 @@ def _flex_interp_assemblable(mjm: mujoco.MjModel) -> bool:
       if not mjm.flex_rigid[fi] and mjm.flex_edgeequality[fi] != 3 and _flex_has_stiffness(mjm, fi):
         nodeadr = int(mjm.flex_nodeadr[fi])
         for n in range(int(mjm.flex_nodenum[fi])):
-          bid = int(mjm.body_weldid[mjm.flex_nodebodyid[nodeadr + n]])
+          nid = int(mjm.flex_nodebodyid[nodeadr + n])
+          if nid < 0:
+            continue
+          bid = int(mjm.body_weldid[nid])
           dofnum = int(mjm.body_dofnum[bid])
           if dofnum != 0 and (int(mjm.body_simple[bid]) != 2 or dofnum != 3):
             return False
@@ -375,7 +378,62 @@ def _mjm_rod_vert_elems(mjm: mujoco.MjModel, fi: int) -> list[int]:
   return res
 
 
-def _get_efm_data(mjm: mujoco.MjModel) -> mujoco.MjData | None:
+def _efm_flex_flags(mjm: mujoco.MjModel) -> tuple[np.ndarray, bool, bool, bool, int]:
+  """Computes flex assemblability and general effective-metric CSR flags."""
+  # simple flexes: every vertex body is world-welded or a 3-slide (x, y, z) body on a static parent
+  flex_simple = np.array([_flex_simple(mjm, f) for f in range(mjm.nflex)], dtype=bool)
+  # non-simple vertex flexes that contribute elastic stiffness (mj_effFlexStiffPossible)
+  has_non_simple_flex = bool(
+    mjm.nflex > 0
+    and any(mjm.flex_interp[f] == 0 and not flex_simple[f] and _eff_flex_stiff_possible(mjm, f) for f in range(mjm.nflex))
+  )
+  # interpolated flexes are assemblable only if every node body (after welding) is a 3-DOF slider
+  flex_interp_assemblable = _flex_interp_assemblable(mjm)
+
+  # Newton needs the general (ancestor-Jacobian) efm_K CSR if any flex is non-simple or non-assemblable
+  efm_general_csr = bool(
+    mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON and (has_non_simple_flex or not flex_interp_assemblable)
+  )
+  # longest DOF chain (body DOFs plus ancestors) among stiffness-carrying flex bodies, sizing CSR rows
+  efm_max_chain = 1
+  if efm_general_csr:
+    # collect welded bodies that carry flex stiffness
+    participating = set()
+    for fi in range(mjm.nflex):
+      if mjm.flex_rigid[fi]:
+        continue
+      if mjm.flex_interp[fi] != 0:
+        if mjm.flex_edgeequality[fi] != 3 and _flex_has_stiffness(mjm, fi):
+          nodeadr = int(mjm.flex_nodeadr[fi])
+          for n in range(int(mjm.flex_nodenum[fi])):
+            bid = int(mjm.flex_nodebodyid[nodeadr + n])
+            if bid >= 0:
+              participating.add(int(mjm.body_weldid[bid]))
+      elif _eff_flex_stiff_possible(mjm, fi):
+        vertadr = int(mjm.flex_vertadr[fi])
+        for v in range(int(mjm.flex_vertnum[fi])):
+          bid = int(mjm.flex_vertbodyid[vertadr + v])
+          if bid >= 0:
+            participating.add(int(mjm.body_weldid[bid]))
+    # walk dof_parentid from each body's last DOF to the root to count its chain length
+    for b in participating:
+      if mjm.body_dofnum[b] > 0:
+        cnt = 0
+        d_idx = int(mjm.body_dofadr[b] + mjm.body_dofnum[b] - 1)
+        while d_idx >= 0:
+          cnt += 1
+          d_idx = int(mjm.dof_parentid[d_idx])
+        if cnt > efm_max_chain:
+          efm_max_chain = cnt
+
+  return flex_simple, has_non_simple_flex, flex_interp_assemblable, efm_general_csr, efm_max_chain
+
+
+def _get_efm_data(
+  mjm: mujoco.MjModel,
+  efm_general_csr: bool,
+  flex_interp_assemblable: bool,
+) -> mujoco.MjData | None:
   """Runs position kinematics under discrete integrator on a temp MjData for flex stiffness."""
   if mjm.nflex == 0:
     return None
@@ -389,17 +447,17 @@ def _get_efm_data(mjm: mujoco.MjModel) -> mujoco.MjData | None:
   )
   mjm_tmp.flex_edgestiffness[:] = 0.0
   mjm_tmp.flex_edgedamping[:] = 0.0
-  if mjm_tmp.nflexvert > 0:
-    mjm_tmp.flex_vertbodyid[:] = np.where(
-      mjm_tmp.flex_vertbodyid >= 0, mjm_tmp.body_weldid[mjm_tmp.flex_vertbodyid], mjm_tmp.flex_vertbodyid
-    )
-  interp_assemblable = _flex_interp_assemblable(mjm_tmp)
-  for f in range(mjm_tmp.nflex):
-    if mjm_tmp.flex_interp[f] != 0:
-      if not interp_assemblable:
+  if not efm_general_csr:
+    if mjm_tmp.nflexvert > 0:
+      mjm_tmp.flex_vertbodyid[:] = np.where(
+        mjm_tmp.flex_vertbodyid >= 0, mjm_tmp.body_weldid[mjm_tmp.flex_vertbodyid], mjm_tmp.flex_vertbodyid
+      )
+    for f in range(mjm_tmp.nflex):
+      if mjm_tmp.flex_interp[f] != 0:
+        if not flex_interp_assemblable:
+          mjm_tmp.flex_rigid[f] = True
+      elif not _flex_simple(mjm_tmp, f):
         mjm_tmp.flex_rigid[f] = True
-    elif not _flex_simple(mjm_tmp, f):
-      mjm_tmp.flex_rigid[f] = True
   d = mujoco.MjData(mjm_tmp)
   mujoco.mj_fwdPosition(mjm_tmp, d)
   return d
@@ -851,23 +909,18 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   )
   if m.has_flex_snh and mjm.opt.integrator != mujoco.mjtIntegrator.mjINT_DISCRETE:
     raise ValueError("stable Neo-Hookean elasticity requires integrator='discrete'")
-  flex_simple = np.array([_flex_simple(mjm, f) for f in range(mjm.nflex)], dtype=bool)
+  flex_simple, has_non_simple_flex, flex_interp_assemblable, efm_general_csr, efm_max_chain = _efm_flex_flags(mjm)
   m.flex_simple = flex_simple
   flex_stiff_possible = np.array([_eff_flex_stiff_possible(mjm, f) for f in range(mjm.nflex)], dtype=bool)
   m.flex_stiff_possible = flex_stiff_possible
   m.has_flex_stiff = bool(flex_stiff_possible.any())
-  m.has_non_simple_flex = bool(
-    mjm.nflex > 0 and any(mjm.flex_interp[f] == 0 and flex_stiff_possible[f] and not flex_simple[f] for f in range(mjm.nflex))
-  )
+  m.has_non_simple_flex = has_non_simple_flex
+  m.flex_interp_assemblable = flex_interp_assemblable
+  m.efm_general_csr = efm_general_csr
+  m.efm_max_chain = efm_max_chain
   m.has_flex_edge_stiff_damp = bool(
     any(not mjm.flex_rigid[f] and (mjm.flex_edgestiffness[f] > 0 or mjm.flex_edgedamping[f] > 0) for f in range(mjm.nflex))
   )
-  if (
-    mjm.opt.integrator == mujoco.mjtIntegrator.mjINT_DISCRETE
-    and mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON
-    and m.has_non_simple_flex
-  ):
-    raise ValueError("discrete integrator: flex with general attachments requires solver='CG'")
   m.has_tendon_stiffness = bool(mjm.ntendon > 0 and (np.any(m.tendon_stiffness != 0) or np.any(m.tendon_stiffnesspoly != 0)))
   tendon_actuator = mjm.actuator_trntype == mujoco.mjtTrn.mjTRN_TENDON
   m.has_tendon_damping = bool(
@@ -945,7 +998,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.is_sparse = is_sparse(mjm)
   m.has_fluid = bool(mjm.opt.wind.any() or mjm.opt.density > 0 or mjm.opt.viscosity > 0)
   m.nflexintcell = _get_nflexintcell(mjm)
-  efm_d = _get_efm_data(mjm)
+  efm_d = _get_efm_data(mjm, efm_general_csr, flex_interp_assemblable)
   m.nefmK = int(efm_d.nefmK) if efm_d else 0
   m.efm_K_rownnz = efm_d.efm_K_rownnz if efm_d else np.zeros(mjm.nv, dtype=np.int32)
   m.efm_K_rowadr = efm_d.efm_K_rowadr if efm_d else np.zeros(mjm.nv, dtype=np.int32)
@@ -969,7 +1022,13 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     )
     for f in range(mjm.nflex)
   )
-  m.efm0_active = bool(mjm.nefm0dof > 0 and not has_stretch_or_interp and not m.has_flex_passive and not m.has_non_simple_flex)
+  m.efm0_active = bool(
+    mjm.nefm0dof > 0
+    and not has_stretch_or_interp
+    and not m.has_flex_passive
+    and not m.has_non_simple_flex
+    and not m.efm_general_csr
+  )
   m.nefmdof = int(efm_d.nefmdof) if (efm_d and not m.efm0_active) else 0
   m.efm_dofid = (
     efm_d.efm_dofid if (efm_d and not m.efm0_active and efm_d.efm_dofid is not None) else np.zeros(0, dtype=np.int32)
@@ -988,7 +1047,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.efm_L_M_src = chol_info["L_M_src"]
   m.efm_L_K_src = chol_info["L_K_src"]
 
-  m.flex_interp_assemblable = _flex_interp_assemblable(mjm)
   m.has_unsupported_flex_interp = bool(any(int(x) < -1 or int(x) >= 2 for x in mjm.flex_interp))
 
   # Precompute flex_cell_map
@@ -2236,50 +2294,37 @@ def _calculate_max_contact_nnz(mjm: mujoco.MjModel) -> int:
             _body_set_nnz(mjm, {mjm.flex_vertbodyid[vert_start + v]}),
           )
     else:
+      # interpolated flexes index a full 3D node grid (see support.add_interp_point_weights), so take
+      # the max over all cells; shell interior nodes contribute their boundary (Coons TFI) nodes
       order = abs(mjm.flex_interp[fi])
       is_shell = mjm.flex_interp[fi] < 0
       cx, cy, cz = mjm.flex_cellnum[fi]
       nstart = mjm.flex_nodeadr[fi]
-      dim = mjm.flex_dim[fi]
       nx = cx * order + 1
-      ny = cy * order + 1 if dim > 1 else 1
-      nz = cz * order + 1 if dim > 2 else 1
+      ny = cy * order + 1
+      nz = cz * order + 1
 
-      ci, cj, ck = cx // 2, cy // 2, cz // 2
-      cell_bodies = set()
-
-      for li in range(order + 1):
-        for lj in range(order + 1 if dim > 1 else 1):
-          for lk in range(order + 1 if dim > 2 else 1):
-            gi = ci + li
-            gj = cj + lj
-            gk = ck + lk
-
-            is_interior = False
-            if is_shell:
-              is_interior = (
-                (gi > 0 and gi < cx * order)
-                and (gj > 0 and gj < cy * order if dim > 1 else True)
-                and (gk > 0 and gk < cz * order if dim > 2 else True)
-              )
-
-            if is_interior:
-              for bi in (0, gi, nx - 1):
-                for bj in (0, gj, ny - 1 if dim > 1 else 0):
-                  for bk in (0, gk, nz - 1 if dim > 2 else 0):
-                    if (
-                      bi == 0
-                      or bi == nx - 1
-                      or (dim > 1 and (bj == 0 or bj == ny - 1))
-                      or (dim > 2 and (bk == 0 or bk == nz - 1))
-                    ):
-                      node_idx = bi * ny * nz + bj * nz + bk
-                      cell_bodies.add(mjm.flex_nodebodyid[nstart + node_idx])
-            else:
-              node_idx = gi * ny * nz + gj * nz + gk
-              cell_bodies.add(mjm.flex_nodebodyid[nstart + node_idx])
-
-      flex_nnz[fi] = _body_set_nnz(mjm, cell_bodies)
+      for ci in range(cx):
+        for cj in range(cy):
+          for ck in range(cz):
+            cell_bodies = set()
+            for li in range(order + 1):
+              for lj in range(order + 1):
+                for lk in range(order + 1):
+                  gi, gj, gk = ci * order + li, cj * order + lj, ck * order + lk
+                  if is_shell and 0 < gi < nx - 1 and 0 < gj < ny - 1 and 0 < gk < nz - 1:
+                    for bi in (0, gi, nx - 1):
+                      for bj in (0, gj, ny - 1):
+                        for bk in (0, gk, nz - 1):
+                          if bi in (0, nx - 1) or bj in (0, ny - 1) or bk in (0, nz - 1):
+                            bid = int(mjm.flex_nodebodyid[nstart + (bi * ny + bj) * nz + bk])
+                            if bid >= 0:
+                              cell_bodies.add(bid)
+                  else:
+                    bid = int(mjm.flex_nodebodyid[nstart + (gi * ny + gj) * nz + gk])
+                    if bid >= 0:
+                      cell_bodies.add(bid)
+            flex_nnz[fi] = max(flex_nnz[fi], _body_set_nnz(mjm, cell_bodies))
 
   geom_nnz = [_body_set_nnz(mjm, {mjm.geom_bodyid[g]}) for g in range(mjm.ngeom)]
 
@@ -2687,7 +2732,8 @@ def make_data(
   sizes["nflexintcell"] = _get_nflexintcell(mjm)
   sizes["nflexface"] = _get_nflexface(mjm)
   sizes["nflexrodhinge"], sizes["nflexrodedge"] = _get_nflexrod_counts(mjm)
-  efm_d = _get_efm_data(mjm)
+  _, _, flex_interp_assemblable, efm_general_csr, _ = _efm_flex_flags(mjm)
+  efm_d = _get_efm_data(mjm, efm_general_csr, flex_interp_assemblable)
   sizes["nefmK"] = int(efm_d.nefmK) if efm_d else 0
   chol_info = _get_efm_chol_info(mjm, efm_d)
   sizes["nefmL"] = int(chol_info["nefmL"])
@@ -2919,7 +2965,8 @@ def put_data(
   sizes["nvmax_pad"] = _nvmax_pad(nvmax)
   sizes["nflexface"] = _get_nflexface(mjm)
   sizes["nflexrodhinge"], sizes["nflexrodedge"] = _get_nflexrod_counts(mjm)
-  efm_d = _get_efm_data(mjm)
+  _, _, flex_interp_assemblable, efm_general_csr, _ = _efm_flex_flags(mjm)
+  efm_d = _get_efm_data(mjm, efm_general_csr, flex_interp_assemblable)
   sizes["nefmK"] = int(efm_d.nefmK) if efm_d else 0
   chol_info = _get_efm_chol_info(mjm, efm_d)
   sizes["nefmL"] = int(chol_info["nefmL"])

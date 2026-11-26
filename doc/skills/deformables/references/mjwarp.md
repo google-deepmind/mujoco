@@ -12,11 +12,11 @@ Sec. 2.4). Compares single-core C MuJoCo (`float64`) against `mujoco_warp`
 `mujoco_warp` or C MuJoCo changes 1D-rod or general `M+K` metric
 preconditioning, sparse `Newton` Cholesky factoring or zero-constraint skips,
 default `make_data` flex buffer heuristics, or supported flex features
-(`dof="quadratic"`, `ipc`, flex-`SDF`, or articulated `discrete` + `Newton`).
+(`dof="quadratic"`, `ipc`, or flex-`SDF`).
 
 ## 1. Decision Rules & Operational Guardrails
 
--   **Use `MJWarp` for batched rollouts (`nworld >= 64`):** All 33 runnable
+-   **Use `MJWarp` for batched rollouts (`nworld >= 64`):** All 34 runnable
     scenes finish 1000 steps with `0` NaNs and beat 1 CPU core at `nworld=64`
     (`1.5x`-`85.6x` higher throughput per world-step). At `nworld=1`, kernel
     launch and single-CTA solver latency often make GPU slower than CPU (e.g.
@@ -24,10 +24,10 @@ default `make_data` flex buffer heuristics, or supported flex features
     `nworld=64`); prefer `mujoco.batch.Batch` or `mujoco.rollout` on CPU for
     single-world or small-batch runs.
 -   **Size buffers explicitly (`make_data` / `put_data`):** Default `make_data`
-    capacities overflow on 20 of 33 runnable scenes (15 `nefc`, 4 narrowphase,
+    capacities overflow on 20 of 34 runnable scenes (15 `nefc`, 4 narrowphase,
     3 CCD, 2 broadphase, 1 `njmax_nnz`), dropping constraints or producing
     `NaN`s. Start with `nconmax=16384`, `njmax=16384`, `njmax_nnz=1048576`
-    (clears all 33 scenes) and tighten per scene via `mjwarp-testspeed
+    (clears all 34 scenes) and tighten per scene via `mjwarp-testspeed
     --measure_alloc` and `d.overflow`.
 -   **Integrator & solver regimes:**
     -   **`Newton` + `Euler` (Track B, 13 runnable scenes):** All 13 runnable
@@ -45,15 +45,16 @@ default `make_data` flex buffer heuristics, or supported flex features
         running in `1.58`-`2.26` ms/step at `nworld=1` (`4.1x`-`5.9x` faster on
         GPU than `Newton` on `basket.xml` and `sphere_full.xml`, beating 1 CPU
         core on both) and `17.2x`-`31.7x` faster than 1 CPU core at `nworld=64`.
-    -   **`Newton` + `discrete` (Track A, 15 runnable scenes):** Faster than 1
+    -   **`Newton` + `discrete` (Track A, 16 runnable scenes):** Faster than 1
         CPU core at `nworld=1` on 4 scenes (`drape.xml` `3.1x`, `strain.xml`
         `2.0x`, `bunny_multicell.xml` `1.6x`, `floppy.xml` `1.2x`) and within
-        `1.6x` on 6 of 15 (adding `hollow_vs_solid.xml` and `press.xml`;
+        `1.6x` on 6 of 16 (adding `hollow_vs_solid.xml` and `press.xml`;
         `17.9x`-`85.6x` faster at `nworld=64`). All 6 1D rod scenes use the
         exact sparse 3x3-blocked Cholesky preconditioner (`effChol`, 0 PCG
-        iterations) and run in `1.2`-`2.8` ms/step at `nworld=1`
-        (`3.2x`-`13.0x` slower than sub-millisecond CPU `mj_step` due to GPU
-        kernel-launch overhead at small `nv = 76`-`283`; `1.9x`-`8.0x` faster at
+        iterations) and run in `1.2`-`2.8` ms/step at `nworld=1`, and
+        articulated `gripper_trilinear.xml` (`nv = 33`) runs in `2.00` ms/step
+        (`3.2x`-`13.1x` slower than sub-millisecond CPU `mj_step` due to GPU
+        kernel-launch overhead at small `nv = 33`-`283`; `1.8x`-`8.0x` faster at
         `nworld=64`). Other CSR-assembled `discrete` flexes (3D `full`,
         `trilinear`, 2D stretch cloth) keep parallel Jacobi PCG in `eff_solve`,
         unlike CPU `mj_effSolve` (Eisenstat SGS): a 1-thread/world SGS port
@@ -84,9 +85,7 @@ default `make_data` flex buffer heuristics, or supported flex features
     `bunny_quadratic.xml`), `<flag ipc="enable"/>` (`bag.xml`, `bag_hoop.xml`),
     flex vs. `SDF` (`cloth_sdf.xml`) or `HField` geoms, `rigid="true"` flexes,
     interpolated self-collision, `sleep` with `discrete` flexes or `<edge
-    equality="true"/>`, flex contact sensors reading `linvel`/`angvel`, and
-    `discrete` + `Newton` with general attachments or interpolated nodes on
-    non-3-DOF-slider bodies (`gripper_trilinear.xml`; requires `solver="CG"`).
+    equality="true"/>`, and flex contact sensors reading `linvel`/`angvel`.
 
 ## 2. Per-Scene 1000-Step Timings (`model/flex/` & `model/plastic/clay.xml`)
 
@@ -113,7 +112,7 @@ throughput speedup vs. 1 C core (`> 1x` = faster than C), and which default
 | `drape.xml` | 1521 | 94% | 51.84 | 16.96 (14.72) | 3.1x faster | 0.606 (85.6x) | broadphase |
 | `floppy.xml` | 1153 | 70% | 7.52 | 6.17 (7.40) | 1.2x faster | 0.251 (30.0x) | ok |
 | `gripper.xml` | 1047 | 100% | 2.66 | 28.58 (28.58) | 10.8x slower | 0.598 (4.4x) | `nefc` |
-| `gripper_trilinear.xml` | 33 | 100% | 0.36 | -- | Unsupported (`step` attachment) | -- | -- |
+| `gripper_trilinear.xml` | 33 | 100% | 0.15 | 2.00 (2.00) | 13.1x slower | 0.082 (1.8x) | ok |
 | `hollow_vs_solid.xml` | 594 | 95% | 2.35 | 3.23 (3.21) | 1.4x slower | 0.099 (23.7x) | `nefc` |
 | `mechanisms/cantilever.xml` | 436 | 0% | 15.93 | -- | Unsupported (`quadratic`) | -- | -- |
 | `mechanisms/dipper.xml` | 106 | 0% | 0.42 | 1.35 (1.35) | 3.2x slower | 0.055 (7.6x) | ok |

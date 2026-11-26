@@ -1689,6 +1689,8 @@ class Model:
     efm_chol_active: whether 1D rod effective Cholesky preconditioner is active
     efm_all_covered_or_twist: whether all DOFs are covered by efm_L or 1D rod twist
     efm_prec_exact: whether eff_prec is exact for the effective metric
+    efm_general_csr: whether efm_K CSR uses general articulated Jacobian assembly
+    efm_max_chain: maximum kinematic chain length in general efm_K CSR
     flex_interp_assemblable: whether interpolated flex stiffness can be assembled into efm_K
     has_unsupported_flex_interp: whether model has unsupported flex interpolation orders
     has_ellipsoid_geom: whether the model contains ellipsoid geoms
@@ -2299,6 +2301,8 @@ class Model:
   efm_chol_active: bool
   efm_all_covered_or_twist: bool
   efm_prec_exact: bool
+  efm_general_csr: bool
+  efm_max_chain: int
   flex_interp_assemblable: bool
   has_unsupported_flex_interp: bool
   has_ellipsoid_geom: bool

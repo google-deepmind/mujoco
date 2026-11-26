@@ -2763,7 +2763,9 @@ def _flex_interp_rownnz(
   # Model:
   body_weldid: wp.array[int],
   body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
   jnt_bodyid: wp.array[int],
+  dof_parentid: wp.array[int],
   geom_bodyid: wp.array[int],
   flex_dim: wp.array[int],
   flex_interp: wp.array[int],
@@ -2871,10 +2873,28 @@ def _flex_interp_rownnz(
             b = body_weldid[body_ids[vi]]
             local_nb, local_bodies, local_weights = support.add_interp_weight(local_nb, local_bodies, local_weights, b, 1.0)
 
-  # sum dofnums for unique bodies
-  rownnz = int(0)
+  # count unique DOFs across the kinematic tree union of contributing bodies
+  cur_dof = support.vec_interp_body(-1)
   for i in range(local_nb):
-    rownnz += body_dofnum[local_bodies[i]]
+    b = local_bodies[i]
+    if b > 0:
+      dofnum = body_dofnum[b]
+      if dofnum > 0:
+        cur_dof[i] = body_dofadr[b] + dofnum - 1
+
+  rownnz = int(0)
+  while True:
+    da = int(-1)
+    for i in range(local_nb):
+      cd = cur_dof[i]
+      if cd > da:
+        da = cd
+    if da < 0:
+      break
+    for i in range(local_nb):
+      if cur_dof[i] == da:
+        cur_dof[i] = dof_parentid[da]
+    rownnz += 1
   return rownnz
 
 
@@ -3000,7 +3020,9 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
         rownnz = _flex_interp_rownnz(
           body_weldid,
           body_dofnum,
+          body_dofadr,
           jnt_bodyid,
+          dof_parentid,
           geom_bodyid,
           flex_dim,
           flex_interp,
@@ -3447,6 +3469,7 @@ def _flex_interp_jac(
   body_dofadr: wp.array[int],
   jnt_bodyid: wp.array[int],
   dof_bodyid: wp.array[int],
+  dof_parentid: wp.array[int],
   geom_bodyid: wp.array[int],
   flex_dim: wp.array[int],
   flex_interp: wp.array[int],
@@ -3583,54 +3606,81 @@ def _flex_interp_jac(
               local_nb, local_bodies, local_weights, b, weights[vi] * sign
             )
 
-  # Evaluate Jacobians for unique bodies and write to sparse J
+  # Evaluate Jacobians across the kinematic tree union of unique bodies and write to sparse J
+  cur_dof = support.vec_interp_body(-1)
+  for i in range(local_nb):
+    b = local_bodies[i]
+    if b > 0:
+      dofnum = body_dofnum[b]
+      if dofnum > 0:
+        cur_dof[i] = body_dofadr[b] + dofnum - 1
+
   nnz = int(0)
   Jqvel = float(0.0)
 
-  for i in range(local_nb):
-    b = local_bodies[i]
-    w_sign = local_weights[i]
+  while nnz < rownnz:
+    da = int(-1)
+    for i in range(local_nb):
+      cd = cur_dof[i]
+      if cd > da:
+        da = cd
+    if da < 0:
+      break
 
-    dof_start = body_dofadr[b]
-    ndof = body_dofnum[b]
-    for di in range(ndof):
-      dofid = dof_start + di
-      jacp, jacr = support.jac_dof(
-        body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, con_pos, b, dofid, worldid
-      )
+    jacp_dif = wp.vec3(0.0)
+    jacr_dif = wp.vec3(0.0)
+    for i in range(local_nb):
+      if cur_dof[i] == da:
+        w_sign = local_weights[i]
+        if w_sign != 0.0:
+          b = local_bodies[i]
+          jp, jr = support.jac_dof(
+            body_parentid,
+            body_rootid,
+            dof_bodyid,
+            body_isdofancestor,
+            subtree_com_in,
+            cdof_in,
+            con_pos,
+            b,
+            da,
+            worldid,
+          )
+          jacp_dif += jp * w_sign
+          jacr_dif += jr * w_sign
+        cur_dof[i] = dof_parentid[da]
 
-      if is_elliptic:
-        J = float(0.0)
-        if dimid < 3:
-          frame_row = frame_in[conid, dimid]
-          for xyz in range(3):
-            J += frame_row[xyz] * jacp[xyz] * w_sign
-        else:
-          frame_row = frame_in[conid, dimid - 3]
-          for xyz in range(3):
-            J += frame_row[xyz] * jacr[xyz] * w_sign
-      else:
-        J = float(0.0)
-        Ji = float(0.0)
+    if is_elliptic:
+      J = float(0.0)
+      if dimid < 3:
+        frame_row = frame_in[conid, dimid]
         for xyz in range(3):
-          J += frame_0[xyz] * jacp[xyz] * w_sign
-          if condim > 1:
-            if dimid2 < 3:
-              Ji += frame_in[conid, dimid2][xyz] * jacp[xyz] * w_sign
-            else:
-              Ji += frame_in[conid, dimid2 - 3][xyz] * jacr[xyz] * w_sign
+          J += frame_row[xyz] * jacp_dif[xyz]
+      else:
+        frame_row = frame_in[conid, dimid - 3]
+        for xyz in range(3):
+          J += frame_row[xyz] * jacr_dif[xyz]
+    else:
+      J = float(0.0)
+      Ji = float(0.0)
+      for xyz in range(3):
+        J += frame_0[xyz] * jacp_dif[xyz]
         if condim > 1:
-          if dimid % 2 == 0:
-            J += Ji * frii
+          if dimid2 < 3:
+            Ji += frame_in[conid, dimid2][xyz] * jacp_dif[xyz]
           else:
-            J -= Ji * frii
+            Ji += frame_in[conid, dimid2 - 3][xyz] * jacr_dif[xyz]
+      if condim > 1:
+        if dimid % 2 == 0:
+          J += Ji * frii
+        else:
+          J -= Ji * frii
 
-      if nnz < rownnz:
-        sparseid = rowadr + nnz
-        efc_J_colind_out[worldid, 0, sparseid] = dofid
-        efc_J_out[worldid, 0, sparseid] = J
-        Jqvel += J * qvel_in[worldid, dofid]
-        nnz += 1
+    sparseid = rowadr + nnz
+    efc_J_colind_out[worldid, 0, sparseid] = da
+    efc_J_out[worldid, 0, sparseid] = J
+    Jqvel += J * qvel_in[worldid, da]
+    nnz += 1
 
   return Jqvel
 
@@ -3741,6 +3791,7 @@ def _efc_contact_jac_sparse_flex(cone_type: types.ConeType):
         body_dofadr,
         jnt_bodyid,
         dof_bodyid,
+        dof_parentid,
         geom_bodyid,
         flex_dim,
         flex_interp,

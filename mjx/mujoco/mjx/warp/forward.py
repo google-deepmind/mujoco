@@ -172,6 +172,8 @@ def _forward_shim(
     efm_chol_active: bool,
     efm_con_max_dof: int,
     efm_dofid: wp.array[int],
+    efm_general_csr: bool,
+    efm_max_chain: int,
     efm_prec_exact: bool,
     eq_connect_adr: wp.array[int],
     eq_data: wp.array2d[mjwp_types.vec12],
@@ -907,6 +909,8 @@ def _forward_shim(
   _m.efm_chol_active = efm_chol_active
   _m.efm_con_max_dof = efm_con_max_dof
   _m.efm_dofid = efm_dofid
+  _m.efm_general_csr = efm_general_csr
+  _m.efm_max_chain = efm_max_chain
   _m.efm_prec_exact = efm_prec_exact
   _m.eq_connect_adr = eq_connect_adr
   _m.eq_data = eq_data
@@ -2497,6 +2501,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.efm_chol_active,
       m._impl.efm_con_max_dof,
       m._impl.efm_dofid,
+      m._impl.efm_general_csr,
+      m._impl.efm_max_chain,
       m._impl.efm_prec_exact,
       m._impl.eq_connect_adr,
       m.eq_data,
@@ -3431,6 +3437,8 @@ def _step_shim(
     efm_chol_active: bool,
     efm_con_max_dof: int,
     efm_dofid: wp.array[int],
+    efm_general_csr: bool,
+    efm_max_chain: int,
     efm_prec_exact: bool,
     eq_connect_adr: wp.array[int],
     eq_data: wp.array2d[mjwp_types.vec12],
@@ -4182,6 +4190,8 @@ def _step_shim(
   _m.efm_chol_active = efm_chol_active
   _m.efm_con_max_dof = efm_con_max_dof
   _m.efm_dofid = efm_dofid
+  _m.efm_general_csr = efm_general_csr
+  _m.efm_max_chain = efm_max_chain
   _m.efm_prec_exact = efm_prec_exact
   _m.eq_connect_adr = eq_connect_adr
   _m.eq_data = eq_data
@@ -5813,6 +5823,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.efm_chol_active,
       m._impl.efm_con_max_dof,
       m._impl.efm_dofid,
+      m._impl.efm_general_csr,
+      m._impl.efm_max_chain,
       m._impl.efm_prec_exact,
       m._impl.eq_connect_adr,
       m.eq_data,
