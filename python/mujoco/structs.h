@@ -525,6 +525,7 @@ class MjStructList<raw::MjSolverStat>
   X(int, nchange);
   X(int, neval);
   X(int, nupdate);
+  X(int, lsresult);
 #undef X
 
  protected:

@@ -241,19 +241,21 @@ TEST_F(SolverTest, SolversEquivalent) {
     SolverTolerances tolerances;
   } kConfigs[] = {
       {.path = kModelPath,
-       .tolerances = {
-           .newton = MjTol(1e-13, 1e-5),
-           .cg = MjTol(1e-13, 1e-5),
-           .pgs_pyramidal = MjTol(1e-13, 1e-5),
-           .pgs_elliptic = MjTol(1e-3, 1e-3),
-       }},
+       .tolerances =
+           {
+               .newton = MjTol(1e-13, 1e-5),
+               .cg = MjTol(1e-13, 1e-5),
+               .pgs_pyramidal = MjTol(1e-13, 1e-5),
+               .pgs_elliptic = MjTol(1e-3, 1e-3),
+           }},
       {.path = kHumanoidPath,
-       .tolerances = {
-           .newton = MjTol(1e-13, 1e-5),
-           .cg = MjTol(1e-12, 1e-5),
-           .pgs_pyramidal = MjTol(1e-12, 1e-5),
-           .pgs_elliptic = MjTol(1e-8, 1e-4),
-       }},
+       .tolerances =
+           {
+               .newton = MjTol(1e-13, 1e-5),
+               .cg = MjTol(1e-12, 1e-5),
+               .pgs_pyramidal = MjTol(1e-12, 1e-5),
+               .pgs_elliptic = MjTol(1e-8, 1e-4),
+           }},
   };
 
   for (const auto& config : kConfigs) {
@@ -389,6 +391,40 @@ TEST_F(SolverTest, EllipticLineSearchPrecisionDiagnostics) {
     for (int i = 0; i < niter; ++i) {
       const mjSolverStat& stat = data->solver[i];
       EXPECT_GE(stat.improvement, -MjTol(1e-5, 100.0));
+    }
+  }
+}
+
+TEST_F(SolverTest, LineSearchResultStatistics) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+      <option tolerance="0" iterations="1" ls_iterations="1"/>
+      <worldbody>
+        <geom type="plane" size="1 1 1"/>
+        <body pos="0 0 0.09">
+          <freejoint/>
+          <geom type="sphere" size="0.1" mass="1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  model->opt.disableflags |= mjDSBL_ISLAND | mjDSBL_WARMSTART;
+
+  for (mjtSolver solver : {mjSOL_CG, mjSOL_NEWTON, mjSOL_PGS}) {
+    model->opt.solver = solver;
+    mj_resetData(model.get(), data.get());
+    mj_forward(model.get(), data.get());
+    ASSERT_EQ(data->solver_niter[0], 1) << solver;
+    if (solver == mjSOL_PGS) {
+      EXPECT_EQ(data->solver[0].lsresult, -1);
+    } else {
+      // The initial two evaluations exhaust the line-search budget.
+      EXPECT_EQ(data->solver[0].lsresult, 3);
+      EXPECT_GE(data->solver[0].neval, model->opt.ls_iterations);
     }
   }
 }

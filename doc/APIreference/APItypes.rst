@@ -1331,6 +1331,14 @@ This is the data structure holding information about one solver iteration. ``mjD
 of mjSolverStat data structures, one for each iteration of the solver, up to a maximum of mjNSOLVER. The actual number
 of solver iterations is given by ``mjData.solver_niter``.
 
+For recorded CG and Newton iterations, ``lsresult`` gives the line search result:
+0 (success), 1 (search vector too small), 2 (no improvement, initial convergence),
+3 (could not bracket), 4 (improvement without convergence), 5 (no improvement),
+6 (no second bracket point update), and 7 (no improvement, could not bracket).
+The value is -1 for PGS and NoSlip iterations, which have no primal line search.
+As with the other per-iteration statistics, a terminal search that takes no step
+does not create an additional entry in ``mjData.solver``.
+
 .. mujoco-include:: mjSolverStat
 
 

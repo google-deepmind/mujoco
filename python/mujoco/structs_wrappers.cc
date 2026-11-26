@@ -1085,7 +1085,8 @@ MjSolverStatList::MjStructList(raw::MjSolverStat* ptr, int num,
       X(int, nactive),
       X(int, nchange),
       X(int, neval),
-      X(int, nupdate) {}
+      X(int, nupdate),
+      X(int, lsresult) {}
 #undef X
 #undef XN
 
@@ -1099,7 +1100,8 @@ MjSolverStatList::MjStructList(MjSolverStatList& other, py::slice slice)
       X(int, nactive),
       X(int, nchange),
       X(int, neval),
-      X(int, nupdate) {}
+      X(int, nupdate),
+      X(int, lsresult) {}
 #undef X
 
 // ==================== MJVPERTURB =============================================

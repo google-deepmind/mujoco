@@ -63,7 +63,7 @@ static inline mjtNum dot2(const mjtNum vec1[2], const mjtNum vec2[2]) {
 // save solver statistics
 static void saveStats(const mjModel* m, mjData* d, int island, int iter,
                       mjtNum improvement, mjtNum gradient, mjtNum lineslope,
-                      int nactive, int nchange, int neval, int nupdate) {
+                      int nactive, int nchange, int neval, int nupdate, int lsresult) {
   // if island out of range, return
   if (island >= mjNISLAND) {
     return;
@@ -88,6 +88,7 @@ static void saveStats(const mjModel* m, mjData* d, int island, int iter,
   stat->nchange = nchange;
   stat->neval = neval;
   stat->nupdate = nupdate;
+  stat->lsresult = lsresult;
 }
 
 
@@ -788,7 +789,7 @@ static void solPGS(const mjModel* m, mjData* d, int island,
 
     // scale improvement, save stats
     improvement *= scale;
-    saveStats(m, d, island_stat, iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    saveStats(m, d, island_stat, iter, improvement, 0, 0, nactive, nchange, 0, 0, -1);
 
     // Nesterov gradient restart (O'Donoghue-Candès): reset when correction opposes extrapolation
     if (nesterov) {
@@ -1046,7 +1047,7 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
     // save noslip stats after all the entries from regular solver
     if (island_stat < mjNISLAND) {
       int stats_iter = iter + d->solver_niter[island_stat];
-      saveStats(m, d, island_stat, stats_iter, improvement, 0, 0, nactive, nchange, 0, 0);
+      saveStats(m, d, island_stat, stats_iter, improvement, 0, 0, nactive, nchange, 0, 0, -1);
     }
 
     // increment iteration count
@@ -4559,7 +4560,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     mjtNum improvement = scale * ls_improvement;
     mjtNum gradient = scale * mju_norm(ctx.grad, nv);
     saveStats(m, d, island, iter, improvement, gradient, ctx.LSslope,
-              ctx.nactive, nchange, ctx.LSiter, ctx.nupdate);
+              ctx.nactive, nchange, ctx.LSiter, ctx.nupdate, ctx.LSresult);
 
     // Newton decrement: 0.5*grad'*H^-1*grad, the model's predicted improvement of the
     // next step; clamp to 0 so that tolerance == 0 keeps early termination disabled

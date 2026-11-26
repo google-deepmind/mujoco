@@ -828,6 +828,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(nchange);
   X(neval);
   X(nupdate);
+  X(lsresult);
 #undef X
 
   py::class_<MjSolverStatList> mjSolverStatList(m, "_MjSolverStatList");
@@ -846,6 +847,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(int, nchange);
   X(int, neval);
   X(int, nupdate);
+  X(int, lsresult);
 #undef X
 
   // ==================== MJPRECONTACT =========================================

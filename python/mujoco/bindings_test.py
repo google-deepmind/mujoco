@@ -1155,6 +1155,15 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     # allocated arena arrays are views of mjData
     self.assertFalse(data.tendon_efcadr.flags.owndata)
 
+  def test_solver_line_search_result_list(self):
+    self.data.solver[0].lsresult = 3
+    self.data.solver[1].lsresult = -1
+    self.assertEqual(self.data.solver.lsresult[0], 3)
+    self.assertEqual(self.data.solver.lsresult[1], -1)
+    np.testing.assert_array_equal(self.data.solver[:2].lsresult, [3, -1])
+    self.data.solver.lsresult[0] = 4
+    self.assertEqual(self.data.solver[0].lsresult, 4)
+
   def test_mj_struct_list_equality(self):
     model2 = mujoco.MjModel.from_xml_string(TEST_XML)
     data2 = mujoco.MjData(model2)

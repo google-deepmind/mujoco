@@ -1743,6 +1743,7 @@ public unsafe struct mjSolverStat_ {
   public int nchange;
   public int neval;
   public int nupdate;
+  public int lsresult;
 }
 
 [StructLayout(LayoutKind.Sequential)]
