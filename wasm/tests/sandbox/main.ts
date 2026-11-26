@@ -15,8 +15,6 @@
 import { MainModule, MjData, MjModel } from "../../dist/mujoco"
 import loadMujoco from "../../dist/mujoco.js"
 
-declare function loadMujoco(): Promise<MainModule>;
-
 async function main() {
   const mujoco: MainModule = await loadMujoco();
 
