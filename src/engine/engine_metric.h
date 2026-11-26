@@ -84,6 +84,18 @@ MJAPI void mj_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* 
 // is reached before convergence, in which case x is returned under-converged.
 MJAPI void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
 
+// stack bytes mj_effLower takes on an island of size nv with nr1 rank-1 rows and nR nonzeros
+size_t mj_effLowerScratch(int nv, int nr1, int nR);
+
+// upper bound on nonzeros in lower-triangular CSR of S (or M + S if flg_addM); writes rank-1
+// row count and nonzero count into *nr1_out and *nR_out
+int mj_effLowerCap(const mjModel* m, mjData* d, int island, int flg_addM,
+                   int* nr1_out, int* nR_out);
+
+// build lower-triangular + diagonal CSR of discrete metric S (or M + S if flg_addM), returning nnz
+int mj_effLower(const mjModel* m, mjData* d, int island, int flg_addM, int nr1, int nR,
+                int* S_rownnz, int* S_rowadr, int* S_colind, mjtNum* S_val);
+
 // apply the metric preconditioner: x ~= (M + B)^-1 b, a cheap fixed linear operator, NOT a solve.
 // Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
 MJAPI void mj_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);

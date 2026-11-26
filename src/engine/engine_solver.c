@@ -1209,9 +1209,10 @@ typedef struct {
                           // (mj_effPrecFold), mj_effFoldDiagSize, or NULL
 
   // Newton: lower-triangle view of the metric matrix S = diag(h*D+h^2*K) + K_csr, built by
-  // MakeMetricLower on the solver stack, merged into the Hessian alongside M
+  // mj_effLower on the solver stack, merged into the Hessian alongside M
   int nS;                 // total nonzeros of the view
-  int S_tcap;             // capacity of the rank-1 contribution, set by PrimalAllocate
+  int S_nr1;              // rank-1 row count, set by PrimalAllocate
+  int S_nR;               // rank-1 total nonzeros, set by PrimalAllocate
   int* S_rownnz;          // view row nonzeros                            (nv x 1)
   int* S_rowadr;          // view row addresses                           (nv x 1)
   int* S_colind;          // view column indices                          (nS x 1)
@@ -1623,33 +1624,10 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     ctx->nJ = nJ;
   }
 
-  // discrete metric: size the lower-triangle view S_* (filled by MakeMetricLower)
+  // discrete metric: size the lower-triangle view S_* (filled by mj_effLower)
   int nScap = 0;
   if (d->efm_active && flg_Newton) {
-    int tcap = 0, tlow = 0;
-    mjEffRank1Iter it = {0};
-    mjEffRank1 e;
-    while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
-      if (ctx->island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != ctx->island) {
-        continue;
-      }
-      tcap += e.nnz * e.nnz;
-      tlow += e.nnz * (e.nnz + 1) / 2;
-    }
-    ctx->S_tcap = tcap;
-
-    // the view is lower-triangle: at most half the symmetric CSR, the lower wedge of
-    // each rank-1 outer product, the strictly-lower fluid pattern, one diagonal per row
-    int kcap = d->nefmK / 2;
-    if (ctx->island >= 0 && d->nefmK) {
-      int ksum = 0;
-      int idofadr = d->island_idofadr[ctx->island];
-      for (int i = 0; i < nv; i++) {
-        ksum += d->efm_K_rownnz[d->map_idof2dof[idofadr + i]];
-      }
-      kcap = ksum / 2;
-    }
-    nScap = kcap + tlow + nv + (d->efm_fluid ? m->nC - nv : 0);
+    nScap = mj_effLowerCap(m, d, ctx->island, /*flg_addM=*/0, &ctx->S_nr1, &ctx->S_nR);
   }
 
   // carve the mjtNum and int blocks: pass 0 totals the sizes, pass 1 hands out the
@@ -2884,172 +2862,6 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
 }
 
 
-// build the lower-triangle view of the discrete metric matrix
-// S = diag(h*D+h^2*K) + K_csr + tendon outer products: Newton consumes the metric
-// explicitly inside the Hessian. The efm CSR stores the full symmetric pattern with
-// sorted columns; the view keeps entries with col < row, folds all diagonals into one
-// entry, and produces sorted unique columns per row. For island contexts rows and columns
-// are island-local (the maps are monotone, so mapped columns stay sorted); the flex CSR
-// never appears there (flex with metric terms forces a monolithic solve)
-static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
-  const mjModel* m = ctx->fm;
-  int nv = ctx->nv, island = ctx->island;
-  int idofadr = island >= 0 ? d->island_idofadr[island] : 0;
-  const int* idof2dof = island >= 0 ? d->map_idof2dof + idofadr : NULL;
-
-  // the view S_* was carved by PrimalAllocate (which also sized the rank-1 contribution)
-  // and lives for the whole solve: FactorizeHessian re-merges it on active-set recomputes.
-  // Scratch below is freed before returning
-  int tcap = ctx->S_tcap;
-  mjEffRank1Iter it = {0};
-  mjEffRank1 e;
-
-  mj_markStack(d);
-
-  // bucket the rank-1 entries by (local) row: count, carve, fill
-  int* tint = mjSTACKALLOC(d, 2*nv + (tcap > 0 ? tcap : 1), int);
-  mjtNum* tval = mjSTACKALLOC(d, tcap > 0 ? tcap : 1, mjtNum);
-  int* trownnz = tint;
-  int* trowadr = tint + nv;
-  int* tcol = tint + 2*nv;
-  mju_zeroInt(trownnz, nv);
-
-  // count rank-1 entries per (local) row
-  it = (mjEffRank1Iter){0};
-  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
-    if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
-      continue;
-    }
-    for (int j=0; j < e.nnz; j++) {
-      int r = e.colind[j];
-      int lr = island >= 0 ? d->map_dof2idof[r] - idofadr : r;
-      if (lr < 0 || lr >= nv) {
-        // island discovery unions metric couplings and the sleep policy keeps coupled
-        // trees awake together, so a rank-1 term cannot straddle islands or sleep
-        mjERROR("metric rank-1 term spans islands on dof %d", r);  // SHOULD NOT OCCUR
-      }
-      trownnz[lr] += e.nnz;
-    }
-  }
-  // carve row addresses
-  int adr = 0;
-  for (int i=0; i < nv; i++) {
-    trowadr[i] = adr;
-    adr += trownnz[i];
-    trownnz[i] = 0;
-  }
-
-  // fill the buckets
-  it = (mjEffRank1Iter){0};
-  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
-    if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
-      continue;
-    }
-    for (int j=0; j < e.nnz; j++) {
-      int r = e.colind[j];
-      int lr = island >= 0 ? d->map_dof2idof[r] - idofadr : r;
-      mjtNum sJr = e.scale * e.val[j];
-      for (int a=0; a < e.nnz; a++) {
-        int lc = island >= 0 ? d->map_dof2idof[e.colind[a]] - idofadr : e.colind[a];
-        int w = trowadr[lr] + trownnz[lr]++;
-        tcol[w] = lc;
-        tval[w] = sJr * e.val[a];
-      }
-    }
-  }
-
-  // sort each bucketed row (insertion sort: per-tendon runs are already sorted and rows
-  // are short)
-  for (int i=0; i < nv; i++) {
-    int start = trowadr[i], end = start + trownnz[i];
-    for (int a=start+1; a < end; a++) {
-      int c = tcol[a];
-      mjtNum v = tval[a];
-      int b = a - 1;
-      while (b >= start && tcol[b] > c) {
-        tcol[b+1] = tcol[b];
-        tval[b+1] = tval[b];
-        b--;
-      }
-      tcol[b+1] = c;
-      tval[b+1] = v;
-    }
-  }
-
-  // merge flex CSR, tendon buckets and diagonals into the lower view
-  adr = 0;
-  for (int i=0; i < nv; i++) {
-    ctx->S_rowadr[i] = adr;
-    int gdof = island >= 0 ? idof2dof[i] : i;
-    mjtNum diag = d->efm_diag ? d->efm_diag[gdof] : 0;
-
-    // three-way merge of the sorted flex row, the sorted tendon/actuator row and the
-    // fluid M-pattern row, summing duplicates. Island dof->idof maps preserve order
-    // across DOFs in the island, so mapped flex and fluid columns stay sorted
-    int fa = 0, fn = 0;
-    const int* fcol = NULL;
-    const mjtNum* fval = NULL;
-    if (d->nefmK) {
-      fa = d->efm_K_rowadr[gdof];
-      fn = d->efm_K_rownnz[gdof];
-      fcol = d->efm_K_colind;
-      fval = d->efm_K_val;
-    }
-    int fe = fa + fn;
-    int ta = trowadr[i], te = ta + trownnz[i];
-    int ga = 0, ge = 0;
-    if (d->efm_fluid) {
-      ga = m->M_rowadr[gdof];
-      ge = ga + m->M_rownnz[gdof];
-    }
-    while (fa < fe || ta < te || ga < ge) {
-      int col;
-      mjtNum val = 0;
-      int cf = fa < fe ? (island >= 0 ? d->map_dof2idof[fcol[fa]] - idofadr
-                                      : fcol[fa]) : nv;
-      int ct = ta < te ? tcol[ta] : nv;
-      int cg = ga < ge ? (island >= 0 ? d->map_dof2idof[m->M_colind[ga]] - idofadr
-                                      : m->M_colind[ga]) : nv;
-      col = cf < ct ? cf : ct;
-      col = cg < col ? cg : col;
-      while (fa < fe &&
-             (island >= 0 ? d->map_dof2idof[fcol[fa]] - idofadr
-                          : fcol[fa]) == col) {
-        val += fval[fa++];
-      }
-      while (ta < te && tcol[ta] == col) {
-        val += tval[ta++];
-      }
-      while (ga < ge &&
-             (island >= 0 ? d->map_dof2idof[m->M_colind[ga]] - idofadr
-                          : m->M_colind[ga]) == col) {
-        val += d->efm_fluid[ga++];
-      }
-      if (col < i) {
-        ctx->S_colind[adr] = col;
-        ctx->S_val[adr] = val;
-        adr++;
-      } else if (col == i) {
-        diag += val;
-        break;  // columns are strictly sorted: nothing at or before the diagonal remains
-      } else {
-        break;
-      }
-    }
-
-    if (diag) {
-      ctx->S_colind[adr] = i;
-      ctx->S_val[adr] = diag;
-      adr++;
-    }
-    ctx->S_rownnz[i] = adr - ctx->S_rowadr[i];
-  }
-  ctx->nS = adr;
-
-  mj_freeStack(d);
-}
-
-
 // scratch stack bytes needed by primalSqrSymbolic + mju_sqrMatTDSparseNumeric
 static size_t primalSqrScratchBytes(int nv, int nefc) {
   size_t sym_bytes = mj_stackFrameBytes() +
@@ -3569,16 +3381,13 @@ static int MakeHessian(const mjModel* m, mjData* d, mjPrimalContext* ctx) {
   // discrete metric: build the lower-triangle view of S for merging into H
   ctx->nS = 0;
   if (ctx->flg_metric) {
-    int tcap = ctx->S_tcap > 0 ? ctx->S_tcap : 1;
-    size_t metric_bytes =
-        mj_stackFrameBytes() +
-        mj_stackBytes((2 * (size_t)nv + (size_t)tcap) * sizeof(int), _Alignof(int)) +
-        mj_stackBytes((size_t)tcap * sizeof(mjtNum), _Alignof(mjtNum));
+    size_t metric_bytes = mj_effLowerScratch(nv, ctx->S_nr1, ctx->S_nR);
     if (mj_stackBytesAvailable(d) < mjMAX(metric_bytes, cg_bytes + loop_bytes)) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       return 0;
     }
-    MakeMetricLower(d, ctx);
+    ctx->nS = mj_effLower(ctx->fm, d, ctx->island, /*flg_addM=*/0, ctx->S_nr1, ctx->S_nR,
+                          ctx->S_rownnz, ctx->S_rowadr, ctx->S_colind, ctx->S_val);
   }
 
   // sparse

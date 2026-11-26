@@ -2237,6 +2237,379 @@ static int effSolveSGS(const mjModel* m, mjData* d, mjtNum* x, mjtNum* r_io, mjt
 }
 
 
+// stack bytes mj_effLower takes on an island of size nv with nr1 rank-1 rows and nR nonzeros
+size_t mj_effLowerScratch(int nv, int nr1, int nR) {
+  if (!nr1 || !nR) {
+    return 0;
+  }
+  size_t n_int = 2*(size_t)nv + (size_t)(nr1 + 2) + 2*(size_t)nR;
+  size_t n_num = 2*(size_t)nR;
+  return mj_stackFrameBytes() + effIntBytes(n_int) + effNumBytes(n_num);
+}
+
+
+// upper bound on nonzeros in lower-triangular CSR of S (or M + S if flg_addM); writes rank-1
+// row count and nonzero count into *nr1_out and *nR_out
+int mj_effLowerCap(const mjModel* m, mjData* d, int island, int flg_addM,
+                   int* nr1_out, int* nR_out) {
+  int nv = island >= 0 ? d->island_nv[island] : m->nv;
+  int idofadr = island >= 0 ? d->island_idofadr[island] : 0;
+  const int* idof2dof = island >= 0 ? d->map_idof2dof + idofadr : NULL;
+  int nr1 = 0, nR = 0, tlow = 0;
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
+      continue;
+    }
+    nr1++;
+    nR += e.nnz;
+    tlow += e.nnz * (e.nnz + 1) / 2;
+  }
+  *nr1_out = nr1;
+  *nR_out = nR;
+
+  int kcap = d->nefmK / 2;
+  if (island >= 0 && d->nefmK) {
+    int ksum = 0;
+    for (int i=0; i < nv; i++) {
+      ksum += d->efm_K_rownnz[idof2dof[i]];
+    }
+    kcap = ksum / 2;
+  }
+  int m_offdiag = 0;
+  if (flg_addM || d->efm_fluid) {
+    if (island >= 0) {
+      for (int i=0; i < nv; i++) {
+        m_offdiag += m->M_rownnz[idof2dof[i]] - 1;
+      }
+    } else {
+      m_offdiag = m->nC - nv;
+    }
+  }
+  if (!nr1 || !nR) {
+    return kcap + nv + m_offdiag;
+  }
+
+  // exact deduplicated lower-triangle count via sparse marker array when stack permits
+  size_t count_ints = 3*(size_t)nv + (size_t)(nr1 + 1) + 2*(size_t)nR;
+  if (mj_stackBytesAvailable(d) < mj_stackFrameBytes() + effIntBytes(count_ints)) {
+    return kcap + tlow + nv + m_offdiag;
+  }
+
+  mj_markStack(d);
+  int* cint      = effInts(d, count_ints);
+  int* R_rowadr  = cint;
+  int* R_colind  = R_rowadr + nr1 + 1;
+  int* RT_rownnz = R_colind + nR;
+  int* RT_rowadr = RT_rownnz + nv;
+  int* RT_rowid  = RT_rowadr + nv;
+  int* marker    = RT_rowid + nR;
+  mju_zeroInt(RT_rownnz, nv);
+
+  int radr = 0, rid = 0;
+  it = (mjEffRank1Iter){0};
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
+      continue;
+    }
+    R_rowadr[rid++] = radr;
+    for (int j=0; j < e.nnz; j++) {
+      int r = e.colind[j];
+      int lr = island >= 0 ? d->map_dof2idof[r] - idofadr : r;
+      if (lr < 0 || lr >= nv) {
+        mjERROR("metric rank-1 term spans islands on dof %d", r);  // SHOULD NOT OCCUR
+      }
+      R_colind[radr++] = lr;
+      RT_rownnz[lr]++;
+    }
+  }
+  R_rowadr[nr1] = radr;
+
+  int tadr = 0;
+  for (int i=0; i < nv; i++) {
+    RT_rowadr[i] = tadr;
+    tadr += RT_rownnz[i];
+    RT_rownnz[i] = 0;
+    marker[i] = -1;
+  }
+  for (int r=0; r < nr1; r++) {
+    for (int a=R_rowadr[r]; a < R_rowadr[r+1]; a++) {
+      int lr = R_colind[a];
+      RT_rowid[RT_rowadr[lr] + RT_rownnz[lr]++] = r;
+    }
+  }
+
+  int cap = 0;
+  for (int i=0; i < nv; i++) {
+    int gdof = island >= 0 ? idof2dof[i] : i;
+    if (d->nefmK) {
+      int fa = d->efm_K_rowadr[gdof], fe = fa + d->efm_K_rownnz[gdof];
+      for (int a=fa; a < fe; a++) {
+        int lc = island >= 0 ? d->map_dof2idof[d->efm_K_colind[a]] - idofadr : d->efm_K_colind[a];
+        if (lc >= i) {
+          break;
+        }
+        if (marker[lc] != i) {
+          marker[lc] = i;
+          cap++;
+        }
+      }
+    }
+    if (flg_addM || d->efm_fluid) {
+      int ga = m->M_rowadr[gdof], ge = ga + m->M_rownnz[gdof];
+      for (int a=ga; a < ge; a++) {
+        int lc = island >= 0 ? d->map_dof2idof[m->M_colind[a]] - idofadr : m->M_colind[a];
+        if (lc >= i) {
+          break;
+        }
+        if (marker[lc] != i) {
+          marker[lc] = i;
+          cap++;
+        }
+      }
+    }
+    int te = RT_rowadr[i] + RT_rownnz[i];
+    for (int k=RT_rowadr[i]; k < te; k++) {
+      int r = RT_rowid[k];
+      for (int a=R_rowadr[r]; a < R_rowadr[r+1]; a++) {
+        int lc = R_colind[a];
+        if (lc < i && marker[lc] != i) {
+          marker[lc] = i;
+          cap++;
+        }
+      }
+    }
+    cap++;  // diagonal slot
+  }
+
+  mj_freeStack(d);
+  return cap;
+}
+
+
+// build lower-triangular + diagonal CSR of discrete metric S (or M + S if flg_addM), returning nnz
+int mj_effLower(const mjModel* m, mjData* d, int island, int flg_addM, int nr1, int nR,
+                int* S_rownnz, int* S_rowadr, int* S_colind, mjtNum* S_val) {
+  int nv = island >= 0 ? d->island_nv[island] : m->nv;
+  int idofadr = island >= 0 ? d->island_idofadr[island] : 0;
+  const int* idof2dof = island >= 0 ? d->map_idof2dof + idofadr : NULL;
+
+  // zero-scratch two-way merge when no rank-1 terms exist
+  if (!nr1 || !nR) {
+    int adr = 0;
+    for (int i=0; i < nv; i++) {
+      S_rowadr[i] = adr;
+      int gdof = island >= 0 ? idof2dof[i] : i;
+      mjtNum diag = d->efm_diag ? d->efm_diag[gdof] : 0;
+      int fa = d->nefmK ? d->efm_K_rowadr[gdof] : 0;
+      int fe = fa + (d->nefmK ? d->efm_K_rownnz[gdof] : 0);
+      int ga = (flg_addM || d->efm_fluid) ? m->M_rowadr[gdof] : 0;
+      int ge = ga + ((flg_addM || d->efm_fluid) ? m->M_rownnz[gdof] : 0);
+      while (fa < fe || ga < ge) {
+        int cf = fa < fe ?
+                 (island >= 0 ? d->map_dof2idof[d->efm_K_colind[fa]] - idofadr
+                              : d->efm_K_colind[fa]) : nv;
+        int cg = ga < ge ?
+                 (island >= 0 ? d->map_dof2idof[m->M_colind[ga]] - idofadr
+                              : m->M_colind[ga]) : nv;
+        int col = cf < cg ? cf : cg;
+        mjtNum val = 0;
+        if (cf == col) {
+          val += d->efm_K_val[fa++];
+        }
+        if (cg == col) {
+          if (flg_addM) {
+            val += d->M[ga];
+          }
+          if (d->efm_fluid) {
+            val += d->efm_fluid[ga];
+          }
+          ga++;
+        }
+        if (col < i) {
+          S_colind[adr] = col;
+          S_val[adr] = val;
+          adr++;
+        } else {
+          if (col == i) {
+            diag += val;
+          }
+          break;
+        }
+      }
+      if (diag || flg_addM) {
+        S_colind[adr] = i;
+        S_val[adr] = diag;
+        adr++;
+      }
+      S_rownnz[i] = adr - S_rowadr[i];
+    }
+    return adr;
+  }
+
+  size_t n_int = 2*(size_t)nv + (size_t)(nr1 + 2) + 2*(size_t)nR;
+  size_t n_num = 2*(size_t)nR;
+
+  mj_markStack(d);
+  int* sint = effInts(d, n_int);
+  mjtNum* snum = mjSTACKALLOC(d, n_num, mjtNum);
+
+  int* RT_rownnz = sint;
+  int* RT_rowadr = RT_rownnz + nv;
+  int* R_rowadr  = RT_rowadr + nv + 1;
+  int* R_colind  = R_rowadr + nr1 + 1;
+  int* RT_rowid  = R_colind + nR;
+  mjtNum* R_val  = snum;
+  mjtNum* RT_sval = R_val + nR;
+  mju_zeroInt(RT_rownnz, nv);
+
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  int radr = 0, rid = 0;
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
+      continue;
+    }
+    if (rid >= nr1 || radr + e.nnz > nR) {
+      mjERROR("metric rank-1 count exceeded mj_effLowerCap (%d/%d rows, %d/%d nnz)",
+              rid + 1, nr1, radr + e.nnz, nR);  // SHOULD NOT OCCUR
+    }
+    R_rowadr[rid++] = radr;
+    for (int j=0; j < e.nnz; j++) {
+      int r = e.colind[j];
+      int lr = island >= 0 ? d->map_dof2idof[r] - idofadr : r;
+      if (lr < 0 || lr >= nv) {
+        mjERROR("metric rank-1 term spans islands on dof %d", r);  // SHOULD NOT OCCUR
+      }
+      R_colind[radr] = lr;
+      R_val[radr] = e.val[j];
+      radr++;
+      RT_rownnz[lr]++;
+    }
+  }
+  R_rowadr[rid] = radr;
+
+  int tadr = 0;
+  for (int i=0; i < nv; i++) {
+    RT_rowadr[i] = tadr;
+    tadr += RT_rownnz[i];
+    RT_rownnz[i] = 0;
+  }
+  RT_rowadr[nv] = tadr;
+  it = (mjEffRank1Iter){0};
+  rid = 0;
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
+      continue;
+    }
+    int r = rid++;
+    for (int j=0; j < e.nnz; j++) {
+      int lr = R_colind[R_rowadr[r] + j];
+      int w = RT_rowadr[lr] + RT_rownnz[lr]++;
+      RT_rowid[w] = r;
+      RT_sval[w] = e.scale * e.val[j];
+    }
+  }
+
+  // reuse RT_rownnz as per-column slot marker into S_val (-1: absent from current row)
+  int* marker = RT_rownnz;
+  for (int i=0; i < nv; i++) {
+    marker[i] = -1;
+  }
+
+  // accumulate each row directly into S_colind/S_val, sorting only unique column indices
+  int adr = 0;
+  for (int i=0; i < nv; i++) {
+    int start = adr;
+    S_rowadr[i] = start;
+    int gdof = island >= 0 ? idof2dof[i] : i;
+    mjtNum diag = d->efm_diag ? d->efm_diag[gdof] : 0;
+
+    if (d->nefmK) {
+      int fa = d->efm_K_rowadr[gdof], fe = fa + d->efm_K_rownnz[gdof];
+      for (int a=fa; a < fe; a++) {
+        int lc = island >= 0 ? d->map_dof2idof[d->efm_K_colind[a]] - idofadr : d->efm_K_colind[a];
+        mjtNum v = d->efm_K_val[a];
+        if (lc < i) {
+          int slot = adr++;
+          marker[lc] = slot;
+          S_colind[slot] = lc;
+          S_val[slot] = v;
+        } else {
+          if (lc == i) {
+            diag += v;
+          }
+          break;
+        }
+      }
+    }
+
+    if (flg_addM || d->efm_fluid) {
+      int ga = m->M_rowadr[gdof], ge = ga + m->M_rownnz[gdof];
+      for (int a=ga; a < ge; a++) {
+        int lc = island >= 0 ? d->map_dof2idof[m->M_colind[a]] - idofadr : m->M_colind[a];
+        mjtNum v = (flg_addM ? d->M[a] : 0) + (d->efm_fluid ? d->efm_fluid[a] : 0);
+        if (lc < i) {
+          int slot = marker[lc];
+          if (slot < 0) {
+            slot = adr++;
+            marker[lc] = slot;
+            S_colind[slot] = lc;
+            S_val[slot] = v;
+          } else {
+            S_val[slot] += v;
+          }
+        } else {
+          if (lc == i) {
+            diag += v;
+          }
+          break;
+        }
+      }
+    }
+
+    int te = RT_rowadr[i+1];
+    for (int k=RT_rowadr[i]; k < te; k++) {
+      int r = RT_rowid[k];
+      mjtNum sJr = RT_sval[k];
+      for (int a=R_rowadr[r]; a < R_rowadr[r+1]; a++) {
+        int lc = R_colind[a];
+        if (lc < i) {
+          mjtNum v = sJr * R_val[a];
+          int slot = marker[lc];
+          if (slot < 0) {
+            slot = adr++;
+            marker[lc] = slot;
+            S_colind[slot] = lc;
+            S_val[slot] = v;
+          } else {
+            S_val[slot] += v;
+          }
+        } else if (lc == i) {
+          diag += sJr * R_val[a];
+        }
+      }
+    }
+
+    for (int a=start; a < adr; a++) {
+      marker[S_colind[a]] = -1;
+    }
+    mju_sortSparseRow(adr - start, S_colind + start, S_val + start);
+
+    if (diag || flg_addM) {
+      S_colind[adr] = i;
+      S_val[adr] = diag;
+      adr++;
+    }
+    S_rownnz[i] = adr - S_rowadr[i];
+  }
+
+  mj_freeStack(d);
+  return adr;
+}
+
+
 // accurate solve of (M + K) x = b by PCG with the metric preconditioner, converging the
 // relative residual to opt.tolerance; used for qacc_smooth. Reaching opt.iterations means the
 // metric is too ill-conditioned for the preconditioner: warn (mjWARN_INERTIA, worst-residual dof)
