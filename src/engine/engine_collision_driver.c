@@ -1625,6 +1625,15 @@ static void mj_collideTree(const mjModel* m, mjData* d, mjcPairArena* arena, int
 
 //----------------------------- broad-phase collision detection ------------------------------------
 
+// rounding slack for AAMM bounds (analogous to mjBOXBOX_SEPEPS in engine_collision_box.c),
+// preventing flush zero-margin geoms from being pruned by ULP error in an aligned SAP frame
+#ifdef mjUSESINGLE
+  #define mjAAMM_EPS 1e-5f
+#else
+  #define mjAAMM_EPS 1e-12
+#endif
+
+
 // make AAMM (xmin[3], xmax[3]) for one bodyflex, in the frame whose axes are the rows of frame
 static void makeAAMM(const mjModel* m, mjData* d,
                      mjtNum* x_min, mjtNum* y_min, mjtNum* z_min,
@@ -1737,6 +1746,15 @@ static void makeAAMM(const mjModel* m, mjData* d,
     aamm[3] += bound;
     aamm[4] += bound;
     aamm[5] += bound;
+  }
+
+  // pad bounds by rounding slack so flush zero-margin geoms are not pruned
+  for (int j=0; j < 3; j++) {
+    mjtNum alo = mju_abs(aamm[j]);
+    mjtNum ahi = mju_abs(aamm[j+3]);
+    mjtNum tol = mjAAMM_EPS * (1 + mjMAX(alo, ahi));
+    aamm[j]   -= tol;
+    aamm[j+3] += tol;
   }
 
   // assign outputs

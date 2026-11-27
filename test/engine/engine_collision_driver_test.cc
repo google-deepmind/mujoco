@@ -2994,5 +2994,48 @@ TEST_F(MjCollisionTest, FlexSAPOrderedLargeMatchesNarrow) {
     EXPECT_EQ(c_sap[i].second, c_narrow[i].second);
   }
 }
+
+TEST_F(MjCollisionTest, BroadphaseFlushZeroMarginBoxesIdentityFrame) {
+  // Two zero-margin boxes placed mathematically flush at z = 0.002:
+  //   floor_box top:    0.001 + 0.001 = 0.002
+  //   top_box bottom:  (0.002 + 0.016) - 0.016 > 0.002 by 1-4 ULPs
+  // Symmetric X-axis spacers force a strictly diagonal covariance with largest
+  // variance along X, so even mju_eig3Tol returns the exact identity SAP frame
+  // and Z is a secondary mjtNum axis in mj_SAP.
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 0">
+        <freejoint/>
+        <geom name="floor_box" type="box" pos="0 0 0.001"
+              size="0.0864 0.0630 0.001"/>
+      </body>
+      <body pos="0 0 0.002">
+        <freejoint/>
+        <geom name="top_box" type="box" pos="0 0 0.016"
+              size="0.010 0.010 0.016"/>
+      </body>
+      <body pos="-1 0 0.0095">
+        <freejoint/>
+        <geom type="sphere" size="0.01"/>
+      </body>
+      <body pos="1 0 0.0095">
+        <freejoint/>
+        <geom type="sphere" size="0.01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  EXPECT_EQ(colliding_pairs(m.get(), d.get()),
+            std::vector<GeomPair>(4, {"floor_box", "top_box"}));
+  EXPECT_EQ(d->ncon, 4);
+}
 }  // namespace
 }  // namespace mujoco
