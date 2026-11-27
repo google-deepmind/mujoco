@@ -114,8 +114,9 @@ inline constexpr int geomtype_sz = 9;
 inline constexpr mjMap projection_map[] = {
   {"perspective",   mjPROJ_PERSPECTIVE},
   {"orthographic",  mjPROJ_ORTHOGRAPHIC},
+  {"fisheye",       mjPROJ_FISHEYE},
 };
-inline constexpr int projection_sz = 2;
+inline constexpr int projection_sz = 3;
 
 // enum camlight
 inline constexpr mjMap camlight_map[] = {

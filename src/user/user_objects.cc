@@ -5340,6 +5340,28 @@ void mjCCamera::Compile(void) {
                    fovy);
   }
 
+  // check projection and lens distortion
+  if (proj < mjPROJ_PERSPECTIVE || proj > mjPROJ_FISHEYE) {
+    throw mjCError(this, "invalid projection in camera '%s' (id = %d)", name.c_str(), id);
+  }
+  bool has_distortion = false;
+  for (int i = 0; i < mjNDISTCOEF; i++) {
+    if (!std::isfinite(distortion[i])) {
+      throw mjCError(this,
+                     "distortion coefficients must be finite in camera '%s' (id = %d)",
+                     name.c_str(),
+                     id);
+    }
+    if (distortion[i] != 0) { has_distortion = true; }
+  }
+  if (has_distortion && proj == mjPROJ_ORTHOGRAPHIC) {
+    throw mjCError(
+        this,
+        "lens distortion is not supported for orthographic projection in camera '%s' (id = %d)",
+        name.c_str(),
+        id);
+  }
+
   // check for advanced camera intrinsic parameters
   bool has_intrinsic  = focal_length[0] ||
                         focal_length[1] ||
@@ -9520,6 +9542,9 @@ void mjCSensor::Compile(void) {
         if (camref->resolution[0] <= 0 || camref->resolution[1] <= 0) {
           throw mjCError(this, "camera projection sensor requires camera resolution");
         }
+        if (camref->proj == mjPROJ_FISHEYE) {
+          throw mjCError(this, "camera projection sensor is not supported for fisheye cameras");
+        }
       }
       break;
 
@@ -9532,6 +9557,9 @@ void mjCSensor::Compile(void) {
         mjCCamera* cam = (mjCCamera*)obj;
         if (cam->resolution[0] <= 0 || cam->resolution[1] <= 0) {
           throw mjCError(this, "rangefinder camera sensor requires positive camera resolution");
+        }
+        if (cam->proj == mjPROJ_FISHEYE) {
+          throw mjCError(this, "rangefinder camera sensor is not supported for fisheye cameras");
         }
       }
 

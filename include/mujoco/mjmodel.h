@@ -41,6 +41,7 @@
 #define mjNIMP          5         // number of solver impedance parameters
 #define mjNPOLY         2         // number of high-order polynomial coefficients
 #define mjNSENS         3         // number of sensor parameters
+#define mjNDISTCOEF     8         // number of camera distortion coefficients
 #define mjNSOLVER       200       // size of one mjData.solver array
 #define mjNISLAND       20        // number of mjData.solver arrays
 
@@ -515,6 +516,7 @@ typedef struct mjModel_ {
   int*      cam_output;           // output types (mjtCamOut bit flags)       (ncam x 1)
   float*    cam_sensorsize;       // sensor size: length [width, height]      (ncam x 2)
   float*    cam_intrinsic;        // [focal length; principal point]          (ncam x 4)
+  float*    cam_distortion;       // lens distortion coefficients             (ncam x mjNDISTCOEF)
   mjtNum*   cam_user;             // user data                                (ncam x nuser_cam)
 
   // lights

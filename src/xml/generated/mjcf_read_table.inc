@@ -417,6 +417,7 @@ inline constexpr mjXAttr kCameraAttrs[] = {
   {"principal", mjXAttr::kFloat, 2, true, false, false, true, (int)offsetof(mjsCamera, principal_length)},
   {"principalpixel", mjXAttr::kFloat, 2, true, false, false, true, (int)offsetof(mjsCamera, principal_pixel)},
   {"sensorsize", mjXAttr::kFloat, 2, true, false, false, true, (int)offsetof(mjsCamera, sensor_size)},
+  {"distortion", mjXAttr::kFloat, mjNDISTCOEF, false, false, false, false, (int)offsetof(mjsCamera, distortion)},
   {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsCamera, userdata)},
 };
 inline constexpr int kCameraAttrsN = sizeof(kCameraAttrs) / sizeof(kCameraAttrs[0]);

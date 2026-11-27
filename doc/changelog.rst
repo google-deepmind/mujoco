@@ -11,6 +11,10 @@ General
   constraints. Constraints can be soft: a soft constraint holds exactly up to a threshold on its multiplier and then
   yields with a given compliance, so problems with soft constraints remain feasible. The solver can be warmstarted
   from a previous active set. The Hessian can be singular or zero (a linear program).
+- Added Kannala-Brandt fisheye projection and camera lens distortion coefficients:
+  :ref:`projection<body-camera-projection>` now supports ``fisheye`` via ``mjPROJ_FISHEYE``, and
+  :ref:`distortion<body-camera-distortion>` specifies up to ``mjNDISTCOEF`` = 8 coefficients for ``fisheye`` and
+  ``perspective`` cameras via ``mjsCamera.distortion`` and ``mjModel.cam_distortion``.
 
 Engine
 ^^^^^^

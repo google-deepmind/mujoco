@@ -3766,6 +3766,9 @@ struct MjsCamera {
   emscripten::val principal_pixel() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->principal_pixel));
   }
+  emscripten::val distortion() const {
+    return emscripten::val(emscripten::typed_memory_view(8, ptr_->distortion));
+  }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }
@@ -4926,6 +4929,9 @@ struct MjModel {
   }
   emscripten::val cam_intrinsic() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * 4, ptr_->cam_intrinsic));
+  }
+  emscripten::val cam_distortion() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * mjNDISTCOEF, ptr_->cam_distortion));
   }
   emscripten::val cam_user() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * ptr_->nuser_cam, ptr_->cam_user));

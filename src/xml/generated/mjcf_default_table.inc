@@ -261,6 +261,7 @@ static const mjXDefaultEntry kDefaults_mjsCamera[] = {
   {"principal", (int)offsetof(mjsCamera, principal_length), 1, 2, 0, 0, {0}},
   {"principalpixel", (int)offsetof(mjsCamera, principal_pixel), 1, 2, 0, 0, {0}},
   {"sensorsize", (int)offsetof(mjsCamera, sensor_size), 1, 2, 0, 0, {0}},
+  {"distortion", (int)offsetof(mjsCamera, distortion), 1, mjNDISTCOEF, 0, 0, {0}},
 };
 
 static const mjXDefaultEntry kDefaults_mjsCompiler[] = {

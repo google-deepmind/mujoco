@@ -1149,6 +1149,9 @@
                :ref:`sensorsize<body-camera-sensorsize>`
 
             .. grid-item::
+               :ref:`distortion<body-camera-distortion>`
+
+            .. grid-item::
                :ref:`user<body-camera-user>`
 
 
@@ -5725,6 +5728,9 @@
 
             .. grid-item::
                :ref:`sensorsize<default-camera-sensorsize>`
+
+            .. grid-item::
+               :ref:`distortion<default-camera-distortion>`
 
             .. grid-item::
                :ref:`user<default-camera-user>`

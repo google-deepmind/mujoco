@@ -450,6 +450,7 @@
     X   ( int,     cam_output,            ncam,          1                    ) \
     X   ( float,   cam_sensorsize,        ncam,          2                    ) \
     X   ( float,   cam_intrinsic,         ncam,          4                    ) \
+    X   ( float,   cam_distortion,        ncam,          mjNDISTCOEF          ) \
     X   ( mjtNum,  cam_user,              ncam,          MJ_M(nuser_cam)      )
 
 #define MJMODEL_POINTERS_LIGHT                                                  \

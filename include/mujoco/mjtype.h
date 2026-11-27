@@ -134,7 +134,8 @@ typedef enum mjtGeom {            // type of geometric shape
 
 typedef enum mjtProjection {      // type of camera projection
   mjPROJ_PERSPECTIVE  = 0,        // perspective
-  mjPROJ_ORTHOGRAPHIC             // orthographic
+  mjPROJ_ORTHOGRAPHIC,            // orthographic
+  mjPROJ_FISHEYE                  // fisheye (Kannala-Brandt)
 } mjtProjection;
 
 

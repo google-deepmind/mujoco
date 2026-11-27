@@ -3346,9 +3346,15 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 
 .. _body-camera-projection:
 
-:at:`projection`: :at-val:`[perspective, orthographic], "perspective"`
-   Whether the camera uses a perspective (the default) or orthographic projection. Setting this
-   attribute to "orthographic" changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
+:at:`projection`: :at-val:`[perspective, orthographic, fisheye], "perspective"`
+   Projection model of the camera:
+
+   - :at-val:`perspective`: Standard pinhole projection, optionally with lens distortion; see
+     :ref:`distortion<body-camera-distortion>`.
+   - :at-val:`orthographic`: Orthographic projection. Setting this attribute to "orthographic" changes the semantics of
+     the :ref:`fovy<body-camera-fovy>` attribute, see below. Non-zero :ref:`distortion<body-camera-distortion>` is not
+     supported.
+   - :at-val:`fisheye`: Kannala-Brandt fisheye projection; see :ref:`distortion<body-camera-distortion>`.
 
 .. _body-camera-fovy:
 
@@ -3357,7 +3363,11 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    degrees, regardless of the global :ref:`compiler/angle <compiler-angle>` setting. If the camera uses an orthographic
    projection, the field-of-view is expressed in units of length; note that in this case the default of 45 is too large
    for most scenes and should likely be reduced. In either case, the horizontal field of view is computed automatically
-   given the window size and the vertical field of view.
+   given the window size and the vertical field of view. When :ref:`projection<body-camera-projection>` is
+   :at-val:`fisheye` or :ref:`distortion<body-camera-distortion>` is non-zero, :at:`fovy` sets the pinhole focal length
+   applied to distorted normalized coordinates rather than the actual optical field of view. Specifying
+   :ref:`sensorsize<body-camera-sensorsize>` with :ref:`focal<body-camera-focal>` or
+   :ref:`focalpixel<body-camera-focalpixel>` is recommended for fisheye cameras.
 
 .. _body-camera-resolution:
 
@@ -3401,6 +3411,49 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    Offset of the principal point (optical axis intersection with the image plane) from the image center. If both are
    specified, the pixel value is used. At zero offset, the rendered image is centered on the camera's negative Z axis,
    as in a standard pinhole camera model.
+
+.. _body-camera-distortion:
+
+:at:`distortion`: :at-val:`real(mjNDISTCOEF), "0 0 ..."`
+   Lens distortion coefficients for the camera's :ref:`projection<body-camera-projection>` model. Up to
+   ``mjNDISTCOEF`` = 8 values can be given; unspecified trailing values default to 0, or inherit from the default class
+   if one is set. Pass explicit trailing zeros to clear inherited coefficients. Coefficient ordering matches OpenCV's
+   ``distCoeffs`` and ``cv::fisheye`` ``D`` vectors so OpenCV calibration output can be pasted in directly:
+
+   - For :at-val:`perspective`, these are the Brown-Conrady radial-tangential coefficients with OpenCV's rational
+     extension ``k1 k2 p1 p2 k3 k4 k5 k6``; all zeros gives a standard pinhole camera. For undistorted normalized
+     pinhole coordinates :math:`(x, y)` with :math:`r^2 = x^2 + y^2`, the distorted coordinates are:
+
+     .. math::
+
+        \begin{aligned}
+        s   &= \frac{1 + k_1 r^2 + k_2 r^4 + k_3 r^6}{1 + k_4 r^2 + k_5 r^4 + k_6 r^6} \\
+        x_d &= s x + 2 p_1 x y + p_2 (r^2 + 2 x^2) \\
+        y_d &= s y + p_1 (r^2 + 2 y^2) + 2 p_2 x y
+        \end{aligned}
+
+     See `OpenCV calib3d <https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html>`__ and
+     `Distortion (optics) <https://en.wikipedia.org/wiki/Distortion_(optics)>`__.
+   - For :at-val:`fisheye`, these are the Kannala-Brandt coefficients ``k1 k2 k3 k4``; all zeros gives an ideal
+     equidistant fisheye. A ray at angle :math:`\theta` from the optical axis is imaged at distorted normalized radius:
+
+     .. math::
+
+        \theta_d = \theta (1 + k_1 \theta^2 + k_2 \theta^4 + k_3 \theta^6 + k_4 \theta^8)
+
+     See `OpenCV cv::fisheye <https://docs.opencv.org/4.x/db/d58/group__calib3d__fisheye.html>`__ and
+     `Kannala & Brandt (TPAMI 2006) <https://doi.org/10.1109/TPAMI.2006.153>`__.
+   - For :at-val:`orthographic`, non-zero coefficients are not allowed.
+
+   For both distorted :at-val:`perspective` and :at-val:`fisheye` cameras, :ref:`sensorsize<body-camera-sensorsize>`,
+   :ref:`focal<body-camera-focal>`, :ref:`principal<body-camera-principal>`, and :ref:`fovy<body-camera-fovy>` map
+   *distorted* normalized image coordinates :math:`(x_d, y_d)` to pixels, as in OpenCV. Note that OpenCV's principal
+   point :math:`(c_x, c_y)` is measured in pixels from the center of the top-left pixel with :math:`y` pointing down, so
+   for an image of width :math:`W` and height :math:`H`, :at:`principalpixel` = :math:`((W-1)/2 - c_x, (H-1)/2 - c_y)`.
+
+   Lens distortion is currently ignored by the classic OpenGL renderer and by camera sensors, and attaching a
+   :ref:`rangefinder<sensor-rangefinder>` or :ref:`camprojection<sensor-camprojection>` sensor to a :at-val:`fisheye`
+   camera is rejected at compile time. Support will be provided by the Filament and MuJoCo Warp renderers.
 
 .. _body-camera-ipd:
 
@@ -10495,6 +10548,8 @@ if omitted.
 .. _default-camera-principalpixel:
 
 .. _default-camera-sensorsize:
+
+.. _default-camera-distortion:
 
 .. _default-camera:
 

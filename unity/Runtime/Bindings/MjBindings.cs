@@ -53,6 +53,7 @@ public const int mjNREF = 2;
 public const int mjNIMP = 5;
 public const int mjNPOLY = 2;
 public const int mjNSENS = 3;
+public const int mjNDISTCOEF = 8;
 public const int mjNSOLVER = 200;
 public const int mjNISLAND = 20;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
@@ -192,6 +193,7 @@ public enum mjtGeom : int{
 public enum mjtProjection : int{
   mjPROJ_PERSPECTIVE = 0,
   mjPROJ_ORTHOGRAPHIC = 1,
+  mjPROJ_FISHEYE = 2,
 }
 public enum mjtCamLight : int{
   mjCAMLIGHT_FIXED = 0,
@@ -1330,6 +1332,7 @@ public unsafe struct mjModel_ {
   public int* cam_output;
   public float* cam_sensorsize;
   public float* cam_intrinsic;
+  public float* cam_distortion;
   public double* cam_user;
   public int* light_mode;
   public int* light_bodyid;

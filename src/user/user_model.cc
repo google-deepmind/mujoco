@@ -3214,6 +3214,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->cam_output[cid] = pc->output;
       mjuu_copyvec(m->cam_sensorsize + 2 * cid, pc->sensor_size, 2);
       mjuu_copyvec(m->cam_intrinsic + 4 * cid, pc->intrinsic, 4);
+      mjuu_copyvec(m->cam_distortion + mjNDISTCOEF * cid, pc->distortion, mjNDISTCOEF);
       mjuu_copyvec(m->cam_user + nuser_cam * cid, pc->get_userdata().data(), nuser_cam);
     }
 
@@ -8123,6 +8124,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
     }
 
     copy(&pc->spec.ipd, &pc->ipd, m->cam_ipd + i);
+    copy(pc->spec.distortion, pc->distortion, m->cam_distortion + mjNDISTCOEF * i, mjNDISTCOEF);
     copyvector(pc->spec_userdata_, pc->userdata_, m->cam_user + nuser_cam * i, nuser_cam);
   }
 

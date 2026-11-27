@@ -436,6 +436,8 @@
      - :math:`1`
    * - :ref:`body/camera/sensorsize<body-camera-sensorsize>`
      - :math:`L`
+   * - :ref:`body/camera/distortion<body-camera-distortion>`
+     - :math:`1`
    * - :ref:`body/camera/user<body-camera-user>`
      - *other*
    * - :ref:`body/light/pos<body-light-pos>`

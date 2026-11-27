@@ -70,6 +70,7 @@ PYBIND11_MODULE(_constants, pymodule, pybind11::mod_gil_not_used()) {
   X(mjNREF);
   X(mjNIMP);
   X(mjNSENS);
+  X(mjNDISTCOEF);
   X(mjNSOLVER);
   X(mjNISLAND);
   X(mjNPOLY);

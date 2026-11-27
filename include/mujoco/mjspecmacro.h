@@ -228,26 +228,27 @@
 
 //-------------------------------- mjsCamera -------------------------------------------------------
 
-#define MJSCAMERA_FIELDS                        \
-    X   ( mjsElement*,    element,          1 ) \
-    XVEC( double,         pos,              3 ) \
-    XVEC( double,         quat,             4 ) \
-    X   ( mjsOrientation, alt,              1 ) \
-    X   ( mjtCamLight,    mode,             1 ) \
-    X   ( mjString*,      targetbody,       1 ) \
-    X   ( mjtProjection,  proj,             1 ) \
-    XVEC( int,            resolution,       2 ) \
-    X   ( int,            output,           1 ) \
-    X   ( double,         fovy,             1 ) \
-    X   ( double,         ipd,              1 ) \
-    XVEC( float,          intrinsic,        4 ) \
-    XVEC( float,          sensor_size,      2 ) \
-    XVEC( float,          focal_length,     2 ) \
-    XVEC( float,          focal_pixel,      2 ) \
-    XVEC( float,          principal_length, 2 ) \
-    XVEC( float,          principal_pixel,  2 ) \
-    X   ( mjDoubleVec*,   userdata,         1 ) \
-    X   ( mjString*,      info,             1 )
+#define MJSCAMERA_FIELDS                                    \
+    X   ( mjsElement*,    element,          1             ) \
+    XVEC( double,         pos,              3             ) \
+    XVEC( double,         quat,             4             ) \
+    X   ( mjsOrientation, alt,              1             ) \
+    X   ( mjtCamLight,    mode,             1             ) \
+    X   ( mjString*,      targetbody,       1             ) \
+    X   ( mjtProjection,  proj,             1             ) \
+    XVEC( int,            resolution,       2             ) \
+    X   ( int,            output,           1             ) \
+    X   ( double,         fovy,             1             ) \
+    X   ( double,         ipd,              1             ) \
+    XVEC( float,          intrinsic,        4             ) \
+    XVEC( float,          sensor_size,      2             ) \
+    XVEC( float,          focal_length,     2             ) \
+    XVEC( float,          focal_pixel,      2             ) \
+    XVEC( float,          principal_length, 2             ) \
+    XVEC( float,          principal_pixel,  2             ) \
+    XVEC( float,          distortion,       mjNDISTCOEF   ) \
+    X   ( mjDoubleVec*,   userdata,         1             ) \
+    X   ( mjString*,      info,             1             )
 
 
 //-------------------------------- mjsLight --------------------------------------------------------

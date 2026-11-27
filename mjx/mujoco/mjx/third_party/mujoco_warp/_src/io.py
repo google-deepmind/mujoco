@@ -26,6 +26,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import history
 from mujoco.mjx.third_party.mujoco_warp._src import sleep
 from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
+from mujoco.mjx.third_party.mujoco_warp._src import util_pkg
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
 
 wp.set_module_options({"default_grid_stride": False})
@@ -709,11 +710,16 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     (mjm.sensor_type, types.SensorType, mujoco.mjtSensor),
     (mjm.wrap_type, types.WrapType, mujoco.mjtWrap),
     (mjm.tree_sleep_policy, types.SleepPolicy, mujoco.mjtSleepPolicy),
+    (mjm.cam_projection, types.ProjectionType, mujoco.mjtProjection),
   ):
     missing = ~np.isin(field, field_type)
     if missing.any():
       names = [mj_type(v).name for v in field[missing]]
       raise NotImplementedError(f"{names} not supported.")
+
+  # TODO(team): remove version check once mujoco >= 4.0.2 is required.
+  if util_pkg.check_version("mujoco>=4.0.2") and (mjm.cam_distortion != 0).any():
+    raise NotImplementedError("Camera lens distortion coefficients are not supported.")
 
   # opt: check supported features in scalar types
   for field, field_type, mj_type in (

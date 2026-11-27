@@ -95,6 +95,7 @@
     <xs:restriction base="xs:string">
       <xs:enumeration value="perspective"/>
       <xs:enumeration value="orthographic"/>
+      <xs:enumeration value="fisheye"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -615,6 +616,16 @@
 
   <xs:simpleType name="doublelist">
     <xs:list itemType="xs:double"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="float1to8">
+    <xs:restriction>
+      <xs:simpleType>
+        <xs:list itemType="xs:float"/>
+      </xs:simpleType>
+      <xs:minLength value="1"/>
+      <xs:maxLength value="8"/>
+    </xs:restriction>
   </xs:simpleType>
 
   <xs:simpleType name="float2">
@@ -1530,6 +1541,11 @@
     <xs:attribute name="principal" type="float2"/>
     <xs:attribute name="principalpixel" type="float2"/>
     <xs:attribute name="sensorsize" type="float2"/>
+    <xs:attribute name="distortion" type="float1to8">
+      <xs:annotation>
+        <xs:documentation>lens distortion coefficients</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 
@@ -2329,6 +2345,11 @@
     <xs:attribute name="principal" type="float2"/>
     <xs:attribute name="principalpixel" type="float2"/>
     <xs:attribute name="sensorsize" type="float2"/>
+    <xs:attribute name="distortion" type="float1to8">
+      <xs:annotation>
+        <xs:documentation>lens distortion coefficients</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 

@@ -2538,6 +2538,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ncam', 4),
              ),
              StructFieldDecl(
+                 name='cam_distortion',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='lens distortion coefficients',
+                 array_extent=('ncam', 'mjNDISTCOEF'),
+             ),
+             StructFieldDecl(
                  name='cam_user',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -8595,6 +8603,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(2,),
                  ),
                  doc='principal point (pixel)',
+             ),
+             StructFieldDecl(
+                 name='distortion',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(8,),
+                 ),
+                 doc='lens distortion coefficients',
              ),
              StructFieldDecl(
                  name='userdata',

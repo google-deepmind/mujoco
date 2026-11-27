@@ -165,6 +165,7 @@ enum geomtype : mjtGeom {
 enum projection : mjtProjection {
   perspective    = mjPROJ_PERSPECTIVE
   orthographic   = mjPROJ_ORTHOGRAPHIC
+  fisheye        = mjPROJ_FISHEYE
 }
 
 enum camlight : mjtCamLight {
@@ -1157,6 +1158,7 @@ element camera : mjsCamera {
   principal          : float[2] (field=principal_length, writing=custom, dim=L)
   principalpixel     : float[2] (field=principal_pixel, writing=custom, dim=1)
   sensorsize         : float[2] (field=sensor_size, writing=custom, dim=L)
+  distortion         : float[1..mjNDISTCOEF] (dim=1)  # lens distortion coefficients
   user               : double[] (field=userdata, dim=opaque)
   exclusive fovy sensorsize
 }

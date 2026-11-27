@@ -485,6 +485,9 @@ typedef struct mjsCamera_ {        // camera specification
   float principal_length[2];       // principal point (length)
   float principal_pixel[2];        // principal point (pixel)
 
+  // lens distortion
+  float distortion[mjNDISTCOEF];   // lens distortion coefficients
+
   // other
   mjDoubleVec* userdata;           // user data
   mjString* info;                  // message appended to compiler errors

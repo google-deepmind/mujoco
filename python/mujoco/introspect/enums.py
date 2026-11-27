@@ -112,6 +112,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
          values=dict([
              ('mjPROJ_PERSPECTIVE', 0),
              ('mjPROJ_ORTHOGRAPHIC', 1),
+             ('mjPROJ_FISHEYE', 2),
          ]),
      )),
     ('mjtCamLight',

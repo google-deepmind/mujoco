@@ -4353,7 +4353,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjPLUGIN_SDF", mjPLUGIN_SDF);
   enum_<mjtProjection>("mjtProjection")
     .value("mjPROJ_PERSPECTIVE", mjPROJ_PERSPECTIVE)
-    .value("mjPROJ_ORTHOGRAPHIC", mjPROJ_ORTHOGRAPHIC);
+    .value("mjPROJ_ORTHOGRAPHIC", mjPROJ_ORTHOGRAPHIC)
+    .value("mjPROJ_FISHEYE", mjPROJ_FISHEYE);
   enum_<mjtRayDataField>("mjtRayDataField")
     .value("mjRAYDATA_DIST", mjRAYDATA_DIST)
     .value("mjRAYDATA_DIR", mjRAYDATA_DIR)
@@ -5000,6 +5001,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("bvh_depth", &MjModel::bvh_depth)
     .property("bvh_nodeid", &MjModel::bvh_nodeid)
     .property("cam_bodyid", &MjModel::cam_bodyid)
+    .property("cam_distortion", &MjModel::cam_distortion)
     .property("cam_fovy", &MjModel::cam_fovy)
     .property("cam_intrinsic", &MjModel::cam_intrinsic)
     .property("cam_ipd", &MjModel::cam_ipd)
@@ -5788,6 +5790,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("userdata", &MjsBody::userdata, reference());
   emscripten::class_<MjsCamera>("MjsCamera")
     .property("alt", &MjsCamera::alt, reference())
+    .property("distortion", &MjsCamera::distortion)
     .property("element", &MjsCamera::element, reference())
     .property("focal_length", &MjsCamera::focal_length)
     .property("focal_pixel", &MjsCamera::focal_pixel)

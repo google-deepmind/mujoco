@@ -2799,6 +2799,46 @@ TEST_F(XMLWriterTest, WritesCameraOutputDefault) {
   EXPECT_EQ(mtemp->cam_output[2], mjCAMOUT_SEG);
 }
 
+TEST_F(XMLWriterTest, WritesCameraDistortion) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="fisheye">
+        <camera projection="fisheye"
+                distortion="0.1 -0.02 0.003 -0.0004"/>
+      </default>
+    </default>
+    <worldbody>
+      <camera name="pinhole"/>
+      <camera name="fisheye" class="fisheye"/>
+      <camera name="explicit" projection="fisheye"
+              distortion="0.25 0.5"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+
+  // the default projection is not written
+  EXPECT_THAT(saved_xml, Not(HasSubstr("projection=\"perspective\"")));
+
+  // round trip
+  MjModelPtr mtemp = LoadModelFromString(saved_xml);
+  ASSERT_THAT(mtemp.get(), NotNull());
+  ASSERT_EQ(mtemp->ncam, 3);
+  for (int i = 0; i < 3; i++) {
+    EXPECT_EQ(mtemp->cam_projection[i], model->cam_projection[i]);
+    for (int j = 0; j < mjNDISTCOEF; j++) {
+      EXPECT_EQ(mtemp->cam_distortion[mjNDISTCOEF * i + j],
+                model->cam_distortion[mjNDISTCOEF * i + j]);
+    }
+  }
+  EXPECT_EQ(mtemp->cam_projection[0], mjPROJ_PERSPECTIVE);
+  EXPECT_EQ(mtemp->cam_projection[2], mjPROJ_FISHEYE);
+  EXPECT_FLOAT_EQ(mtemp->cam_distortion[2 * mjNDISTCOEF + 1], 0.5);
+}
+
 // the energy sensors are saved under the names which the reader knows
 TEST_F(XMLWriterTest, WritesEnergySensors) {
   static constexpr char xml[] = R"(

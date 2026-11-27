@@ -884,6 +884,7 @@ typedef struct mjModel_ {
   int*      cam_output;           // output types (mjtCamOut bit flags)       (ncam x 1)
   float*    cam_sensorsize;       // sensor size: length [width, height]      (ncam x 2)
   float*    cam_intrinsic;        // [focal length; principal point]          (ncam x 4)
+  float*    cam_distortion;       // lens distortion coefficients             (ncam x mjNDISTCOEF)
   mjtNum*   cam_user;             // user data                                (ncam x nuser_cam)
 
   // lights
@@ -2228,6 +2229,9 @@ typedef struct mjsCamera_ {        // camera specification
   float principal_length[2];       // principal point (length)
   float principal_pixel[2];        // principal point (pixel)
 
+  // lens distortion
+  float distortion[mjNDISTCOEF];   // lens distortion coefficients
+
   // other
   mjDoubleVec* userdata;           // user data
   mjString* info;                  // message appended to compiler errors
@@ -2691,7 +2695,8 @@ typedef enum mjtGeom {            // type of geometric shape
 } mjtGeom;
 typedef enum mjtProjection {      // type of camera projection
   mjPROJ_PERSPECTIVE  = 0,        // perspective
-  mjPROJ_ORTHOGRAPHIC             // orthographic
+  mjPROJ_ORTHOGRAPHIC,            // orthographic
+  mjPROJ_FISHEYE                  // fisheye (Kannala-Brandt)
 } mjtProjection;
 typedef enum mjtCamLight {        // tracking mode for camera and light
   mjCAMLIGHT_FIXED    = 0,        // pos and rot fixed in body

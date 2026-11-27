@@ -901,6 +901,7 @@ void mju_camIntrinsics(const mjModel* m, int camid,
 
   switch (projection) {
   case mjPROJ_PERSPECTIVE:
+  case mjPROJ_FISHEYE:
     if (sensorsize[0] && sensorsize[1]) {
       // intrinsic-based perspective camera
       *fx = intrinsic[0] / sensorsize[0] * width;

@@ -392,7 +392,7 @@
             </element>
             <element name="camera">
               <attributes>
-                <attribute name="projection" type="keyword" valid_values="perspective orthographic"/>
+                <attribute name="projection" type="keyword" valid_values="perspective orthographic fisheye"/>
                 <attribute name="fovy" type="float" default="45"/>
                 <attribute name="ipd" type="float" default="0.068"/>
                 <attribute name="resolution" type="array" array_type="int" array_size="2" default="1 1"/>
@@ -409,6 +409,7 @@
                 <attribute name="principal" type="array" array_type="float" array_size="2"/>
                 <attribute name="principalpixel" type="array" array_type="float" array_size="2"/>
                 <attribute name="sensorsize" type="array" array_type="float" array_size="2"/>
+                <attribute name="distortion" type="array" array_type="float" array_size="8"/>
                 <attribute name="user" type="array" array_type="float"/>
               </attributes>
             </element>
@@ -816,7 +817,7 @@
         </element>
         <element name="camera">
           <attributes>
-            <attribute name="projection" type="keyword" valid_values="perspective orthographic"/>
+            <attribute name="projection" type="keyword" valid_values="perspective orthographic fisheye"/>
             <attribute name="fovy" type="float" default="45"/>
             <attribute name="ipd" type="float" default="0.068"/>
             <attribute name="resolution" type="array" array_type="int" array_size="2" default="1 1"/>
@@ -833,6 +834,7 @@
             <attribute name="principal" type="array" array_type="float" array_size="2"/>
             <attribute name="principalpixel" type="array" array_type="float" array_size="2"/>
             <attribute name="sensorsize" type="array" array_type="float" array_size="2"/>
+            <attribute name="distortion" type="array" array_type="float" array_size="8"/>
             <attribute name="user" type="array" array_type="float"/>
           </attributes>
         </element>
@@ -1409,7 +1411,7 @@
               <attributes>
                 <attribute name="name" type="identifier"/>
                 <attribute name="class" type="reference" reference_namespace="default"/>
-                <attribute name="projection" type="keyword" valid_values="perspective orthographic"/>
+                <attribute name="projection" type="keyword" valid_values="perspective orthographic fisheye"/>
                 <attribute name="fovy" type="float" default="45"/>
                 <attribute name="ipd" type="float" default="0.068"/>
                 <attribute name="resolution" type="array" array_type="int" array_size="2" default="1 1"/>
@@ -1427,6 +1429,7 @@
                 <attribute name="principal" type="array" array_type="float" array_size="2"/>
                 <attribute name="principalpixel" type="array" array_type="float" array_size="2"/>
                 <attribute name="sensorsize" type="array" array_type="float" array_size="2"/>
+                <attribute name="distortion" type="array" array_type="float" array_size="8"/>
                 <attribute name="user" type="array" array_type="float"/>
               </attributes>
             </element>
@@ -1646,7 +1649,7 @@
           <attributes>
             <attribute name="name" type="identifier"/>
             <attribute name="class" type="reference" reference_namespace="default"/>
-            <attribute name="projection" type="keyword" valid_values="perspective orthographic"/>
+            <attribute name="projection" type="keyword" valid_values="perspective orthographic fisheye"/>
             <attribute name="fovy" type="float" default="45"/>
             <attribute name="ipd" type="float" default="0.068"/>
             <attribute name="resolution" type="array" array_type="int" array_size="2" default="1 1"/>
@@ -1664,6 +1667,7 @@
             <attribute name="principal" type="array" array_type="float" array_size="2"/>
             <attribute name="principalpixel" type="array" array_type="float" array_size="2"/>
             <attribute name="sensorsize" type="array" array_type="float" array_size="2"/>
+            <attribute name="distortion" type="array" array_type="float" array_size="8"/>
             <attribute name="user" type="array" array_type="float"/>
           </attributes>
         </element>
