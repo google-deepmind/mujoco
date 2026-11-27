@@ -47,6 +47,12 @@ Engine
 
 Deformables
 ^^^^^^^^^^^
+- Fixed capsule collision against 2D :ref:`flexes<deformable-flex>` missing contacts along the capsule shaft (when
+  crossing triangle edges, lying coplanar with a triangle, or piercing a triangle interior) and fixed a NaN for
+  zero-length capsules and degenerate triangles. Existing models with capsule--2D-flex contacts can change behavior.
+  ``mjModel.flex_edgeflap`` is now populated for all 2D flexes, not only those with bending, so that interior shared
+  edges do not generate opposing contacts. Code that used a valid flap to detect bending must check
+  ``mjModel.flex_bendingadr`` instead.
 - Fixed effective-metric PCG stalls and spurious ``mjWARN_INERTIA`` warnings on 2D flexes with passive contacts by
   including fully covered passive flex contacts in the sparse Cholesky preconditioner. Previously, passive flex
   contacts were omitted from the preconditioner, causing the implicit solve to stall or under-converge on stacked cloth

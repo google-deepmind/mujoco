@@ -60,10 +60,14 @@ def _collision_shim(
     flex_condim: wp.array[int],
     flex_contype: wp.array[int],
     flex_dim: wp.array[int],
+    flex_edgeadr: wp.array[int],
+    flex_edgeflap: wp.array[wp.vec2i],
     flex_elem: wp.array[int],
     flex_elem_rodedge: wp.array[wp.vec2i],
     flex_elemadr: wp.array[int],
     flex_elemdataadr: wp.array[int],
+    flex_elemedge: wp.array[int],
+    flex_elemedgeadr: wp.array[int],
     flex_elemflexid: wp.array[int],
     flex_elemlayer: wp.array[int],
     flex_elemnum: wp.array[int],
@@ -241,10 +245,14 @@ def _collision_shim(
   _m.flex_condim = flex_condim
   _m.flex_contype = flex_contype
   _m.flex_dim = flex_dim
+  _m.flex_edgeadr = flex_edgeadr
+  _m.flex_edgeflap = flex_edgeflap
   _m.flex_elem = flex_elem
   _m.flex_elem_rodedge = flex_elem_rodedge
   _m.flex_elemadr = flex_elemadr
   _m.flex_elemdataadr = flex_elemdataadr
+  _m.flex_elemedge = flex_elemedge
+  _m.flex_elemedgeadr = flex_elemedgeadr
   _m.flex_elemflexid = flex_elemflexid
   _m.flex_elemlayer = flex_elemlayer
   _m.flex_elemnum = flex_elemnum
@@ -569,10 +577,14 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_condim,
       m._impl.flex_contype,
       m._impl.flex_dim,
+      m._impl.flex_edgeadr,
+      m._impl.flex_edgeflap,
       m._impl.flex_elem,
       m._impl.flex_elem_rodedge,
       m._impl.flex_elemadr,
       m._impl.flex_elemdataadr,
+      m._impl.flex_elemedge,
+      m._impl.flex_elemedgeadr,
       m._impl.flex_elemflexid,
       m._impl.flex_elemlayer,
       m._impl.flex_elemnum,

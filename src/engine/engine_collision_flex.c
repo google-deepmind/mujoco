@@ -147,67 +147,329 @@ static int boxTriangle(mjPreContact* con, mjtNum margin, const mjtNum* pos,
 }
 
 
-// capsule : triangle with radius
+// closest point q to p on the triangle (0, u1, u2)
+static inline void triClosest(mjtNum q[3], const mjtNum p[3], const mjtNum u1[3],
+                              const mjtNum u2[3]) {
+  const mjtNum u0[3] = {0, 0, 0};
+  mjtNum w[3];
+  mjc_triWeights(w, p, u0, u1, u2);
+  for (int j=0; j < 3; j++) {
+    q[j] = w[1]*u1[j] + w[2]*u2[j];
+  }
+}
+
+
+// set capsule : triangle contact at point p of the capsule axis, given relative to t1
+static inline void capsuleContact(mjPreContact* con, mjtNum dist, const mjtNum p[3],
+                                  const mjtNum nrm[3], mjtNum radius, const mjtNum t1[3]) {
+  con->dist = dist;
+  mji_addScl3(con->pos, p, nrm, radius + 0.5*dist);
+  mji_addTo3(con->pos, t1);
+  mji_copy3(con->normal, nrm);
+  mji_zero3(con->tangent);
+}
+
+
+// capsule : triangle with radius; nbr[k] is the opposite vertex of the adjacent
+// triangle across Stencil2D edge k ((t2, t3), (t3, t1), (t1, t2)), or NULL on a boundary
 static int capsuleTriangle(mjPreContact* con, mjtNum margin, const mjtNum* pos,
                            const mjtNum* mat, const mjtNum* size,
                            const mjtNum* t1, const mjtNum* t2, const mjtNum* t3,
-                           mjtNum rt) {
-  int cnt = 0;
+                           mjtNum rt, const mjtNum* const nbr[3]) {
+#ifdef mjUSESINGLE
+  const mjtNum touch_rel = 1e-6f;
+  const mjtNum pareps = 1e-7f;
+#else
+  const mjtNum touch_rel = 1e-12;
+  const mjtNum pareps = 1e-16;
+#endif
+  const mjtNum edgebias = 1e-6;
+
+  // work relative to t1 to preserve precision far from the origin
   mjtNum radius = size[0];
   mjtNum len = size[1];
+  mjtNum rbound = radius + rt + margin;
   mjtNum axis[3] = {mat[2], mat[5], mat[8]};
-  mjtNum p1[3], p2[3];
+  mjtNum rel[3], a[3], b[3], ab[3];
+  mji_sub3(rel, pos, t1);
+  mji_addScl3(a, rel, axis, -len);
+  mji_addScl3(b, rel, axis, len);
+  mji_sub3(ab, b, a);
 
-  // capsule endpoints
-  mju_addScl3(p1, pos, axis, -len);
-  mju_addScl3(p2, pos, axis, len);
+  mjtNum u0[3] = {0, 0, 0}, u1[3], u2[3];
+  mji_sub3(u1, t2, t1);
+  mji_sub3(u2, t3, t1);
+  const mjtNum* vert[3] = {u0, u1, u2};
 
-  // Check endpoints against triangle
-  cnt += sphereTriangle(con + cnt, margin, p1, radius, t1, t2, t3, rt);
-  if (cnt >= mjMAXCONPAIR) return cnt;
-  cnt += sphereTriangle(con + cnt, margin, p2, radius, t1, t2, t3, rt);
-  if (cnt >= mjMAXCONPAIR) return cnt;
+  // coordinate scale and relative touching tolerance
+  mjtNum uu1 = mju_dot3(u1, u1);
+  mjtNum uu2 = mju_dot3(u2, u2);
+  mjtNum scale2 = mjMAX(mjMAX(uu1, uu2), mjMAX(mju_dot3(a, a), mju_dot3(b, b)));
+  mjtNum touch = touch_rel * mju_sqrt(scale2);
 
-  // Check triangle vertices against capsule axis (Point-Segment)
-  const mjtNum* vert[3] = {t1, t2, t3};
-  for (int i = 0; i < 3; i++) {
-    // point-segment distance
-    mjtNum vec[3], ab[3];
-    mju_sub3(vec, vert[i], p1);
-    mju_sub3(ab, p2, p1);
-    mjtNum t = mju_dot3(vec, ab) / (4 * len * len);  // ab length is 2*len
+  // triangle plane normal and slab early-out
+  mjtNum nh[3];
+  mji_cross(nh, u1, u2);
+  mjtNum n2 = mju_dot3(nh, nh);
+  int valid_tri = (n2 > pareps * uu1 * uu2);
+  mjtNum d1 = 0, d2 = 0;
+  if (valid_tri) {
+    mju_scl3(nh, nh, 1 / mju_sqrt(n2));
+    d1 = mju_dot3(nh, a);
+    d2 = mju_dot3(nh, b);
+    if (mjMIN(d1, d2) > rbound || mjMAX(d1, d2) < -rbound) {
+      return 0;
+    }
+  }
 
-    // clamp t to [0, 1] segment (only process interior)
-    if (t <= mjMINVAL || t >= 1 - mjMINVAL) {
-      continue;
+  mjtNum ab2 = mju_dot3(ab, ab);
+  int is_seg = (ab2 > mjMINVAL);
+
+  // check whether the capsule axis crosses the triangle interior
+  int regime2 = 0;
+  mjtNum p_touch[3] = {a[0], a[1], a[2]};
+  if (valid_tri && is_seg && d1*d2 < 0) {
+    mjtNum x[3], qx[3], dx[3];
+    mji_addScl3(x, a, ab, d1 / (d1 - d2));
+    triClosest(qx, x, u1, u2);
+    mji_sub3(dx, x, qx);
+    if (mju_dot3(dx, dx) <= touch*touch) {
+      regime2 = 1;
+      mji_copy3(p_touch, x);
+    }
+  }
+
+  // regime 1: closest-feature contacts when core shapes are separated; the first feature
+  // touching within rounding is the regime 2 witness p_touch (avoid noise normals)
+  int cnt = 0;
+  if (!regime2) {
+    // squared distance beyond which a feature neither touches nor makes contact
+    mjtNum range = mjMAX(rbound, touch);
+    mjtNum range2 = range*range;
+
+    // capsule endpoints against triangle (a zero-length capsule has a single end cap)
+    const mjtNum* ends[2] = {a, b};
+    for (int i=0; i < (is_seg ? 2 : 1); i++) {
+      mjtNum q[3], dif[3];
+      triClosest(q, ends[i], u1, u2);
+      mji_sub3(dif, q, ends[i]);
+      if (mju_dot3(dif, dif) > range2) {
+        continue;
+      }
+      mjtNum dst = mju_normalize3(dif);
+      if (dst <= touch && valid_tri) {
+        regime2 = 1;
+        mji_copy3(p_touch, ends[i]);
+        break;
+      }
+      if (dst <= rbound && cnt < mjMAXCONPAIR) {
+        capsuleContact(con + cnt++, dst - radius - rt, ends[i], dif, radius, t1);
+      }
     }
 
-    // closest point on segment
-    mjtNum closest[3];
-    mji_addScl3(closest, p1, ab, t);
+    // triangle vertices and edges against open capsule shaft
+    if (is_seg && !regime2) {
+      for (int i=0; i < 3; i++) {
+        mjtNum vec[3];
+        mji_sub3(vec, vert[i], a);
+        mjtNum t = mju_dot3(vec, ab) / ab2;
+        if (t <= mjMINVAL || t >= 1 - mjMINVAL) {
+          continue;
+        }
+        mjtNum closest[3];
+        mji_addScl3(closest, a, ab, t);
+        mji_sub3(vec, vert[i], closest);
+        if (mju_dot3(vec, vec) > range2) {
+          continue;
+        }
+        mjtNum dst = mju_normalize3(vec);
+        if (dst <= touch && valid_tri) {
+          regime2 = 1;
+          mji_copy3(p_touch, closest);
+          break;
+        }
+        if (dst > rbound || cnt >= mjMAXCONPAIR) {
+          continue;
+        }
+        con[cnt].dist = dst - radius - rt;
+        mji_copy3(con[cnt].normal, vec);
+        mji_zero3(con[cnt].tangent);
+        mji_add3(con[cnt].pos, closest, vert[i]);
+        mji_addToScl3(con[cnt].pos, vec, radius - rt);
+        mju_scl3(con[cnt].pos, con[cnt].pos, 0.5);
+        mji_addTo3(con[cnt].pos, t1);
+        cnt++;
+      }
 
-    // distance vector
-    mju_sub3(vec, vert[i], closest);
-    mjtNum dist = mju_normalize3(vec);
+      // Stencil2D edge k connects vert[(k+1)%3] and vert[(k+2)%3], opposite vert[k]
+      for (int k=0; k < 3 && !regime2; k++) {
+        const mjtNum* c = vert[(k+1) % 3];
+        const mjtNum* e = vert[(k+2) % 3];
+        mjtNum w[4];
+        int n = mjc_segWeights(w, a, b, c, e);
+        if (n != 1 || w[0] <= mjMINVAL || w[0] >= 1 - mjMINVAL ||
+            w[1] <= mjMINVAL || w[1] >= 1 - mjMINVAL) {
+          continue;
+        }
+        mjtNum p[3], q[3], dif[3];
+        mji_addScl3(p, a, ab, w[0]);
+        for (int j=0; j < 3; j++) {
+          q[j] = c[j] + w[1]*(e[j] - c[j]);
+        }
+        mji_sub3(dif, q, p);
+        if (mju_dot3(dif, dif) > range2) {
+          continue;
+        }
+        mjtNum dst = mju_normalize3(dif);
 
-    if (dist > radius + rt + margin) {
-      continue;
+        // skip interior edge pushed from the neighbour triangle's side when crossing the plane;
+        // a touching edge has no reliable direction and must reach the regime 2 check below
+        if (dst > touch && nbr[k] && valid_tri && d1*d2 <= 0) {
+          mjtNum onbr[3];
+          mji_sub3(onbr, nbr[k], t1);
+          mji_subFrom3(onbr, q);
+          if (mju_dot3(dif, onbr) < 0) {
+            continue;
+          }
+        }
+        if (dst <= touch && valid_tri) {
+          regime2 = 1;
+          mji_copy3(p_touch, p);
+          break;
+        }
+        if (dst > rbound || cnt >= mjMAXCONPAIR) {
+          continue;
+        }
+        con[cnt].dist = dst - radius - rt;
+        mji_copy3(con[cnt].normal, dif);
+        mji_zero3(con[cnt].tangent);
+        mji_add3(con[cnt].pos, p, q);
+        mji_addToScl3(con[cnt].pos, dif, radius - rt);
+        mju_scl3(con[cnt].pos, con[cnt].pos, 0.5);
+        mji_addTo3(con[cnt].pos, t1);
+        cnt++;
+      }
     }
 
-    // con->dist
-    con[cnt].dist = dist - radius - rt;
+    // contacts of separated features are discarded when the core shapes touch
+    if (!regime2) {
+      return cnt;
+    }
+    cnt = 0;
+  }
 
-    // Frame: normal from Capsule to Triangle. 'vec' points Closest->Vert.
-    mji_copy3(con[cnt].normal, vec);
-    mju_zero3(con[cnt].tangent);
+  // regime 2: minimum translation over the triangle normal and boundary edge axes
+  // +nh translates the triangle in +nh (past max(d1, d2)); -nh past min(d1, d2)
+  mjtNum depth_pos = mjMAX(d1, d2);
+  mjtNum depth_neg = -mjMIN(d1, d2);
+  mjtNum best_depth;
+  mjtNum nrm[3];
+  int near_end;  // 0 for a, 1 for b
+  if (depth_neg <= depth_pos) {
+    best_depth = depth_neg;
+    mji_scl3(nrm, nh, -1);
+    near_end = (d1 <= d2) ? 0 : 1;
+  } else {
+    best_depth = depth_pos;
+    mji_copy3(nrm, nh);
+    near_end = (d1 >= d2) ? 0 : 1;
+  }
 
-    // Position: midway between surfaces
-    mji_add3(con[cnt].pos, closest, vert[i]);
-    mji_addToScl3(con[cnt].pos, vec, radius - rt);
-    mju_scl3(con[cnt].pos, con[cnt].pos, 0.5);
+  // boundary edge axes: ab x edge_k (only boundary edges are valid exits of a cloth mesh)
+  // an edge axis must beat the triangle normal by a bias, since the normal exit keeps both end
+  // caps; an edge axis nearly parallel to the normal (within ~8 degrees) must be better by 5% of
+  // the normal depth, matching mjraw_BoxBox
+  int win_edge = -1;
+  mjtNum face_depth = best_depth;
+  if (is_seg) {
+    for (int k=0; k < 3; k++) {
+      if (nbr[k]) {
+        continue;
+      }
+      const mjtNum* c = vert[(k+1) % 3];
+      const mjtNum* e = vert[(k+2) % 3];
+      const mjtNum* opp = vert[k];
+      mjtNum ed[3], ax[3];
+      mji_sub3(ed, e, c);
+      mji_cross(ax, ab, ed);
+      mjtNum ax2 = mju_dot3(ax, ax);
+      if (ax2 <= pareps * ab2 * mju_dot3(ed, ed)) {
+        continue;
+      }
+      mju_scl3(ax, ax, 1 / mju_sqrt(ax2));
+      mjtNum oc[3];
+      mji_sub3(oc, opp, c);
+      if (mju_dot3(ax, oc) < 0) {
+        mju_scl3(ax, ax, -1);
+      }
+      mjtNum s_max = mjMAX(mju_dot3(ax, a), mju_dot3(ax, b));
+      mjtNum t_min = mjMIN(mju_dot3(ax, u0), mjMIN(mju_dot3(ax, u1), mju_dot3(ax, u2)));
+      mjtNum dk = s_max - t_min;
+      mjtNum bias = (mju_abs(mju_dot3(ax, nh)) > 0.99) ? 0.05 : edgebias;
+      if (dk < face_depth - mjMAX(bias*mju_abs(face_depth), touch) && dk < best_depth) {
+        best_depth = dk;
+        mji_copy3(nrm, ax);
+        win_edge = k;
+      }
+    }
+  }
 
-    cnt++;
-    if (cnt >= mjMAXCONPAIR) return cnt;
+  // coplanar regime-2 exit along +-N: emit end caps that project onto the triangle, or p_touch
+  // if neither does
+  mjtNum dist = -best_depth - radius - rt;
+  if (win_edge < 0 && mju_abs(d1 - d2) <= touch) {
+    if (dist <= margin) {
+      const mjtNum* ends[2] = {a, b};
+      int nend = 0;
+      for (int i=0; i < (is_seg ? 2 : 1); i++) {
+        mjtNum q[3], dif[3];
+        triClosest(q, ends[i], u1, u2);
+        mji_sub3(dif, q, ends[i]);
+        mji_addToScl3(dif, nh, -mju_dot3(dif, nh));
+        if (mju_dot3(dif, dif) <= touch*touch && cnt < mjMAXCONPAIR) {
+          capsuleContact(con + cnt++, dist, ends[i], nrm, radius, t1);
+          nend++;
+        }
+      }
+      if (nend == 0 && cnt < mjMAXCONPAIR) {
+        capsuleContact(con + cnt++, dist, p_touch, nrm, radius, t1);
+      }
+    }
+    return cnt;
+  }
+
+  // compute regime-2 witness on capsule axis
+  mjtNum p[3];
+  if (win_edge >= 0) {
+    const mjtNum* c = vert[(win_edge+1) % 3];
+    const mjtNum* e = vert[(win_edge+2) % 3];
+    mjtNum w[4];
+    int n = mjc_segWeights(w, a, b, c, e);
+    mjtNum s = (n == 2) ? 0.5*(w[0] + w[2]) : w[0];
+    mji_addScl3(p, a, ab, s);
+  } else {
+    mji_copy3(p, near_end == 0 ? a : b);
+  }
+
+  if (dist <= margin && cnt < mjMAXCONPAIR) {
+    capsuleContact(con + cnt++, dist, p, nrm, radius, t1);
+  }
+
+  // when exiting along +-N, keep the other end cap if it lies on the valid side
+  if (win_edge < 0 && is_seg && cnt < mjMAXCONPAIR) {
+    const mjtNum* other = (near_end == 0) ? b : a;
+    mjtNum q[3], dif[3];
+    triClosest(q, other, u1, u2);
+    mji_sub3(dif, q, other);
+    mjtNum dst = mju_normalize3(dif);
+
+    // an end cap touching the triangle has no reliable direction: use the exit normal
+    if (dst <= touch) {
+      mji_copy3(dif, nrm);
+    }
+    if (dst <= rbound && mju_dot3(dif, nrm) > 0) {
+      capsuleContact(con + cnt++, dst - radius - rt, other, dif, radius, t1);
+    }
   }
 
   return cnt;
@@ -735,9 +997,22 @@ int mjc_SubGeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int s
   // capsule : triangle
   else if (type == mjGEOM_CAPSULE && dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+    const mjtNum* nbr[3] = {NULL, NULL, NULL};
+    if (m->flex_elemedge && m->flex_edgeflap && m->flex_elemedgeadr[f] >= 0) {
+      const int* eedge = m->flex_elemedge + m->flex_elemedgeadr[f] + 3*e;
+      int eadr = m->flex_edgeadr[f];
+      for (int k=0; k < 3; k++) {
+        const int* flap = m->flex_edgeflap + 2*(eadr + eedge[k]);
+        if (flap[0] >= 0 && flap[1] >= 0) {
+          int vnbr = (flap[0] == edata[k]) ? flap[1] : flap[0];
+          nbr[k] = vertxpos + 3*vnbr;
+        }
+      }
+    }
     ncon = capsuleTriangle(con, margin, d->geom_xpos + 3*g, d->geom_xmat + 9*g,
-                                 m->geom_size + 3*g, vertxpos + 3*edata[0], vertxpos + 3*edata[1],
-                                 vertxpos + 3*edata[2], m->flex_radius[f]);
+                           m->geom_size + 3*g, vertxpos + 3*edata[0],
+                           vertxpos + 3*edata[1], vertxpos + 3*edata[2],
+                           m->flex_radius[f], nbr);
   }
 
   // sphere/capsule : tetrahedron

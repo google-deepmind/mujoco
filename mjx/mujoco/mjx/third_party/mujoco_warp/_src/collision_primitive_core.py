@@ -23,10 +23,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat23
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
-from mujoco.mjx.third_party.mujoco_warp._src.types import mat53
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat83
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat113
-from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec8
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec11
 
@@ -1455,26 +1453,77 @@ def capsule_box(
 
 
 @wp.func
-def _tri_area_sign(p1: wp.vec2, p2: wp.vec2, p3: wp.vec2) -> float:
-  """Sign of (signed) area of planar triangle."""
-  return wp.sign((p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1]))
+def tri_weights(p: wp.vec3, a: wp.vec3, b: wp.vec3, c: wp.vec3) -> wp.vec3:
+  """Barycentric weights of the closest point on triangle abc to p.
 
+  Port of mjc_triWeights from engine_collision_primitive.c.
 
-@wp.func
-def _tri_point_segment(p: wp.vec2, u: wp.vec2, v: wp.vec2) -> wp.vec2:
-  """Find nearest point to p within line segment (u, v)."""
-  uv = v - u
-  up = p - u
+  Args:
+    p: Query point.
+    a: Triangle vertex positions.
+    b: Triangle vertex positions.
+    c: Triangle vertex positions.
 
-  denom = wp.max(MJ_MINVAL, wp.dot(uv, uv))
-  a = wp.dot(uv, up) / denom
+  Returns:
+    Barycentric weights of the closest point, ordered as (a, b, c).
+  """
+  # compute barycentric coordinates via Voronoi regions (See Ericson 5.1.5)
+  ab = b - a
+  ac = c - a
+  ap = p - a
+  bp = p - b
+  cp = p - c
 
-  if a <= 0.0:
-    return u
-  elif a >= 1.0:
-    return v
-  else:
-    return u + a * uv
+  dot1 = wp.dot(ab, ap)
+  dot2 = wp.dot(ac, ap)
+  dot3 = wp.dot(ab, bp)
+  dot4 = wp.dot(ac, bp)
+  dot5 = wp.dot(ab, cp)
+  dot6 = wp.dot(ac, cp)
+
+  # vertex region outside a
+  if dot1 <= 0.0 and dot2 <= 0.0:
+    return wp.vec3(1.0, 0.0, 0.0)
+
+  # vertex region outside b
+  if dot3 >= 0.0 and dot4 <= dot3:
+    return wp.vec3(0.0, 1.0, 0.0)
+
+  # vertex region outside c
+  if dot6 >= 0.0 and dot5 <= dot6:
+    return wp.vec3(0.0, 0.0, 1.0)
+
+  # signed areas of pbc, pca, pab scaled by 4 * area(abc)
+  va = dot3 * dot6 - dot5 * dot4
+  vb = dot5 * dot2 - dot1 * dot6
+  vc = dot1 * dot4 - dot3 * dot2
+
+  # edge region ab
+  if vc <= 0.0 and dot1 >= 0.0 and dot3 <= 0.0 and dot1 > dot3:
+    t = dot1 / (dot1 - dot3)
+    return wp.vec3(1.0 - t, t, 0.0)
+
+  # edge region ac
+  if vb <= 0.0 and dot2 >= 0.0 and dot6 <= 0.0 and dot2 > dot6:
+    t = dot2 / (dot2 - dot6)
+    return wp.vec3(1.0 - t, 0.0, t)
+
+  # edge region bc
+  d43 = dot4 - dot3
+  d56 = dot5 - dot6
+  if va <= 0.0 and d43 >= 0.0 and d56 >= 0.0 and d43 + d56 > 0.0:
+    t = d43 / (d43 + d56)
+    return wp.vec3(0.0, 1.0 - t, t)
+
+  # face region abc
+  denom = va + vb + vc
+  if denom > 0.0:
+    inv = 1.0 / denom
+    t = vb * inv
+    u = vc * inv
+    return wp.vec3(1.0 - t - u, t, u)
+
+  return wp.vec3(1.0, 0.0, 0.0)
 
 
 @wp.func
@@ -1490,7 +1539,7 @@ def sphere_triangle(
 ) -> Tuple[float, wp.vec3, wp.vec3]:
   """Core contact geometry calculation for sphere-triangle collision.
 
-  Port of mjraw_SphereTriangle from engine_collision_primitive.c
+  Port of sphereTriangle from engine_collision_flex.c.
 
   Args:
     sphere_pos: Center position of the sphere.
@@ -1506,55 +1555,26 @@ def sphere_triangle(
     - Contact position.
     - Contact normal vector.
   """
-  S = sphere_pos - t1
-  A = t2 - t1
-  B = t3 - t1
-
-  N = wp.normalize(wp.cross(A, B))
-
-  dstS = wp.dot(N, S)
-  if wp.abs(dstS) > margin + sphere_radius + tri_radius:
-    return MJ_MAXVAL, wp.vec3(0.0), wp.vec3(0.0)
-
-  P = S - dstS * N
-
-  V1 = wp.normalize(A)
-  lenA = wp.length(A)
-  V2 = wp.normalize(wp.cross(N, A))
-
-  o = wp.vec2(0.0, 0.0)
-  a = wp.vec2(lenA, 0.0)
-  b = wp.vec2(wp.dot(V1, B), wp.dot(V2, B))
-  p = wp.vec2(wp.dot(V1, P), wp.dot(V2, P))
-
-  sign1 = _tri_area_sign(p, o, a)
-  sign2 = _tri_area_sign(p, a, b)
-  sign3 = _tri_area_sign(p, b, o)
-
-  X = wp.vec3(0.0)
-  if sign1 == sign2 and sign2 == sign3:
-    X = P
-  else:
-    x0 = _tri_point_segment(p, o, a)
-    x1 = _tri_point_segment(p, a, b)
-    x2 = _tri_point_segment(p, b, o)
-
-    d0 = wp.length(p - x0)
-    d1 = wp.length(p - x1)
-    d2 = wp.length(p - x2)
-
-    if d0 < d1 and d0 < d2:
-      X = x0[0] * V1 + x0[1] * V2
-    elif d1 < d2:
-      X = x1[0] * V1 + x1[1] * V2
+  s = sphere_pos - t1
+  u1 = t2 - t1
+  u2 = t3 - t1
+  w = tri_weights(s, wp.vec3(0.0), u1, u2)
+  if w[0] > 0.0 and w[1] > 0.0 and w[2] > 0.0:
+    n = wp.cross(u1, u2)
+    n2 = wp.dot(n, n)
+    if n2 > _BOXBOX_PAREPS * wp.dot(u1, u1) * wp.dot(u2, u2):
+      nh = n / wp.sqrt(n2)
+      q = s - wp.dot(nh, s) * nh
     else:
-      X = x2[0] * V1 + x2[1] * V2
+      q = w[1] * u1 + w[2] * u2
+  else:
+    q = w[1] * u1 + w[2] * u2
 
-  dist, pos, nrm = sphere_sphere(sphere_pos, sphere_radius, t1 + X, tri_radius)
+  dist, pos, nrm = sphere_sphere(s, sphere_radius, q, tri_radius)
   if dist > margin:
     return MJ_MAXVAL, wp.vec3(0.0), wp.vec3(0.0)
 
-  return dist, pos, nrm
+  return dist, pos + t1, nrm
 
 
 @wp.func
@@ -1650,74 +1670,6 @@ def box_triangle(
 
 
 @wp.func
-def tri_weights(p: wp.vec3, a: wp.vec3, b: wp.vec3, c: wp.vec3) -> wp.vec3:
-  """Barycentric weights of the closest point on triangle abc to p.
-
-  Port of mjc_triWeights from engine_collision_primitive.c.
-
-  Args:
-    p: Query point.
-    a: Triangle vertex positions.
-    b: Triangle vertex positions.
-    c: Triangle vertex positions.
-
-  Returns:
-    Barycentric weights of the closest point, ordered as (a, b, c).
-  """
-  # compute barycentric coordinates via Voronoi regions (See Ericson 5.1.5)
-  ab = b - a
-  ac = c - a
-  ap = p - a
-  bp = p - b
-  cp = p - c
-
-  dot1 = wp.dot(ab, ap)
-  dot2 = wp.dot(ac, ap)
-  dot3 = wp.dot(ab, bp)
-  dot4 = wp.dot(ac, bp)
-  dot5 = wp.dot(ab, cp)
-  dot6 = wp.dot(ac, cp)
-
-  # vertex region outside a
-  if dot1 <= 0.0 and dot2 <= 0.0:
-    return wp.vec3(1.0, 0.0, 0.0)
-
-  # vertex region outside b
-  if dot3 >= 0.0 and dot4 <= dot3:
-    return wp.vec3(0.0, 1.0, 0.0)
-
-  # vertex region outside c
-  if dot6 >= 0.0 and dot5 <= dot6:
-    return wp.vec3(0.0, 0.0, 1.0)
-
-  # signed areas of pbc, pca, pab scaled by 4 * area(abc)
-  va = dot3 * dot6 - dot5 * dot4
-  vb = dot5 * dot2 - dot1 * dot6
-  vc = dot1 * dot4 - dot3 * dot2
-
-  # edge region ab
-  if vc <= 0.0 and dot1 >= 0.0 and dot3 <= 0.0:
-    t = dot1 / (dot1 - dot3)
-    return wp.vec3(1.0 - t, t, 0.0)
-
-  # edge region ac
-  if vb <= 0.0 and dot2 >= 0.0 and dot6 <= 0.0:
-    t = dot2 / (dot2 - dot6)
-    return wp.vec3(1.0 - t, 0.0, t)
-
-  # edge region bc
-  if va <= 0.0 and (dot4 - dot3) >= 0.0 and (dot5 - dot6) >= 0.0:
-    t = (dot4 - dot3) / ((dot4 - dot3) + (dot5 - dot6))
-    return wp.vec3(0.0, 1.0 - t, t)
-
-  # face region abc
-  inv = 1.0 / (va + vb + vc)
-  t = vb * inv
-  u = vc * inv
-  return wp.vec3(1.0 - t - u, t, u)
-
-
-@wp.func
 def capsule_triangle(
   # In:
   capsule_pos: wp.vec3,
@@ -1729,10 +1681,14 @@ def capsule_triangle(
   t3: wp.vec3,
   tri_radius: float,
   margin: float,
-) -> Tuple[vec5, mat53, mat53]:
+  nbr_mask: int,
+  nbr0: wp.vec3,
+  nbr1: wp.vec3,
+  nbr2: wp.vec3,
+) -> Tuple[int, vec8, mat83, mat83]:
   """Core contact geometry calculation for capsule-triangle collision.
 
-  Port of mjraw_CapsuleTriangle from engine_collision_primitive.c
+  Port of capsuleTriangle from engine_collision_flex.c.
 
   Args:
     capsule_pos: Center position of the capsule.
@@ -1744,55 +1700,267 @@ def capsule_triangle(
     t3: Triangle vertex positions.
     tri_radius: Triangle (flex element) radius.
     margin: Collision margin for filtering contacts.
+    nbr_mask: 3-bit mask; bit k is 1 if Stencil2D edge k has a neighbour triangle.
+    nbr0: Opposite vertex of neighbour across Stencil2D edge 0 (t2, t3).
+    nbr1: Opposite vertex of neighbour across Stencil2D edge 1 (t3, t1).
+    nbr2: Opposite vertex of neighbour across Stencil2D edge 2 (t1, t2).
 
   Returns:
-    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts): capsule
-      end caps 0-1, then triangle vertices 2-4.
+    - Number of active contacts (0 to 8).
+    - Vector of contact distances (first ncon entries valid).
     - Matrix of contact positions (one per row).
     - Matrix of contact normal vectors (one per row).
   """
-  contact_dist = vec5(MJ_MAXVAL)
-  contact_pos = mat53()
-  contact_normal = mat53()
+  contact_dist = vec8(MJ_MAXVAL)
+  contact_pos = mat83()
+  contact_normal = mat83()
 
-  p1 = capsule_pos - capsule_axis * capsule_half_length
-  p2 = capsule_pos + capsule_axis * capsule_half_length
+  # work relative to t1 to preserve precision far from the origin
+  rbound = capsule_radius + tri_radius + margin
+  rel = capsule_pos - t1
+  a = rel - capsule_axis * capsule_half_length
+  b = rel + capsule_axis * capsule_half_length
+  ab = b - a
 
-  d, p, n = sphere_triangle(p1, capsule_radius, t1, t2, t3, tri_radius, margin)
-  contact_dist[0] = d
-  contact_pos[0] = p
-  contact_normal[0] = n
+  u0 = wp.vec3(0.0)
+  u1 = t2 - t1
+  u2 = t3 - t1
 
-  d, p, n = sphere_triangle(p2, capsule_radius, t1, t2, t3, tri_radius, margin)
-  contact_dist[1] = d
-  contact_pos[1] = p
-  contact_normal[1] = n
+  # coordinate scale and relative touching tolerance
+  uu1 = wp.dot(u1, u1)
+  uu2 = wp.dot(u2, u2)
+  scale2 = wp.max(wp.max(uu1, uu2), wp.max(wp.dot(a, a), wp.dot(b, b)))
+  touch = _BOXBOX_SEPEPS * wp.sqrt(scale2)
 
-  ab = p2 - p1
-  ab_len_sq = 4.0 * capsule_half_length * capsule_half_length
-  inv_ab_len_sq = 1.0 / wp.max(MJ_MINVAL, ab_len_sq)
+  # triangle plane normal and slab early-out
+  nh = wp.cross(u1, u2)
+  n2 = wp.dot(nh, nh)
+  valid_tri = n2 > _BOXBOX_PAREPS * uu1 * uu2
+  d1 = float(0.0)
+  d2 = float(0.0)
+  if valid_tri:
+    nh = nh / wp.sqrt(n2)
+    d1 = wp.dot(nh, a)
+    d2 = wp.dot(nh, b)
+    if wp.min(d1, d2) > rbound or wp.max(d1, d2) < -rbound:
+      return 0, contact_dist, contact_pos, contact_normal
 
-  for vi in range(3):
-    vert = wp.vec3(0.0)
-    if vi == 0:
-      vert = t1
-    elif vi == 1:
-      vert = t2
-    else:
-      vert = t3
+  ab2 = wp.dot(ab, ab)
+  is_seg = ab2 > MJ_MINVAL
 
-    vec = vert - p1
-    t_param = wp.dot(vec, ab) * inv_ab_len_sq
+  # a zero-length capsule has a single end cap
+  ncap = 2 if is_seg else 1
 
-    if t_param > MJ_MINVAL and t_param < 1.0 - MJ_MINVAL:
-      closest = p1 + ab * t_param
-      d, p, n = sphere_sphere(closest, capsule_radius, vert, tri_radius)
-      if d <= margin:
-        contact_dist[2 + vi] = d
-        contact_pos[2 + vi] = p
-        contact_normal[2 + vi] = n
+  # check whether the capsule axis crosses the triangle interior
+  regime2 = bool(False)
+  p_touch = a
+  if valid_tri and is_seg and d1 * d2 < 0.0:
+    x = a + ab * (d1 / (d1 - d2))
+    w = tri_weights(x, u0, u1, u2)
+    qx = w[1] * u1 + w[2] * u2
+    dx = x - qx
+    if wp.dot(dx, dx) <= touch * touch:
+      regime2 = True
+      p_touch = x
 
-  return contact_dist, contact_pos, contact_normal
+  # regime 1: closest-feature contacts when core shapes are separated; the first feature
+  # touching within rounding is the regime 2 witness p_touch (avoid noise normals)
+  cnt = int(0)
+  if not regime2:
+    # squared distance beyond which a feature neither touches nor makes contact
+    range2 = wp.max(rbound, touch) * wp.max(rbound, touch)
+
+    # capsule endpoints against triangle
+    for i in range(ncap):
+      end = a if i == 0 else b
+      w = tri_weights(end, u0, u1, u2)
+      q = w[1] * u1 + w[2] * u2
+      dif = q - end
+      if wp.dot(dif, dif) > range2:
+        continue
+      dst = wp.length(dif)
+      if dst <= touch and valid_tri:
+        regime2 = True
+        p_touch = end
+        break
+      nrm_i = wp.vec3(1.0, 0.0, 0.0) if dst < MJ_MINVAL else dif / dst
+      if dst <= rbound and cnt < 8:
+        d_con = dst - capsule_radius - tri_radius
+        contact_dist[cnt] = d_con
+        contact_pos[cnt] = end + nrm_i * (capsule_radius + 0.5 * d_con) + t1
+        contact_normal[cnt] = nrm_i
+        cnt += 1
+
+    # triangle vertices and edges against open capsule shaft
+    if is_seg and not regime2:
+      for i in range(3):
+        v = u0 if i == 0 else (u1 if i == 1 else u2)
+        t_param = wp.dot(v - a, ab) / ab2
+        if t_param > MJ_MINVAL and t_param < 1.0 - MJ_MINVAL:
+          closest = a + ab * t_param
+          dif = v - closest
+          if wp.dot(dif, dif) > range2:
+            continue
+          dst = wp.length(dif)
+          if dst <= touch and valid_tri:
+            regime2 = True
+            p_touch = closest
+            break
+          nrm_i = wp.vec3(1.0, 0.0, 0.0) if dst < MJ_MINVAL else dif / dst
+          if dst <= rbound and cnt < 8:
+            d_con = dst - capsule_radius - tri_radius
+            contact_dist[cnt] = d_con
+            contact_pos[cnt] = 0.5 * (closest + v + nrm_i * (capsule_radius - tri_radius)) + t1
+            contact_normal[cnt] = nrm_i
+            cnt += 1
+
+      # Stencil2D edge k connects vert[(k+1)%3] and vert[(k+2)%3], opposite vert[k]
+      for k in range(3):
+        if regime2:
+          break
+        c = u1 if k == 0 else (u2 if k == 1 else u0)
+        e = u2 if k == 0 else (u0 if k == 1 else u1)
+        n_seg, w0, _w1 = _segment_weights(a, b, c, e)
+        if (
+          n_seg == 1
+          and w0[0] > MJ_MINVAL
+          and w0[0] < 1.0 - MJ_MINVAL
+          and w0[1] > MJ_MINVAL
+          and w0[1] < 1.0 - MJ_MINVAL
+        ):
+          p_seg = a + ab * w0[0]
+          q_seg = c + (e - c) * w0[1]
+          dif = q_seg - p_seg
+          if wp.dot(dif, dif) > range2:
+            continue
+          dst = wp.length(dif)
+          nrm_i = wp.vec3(1.0, 0.0, 0.0) if dst < MJ_MINVAL else dif / dst
+
+          # skip interior edge pushed from the neighbour triangle's side when crossing the plane;
+          # a touching edge has no reliable direction and must reach the regime 2 check below
+          if dst > touch and (nbr_mask & (1 << k)) != 0 and valid_tri and d1 * d2 <= 0.0:
+            nbr_k = nbr0 if k == 0 else (nbr1 if k == 1 else nbr2)
+            onbr = (nbr_k - t1) - q_seg
+            if wp.dot(nrm_i, onbr) < 0.0:
+              continue
+
+          if dst <= touch and valid_tri:
+            regime2 = True
+            p_touch = p_seg
+            break
+          if dst <= rbound and cnt < 8:
+            d_con = dst - capsule_radius - tri_radius
+            contact_dist[cnt] = d_con
+            contact_pos[cnt] = 0.5 * (p_seg + q_seg + nrm_i * (capsule_radius - tri_radius)) + t1
+            contact_normal[cnt] = nrm_i
+            cnt += 1
+
+    # contacts of separated features are discarded when the core shapes touch
+    if not regime2:
+      return cnt, contact_dist, contact_pos, contact_normal
+    cnt = 0
+
+  # regime 2: minimum translation over the triangle normal and boundary edge axes
+  depth_pos = wp.max(d1, d2)
+  depth_neg = -wp.min(d1, d2)
+  if depth_neg <= depth_pos:
+    best_depth = depth_neg
+    nrm = -nh
+    near_end = 0 if d1 <= d2 else 1
+  else:
+    best_depth = depth_pos
+    nrm = nh
+    near_end = 0 if d1 >= d2 else 1
+
+  # boundary edge axes: ab x edge_k (only boundary edges are valid exits of a cloth mesh)
+  # an edge axis must beat the triangle normal by a bias, since the normal exit keeps both end
+  # caps; an edge axis nearly parallel to the normal (within ~8 degrees) must be better by 5% of
+  # the normal depth, matching box_box
+  win_edge = int(-1)
+  face_depth = best_depth
+  if is_seg:
+    for k in range(3):
+      if (nbr_mask & (1 << k)) != 0:
+        continue
+      c = u1 if k == 0 else (u2 if k == 1 else u0)
+      e = u2 if k == 0 else (u0 if k == 1 else u1)
+      opp = u0 if k == 0 else (u1 if k == 1 else u2)
+      ed = e - c
+      ax = wp.cross(ab, ed)
+      ax2 = wp.dot(ax, ax)
+      if ax2 <= _BOXBOX_PAREPS * ab2 * wp.dot(ed, ed):
+        continue
+      ax = ax / wp.sqrt(ax2)
+      if wp.dot(ax, opp - c) < 0.0:
+        ax = -ax
+      s_max = wp.max(wp.dot(ax, a), wp.dot(ax, b))
+      t_min = wp.min(wp.dot(ax, u0), wp.min(wp.dot(ax, u1), wp.dot(ax, u2)))
+      dk = s_max - t_min
+      bias = 0.05 if wp.abs(wp.dot(ax, nh)) > 0.99 else _BOXBOX_EDGEBIAS
+      if dk < face_depth - wp.max(bias * wp.abs(face_depth), touch) and dk < best_depth:
+        best_depth = dk
+        nrm = ax
+        win_edge = k
+
+  # coplanar regime-2 exit along +-N: emit end caps that project onto the triangle, or p_touch
+  # if neither does
+  dist = -best_depth - capsule_radius - tri_radius
+  if win_edge < 0 and wp.abs(d1 - d2) <= touch:
+    if dist <= margin:
+      nend = int(0)
+      for i in range(ncap):
+        end = a if i == 0 else b
+        w = tri_weights(end, u0, u1, u2)
+        q = w[1] * u1 + w[2] * u2
+        dif = q - end
+        dif = dif - nh * wp.dot(dif, nh)
+        if wp.dot(dif, dif) <= touch * touch and cnt < 8:
+          contact_dist[cnt] = dist
+          contact_pos[cnt] = end + nrm * (capsule_radius + 0.5 * dist) + t1
+          contact_normal[cnt] = nrm
+          cnt += 1
+          nend += 1
+      if nend == 0 and cnt < 8:
+        contact_dist[cnt] = dist
+        contact_pos[cnt] = p_touch + nrm * (capsule_radius + 0.5 * dist) + t1
+        contact_normal[cnt] = nrm
+        cnt += 1
+    return cnt, contact_dist, contact_pos, contact_normal
+
+  # compute regime-2 witness on capsule axis
+  if win_edge >= 0:
+    c = u1 if win_edge == 0 else (u2 if win_edge == 1 else u0)
+    e = u2 if win_edge == 0 else (u0 if win_edge == 1 else u1)
+    n_seg, w0, w1 = _segment_weights(a, b, c, e)
+    s_w = 0.5 * (w0[0] + w1[0]) if n_seg == 2 else w0[0]
+    p = a + ab * s_w
+  else:
+    p = a if near_end == 0 else b
+
+  if dist <= margin:
+    contact_dist[cnt] = dist
+    contact_pos[cnt] = p + nrm * (capsule_radius + 0.5 * dist) + t1
+    contact_normal[cnt] = nrm
+    cnt += 1
+
+  # when exiting along +-N, keep the other end cap if it lies on the valid side
+  if win_edge < 0 and is_seg and cnt < 8:
+    other = b if near_end == 0 else a
+    w = tri_weights(other, u0, u1, u2)
+    q = w[1] * u1 + w[2] * u2
+    dif = q - other
+    dst = wp.length(dif)
+    if dst <= rbound:
+      # an end cap touching the triangle has no reliable direction: use the exit normal
+      nrm_o = dif / dst if dst > touch else nrm
+      if wp.dot(nrm_o, nrm) > 0.0:
+        d_con = dst - capsule_radius - tri_radius
+        contact_dist[cnt] = d_con
+        contact_pos[cnt] = other + nrm_o * (capsule_radius + 0.5 * d_con) + t1
+        contact_normal[cnt] = nrm_o
+        cnt += 1
+
+  return cnt, contact_dist, contact_pos, contact_normal
 
 
 @wp.func

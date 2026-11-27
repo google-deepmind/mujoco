@@ -426,7 +426,7 @@ TEST_F(ElasticityTest, ElasticEnergyShell) {
   <worldbody>
     <flexcomp type="grid" count="8 8 1" spacing="1 1 1"
               radius=".025" name="test" dim="2">
-      <elasticity young="2" poisson="0" thickness="1"/>
+      <elasticity young="2" poisson="0" thickness="1" elastic2d="bend"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -461,7 +461,7 @@ TEST_F(ElasticityTest, ElasticEnergyShell) {
         }
       }
       EXPECT_NEAR(4 * energy / volume, 0,
-                  std::numeric_limits<float>::epsilon());
+                  MjTol(std::numeric_limits<float>::epsilon(), 6e-4));
     }
   }
 }

@@ -697,6 +697,10 @@ def _collide_geom_triangle_detect(
   t1: wp.vec3,
   t2: wp.vec3,
   t3: wp.vec3,
+  nbr_mask: int,
+  nbr0: wp.vec3,
+  nbr1: wp.vec3,
+  nbr2: wp.vec3,
   tri_radius: float,
   margin: float,
   geomid: int,
@@ -750,10 +754,10 @@ def _collide_geom_triangle_detect(
     cap_radius = size_val[0]
     cap_half_len = size_val[1]
     cap_axis = wp.vec3(rot[0, 2], rot[1, 2], rot[2, 2])
-    cap_dists, cap_poss, cap_nrms = collision_primitive_core.capsule_triangle(
-      pos, cap_axis, cap_radius, cap_half_len, t1, t2, t3, tri_radius, margin
+    ncon, cap_dists, cap_poss, cap_nrms = collision_primitive_core.capsule_triangle(
+      pos, cap_axis, cap_radius, cap_half_len, t1, t2, t3, tri_radius, margin, nbr_mask, nbr0, nbr1, nbr2
     )
-    for i in range(5):
+    for i in range(ncon):
       _write_candidate(
         max_candidates,
         cap_dists[i],
@@ -2108,12 +2112,16 @@ def _flex_narrowphase_elem_detect(warn_overflow: int, has_cylinder_geom: bool, h
     flex_activelayers: wp.array[int],
     flex_dim: wp.array[int],
     flex_vertadr: wp.array[int],
+    flex_edgeadr: wp.array[int],
     flex_elemadr: wp.array[int],
     flex_elemnum: wp.array[int],
     flex_elemdataadr: wp.array[int],
+    flex_elemedgeadr: wp.array[int],
     flex_plasticadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
+    flex_edgeflap: wp.array[wp.vec2i],
     flex_elem: wp.array[int],
+    flex_elemedge: wp.array[int],
     flex_elemlayer: wp.array[int],
     flex_radius: wp.array[float],
     mesh_vertadr: wp.array[int],
@@ -2579,6 +2587,30 @@ def _flex_narrowphase_elem_detect(warn_overflow: int, has_cylinder_geom: bool, h
           )
 
       elif f_dim == 2 and (gtype == int(GeomType.SPHERE) or gtype == int(GeomType.CAPSULE) or gtype == int(GeomType.BOX)):
+        # neighbour triangles, loaded per geom that needs them rather than carried across geoms
+        nbr_mask = int(0)
+        nbr0 = wp.vec3(0.0, 0.0, 0.0)
+        nbr1 = wp.vec3(0.0, 0.0, 0.0)
+        nbr2 = wp.vec3(0.0, 0.0, 0.0)
+        if gtype == int(GeomType.CAPSULE):
+          ee_adr = flex_elemedgeadr[flexid]
+          if ee_adr >= 0 and flex_elemedge.shape[0] > 0 and flex_edgeflap.shape[0] > 0:
+            eadr = flex_edgeadr[flexid]
+            ee_base = ee_adr + local_elemid * 3
+            for k in range(3):
+              flap = flex_edgeflap[eadr + flex_elemedge[ee_base + k]]
+              if flap[0] >= 0 and flap[1] >= 0:
+                vk = v0 if k == 0 else (v1 if k == 1 else v2)
+                vnbr = flap[1] if flap[0] == vk else flap[0]
+                nbr_pos = flexvert_xpos_in[worldid, vert_adr + vnbr]
+                nbr_mask = nbr_mask | (1 << k)
+                if k == 0:
+                  nbr0 = nbr_pos
+                elif k == 1:
+                  nbr1 = nbr_pos
+                else:
+                  nbr2 = nbr_pos
+
         _collide_geom_triangle_detect(
           max_candidates,
           gtype,
@@ -2588,6 +2620,10 @@ def _flex_narrowphase_elem_detect(warn_overflow: int, has_cylinder_geom: bool, h
           t1,
           t2,
           t3,
+          nbr_mask,
+          nbr0,
+          nbr1,
+          nbr2,
           elem_radius,
           margin,
           geomid,
@@ -3997,12 +4033,16 @@ def _detect_elem_geom_candidates(
       m.flex_activelayers,
       m.flex_dim,
       m.flex_vertadr,
+      m.flex_edgeadr,
       m.flex_elemadr,
       m.flex_elemnum,
       m.flex_elemdataadr,
+      m.flex_elemedgeadr,
       m.flex_plasticadr,
       m.flex_vertbodyid,
+      m.flex_edgeflap,
       m.flex_elem,
+      m.flex_elemedge,
       m.flex_elemlayer,
       m.flex_radius,
       m.mesh_vertadr,

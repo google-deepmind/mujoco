@@ -510,28 +510,34 @@ void mjc_triWeights(mjtNum w[3], const mjtNum p[3], const mjtNum a[3], const mjt
   mjtNum vc = dot1 * dot4 - dot3 * dot2;
 
   // edge region AB
-  if (vc <= 0 && dot1 >= 0 && dot3 <= 0) {
+  if (vc <= 0 && dot1 >= 0 && dot3 <= 0 && dot1 > dot3) {
     mjtNum t = dot1 / (dot1 - dot3);
     w[0] = 1 - t,  w[1] = t, w[2] = 0;
     return;
   }
 
   // edge region AC
-  if (vb <= 0 && dot2 >= 0 && dot6 <= 0) {
+  if (vb <= 0 && dot2 >= 0 && dot6 <= 0 && dot2 > dot6) {
     mjtNum t = dot2 / (dot2 - dot6);
     w[0] = 1 - t, w[1] = 0, w[2] = t;
     return;
   }
 
   // edge region BC
-  if (va <= 0 && (dot4 - dot3) >= 0 && (dot5 - dot6) >= 0) {
-    mjtNum t = (dot4 - dot3) / ((dot4 - dot3) + (dot5 - dot6));
+  mjtNum d43 = dot4 - dot3, d56 = dot5 - dot6;
+  if (va <= 0 && d43 >= 0 && d56 >= 0 && d43 + d56 > 0) {
+    mjtNum t = d43 / (d43 + d56);
     w[0] = 0, w[1] = 1 - t, w[2] = t;
     return;
   }
 
   // face region ABC
-  mjtNum d = 1.0 / (va + vb + vc), t = vb * d, u = vc * d;
+  mjtNum denom = va + vb + vc;
+  if (denom <= 0) {
+    w[0] = 1, w[1] = 0, w[2] = 0;
+    return;
+  }
+  mjtNum d = 1.0 / denom, t = vb * d, u = vc * d;
   w[0] = 1 - t - u, w[1] = t, w[2] = u;
 }
 

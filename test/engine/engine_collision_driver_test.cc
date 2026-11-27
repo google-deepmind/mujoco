@@ -3477,5 +3477,268 @@ TEST_F(MjCollisionTest, FlexAAMMVertexCountsAlignedAndTiltedMatch) {
   EXPECT_GT(hit_chunk1, 0);
   EXPECT_GT(hit_tail, 0);
 }
+
+TEST_F(MjCollisionTest, Flex2DCapsuleShaftEdgeAndCoplanar) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="cap" pos="0.5 -0.03 0">
+        <freejoint/>
+        <geom name="cap" type="capsule" size="0.05 0.5"/>
+      </body>
+      <flexcomp name="tri" type="direct" dim="2" radius="0"
+                point="0 0 0  1 0 0  0 1 0" element="0 1 2">
+        <edge equality="true"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  const mjtNum tol = MjTol(1e-10, 1e-5);
+
+  // 1. Shaft pressing against edge (t1, t2) with both end caps far outside.
+  mj_forward(m.get(), d.get());
+  ASSERT_EQ(d->ncon, 1);
+  EXPECT_NEAR(d->contact[0].dist, -0.02, tol);
+  EXPECT_NEAR(d->contact[0].frame[0], 0, tol);
+  EXPECT_NEAR(d->contact[0].frame[1], 1, tol);
+  EXPECT_NEAR(d->contact[0].frame[2], 0, tol);
+  EXPECT_NEAR(d->contact[0].pos[0], 0.5, tol);
+  EXPECT_NEAR(d->contact[0].pos[1], 0.01, tol);
+  EXPECT_NEAR(d->contact[0].pos[2], 0, tol);
+
+  // 2. Coplanar capsule lying flat in the triangle plane emits two -z contacts.
+  m->geom_size[1] = 0.1;
+  mjtNum qpos_coplanar[7] = {
+      0.25, 0.25, 0, mju_cos(mjPI / 4), 0, mju_sin(mjPI / 4), 0};
+  mju_copy(d->qpos, qpos_coplanar, 7);
+  mj_forward(m.get(), d.get());
+  ASSERT_EQ(d->ncon, 2);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_NEAR(d->contact[i].dist, -0.05, tol);
+    EXPECT_NEAR(d->contact[i].frame[0], 0, tol);
+    EXPECT_NEAR(d->contact[i].frame[1], 0, tol);
+    EXPECT_NEAR(d->contact[i].frame[2], -1, tol);
+  }
+
+  // 3. Tilted capsule with one end slightly below and one above keeps both.
+  const mjtNum angle = mju_atan2(0.2, 0.025);  // axis tilted mostly horizontal
+  mjtNum qpos_tilted[7] = {
+      0.3, 0.3, 0.0075, mju_cos(angle / 2), 0, mju_sin(angle / 2), 0};
+  mju_copy(d->qpos, qpos_tilted, 7);
+  mj_forward(m.get(), d.get());
+  ASSERT_EQ(d->ncon, 2);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_LT(d->contact[i].frame[2], -0.99);
+  }
+
+  // 4. Far from the origin: precision is preserved relative to t1.
+  m->geom_size[1] = 0.5;
+  const mjtNum shift[3] = {1000, -1000, 500};
+  const mjtNum qpos_far[7] = {static_cast<mjtNum>(shift[0] + 0.5),
+                              static_cast<mjtNum>(shift[1] - 0.03),
+                              shift[2],
+                              1,
+                              0,
+                              0,
+                              0};
+  mju_copy(d->qpos, qpos_far, 7);
+  for (int v = 0; v < 3; ++v) {
+    for (int j = 0; j < 3; ++j) {
+      d->qpos[7 + 3 * v + j] = shift[j];
+    }
+  }
+  mj_forward(m.get(), d.get());
+  ASSERT_EQ(d->ncon, 1);
+  const mjtNum far_tol = MjTol(1e-10, 1e-4);
+  EXPECT_NEAR(d->contact[0].dist, -0.02, far_tol);
+  EXPECT_NEAR(d->contact[0].frame[0], 0, far_tol);
+  EXPECT_NEAR(d->contact[0].frame[1], 1, far_tol);
+  EXPECT_NEAR(d->contact[0].frame[2], 0, far_tol);
+
+  // 5. Coplanar capsule inside a rotated triangle: rounding must not let a
+  // boundary edge axis replace the two end caps. Odd rotations are also far
+  // from the origin, where single precision rounds the geometry itself out of
+  // the plane (hence the loose tolerance).
+  m->geom_size[1] = 0.1;
+  const mjtNum point[3][3] = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+  const mjtNum center[3] = {0.25, 0.25, 0};
+  const mjtNum flat[4] = {mju_cos(mjPI / 4), 0, mju_sin(mjPI / 4), 0};
+  const mjtNum zaxis[3] = {0, 0, 1};
+  const mjtNum offset[3] = {100, -100, 50};
+  for (int i = 0; i < 200; ++i) {
+    mjtNum quat[4] = {mju_sin(1.3 * i + 0.1), mju_sin(2.1 * i + 0.7),
+                      mju_sin(3.7 * i + 1.9), mju_sin(5.3 * i + 2.3)};
+    mju_normalize4(quat);
+    mju_rotVecQuat(d->qpos, center, quat);
+    mju_mulQuat(d->qpos + 3, quat, flat);
+    for (int v = 0; v < 3; ++v) {
+      mjtNum rotated[3];
+      mju_rotVecQuat(rotated, point[v], quat);
+      mju_sub3(d->qpos + 7 + 3 * v, rotated, point[v]);
+    }
+    if (i % 2) {
+      mju_addTo3(d->qpos, offset);
+      for (int v = 0; v < 3; ++v) {
+        mju_addTo3(d->qpos + 7 + 3 * v, offset);
+      }
+    }
+    mjtNum normal[3];
+    mju_rotVecQuat(normal, zaxis, quat);
+    mj_forward(m.get(), d.get());
+    const mjtNum rot_tol = (i % 2) ? MjTol(1e-13, 1e-2) : MjTol(4e-15, 2e-6);
+    ASSERT_EQ(d->ncon, 2) << "rotation " << i;
+    for (int c = 0; c < 2; ++c) {
+      EXPECT_NEAR(d->contact[c].dist, -0.05, rot_tol) << "rotation " << i;
+      EXPECT_NEAR(mju_abs(mju_dot3(d->contact[c].frame, normal)), 1, rot_tol)
+          << "rotation " << i;
+    }
+    EXPECT_NEAR(mju_dot3(d->contact[0].frame, d->contact[1].frame), 1, rot_tol)
+        << "rotation " << i;
+    EXPECT_NEAR(mju_dist3(d->contact[0].pos, d->contact[1].pos), 0.2, rot_tol)
+        << "rotation " << i;
+  }
+}
+
+TEST_F(MjCollisionTest, Flex2DCapsuleCoplanarInteriorTriangle) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="cap" pos="-0.3 0 0.5">
+        <freejoint/>
+        <geom name="cap" type="capsule" size="0.05 1"/>
+      </body>
+      <flexcomp name="cloth" type="direct" dim="2" radius="0"
+                point="0 0 0  0 0 1  -1 0 0.5  1 0 0.5  -1 0 1.5  -1 0 -0.5"
+                element="0 1 2  1 0 3  2 1 4  0 2 5">
+        <edge equality="true"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  const mjtNum tol = MjTol(1e-10, 1e-5);
+
+  // Capsule lying in the cloth plane with both end caps outside the cloth: its
+  // axis crosses two interior edges of the center triangle, which has three
+  // neighbours. Each of the three crossed triangles must emit one contact, at
+  // the first edge (in element order) that the axis crosses.
+  mj_forward(m.get(), d.get());
+  ASSERT_EQ(d->ncon, 3);
+  std::vector<mjtNum> z;
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(d->contact[i].dist, -0.05, tol);
+    EXPECT_NEAR(d->contact[i].frame[0], 0, tol);
+    EXPECT_NEAR(d->contact[i].frame[1], 1, tol);
+    EXPECT_NEAR(d->contact[i].frame[2], 0, tol);
+    EXPECT_NEAR(d->contact[i].pos[0], -0.3, tol);
+    EXPECT_NEAR(d->contact[i].pos[1], 0.025, tol);
+    z.push_back(d->contact[i].pos[2]);
+  }
+  std::sort(z.begin(), z.end());
+  EXPECT_NEAR(z[0], -0.15, tol);
+  EXPECT_NEAR(z[1], 0.85, tol);
+  EXPECT_NEAR(z[2], 1.15, tol);
+}
+
+TEST_F(MjCollisionTest, Flex2DCapsuleInteriorEdgeAndVFold) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="cap" pos="-0.2 0.5 0.08">
+        <freejoint/>
+        <geom name="cap" type="capsule" size="0.05 0.1"/>
+      </body>
+      <flexcomp name="cloth" type="direct" dim="2" radius="0"
+                point="0 0 0  0 1 0  -1 0.5 0  1 0.5 0"
+                element="0 1 2  1 0 3">
+        <edge equality="true"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  const mjtNum tol = MjTol(1e-10, 1e-5);
+
+  // 1. Piercing flat two-triangle cloth near shared interior edge: exit along
+  // -z only, with no opposing lateral contact from the adjacent triangle.
+  mj_forward(m.get(), d.get());
+  ASSERT_EQ(d->ncon, 1);
+  EXPECT_NEAR(d->contact[0].dist, -0.07, tol);
+  EXPECT_NEAR(d->contact[0].frame[0], 0, tol);
+  EXPECT_NEAR(d->contact[0].frame[1], 0, tol);
+  EXPECT_NEAR(d->contact[0].frame[2], -1, tol);
+
+  // 2. Convex V-fold crease: drop the two outer vertices to z = -0.5 and press
+  // a horizontal capsule shaft across the shared ridge from above.
+  d->qpos[7 + 3 * 2 + 2] = -0.5;
+  d->qpos[7 + 3 * 3 + 2] = -0.5;
+  m->geom_size[1] = 0.5;
+  mjtNum qpos_ridge[7] = {0, 0.5, 0.03, mju_cos(mjPI / 4), 0, mju_sin(mjPI / 4),
+                          0};
+  mju_copy(d->qpos, qpos_ridge, 7);
+  mj_forward(m.get(), d.get());
+  ASSERT_GE(d->ncon, 1);
+  mjtNum min_dist = mjMAXVAL;
+  for (int i = 0; i < d->ncon; ++i) {
+    if (d->contact[i].dist < min_dist) {
+      min_dist = d->contact[i].dist;
+    }
+    EXPECT_LT(d->contact[i].frame[2], -0.99);
+  }
+  EXPECT_NEAR(min_dist, -0.02, tol);
+}
+
+TEST_F(MjCollisionTest, Flex2DCapsuleDegenerateNoNaN) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="cap" pos="0.5 0.03 0">
+        <freejoint/>
+        <geom name="cap" type="capsule" size="0.05 0.1"/>
+      </body>
+      <flexcomp name="tri" type="direct" dim="2" radius="0"
+                point="0 0 0  1 0 0  0 1 0" element="0 1 2">
+        <edge equality="true"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // Zero-length capsule and collapsed triangle (v1 == v0) must produce a single
+  // finite contact without NaN (the two coincident end caps count once).
+  m->geom_size[1] = 0;
+  d->qpos[7 + 3 * 1 + 0] = -1;  // collapse vertex 1 onto vertex 0
+  d->qpos[7 + 3 * 2 + 0] = 1;   // move vertex 2 to (1, 0, 0)
+  d->qpos[7 + 3 * 2 + 1] = -1;
+  mj_forward(m.get(), d.get());
+  ASSERT_EQ(d->ncon, 1);
+  for (int i = 0; i < d->ncon; ++i) {
+    EXPECT_TRUE(std::isfinite(d->contact[i].dist));
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_TRUE(std::isfinite(d->contact[i].pos[j]));
+      EXPECT_TRUE(std::isfinite(d->contact[i].frame[j]));
+    }
+  }
+  EXPECT_NEAR(d->contact[0].dist, -0.02, MjTol(1e-10, 1e-5));
+}
+
 }  // namespace
 }  // namespace mujoco
