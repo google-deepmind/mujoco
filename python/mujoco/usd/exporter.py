@@ -421,6 +421,7 @@ class USDExporter:
 
       avg_camera = mujoco.mjv_averageCamera(
           self.scene.camera[0], self.scene.camera[1])
+      camera.set_projection(avg_camera, self.width / self.height)
 
       forward = avg_camera.forward
       up = avg_camera.up
