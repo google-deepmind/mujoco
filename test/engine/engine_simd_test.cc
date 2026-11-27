@@ -361,18 +361,21 @@ void VerifyBackendParity(const std::vector<Vec4>& vecs) {
       EXPECT_EQ(std::memcmp(so, bo, sizeof(so)), 0) << "op: " << op;
     };
 
-    auto expect_vec_nan_eq = [](simd_scalar::mjtNum4 sr,
-                                typename Backend::mjtNum4 br, const char* op) {
+    auto expect_scalar_nan_eq = [](mjtNum sr, mjtNum br, const char* op) {
+      if (std::isnan(sr)) {
+        EXPECT_TRUE(std::isnan(br)) << "op: " << op;
+      } else {
+        EXPECT_EQ(std::memcmp(&sr, &br, sizeof(mjtNum)), 0) << "op: " << op;
+      }
+    };
+
+    auto expect_vec_nan_eq = [&](simd_scalar::mjtNum4 sr,
+                                 typename Backend::mjtNum4 br, const char* op) {
       mjtNum so[4], bo[4];
       simd_scalar::v4_store(so, sr);
       Backend::v4_store(bo, br);
       for (int lane = 0; lane < 4; ++lane) {
-        if (std::isnan(so[lane])) {
-          EXPECT_TRUE(std::isnan(bo[lane])) << "op: " << op;
-        } else {
-          EXPECT_EQ(std::memcmp(&so[lane], &bo[lane], sizeof(mjtNum)), 0)
-              << "op: " << op;
-        }
+        expect_scalar_nan_eq(so[lane], bo[lane], op);
       }
     };
 
@@ -533,6 +536,12 @@ void VerifyBackendParity(const std::vector<Vec4>& vecs) {
     mjtNum s_sum = simd_scalar::v4_sum(sa);
     mjtNum b_sum = Backend::v4_sum(ba);
     EXPECT_EQ(std::memcmp(&s_sum, &b_sum, sizeof(mjtNum)), 0) << "op: sum";
+
+    // sequential left-to-right lane accumulation: (((acc + l0) + l1) + l2) + l3
+    // (NaN sign is unspecified when operands of a commuted fadd are both NaN)
+    mjtNum s_seq = simd_scalar::v4_addseq(b[0], sa);
+    mjtNum b_seq = Backend::v4_addseq(b[0], ba);
+    expect_scalar_nan_eq(s_seq, b_seq, "addseq");
 
     // scalar mju_fma
     for (int lane = 0; lane < 4; ++lane) {
@@ -766,6 +775,9 @@ void VerifyBackendParity(const std::vector<Vec4>& vecs) {
     static mjtNum4 shuf_0213(mjtNum4 a) { return Ns::shuf_0213(a); }          \
     static mjtNum4 shuf_3021(mjtNum4 a) { return Ns::shuf_3021(a); }          \
     static mjtNum v4_sum(mjtNum4 a) { return Ns::v4_sum(a); }                 \
+    static mjtNum v4_addseq(mjtNum acc, mjtNum4 a) {                          \
+      return Ns::v4_addseq(acc, a);                                           \
+    }                                                                         \
     static mjtNum4 v4_fma(mjtNum4 a, mjtNum4 b, mjtNum4 c) {                  \
       return Ns::v4_fma(a, b, c);                                             \
     }                                                                         \
@@ -902,6 +914,36 @@ TEST_F(EngineSimdTest, SumReductionTreeIsPairwise02Plus13) {
 
 #ifdef MJ_HAS_AVX_BACKEND
   mjtNum a_res = simd_avx::v4_sum(simd_avx::v4_load(v));
+  EXPECT_EQ(std::memcmp(&a_res, &expected, sizeof(mjtNum)), 0);
+#endif
+}
+
+TEST_F(EngineSimdTest, AddSeqMatchesLeftToRightScalarOrder) {
+  // Construct acc and v where (((acc + l0) + l1) + l2) + l3 differs from both
+  // acc + (((l0 + l1) + l2) + l3) and acc + ((l0 + l2) + (l1 + l3)).
+  const mjtNum eps = std::numeric_limits<mjtNum>::epsilon();
+  const mjtNum acc = mjtNum(1.0);
+  const mjtNum v[4] = {mjtNum(0.5) * eps, mjtNum(0.25) * eps, mjtNum(-1.0),
+                       mjtNum(0.75) * eps};
+
+  const mjtNum expected = (((acc + v[0]) + v[1]) + v[2]) + v[3];
+  const mjtNum grouped = acc + (((v[0] + v[1]) + v[2]) + v[3]);
+  const mjtNum pairwise = acc + ((v[0] + v[2]) + (v[1] + v[3]));
+  EXPECT_NE(expected, grouped);
+  EXPECT_NE(expected, pairwise);
+
+  mjtNum s_res = simd_scalar::v4_addseq(acc, simd_scalar::v4_load(v));
+  mjtNum d_res = simd_default::v4_addseq(acc, simd_default::v4_load(v));
+  EXPECT_EQ(std::memcmp(&s_res, &expected, sizeof(mjtNum)), 0);
+  EXPECT_EQ(std::memcmp(&d_res, &expected, sizeof(mjtNum)), 0);
+
+#ifdef MJ_HAS_VECEXT_BACKEND
+  mjtNum v_res = simd_vecext::v4_addseq(acc, simd_vecext::v4_load(v));
+  EXPECT_EQ(std::memcmp(&v_res, &expected, sizeof(mjtNum)), 0);
+#endif
+
+#ifdef MJ_HAS_AVX_BACKEND
+  mjtNum a_res = simd_avx::v4_addseq(acc, simd_avx::v4_load(v));
   EXPECT_EQ(std::memcmp(&a_res, &expected, sizeof(mjtNum)), 0);
 #endif
 }

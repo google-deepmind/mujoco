@@ -2983,5 +2983,135 @@ TEST_F(CoreConstraintTest, FlexContactMatchesReferenceExact) {
   }
 }
 
+TEST_F(CoreConstraintTest, RegularizeConstraintMetricDenseMatchesSparseExact) {
+  // nv = 10 exercises 4-wide chunks, scalar remainder, all-zero chunks,
+  // undamped DOFs (freejoint, dms == dm) and damped/stiff DOFs (dms != dm).
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01" integrator="discrete"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <body pos="0 0 .14">
+        <freejoint/>
+        <geom type="sphere" size=".15" mass="1"/>
+        <body pos=".1 0 .02">
+          <joint type="hinge" axis="0 1 0" damping="2" stiffness="50"
+            limited="true" range="-0.1 0.1"/>
+          <geom type="sphere" size=".12" mass=".5"/>
+          <body pos=".1 0 0">
+            <joint type="hinge" axis="1 0 0" damping="1" stiffness="20"/>
+            <joint type="hinge" axis="0 0 1"/>
+            <geom type="sphere" size=".1" mass=".3"/>
+          </body>
+        </body>
+      </body>
+      <body pos="1.5 0 .095">
+        <joint type="slide" axis="0 0 1" damping="3"/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  ASSERT_EQ(m->nv, 10);
+
+  // pass 0: damped/stiff DOFs (nonzero efm_sdiag); pass 1: all-zero efm_sdiag
+  std::vector<mjtNum> diagA_damp;
+  std::vector<mjtNum> expected_ratio;
+  for (int zero_sdiag : {0, 1}) {
+    if (zero_sdiag) {
+      mju_zero(m->dof_damping, m->nv);
+      mju_zero(m->jnt_stiffness, m->njnt);
+      // polynomial damping keeps efm_sdiag allocated with zero entries at rest
+      m->dof_dampingpoly[0] = 1;
+    }
+
+    m->opt.jacobian = mjJAC_DENSE;
+    MjDataPtr d_dense = MakeData(m);
+    mj_forward(m.get(), d_dense.get());
+
+    m->opt.jacobian = mjJAC_SPARSE;
+    MjDataPtr d_sparse = MakeData(m);
+    mj_forward(m.get(), d_sparse.get());
+
+    ASSERT_GT(d_dense->nefc, 0);
+    ASSERT_EQ(d_dense->nefc, d_sparse->nefc);
+    int nefc = d_dense->nefc;
+    EXPECT_EQ(std::memcmp(d_dense->efc_diagA, d_sparse->efc_diagA,
+                          nefc * sizeof(mjtNum)),
+              0)
+        << "zero_sdiag=" << zero_sdiag;
+    EXPECT_EQ(
+        std::memcmp(d_dense->efc_R, d_sparse->efc_R, nefc * sizeof(mjtNum)), 0)
+        << "zero_sdiag=" << zero_sdiag;
+    EXPECT_EQ(
+        std::memcmp(d_dense->efc_D, d_sparse->efc_D, nefc * sizeof(mjtNum)), 0)
+        << "zero_sdiag=" << zero_sdiag;
+    EXPECT_EQ(std::memcmp(d_dense->efc_KBIP, d_sparse->efc_KBIP,
+                          4 * nefc * sizeof(mjtNum)),
+              0)
+        << "zero_sdiag=" << zero_sdiag;
+
+    // damped pass: confirm mixed zero/nonzero efm_sdiag and compute reference
+    if (!zero_sdiag) {
+      ASSERT_THAT(d_dense->efm_sdiag, NotNull());
+      int n_nonzero = 0;
+      for (int c = 0; c < m->nv; ++c) {
+        n_nonzero += (d_dense->efm_sdiag[c] != 0);
+      }
+      EXPECT_GT(n_nonzero, 0);
+      EXPECT_LT(n_nonzero, m->nv);
+
+      diagA_damp.assign(d_dense->efc_diagA, d_dense->efc_diagA + nefc);
+      expected_ratio.resize(nefc);
+      for (int r = 0; r < nefc; ++r) {
+        mjtNum num = 0, den = 0;
+        for (int c = 0; c < m->nv; ++c) {
+          mjtNum J = d_dense->efc_J[r * m->nv + c];
+          if (!J) continue;
+          mjtNum Mdiag = d_dense->M[m->M_rowadr[c] + m->M_rownnz[c] - 1];
+          num += J * J / mju_max(mjMINVAL, Mdiag + d_dense->efm_sdiag[c]);
+          den += J * J / mju_max(mjMINVAL, Mdiag);
+        }
+        expected_ratio[r] = (den > mjMINVAL) ? num / den : 1;
+      }
+    } else {
+      // all-zero pass: confirm efm_sdiag is allocated and all zero
+      ASSERT_THAT(d_dense->efm_sdiag, NotNull());
+      EXPECT_TRUE(mju_isZero(d_dense->efm_sdiag, m->nv));
+      ASSERT_EQ(static_cast<int>(diagA_damp.size()), nefc);
+      for (int r = 0; r < nefc; ++r) {
+        // for multi-row contacts, mj_makeImpedance derives all rows from row 0
+        if (r > 0 && d_dense->efc_type[r] == d_dense->efc_type[r - 1] &&
+            d_dense->efc_id[r] == d_dense->efc_id[r - 1]) {
+          continue;
+        }
+        // mj_makeImpedance rescales efc_diagA via R * imp / (1-imp)
+        EXPECT_NEAR(diagA_damp[r], d_dense->efc_diagA[r] * expected_ratio[r],
+                    MjTol(3e-15, 2e-6) * diagA_damp[r])
+            << "row " << r;
+      }
+    }
+  }
+
+  // also verify elliptic contacts dense == sparse
+  m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  m->opt.cone = mjCONE_ELLIPTIC;
+  m->opt.jacobian = mjJAC_DENSE;
+  MjDataPtr d_ell_dense = MakeData(m);
+  mj_forward(m.get(), d_ell_dense.get());
+  m->opt.jacobian = mjJAC_SPARSE;
+  MjDataPtr d_ell_sparse = MakeData(m);
+  mj_forward(m.get(), d_ell_sparse.get());
+  ASSERT_GT(d_ell_dense->nefc, 0);
+  ASSERT_EQ(d_ell_dense->nefc, d_ell_sparse->nefc);
+  EXPECT_EQ(std::memcmp(d_ell_dense->efc_diagA, d_ell_sparse->efc_diagA,
+                        d_ell_dense->nefc * sizeof(mjtNum)),
+            0);
+}
+
 }  // namespace
 }  // namespace mujoco

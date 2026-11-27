@@ -1714,4 +1714,13 @@ mjtNum4 v4_lincomb3(mjtNum4 c0, mjtNum4 c1, mjtNum4 c2, mjtNum x0, mjtNum x1, mj
                 v4_mul(c2, v4_splat(x2)));
 }
 
+
+// accumulate lanes left-to-right onto scalar acc: (((acc + l0) + l1) + l2) + l3
+static inline
+mjtNum v4_addseq(mjtNum acc, mjtNum4 a) {
+  mjtNum t[4];
+  v4_store(t, a);
+  return (((acc + t[0]) + t[1]) + t[2]) + t[3];
+}
+
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SIMD_H_

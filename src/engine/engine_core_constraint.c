@@ -3083,13 +3083,119 @@ static void mj_makeYNumeric(const mjModel* m, mjData* d, int flg_diagexact);
 static void mj_makeARSymbolic(const mjModel* m, mjData* d);
 static void mj_makeARNumeric(const mjModel* m, mjData* d);
 
+
+// accumulate scalar J^2/dms and J^2/dm
+static inline void accumDiagRatio(mjtNum* num, mjtNum* den,
+                                  mjtNum J, mjtNum dms, mjtNum dm) {
+  mjtNum J2 = J*J;
+  mjtNum td = J2 / dm;
+  *den += td;
+  *num += (dms == dm) ? td : J2 / dms;
+}
+
+
+// accumulate 4-wide J^2/dms and J^2/dm in sequential lane order
+static inline void accumDiagRatio4(mjtNum* num, mjtNum* den,
+                                   mjtNum4 vJ, mjtNum4 vdms, mjtNum4 vdm) {
+  // scalar equivalent: for k=0..3: num += J[k]*J[k] / dms[k]; den += J[k]*J[k] / dm[k]
+  mjtNum4 vJ2 = v4_mul(vJ, vJ);
+  mjtNum4 vtd = v4_div(vJ2, vdm);
+  mjtNum4 vtn = v4_all(v4_cmpeq(vdms, vdm)) ? vtd : v4_div(vJ2, vdms);
+  *num = v4_addseq(*num, vtn);
+  *den = v4_addseq(*den, vtd);
+}
+
+
+// scale approximate diagonal by per-row diagonal-class metric ratio
+//  outlined to keep mj_regularizeConstraint free of AVX spills on non-metric solves
+static mjNOINLINE void scaleDiagApproxMetric(const mjModel* m, mjData* d) {
+  int nefc = d->nefc, nv = m->nv;
+  mj_markStack(d);
+
+  // precompute per-dof clamped denominators
+  mjtNum* dm  = mjSTACKALLOC(d, 2*nv, mjtNum);
+  mjtNum* dms = dm + nv;
+  for (int c=0; c < nv; c++) {
+    mjtNum Mdiag = d->M[m->M_rowadr[c] + m->M_rownnz[c] - 1];
+    mjtNum Msum  = Mdiag + d->efm_sdiag[c];
+    dm[c]  = mjMAX(mjMINVAL, Mdiag);
+    dms[c] = mjMAX(mjMINVAL, Msum);
+  }
+
+  // sparse Jacobian
+  if (mj_isSparse(m)) {
+    for (int r=0; r < nefc; r++) {
+      int rownnz = d->efc_J_rownnz[r];
+      int rowadr = d->efc_J_rowadr[r];
+      const mjtNum* Jrow = d->efc_J + rowadr;
+      const int* colind  = d->efc_J_colind + rowadr;
+      mjtNum num = 0, den = 0;
+
+      // 4-wide SIMD division over row nonzeros
+      int a = 0;
+      for (; a+4 <= rownnz; a += 4) {
+        mjtNum4 vJ = v4_load(Jrow+a);
+        int c0 = colind[a+0], c1 = colind[a+1], c2 = colind[a+2], c3 = colind[a+3];
+        mjtNum4 vdms = v4_set(dms[c0], dms[c1], dms[c2], dms[c3]);
+        mjtNum4 vdm  = v4_set(dm[c0],  dm[c1],  dm[c2],  dm[c3]);
+        accumDiagRatio4(&num, &den, vJ, vdms, vdm);
+      }
+
+      // scalar remainder
+      for (; a < rownnz; a++) {
+        int c = colind[a];
+        accumDiagRatio(&num, &den, Jrow[a], dms[c], dm[c]);
+      }
+
+      // scale row diagonal approximation
+      if (den > mjMINVAL) {
+        d->efc_diagA[r] *= num / den;
+      }
+    }
+  }
+
+  // dense Jacobian
+  else {
+    mjtNum4 vzero = v4_splat(0);
+    for (int r=0; r < nefc; r++) {
+      const mjtNum* Jrow = d->efc_J + r*nv;
+      mjtNum num = 0, den = 0;
+
+      // 4-wide SIMD division, skipping all-zero chunks
+      int a = 0;
+      for (; a+4 <= nv; a += 4) {
+        mjtNum4 vJ = v4_load(Jrow+a);
+        if (v4_all(v4_cmpeq(vJ, vzero))) {
+          continue;
+        }
+        accumDiagRatio4(&num, &den, vJ, v4_load(dms+a), v4_load(dm+a));
+      }
+
+      // scalar remainder
+      for (; a < nv; a++) {
+        if (Jrow[a]) {
+          accumDiagRatio(&num, &den, Jrow[a], dms[a], dm[a]);
+        }
+      }
+
+      // scale row diagonal approximation
+      if (den > mjMINVAL) {
+        d->efc_diagA[r] *= num / den;
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
 // compute constraint regularization in the current solve metric: efc_diagA (approximate,
 // or exact under diagexact), then R, D, KBIP. Under the discrete integrator this runs at
 // the actuation stage, where the effective metric is final; islands are discovered at the
 // position stage, so their R/D copies are refreshed here. flg_AR: assemble the dual's AR
 // (forward path); inverse dynamics never consumes it and passes 0
 void mj_regularizeConstraint(const mjModel* m, mjData* d, int flg_AR) {
-  int nefc = d->nefc, nv = m->nv;
+  int nefc = d->nefc;
   if (!nefc) {
     return;
   }
@@ -3106,25 +3212,7 @@ void mj_regularizeConstraint(const mjModel* m, mjData* d, int flg_AR) {
   if (!mjENABLED(mjENBL_DIAGEXACT)) {
     mj_diagApprox(m, d);
     if (mj_isMetric(m) && d->efm_sdiag) {
-      int is_sparse = mj_isSparse(m);
-      for (int r=0; r < nefc; r++) {
-        mjtNum num = 0, den = 0;
-        int rownnz = is_sparse ? d->efc_J_rownnz[r] : nv;
-        int rowadr = is_sparse ? d->efc_J_rowadr[r] : r*nv;
-        for (int a=0; a < rownnz; a++) {
-          int c = is_sparse ? d->efc_J_colind[rowadr + a] : a;
-          mjtNum J = d->efc_J[rowadr + a];
-          if (!J) {
-            continue;
-          }
-          mjtNum Mdiag = d->M[m->M_rowadr[c] + m->M_rownnz[c] - 1];
-          num += J*J / mju_max(mjMINVAL, Mdiag + d->efm_sdiag[c]);
-          den += J*J / mju_max(mjMINVAL, Mdiag);
-        }
-        if (den > mjMINVAL) {
-          d->efc_diagA[r] *= num / den;
-        }
-      }
+      scaleDiagApproxMetric(m, d);
     }
   }
 
