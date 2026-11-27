@@ -49,18 +49,14 @@ void Writer::WriteSpecsWithoutUSDOriginToLayer() {
 void Writer::BuildMjUsdMapping() {
   body_id_to_path_.assign(model_->nbody, pxr::SdfPath());
 
-  // World body (ID 0) maps to an empty SdfPath.
-  if (model_->nbody > 0) {
-    body_id_to_path_[0] = pxr::SdfPath();
-  }
-
-  // Iterate over MuJoCo body IDs from the mjModel.
-  for (int body_idx = 1; body_idx < model_->nbody; ++body_idx) {
-    const char* body_name = mj_id2name(model_, mjOBJ_BODY, body_idx);
-    if (body_name) {
-      mjsBody* spec_body = mjs_findBody(spec_, body_name);
-      body_id_to_path_[body_idx] =
-          mujoco::usd::GetUsdPrimPathUserValue(spec_body->element);
+  // Use compiled element IDs rather than names: MJCF bodies may be unnamed.
+  // Leave the world body and any elements without a compiled ID unmapped.
+  for (mjsElement* element = mjs_firstElement(spec_, mjOBJ_BODY); element;
+       element = mjs_nextElement(spec_, element)) {
+    int body_id = mjs_getId(element);
+    if (body_id > 0 && body_id < model_->nbody) {
+      body_id_to_path_[body_id] =
+          mujoco::usd::GetUsdPrimPathUserValue(element);
     }
   }
 }

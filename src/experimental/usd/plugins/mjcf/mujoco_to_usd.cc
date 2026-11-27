@@ -2297,7 +2297,10 @@ class ModelWriter {
     int parent_id = mjs_getId(parent->element);
     pxr::SdfPath parent_path = body_paths_[parent_id];
     const std::string raw_body_name = ElementName(body->element);
-    pxr::TfToken body_name = GetValidPrimName(raw_body_name);
+    // Distinct unnamed siblings (or names that sanitize to the same token)
+    // need distinct prim paths for their independent pose samples.
+    pxr::TfToken body_name =
+        GetAvailablePrimName(raw_body_name, pxr::TfToken("_"), parent_path);
 
     // Create Xform prim for body.
     auto body_spec = CreatePrimSpec(layer_, parent_path, body_name,
