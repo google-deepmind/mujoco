@@ -285,6 +285,9 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
         data.user_data = nullptr;
 
         auto mesh = CreateMesh(ctx_, config);
+        if (!mesh) {
+          continue;
+        }
         mjrf_uploadMesh(mesh.get(), &data);
         meshes_.push_back(std::move(mesh));
 
@@ -306,7 +309,11 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
       // Discs are unit annuli with the inner radius baked into the mesh, so
       // only scale the xy-plane by the outer radius.
       const float inner = size[0] > 0 ? size[1] / size[0] : 0.0f;
-      meshes_.push_back(CreateDiscMesh(ctx_, inner, nslice, nquad));
+      auto disc_mesh = CreateDiscMesh(ctx_, inner, nslice, nquad);
+      if (!disc_mesh) {
+        continue;
+      }
+      meshes_.push_back(std::move(disc_mesh));
       mjrf_setRenderableMesh(renderable.get(), meshes_.back().get(), 0, 0);
       size[1] = size[0];
       size[2] = 1.0f;

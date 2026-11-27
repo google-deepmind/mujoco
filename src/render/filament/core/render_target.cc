@@ -31,6 +31,32 @@
 
 namespace mujoco {
 
+bool RenderTarget::ValidateConfig(const mjrfRenderTargetConfig& config) {
+  if (config.width < 0 || config.height < 0) {
+    mju_warning("Invalid render target dimensions: %dx%d.", config.width,
+                config.height);
+    return false;
+  }
+  switch (config.color_format) {
+    case mjPIXEL_FORMAT_R8:
+    case mjPIXEL_FORMAT_RGB8:
+    case mjPIXEL_FORMAT_RGBA8:
+    case mjPIXEL_FORMAT_R32F:
+    case mjPIXEL_FORMAT_DEPTH32F:
+      break;
+    default:
+      mju_warning("Unsupported render target color format: %d",
+                  config.color_format);
+      return false;
+  }
+  if (config.depth_format != mjPIXEL_FORMAT_DEPTH32F) {
+    mju_warning("Unsupported render target depth format: %d",
+                config.depth_format);
+    return false;
+  }
+  return true;
+}
+
 RenderTarget::RenderTarget(filament::Engine* engine,
                            const mjrfRenderTargetConfig& config)
     : engine_(engine), config_(config) {
@@ -88,6 +114,10 @@ void RenderTarget::Prepare(int width, int height) {
 
 void RenderTarget::ReadColorPixels(filament::Renderer* renderer, uint8_t* bytes,
                                    size_t num_bytes) {
+  if (!render_target_ || !bytes) {
+    mju_warning("Invalid render target read request.");
+    return;
+  }
   filament::backend::PixelDataFormat format;
   filament::backend::PixelDataType type;
   size_t expected_num_bytes = 0;
@@ -95,24 +125,25 @@ void RenderTarget::ReadColorPixels(filament::Renderer* renderer, uint8_t* bytes,
     case mjPIXEL_FORMAT_RGB8:
       format = filament::backend::PixelDataFormat::RGB;
       type = filament::backend::PixelDataType::UBYTE;
-      expected_num_bytes = width_ * height_ * 3;
+      expected_num_bytes = static_cast<size_t>(width_) * height_ * 3;
       break;
     case mjPIXEL_FORMAT_RGBA8:
       format = filament::backend::PixelDataFormat::RGBA;
       type = filament::backend::PixelDataType::UBYTE;
-      expected_num_bytes = width_ * height_ * 4;
+      expected_num_bytes = static_cast<size_t>(width_) * height_ * 4;
       break;
     case mjPIXEL_FORMAT_R32F:
       format = filament::backend::PixelDataFormat::R;
       type = filament::backend::PixelDataType::FLOAT;
-      expected_num_bytes = width_ * height_ * sizeof(float);
+      expected_num_bytes =
+          static_cast<size_t>(width_) * height_ * sizeof(float);
       break;
     default:
-      mju_error("Unsupported pixel format: %d", config_.color_format);
+      mju_warning("Unsupported pixel format: %d", config_.color_format);
       return;
   }
   if (num_bytes != expected_num_bytes) {
-    mju_error("Invalid number of bytes.");
+    mju_warning("Invalid number of bytes.");
     return;
   }
 

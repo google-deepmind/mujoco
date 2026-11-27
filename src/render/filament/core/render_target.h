@@ -30,6 +30,9 @@ namespace mujoco {
 // Manages a filament RenderTarget and the textures which are bound to it.
 class RenderTarget : public mjrfRenderTarget {
  public:
+  // Validates the given render target config, emitting mju_warning on failure.
+  static bool ValidateConfig(const mjrfRenderTargetConfig& config);
+
   // Defines the types of textures to create for the color and depth
   // attachments.
   RenderTarget(filament::Engine* engine, const mjrfRenderTargetConfig& config);

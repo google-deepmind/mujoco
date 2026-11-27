@@ -180,6 +180,9 @@ filament::math::float4 CalculateOrientation(const filament::math::float3& p1,
 template <typename T>
   requires(!std::is_pointer_v<T> || std::is_same_v<T, const char*>)
 T ReadElement(const mjModel* model, const char* name, T default_value = T()) {
+  if (!model) {
+    return default_value;
+  }
   constexpr bool is_string =
       std::is_same_v<T, const char*> || std::is_same_v<T, std::string_view>;
 
@@ -196,27 +199,54 @@ T ReadElement(const mjModel* model, const char* name, T default_value = T()) {
     const char* ptr = model->text_data + model->text_adr[id];
     // Do not include the null terminator in the string view.
     return std::string_view(ptr, model->text_size[id] - 1);
+  } else if constexpr (std::is_same_v<T, bool>) {
+    if (model->numeric_size[id] != 1) {
+      mju_warning("Invalid numeric size for '%s': expected 1, got %d.", name,
+                  model->numeric_size[id]);
+      return default_value;
+    }
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    return static_cast<T>(*ptr != 0);
   } else if constexpr (std::is_arithmetic_v<T>) {
+    if (model->numeric_size[id] != 1) {
+      mju_warning("Invalid numeric size for '%s': expected 1, got %d.", name,
+                  model->numeric_size[id]);
+      return default_value;
+    }
     const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
     return static_cast<T>(*ptr);
   } else if constexpr (std::is_enum_v<T>) {
+    if (model->numeric_size[id] != 1) {
+      mju_warning("Invalid numeric size for '%s': expected 1, got %d.", name,
+                  model->numeric_size[id]);
+      return default_value;
+    }
     const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
     return static_cast<T>(static_cast<int>(*ptr));
   } else if constexpr (std::is_same_v<T, filament::math::float2>) {
+    if (model->numeric_size[id] != 2) {
+      mju_warning("Invalid numeric size for '%s': expected 2, got %d.", name,
+                  model->numeric_size[id]);
+      return default_value;
+    }
     const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
-    if (model->numeric_size[id] != 2) mju_error("Invalid numeric size.");
     return T{ptr[0], ptr[1]};
   } else if constexpr (std::is_same_v<T, filament::math::float3>) {
+    if (model->numeric_size[id] != 3) {
+      mju_warning("Invalid numeric size for '%s': expected 3, got %d.", name,
+                  model->numeric_size[id]);
+      return default_value;
+    }
     const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
-    if (model->numeric_size[id] != 3) mju_error("Invalid numeric size.");
     return T{ptr[0], ptr[1], ptr[2]};
   } else if constexpr (std::is_same_v<T, filament::math::float4>) {
+    if (model->numeric_size[id] != 4) {
+      mju_warning("Invalid numeric size for '%s': expected 4, got %d.", name,
+                  model->numeric_size[id]);
+      return default_value;
+    }
     const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
-    if (model->numeric_size[id] != 4) mju_error("Invalid numeric size.");
     return T{ptr[0], ptr[1], ptr[2], ptr[3]};
-  } else if constexpr (std::is_same_v<T, bool>) {
-    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
-    return static_cast<T>(*ptr != 0);
   }
   return default_value;
 }
@@ -225,10 +255,15 @@ T ReadElement(const mjModel* model, const char* name, T default_value = T()) {
 // if the named element is not found.
 template <typename T, int N>
 void ReadElement(const mjModel* model, const char* name, T (&arr)[N]) {
+  if (!model) {
+    return;
+  }
   const int id = mj_name2id(model, mjOBJ_NUMERIC, name);
   if (id >= 0) {
     if (model->numeric_size[id] != N) {
-      mju_error("Invalid numeric size.");
+      mju_warning("Invalid numeric size for '%s': expected %d, got %d.", name, N,
+                  model->numeric_size[id]);
+      return;
     }
     const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
     for (int i = 0; i < N; ++i) {

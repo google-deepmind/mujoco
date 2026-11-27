@@ -31,6 +31,9 @@ namespace mujoco {
 // IndirectLight.
 class Light : public mjrfLight {
  public:
+  // Validates the given light params, emitting mju_warning on failure.
+  static bool ValidateParams(const mjrfLightParams& params);
+
   Light(filament::Engine* engine, const mjrfLightParams& params);
   ~Light() noexcept;
 

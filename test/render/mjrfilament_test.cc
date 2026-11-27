@@ -14,6 +14,8 @@
 
 #include <mujoco/mjrfilament.h>
 
+#include <array>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
@@ -23,7 +25,9 @@
 namespace mujoco {
 namespace {
 
+using ::testing::HasSubstr;
 using ::testing::IsNull;
+using ::testing::NotNull;
 using ::testing::Return;
 using ::testing::StrEq;
 
@@ -277,6 +281,56 @@ TEST_F(MjrFilamentTest, PartialVtableDispatchesImplementedAndWarnsOnMissing) {
   // Unimplemented entries on the same vtable warn and return default values.
   mjrf_waitForFrame(&ctx, 42);
   EXPECT_EQ(mjrf_getTextureHeight(&texture), 0);
+}
+
+TEST_F(MjrFilamentTest, MalformedNumericSizesWarnAndKeepDefaults) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <custom>
+      <numeric name="filament.bloom.enabled" data="1 0"/>
+      <numeric name="filament.fog.density" data="0.5 0.6"/>
+      <numeric name="filament.fog.color" data="0.2 0.3"/>
+      <numeric name="filament.vignette.color" data="0.1 0.2 0.3"/>
+    </custom>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(kXml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  mjrfRenderOpts defaults;
+  mjrf_defaultRenderOpts(&defaults);
+
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Invalid numeric size for "
+                             "'filament.bloom.enabled': expected 1, got 2")))
+      .WillOnce(Return());
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Invalid numeric size for 'filament.fog.density': "
+                             "expected 1, got 2")))
+      .WillOnce(Return());
+  EXPECT_CALL(
+      mock_warning_handler,
+      Warn(HasSubstr(
+          "Invalid numeric size for 'filament.fog.color': expected 3, got 2")))
+      .WillOnce(Return());
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Invalid numeric size for "
+                             "'filament.vignette.color': expected 4, got 3")))
+      .WillOnce(Return());
+
+  mjrfRenderOpts opts;
+  mjrf_modelRenderOpts(&opts, model.get());
+
+  EXPECT_EQ(opts.bloom.enable, defaults.bloom.enable);
+  EXPECT_FLOAT_EQ(opts.fog.density, defaults.fog.density);
+  EXPECT_FLOAT_EQ(opts.fog.color[0], defaults.fog.color[0]);
+  EXPECT_FLOAT_EQ(opts.fog.color[1], defaults.fog.color[1]);
+  EXPECT_FLOAT_EQ(opts.fog.color[2], defaults.fog.color[2]);
+  EXPECT_FLOAT_EQ(opts.vignette.color[0], defaults.vignette.color[0]);
+  EXPECT_FLOAT_EQ(opts.vignette.color[1], defaults.vignette.color[1]);
+  EXPECT_FLOAT_EQ(opts.vignette.color[2], defaults.vignette.color[2]);
+  EXPECT_FLOAT_EQ(opts.vignette.color[3], defaults.vignette.color[3]);
 }
 
 }  // namespace

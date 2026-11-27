@@ -43,12 +43,15 @@ static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
   mjResource* resource =
       mju_openResource("", filename.c_str(), nullptr, nullptr, 0);
   if (!resource) {
-    mju_error("Failed to open resource: %s", filename.c_str());
+    mju_warning("Failed to open resource: %s", filename.c_str());
+    return {nullptr, nullptr};
   }
   const void* bytes = nullptr;
   const int nbytes = mju_readResource(resource, &bytes);
   if (bytes == nullptr || nbytes <= 0) {
-    mju_error("Failed to read resource: %s", filename.c_str());
+    mju_warning("Failed to read resource: %s", filename.c_str());
+    mju_closeResource(resource);
+    return {nullptr, nullptr};
   }
 
   mjrfTextureConfig config;
@@ -60,6 +63,10 @@ static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
   config.color_space = mjCOLORSPACE_AUTO;
 
   auto texture = CreateTexture(ctx, config);
+  if (!texture) {
+    mju_closeResource(resource);
+    return texture;
+  }
 
   mjrfTextureData payload;
   mjrf_defaultTextureData(&payload);
@@ -120,7 +127,9 @@ ModelLights::ModelLights(mjrfScene* scene, ModelResources* model_resources)
 
 ModelLights::~ModelLights() {
   for (auto& iter : lights_) {
-    mjrf_removeSceneLight(scene_, iter.get());
+    if (iter) {
+      mjrf_removeSceneLight(scene_, iter.get());
+    }
   }
   lights_.clear();
   if (fallback_ibl_) {
@@ -151,7 +160,9 @@ void ModelLights::Prepare() {
       params.texture = model_resources_->GetTexture(model->light_texid[i]);
       params.intensity = model->light_intensity[i];
       auto light_obj = CreateLight(ctx, params);
-      mjrf_addSceneLight(scene_, light_obj.get());
+      if (light_obj) {
+        mjrf_addSceneLight(scene_, light_obj.get());
+      }
       lights_.emplace_back(std::move(light_obj));
       has_image_based_light = true;
     } else {
@@ -172,7 +183,9 @@ void ModelLights::Prepare() {
       }
 
       auto light_obj = CreateLight(ctx, params);
-      mjrf_addSceneLight(scene_, light_obj.get());
+      if (light_obj) {
+        mjrf_addSceneLight(scene_, light_obj.get());
+      }
       lights_.emplace_back(std::move(light_obj));
     }
   }
@@ -185,7 +198,9 @@ void ModelLights::Prepare() {
     params.type = mjLIGHT_IMAGE;
     params.intensity = 10.0f;
     fallback_ibl_ = CreateLight(ctx, params);
-    mjrf_addSceneLight(scene_, fallback_ibl_.get());
+    if (fallback_ibl_) {
+      mjrf_addSceneLight(scene_, fallback_ibl_.get());
+    }
   }
 
   // There are no "physical" lights in the scene which means we're likely
@@ -202,7 +217,9 @@ void ModelLights::Prepare() {
     params.intensity = fallback_environment_light_intensity_;
     params.image_diffuse_scale = fallback_environment_light_diffuse_scale_;
     fallback_ibl_ = CreateLight(ctx, params);
-    mjrf_addSceneLight(scene_, fallback_ibl_.get());
+    if (fallback_ibl_) {
+      mjrf_addSceneLight(scene_, fallback_ibl_.get());
+    }
 
     // The headlight is a render request option, not a scene light; publish its
     // intensity for the renderer to pass along.
@@ -229,7 +246,9 @@ void ModelLights::UpdateShadowMapSize() {
     shadowsize_ = model->vis.quality.shadowsize;
     shadow_map_size_ = std::min(shadowsize_, 2048);
     for (auto& light : lights_) {
-      mjrf_setLightShadowMapSize(light.get(), shadow_map_size_);
+      if (light) {
+        mjrf_setLightShadowMapSize(light.get(), shadow_map_size_);
+      }
     }
   }
 }
@@ -252,6 +271,9 @@ void ModelLights::Update(const mjData* data) {
   const float3 offset = ReadFloat3(vopts_.offset);
   for (int i = 0; i < model->nlight; ++i) {
     mjrfLight* light = lights_[i].get();
+    if (!light) {
+      continue;
+    }
     const float3 pos = ReadFloat3(data->light_xpos, i) + offset;
     const float3 dir = ReadFloat3(data->light_xdir, i);
     mjrf_setLightPose(light, pos.v, dir.v);

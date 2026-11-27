@@ -333,21 +333,37 @@ static int GetNumVertices(const mjModel* model, int id, MeshType mesh_type) {
   }
 }
 
-static void UpdateMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
-                           const mjModel* model, int id, MeshType mesh_type) {
+static UniquePtr<mjrfMesh> BuildMesh(mjrfContext* ctx, const mjModel* model,
+                                     int id, MeshType mesh_type) {
   if (!IsValidIndex(model, id, mesh_type)) {
     mju_error("Invalid index %d for type %d", id, static_cast<int>(mesh_type));
-    return;
+    return {nullptr, nullptr};
   }
 
   const int num_vertices = GetNumVertices(model, id, mesh_type);
 
-  MeshBuilder* builder = new MeshBuilder(num_vertices);
-  data->user_data = builder;
-  data->release = [](void* user_data) {
-    delete static_cast<MeshBuilder*>(user_data);
-  };
+  mjrfMeshConfig config;
+  mjrf_defaultMeshConfig(&config);
+  config.max_vertices = num_vertices;
+  config.max_indices = num_vertices;
+  config.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
+  config.index_type = num_vertices >= std::numeric_limits<uint16_t>::max()
+                          ? mjINDEX_TYPE_U32
+                          : mjINDEX_TYPE_U16;
+  config.num_attributes = 3;
+  config.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+  config.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  config.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
+  config.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
+  config.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+  config.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
 
+  auto mesh = CreateMesh(ctx, config);
+  if (!mesh) {
+    return mesh;
+  }
+
+  MeshBuilder* builder = new MeshBuilder(num_vertices);
   switch (mesh_type) {
     case MeshType::kNormal:
       FillMeshBuffer(*builder, model, id);
@@ -360,32 +376,26 @@ static void UpdateMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
       break;
   }
 
-  config->max_vertices = num_vertices;
-  config->max_indices = num_vertices;
-  config->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-  config->index_type = num_vertices >= std::numeric_limits<uint16_t>::max()
-                           ? mjINDEX_TYPE_U32
-                           : mjINDEX_TYPE_U16;
-  config->num_attributes = 3;
-  config->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
-  config->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
-  config->attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
-  config->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
-  config->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
-  config->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
-
-  data->num_vertices = num_vertices;
-  data->num_indices = num_vertices;
-  data->indices = nullptr;
-  data->vertices[0] = builder->positions.data();
-  data->vertices[1] = builder->orientations.data();
-  data->vertices[2] = builder->uvs.data();
-  data->bounds_min[0] = builder->bounds_min.x;
-  data->bounds_min[1] = builder->bounds_min.y;
-  data->bounds_min[2] = builder->bounds_min.z;
-  data->bounds_max[0] = builder->bounds_max.x;
-  data->bounds_max[1] = builder->bounds_max.y;
-  data->bounds_max[2] = builder->bounds_max.z;
+  mjrfMeshData data;
+  mjrf_defaultMeshData(&data);
+  data.user_data = builder;
+  data.release = [](void* user_data) {
+    delete static_cast<MeshBuilder*>(user_data);
+  };
+  data.num_vertices = num_vertices;
+  data.num_indices = num_vertices;
+  data.indices = nullptr;
+  data.vertices[0] = builder->positions.data();
+  data.vertices[1] = builder->orientations.data();
+  data.vertices[2] = builder->uvs.data();
+  data.bounds_min[0] = builder->bounds_min.x;
+  data.bounds_min[1] = builder->bounds_min.y;
+  data.bounds_min[2] = builder->bounds_min.z;
+  data.bounds_max[0] = builder->bounds_max.x;
+  data.bounds_max[1] = builder->bounds_max.y;
+  data.bounds_max[2] = builder->bounds_max.z;
+  mjrf_uploadMesh(mesh.get(), &data);
+  return mesh;
 }
 
 static mjrPixelFormat GetPixelFormat(int nchannel) {
@@ -461,6 +471,10 @@ static std::shared_ptr<mjrfTexture> MakeTexture(
   payload.release = release;
 
   auto texture = CreateTexture(ctx, config);
+  if (!texture) {
+    if (release) release(user_data);
+    return nullptr;
+  }
   mjrf_uploadTexture(texture.get(), &payload);
   return std::shared_ptr<mjrfTexture>(std::move(texture));
 }
@@ -518,44 +532,30 @@ ModelResources::ModelResources(const mjModel* model, mjrfContext* ctx)
 
 void ModelResources::UploadMesh(const mjModel* model, int id) {
   if (model != model_) {
-    mju_error("Model mismatch.");
+    mju_warning("Model mismatch.");
+    return;
   }
   if (id < 0 || id >= model->nmesh) {
-    mju_error("Invalid mesh index %d", id);
+    mju_warning("Invalid mesh index %d", id);
+    return;
   }
   meshes_[id].reset();
   convex_hulls_[id].reset();
 
-  mjrfMeshConfig config;
-  mjrf_defaultMeshConfig(&config);
-  mjrfMeshData data;
-  mjrf_defaultMeshData(&data);
-  UpdateMeshData(&config, &data, model, id, MeshType::kNormal);
-
-  auto mesh = CreateMesh(ctx_, config);
-  mjrf_uploadMesh(mesh.get(), &data);
-  meshes_[id] = std::move(mesh);
-
+  meshes_[id] = BuildMesh(ctx_, model, id, MeshType::kNormal);
   if (model->mesh_graphadr[id] >= 0) {
-    mjrfMeshConfig convex_hull_config;
-    mjrf_defaultMeshConfig(&convex_hull_config);
-    mjrfMeshData convex_hull_data;
-    mjrf_defaultMeshData(&convex_hull_data);
-    UpdateMeshData(&convex_hull_config, &convex_hull_data, model, id,
-                   MeshType::kConvexHull);
-
-    auto convex_hull = CreateMesh(ctx_, convex_hull_config);
-    mjrf_uploadMesh(convex_hull.get(), &convex_hull_data);
-    convex_hulls_[id] = std::move(convex_hull);
+    convex_hulls_[id] = BuildMesh(ctx_, model, id, MeshType::kConvexHull);
   }
 }
 
 void ModelResources::UploadTexture(const mjModel* model, int id) {
   if (model != model_) {
-    mju_error("Model mismatch.");
+    mju_warning("Model mismatch.");
+    return;
   }
   if (id < 0 || id >= model->ntex) {
-    mju_error("Invalid texture index: %d", id);
+    mju_warning("Invalid texture index: %d", id);
+    return;
   }
 
   // a by-reference id leaves the ids of its previous key, unless it is
@@ -616,23 +616,17 @@ std::shared_ptr<mjrfTexture> ModelResources::LoadByReference(
 
 void ModelResources::UploadHeightField(const mjModel* model, int id) {
   if (model != model_) {
-    mju_error("Model mismatch.");
+    mju_warning("Model mismatch.");
+    return;
   }
   if (id < 0 || id >= model->nhfield) {
-    mju_error("Invalid height field index %d", id);
+    mju_warning("Invalid height field index %d", id);
+    return;
   }
 
   height_fields_[id].reset();
 
-  mjrfMeshConfig config;
-  mjrf_defaultMeshConfig(&config);
-  mjrfMeshData data;
-  mjrf_defaultMeshData(&data);
-  UpdateMeshData(&config, &data, model, id, MeshType::kHeightField);
-
-  auto mesh = CreateMesh(ctx_, config);
-  mjrf_uploadMesh(mesh.get(), &data);
-  height_fields_[id] = std::move(mesh);
+  height_fields_[id] = BuildMesh(ctx_, model, id, MeshType::kHeightField);
 }
 
 const mjrfMesh* ModelResources::GetMesh(int data_id) const {

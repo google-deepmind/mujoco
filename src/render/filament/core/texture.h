@@ -36,6 +36,9 @@ class Texture : public mjrfTexture {
     bool depth_attachment;
   };
 
+  // Validates the given texture config, emitting mju_warning on failure.
+  static bool ValidateConfig(const mjrfTextureConfig& config);
+
   // Creates a texture with the given data.
   Texture(filament::Engine* engine, const mjrfTextureConfig& config,
           InternalFlags flags = InternalFlags());

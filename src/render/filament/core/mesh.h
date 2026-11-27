@@ -32,6 +32,9 @@ namespace mujoco {
 // Owns a filament Vertex and Index buffer representing a geometry mesh.
 class Mesh : public mjrfMesh {
  public:
+  // Validates the given mesh config, emitting mju_warning on failure.
+  static bool ValidateConfig(const mjrfMeshConfig& config);
+
   // Creates a Mesh from the given MeshData.
   Mesh(filament::Engine* engine, const mjrfMeshConfig& config);
   ~Mesh();

@@ -25,6 +25,7 @@
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>
 #include <filament/VertexBuffer.h>
+#include <filament/MaterialEnums.h>
 #include <math/TVecHelpers.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
@@ -37,6 +38,31 @@ namespace mujoco {
 
 using filament::math::float3;
 using filament::math::float4;
+
+static bool IsValidUsage(int usage) {
+  switch (usage) {
+    case mjVERTEX_ATTRIBUTE_USAGE_POSITION:
+    case mjVERTEX_ATTRIBUTE_USAGE_NORMAL:
+    case mjVERTEX_ATTRIBUTE_USAGE_TANGENTS:
+    case mjVERTEX_ATTRIBUTE_USAGE_UV:
+    case mjVERTEX_ATTRIBUTE_USAGE_COLOR:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static bool IsValidAttributeType(int type) {
+  switch (type) {
+    case mjVERTEX_ATTRIBUTE_TYPE_FLOAT2:
+    case mjVERTEX_ATTRIBUTE_TYPE_FLOAT3:
+    case mjVERTEX_ATTRIBUTE_TYPE_FLOAT4:
+    case mjVERTEX_ATTRIBUTE_TYPE_UBYTE4:
+      return true;
+    default:
+      return false;
+  }
+}
 
 static filament::VertexAttribute GetUsage(const mjrVertexAttribute& attrib) {
   switch (attrib.usage) {
@@ -51,7 +77,7 @@ static filament::VertexAttribute GetUsage(const mjrVertexAttribute& attrib) {
     case mjVERTEX_ATTRIBUTE_USAGE_COLOR:
       return filament::VertexAttribute::COLOR;
     default:
-      mju_error("Unsupported vertex attribute usage: %d", attrib.usage);
+      mju_warning("Unsupported vertex attribute usage: %d", attrib.usage);
       return filament::VertexAttribute::POSITION;
   }
 }
@@ -68,7 +94,7 @@ static filament::VertexBuffer::AttributeType GetType(
     case mjVERTEX_ATTRIBUTE_TYPE_UBYTE4:
       return filament::VertexBuffer::AttributeType::UBYTE4;
     default:
-      mju_error("Unsupported vertex attribute type: %d", attrib.type);
+      mju_warning("Unsupported vertex attribute type: %d", attrib.type);
       return filament::VertexBuffer::AttributeType::FLOAT3;
   }
 }
@@ -84,7 +110,7 @@ int VertexAttributeTypeSize(const mjrVertexAttribute& attrib) {
     case mjVERTEX_ATTRIBUTE_TYPE_UBYTE4:
       return sizeof(uint8_t) * 4;
     default:
-      mju_error("Unsupported vertex attribute type: %d", attrib.type);
+      mju_warning("Unsupported vertex attribute type: %d", attrib.type);
       return 0;
   }
 }
@@ -100,40 +126,92 @@ int FillSequence(std::byte* buffer, std::size_t num_bytes) {
   return num;
 }
 
-Mesh::Mesh(filament::Engine* engine, const mjrfMeshConfig& config)
-    : engine_(engine),
-      config_(config) {
-  // Perform some validation on the config.
+bool Mesh::ValidateConfig(const mjrfMeshConfig& config) {
+  if (config.max_vertices <= 0) {
+    mju_warning("Mesh has no vertices.");
+    return false;
+  }
+  if (config.max_indices < 0) {
+    mju_warning("Invalid max_indices: %lld",
+                static_cast<long long>(config.max_indices));
+    return false;
+  }
+  if (config.num_attributes <= 0) {
+    mju_warning("Mesh has no positions.");
+    return false;
+  }
+  if (config.num_attributes > mjMAX_VERTEX_ATTRIBUTES) {
+    mju_warning("Invalid num_attributes: %d", config.num_attributes);
+    return false;
+  }
+  if (config.index_type != mjINDEX_TYPE_U16 &&
+      config.index_type != mjINDEX_TYPE_U32) {
+    mju_warning("Unsupported index type: %d", config.index_type);
+    return false;
+  }
+  if (config.primitive_type != mjMESH_PRIMITIVE_TYPE_TRIANGLES &&
+      config.primitive_type != mjMESH_PRIMITIVE_TYPE_LINES) {
+    mju_warning("Unsupported primitive type: %d", config.primitive_type);
+    return false;
+  }
+
   const mjrVertexAttribute* positions = nullptr;
   const mjrVertexAttribute* normals = nullptr;
   const mjrVertexAttribute* tangents = nullptr;
-  for (int i = 0; i < config_.num_attributes; ++i) {
-    if (config_.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
-      positions = &config_.attributes[i];
-    } else if (config_.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
-      normals = &config_.attributes[i];
-    } else if (config_.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_TANGENTS) {
-      tangents = &config_.attributes[i];
+  uint32_t seen_usages = 0;
+  for (int i = 0; i < config.num_attributes; ++i) {
+    const mjrVertexAttribute& attrib = config.attributes[i];
+    if (!IsValidUsage(attrib.usage)) {
+      mju_warning("Unsupported vertex attribute usage: %d", attrib.usage);
+      return false;
+    }
+    if (!IsValidAttributeType(attrib.type)) {
+      mju_warning("Unsupported vertex attribute type: %d", attrib.type);
+      return false;
+    }
+    const uint32_t bit = 1u << attrib.usage;
+    if (seen_usages & bit) {
+      mju_warning("Duplicate vertex attribute usage: %d", attrib.usage);
+      return false;
+    }
+    seen_usages |= bit;
+
+    if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
+      positions = &attrib;
+    } else if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
+      if (attrib.type != mjVERTEX_ATTRIBUTE_TYPE_FLOAT3) {
+        mju_warning("Normals must have type FLOAT3.");
+        return false;
+      }
+      normals = &attrib;
+    } else if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_TANGENTS) {
+      tangents = &attrib;
     }
   }
-  if (config_.max_vertices == 0) {
-    mju_error("Mesh has no vertices.");
-  }
   if (!positions) {
-    mju_error("Mesh has no positions.");
+    mju_warning("Mesh has no positions.");
+    return false;
   }
-  if (config_.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
-    mju_error("Positions must be the first attribute.");
+  if (config.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
+    mju_warning("Positions must be the first attribute.");
+    return false;
   }
   if (normals && tangents) {
-    mju_error("Mesh has both normals and tangents.");
+    mju_warning("Mesh has both normals and tangents.");
+    return false;
   }
-  if (normals && config_.interleaved) {
+  if (normals && config.interleaved) {
     // We need to build orientations from normals and so we require each
     // attribute to be in a separate buffer.
-    mju_error("Cannot support normals with interleaved vertex attributes.");
+    mju_warning("Cannot support normals with interleaved vertex attributes.");
+    return false;
   }
+  return true;
+}
 
+Mesh::Mesh(filament::Engine* engine, const mjrfMeshConfig& config)
+    : engine_(engine),
+      config_(config) {
   InitVertexBuffer();
   InitIndexBuffer();
 }
@@ -153,6 +231,25 @@ Mesh::~Mesh() {
 void Mesh::Upload(const mjrfMeshData& data) {
   Releaser releaser;
   releaser.Add(data.release, data.user_data);
+
+  if (!vertex_buffer_) {
+    return;
+  }
+  if (config_.max_vertices != data.num_vertices) {
+    mju_warning("Vertex count does not match config.");
+    return;
+  }
+  if (data.num_indices != 0 && data.num_indices != config_.max_indices) {
+    mju_warning("Index count does not match config.");
+    return;
+  }
+  const int num_buffers = config_.interleaved ? 1 : config_.num_attributes;
+  for (int i = 0; i < num_buffers; ++i) {
+    if (data.vertices[i] == nullptr) {
+      mju_warning("Invalid (null) vertex data.");
+      return;
+    }
+  }
 
   UpdateVertexBuffer(data, releaser);
   UpdateIndexBuffer(data, releaser);
@@ -224,7 +321,8 @@ void Mesh::InitIndexBuffer() {
 
 void Mesh::UpdateVertexBuffer(const mjrfMeshData& data, Releaser& releaser) {
   if (config_.max_vertices != data.num_vertices) {
-    mju_error("Vertex count does not match config.");
+    mju_warning("Vertex count does not match config.");
+    return;
   }
 
   if (config_.interleaved) {
@@ -263,7 +361,8 @@ void Mesh::UpdateIndexBuffer(const mjrfMeshData& data, Releaser& releaser) {
     return;
   }
   if (data.num_indices != config_.max_indices) {
-    mju_error("Index count does not match config.");
+    mju_warning("Index count does not match config.");
+    return;
   }
 
   const int element_size =
@@ -348,8 +447,10 @@ void Mesh::UpdateBounds(const mjrfMeshData& data) {
     bounds_min = float3(FLT_MAX, FLT_MAX, FLT_MAX);
     bounds_max = float3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 
-    if (config_.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
-      mju_error("mjrfMeshData has no positions.");
+    if (config_.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION ||
+        data.vertices[0] == nullptr) {
+      mju_warning("mjrfMeshData has no positions.");
+      return;
     }
     const float* positions =
         reinterpret_cast<const float*>(data.vertices[0]);

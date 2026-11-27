@@ -28,6 +28,7 @@
 #include "absl/strings/substitute.h"
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
+#include "src/render/filament/support/mjrf_ptr.h"
 #include "src/render/filament/support/model_lights.h"
 #include "src/render/filament/support/model_renderables.h"
 #include "src/render/filament/support/renderer.h"
@@ -270,6 +271,185 @@ TEST_F(ModelTextureTest, MissingByReferenceTextureWarns) {
   ModelResources missing_resources(missing.get(), renderer.GetContext());
   EXPECT_THAT(missing_resources.GetTexture(0), IsNull());
   EXPECT_EQ(RenderModel(renderer, missing_resources), expected);
+}
+
+TEST_F(ModelTextureTest, InvalidObjectConfigsWarnAndReturnNull) {
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+
+  // Default texture config has 0x0 dimensions.
+  mjrfTextureConfig tex_cfg;
+  mjrf_defaultTextureConfig(&tex_cfg);
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Invalid texture dimensions")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createTexture(ctx, &tex_cfg), IsNull());
+
+  // Unknown pixel format.
+  tex_cfg.width = 4;
+  tex_cfg.height = 4;
+  EXPECT_CALL(mock_warning_handler, Warn(HasSubstr("Unsupported format")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createTexture(ctx, &tex_cfg), IsNull());
+
+  // Non-RGB cubemap and non-1x6 cubemap dimensions.
+  tex_cfg.sampler_type = mjTEXTURE_CUBE;
+  tex_cfg.format = mjPIXEL_FORMAT_RGBA8;
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Only support RGB cubemaps")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createTexture(ctx, &tex_cfg), IsNull());
+
+  tex_cfg.format = mjPIXEL_FORMAT_RGB8;
+  tex_cfg.height = 8;
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Cube maps must contain 6 square images")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createTexture(ctx, &tex_cfg), IsNull());
+
+  // Invalid mesh configs: 0 vertices, no positions, normals + interleaved.
+  mjrfMeshConfig mesh_cfg;
+  mjrf_defaultMeshConfig(&mesh_cfg);
+  EXPECT_CALL(mock_warning_handler, Warn(HasSubstr("Mesh has no vertices")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createMesh(ctx, &mesh_cfg), IsNull());
+
+  mesh_cfg.max_vertices = 3;
+  EXPECT_CALL(mock_warning_handler, Warn(HasSubstr("Mesh has no positions")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createMesh(ctx, &mesh_cfg), IsNull());
+
+  mesh_cfg.num_attributes = 2;
+  mesh_cfg.interleaved = true;
+  mesh_cfg.attributes[0] = {mjVERTEX_ATTRIBUTE_USAGE_POSITION,
+                            mjVERTEX_ATTRIBUTE_TYPE_FLOAT3};
+  mesh_cfg.attributes[1] = {mjVERTEX_ATTRIBUTE_USAGE_NORMAL,
+                            mjVERTEX_ATTRIBUTE_TYPE_FLOAT3};
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr(
+                  "Cannot support normals with interleaved vertex attributes")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createMesh(ctx, &mesh_cfg), IsNull());
+
+  // Invalid render target config and light params.
+  mjrfRenderTargetConfig rt_cfg;
+  mjrf_defaultRenderTargetConfig(&rt_cfg);
+  rt_cfg.color_format = mjPIXEL_FORMAT_KTX;
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Unsupported render target color format")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createRenderTarget(ctx, &rt_cfg), IsNull());
+
+  mjrfLightParams light_params;
+  mjrf_defaultLightParams(&light_params);
+  light_params.type = 99;
+  EXPECT_CALL(mock_warning_handler, Warn(HasSubstr("Unsupported light type")))
+      .WillOnce(Return());
+  EXPECT_THAT(mjrf_createLight(ctx, &light_params), IsNull());
+}
+
+TEST_F(ModelTextureTest, MismatchedUploadsWarnAndReleasePayload) {
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+
+  mjrfTextureConfig tex_cfg;
+  mjrf_defaultTextureConfig(&tex_cfg);
+  tex_cfg.width = 2;
+  tex_cfg.height = 2;
+  tex_cfg.format = mjPIXEL_FORMAT_RGB8;
+  UniquePtr<mjrfTexture> tex = CreateTexture(ctx, tex_cfg);
+  ASSERT_THAT(tex.get(), NotNull());
+
+  int tex_released = 0;
+  auto* heap_bytes = new uint8_t[3]{1, 2, 3};
+  struct ReleaseCtx {
+    uint8_t* ptr;
+    int* count;
+  } tex_release_ctx{heap_bytes, &tex_released};
+
+  mjrfTextureData tex_data;
+  mjrf_defaultTextureData(&tex_data);
+  tex_data.bytes = heap_bytes;
+  tex_data.num_bytes = 3;  // Expected 2 * 2 * 3 = 12.
+  tex_data.user_data = &tex_release_ctx;
+  tex_data.release = +[](void* user) {
+    auto* c = static_cast<ReleaseCtx*>(user);
+    delete[] c->ptr;
+    ++(*c->count);
+  };
+
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Texture size does not match data size")))
+      .WillOnce(Return());
+  mjrf_uploadTexture(tex.get(), &tex_data);
+  EXPECT_EQ(tex_released, 1);
+
+  mjrfMeshConfig mesh_cfg;
+  mjrf_defaultMeshConfig(&mesh_cfg);
+  mesh_cfg.max_vertices = 3;
+  mesh_cfg.max_indices = 3;
+  mesh_cfg.num_attributes = 1;
+  mesh_cfg.attributes[0] = {mjVERTEX_ATTRIBUTE_USAGE_POSITION,
+                            mjVERTEX_ATTRIBUTE_TYPE_FLOAT3};
+  UniquePtr<mjrfMesh> mesh = CreateMesh(ctx, mesh_cfg);
+  ASSERT_THAT(mesh.get(), NotNull());
+
+  int mesh_released = 0;
+  auto* heap_verts = new uint8_t[36]{};
+  ReleaseCtx mesh_release_ctx{heap_verts, &mesh_released};
+
+  mjrfMeshData mesh_data;
+  mjrf_defaultMeshData(&mesh_data);
+  mesh_data.num_vertices = 2;  // Mismatch with max_vertices = 3.
+  mesh_data.vertices[0] = heap_verts;
+  mesh_data.user_data = &mesh_release_ctx;
+  mesh_data.release = +[](void* user) {
+    auto* c = static_cast<ReleaseCtx*>(user);
+    delete[] c->ptr;
+    ++(*c->count);
+  };
+
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Vertex count does not match config")))
+      .WillOnce(Return());
+  mjrf_uploadMesh(mesh.get(), &mesh_data);
+  EXPECT_EQ(mesh_released, 1);
+}
+
+TEST_F(ModelTextureTest, InvalidUploadIndicesAndModelMismatchWarn) {
+  static constexpr char kAssets[] = R"(
+      <texture name="srgb_r8" type="2d" file="test-pattern.png"
+          nchannel="1" colorspace="sRGB"/>
+      <hfield name="hf" nrow="2" ncol="2" size="1 1 1 0.1"/>
+  )";
+  MjModelPtr model = LoadTexturedModel(kAssets, "", false);
+  MjModelPtr other = LoadTexturedModel("", "", false);
+  ASSERT_THAT(model, NotNull());
+  ASSERT_THAT(other, NotNull());
+
+  Renderer renderer(MakeOffscreenConfig());
+  EXPECT_CALL(mock_warning_handler, Warn(HasSubstr("Unsupported format")))
+      .WillOnce(Return());
+  ModelResources resources(model.get(), renderer.GetContext());
+  EXPECT_THAT(resources.GetTexture(0), IsNull());
+
+  EXPECT_CALL(mock_warning_handler, Warn(HasSubstr("Model mismatch")))
+      .Times(3)
+      .WillRepeatedly(Return());
+  resources.UploadMesh(other.get(), 0);
+  resources.UploadTexture(other.get(), 0);
+  resources.UploadHeightField(other.get(), 0);
+
+  EXPECT_CALL(mock_warning_handler, Warn(HasSubstr("Invalid mesh index")))
+      .WillOnce(Return());
+  resources.UploadMesh(model.get(), -1);
+  EXPECT_CALL(mock_warning_handler, Warn(HasSubstr("Invalid texture index")))
+      .WillOnce(Return());
+  resources.UploadTexture(model.get(), 99);
+  EXPECT_CALL(mock_warning_handler,
+              Warn(HasSubstr("Invalid height field index")))
+      .WillOnce(Return());
+  resources.UploadHeightField(model.get(), -1);
 }
 
 }  // namespace

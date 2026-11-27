@@ -544,10 +544,14 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
     num_faces += model->flex_shellnum[flex_id];
   } else {
     // 1D flex objects should be rendered as a collection of capsules.
-    mju_error("Unsupported flex dimension: %d", dim);
+    mju_warning("Unsupported flex dimension: %d", dim);
+    return {nullptr, nullptr};
   }
 
   const int num_vertices = num_faces * 3;
+  if (num_vertices <= 0) {
+    return {nullptr, nullptr};
+  }
   const bool has_uvs = model->flex_texcoordadr[flex_id] >= 0;
 
   mjrfMeshConfig mesh_config;
@@ -567,13 +571,20 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
   SetBounds(&mesh_data, min_pt, max_pt);
 
   auto mesh = CreateMesh(ctx, mesh_config);
-  mjrf_uploadMesh(mesh.get(), &mesh_data);
+  if (mesh) {
+    mjrf_uploadMesh(mesh.get(), &mesh_data);
+  } else if (mesh_data.release) {
+    mesh_data.release(mesh_data.user_data);
+  }
   return mesh;
 }
 
 UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
                                    const mjData* data, int skin_id) {
   const int num_vertices = model->skin_vertnum[skin_id];
+  if (num_vertices <= 0) {
+    return {nullptr, nullptr};
+  }
   const int num_indices = 3 * model->skin_facenum[skin_id];
   const bool has_uvs = model->skin_texcoordadr[skin_id] >= 0;
 
@@ -594,7 +605,11 @@ UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
   SetBounds(&mesh_data, min_pt, max_pt);
 
   auto mesh = CreateMesh(ctx, mesh_config);
-  mjrf_uploadMesh(mesh.get(), &mesh_data);
+  if (mesh) {
+    mjrf_uploadMesh(mesh.get(), &mesh_data);
+  } else if (mesh_data.release) {
+    mesh_data.release(mesh_data.user_data);
+  }
   return mesh;
 }
 
@@ -642,7 +657,11 @@ UniquePtr<mjrfMesh> CreateDiscMesh(mjrfContext* ctx, float inner_radius,
   SetBounds(&mesh_data, float3(-1, -1, 0), float3(1, 1, 0));
 
   auto mesh = CreateMesh(ctx, mesh_config);
-  mjrf_uploadMesh(mesh.get(), &mesh_data);
+  if (mesh) {
+    mjrf_uploadMesh(mesh.get(), &mesh_data);
+  } else if (mesh_data.release) {
+    mesh_data.release(mesh_data.user_data);
+  }
   return mesh;
 }
 

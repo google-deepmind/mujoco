@@ -42,18 +42,19 @@ static bool IsCubeMap(const mjrfTextureConfig& config) {
          config.sampler_type == mjTEXTURE_SKYBOX;
 }
 
+static bool IsValidSamplerType(int sampler_type) {
+  return sampler_type == mjTEXTURE_2D || sampler_type == mjTEXTURE_CUBE ||
+         sampler_type == mjTEXTURE_SKYBOX;
+}
+
 static int GetFaceHeight(const mjrfTextureConfig& config) {
-  int face_height = config.height;
-  if (config.width != config.height) {
-    if (config.width * kNumFacesPerCube != config.height) {
-      mju_error("Cube maps must contain 6 square images.");
-    }
-    face_height = config.height / kNumFacesPerCube;
+  if (config.width == config.height) {
+    return config.height;
   }
-  if (config.width != face_height) {
-    mju_error("Cube map faces must be square.");
+  if (config.width * kNumFacesPerCube == config.height) {
+    return config.height / kNumFacesPerCube;
   }
-  return face_height;
+  return 0;
 }
 
 static int GetNumChannels(const mjrfTextureConfig& config) {
@@ -65,7 +66,6 @@ static int GetNumChannels(const mjrfTextureConfig& config) {
     case mjPIXEL_FORMAT_RGBA8:
       return 4;
     default:
-      mju_error("Unsupported format: %d", (int)config.format);
       return 0;
   }
 }
@@ -80,7 +80,6 @@ static filament::Texture::Format GetTextureFormat(
     case mjPIXEL_FORMAT_RGBA8:
       return filament::Texture::Format::RGBA;
     default:
-      mju_error("Unsupported format: %d", (int)config.format);
       return filament::Texture::Format::UNUSED;
   }
 }
@@ -94,7 +93,6 @@ static filament::Texture::InternalFormat GetTextureInternalFormat(
       case mjPIXEL_FORMAT_RGBA8:
         return filament::Texture::InternalFormat::SRGB8_A8;
       default:
-        mju_error("Unsupported format: %d", (int)config.format);
         return filament::Texture::InternalFormat::UNUSED;
     }
   } else {
@@ -110,10 +108,40 @@ static filament::Texture::InternalFormat GetTextureInternalFormat(
       case mjPIXEL_FORMAT_DEPTH32F:
         return filament::Texture::InternalFormat::DEPTH32F;
       default:
-        mju_error("Unsupported format: %d", (int)config.format);
         return filament::Texture::InternalFormat::UNUSED;
     }
   }
+}
+
+bool Texture::ValidateConfig(const mjrfTextureConfig& config) {
+  if (!IsValidSamplerType(config.sampler_type)) {
+    mju_warning("Unsupported sampler type: %d", config.sampler_type);
+    return false;
+  }
+  if (IsCompressed(config)) {
+    return true;
+  }
+  if (config.width <= 0 || config.height <= 0) {
+    mju_warning("Invalid texture dimensions: %dx%d.", config.width,
+                config.height);
+    return false;
+  }
+  if (GetTextureInternalFormat(config) ==
+      filament::Texture::InternalFormat::UNUSED) {
+    mju_warning("Unsupported format: %d", (int)config.format);
+    return false;
+  }
+  if (IsCubeMap(config)) {
+    if (config.format != mjPIXEL_FORMAT_RGB8) {
+      mju_warning("Only support RGB cubemaps.");
+      return false;
+    }
+    if (GetFaceHeight(config) != config.width) {
+      mju_warning("Cube maps must contain 6 square images.");
+      return false;
+    }
+  }
+  return true;
 }
 
 Texture::Texture(filament::Engine* engine, const mjrfTextureConfig& config,
@@ -134,10 +162,6 @@ Texture::Texture(filament::Engine* engine, const mjrfTextureConfig& config,
   builder.format(internal_format);
 
   if (IsCubeMap(config_)) {
-    if (config_.format != mjPIXEL_FORMAT_RGB8) {
-      mju_error("Only support RGB cubemaps.");
-      return;
-    }
     builder.height(GetFaceHeight(config_));
     builder.sampler(filament::Texture::Sampler::SAMPLER_CUBEMAP);
   } else {
@@ -176,6 +200,10 @@ void Texture::Upload(const mjrfTextureData& data) {
   }
 
   if (config_.format == mjPIXEL_FORMAT_KTX) {
+    if (texture_) {
+      engine_->destroy(texture_);
+      texture_ = nullptr;
+    }
     image::Ktx1Bundle* bundle = new image::Ktx1Bundle(
         reinterpret_cast<const uint8_t*>(data.bytes), data.num_bytes);
     has_spherical_harmonics_ = true;
@@ -188,13 +216,24 @@ void Texture::Upload(const mjrfTextureData& data) {
     return;
   }
 
+  if (!texture_) {
+    return;
+  }
+
   const int num_channels = GetNumChannels(config_);
   const filament::Texture::Type type = filament::Texture::Type::UBYTE;
   const filament::Texture::Format format = GetTextureFormat(config_);
+  if (num_channels == 0 || format == filament::Texture::Format::UNUSED) {
+    mju_warning("Unsupported format: %d", (int)config_.format);
+    return;
+  }
 
   if (!IsCubeMap(config_)) {
-    if (config_.width * config_.height * num_channels != data.num_bytes) {
-      mju_error("Texture size does not match data size.");
+    const mjtSize expected_bytes =
+        static_cast<mjtSize>(config_.width) * config_.height * num_channels;
+    if (expected_bytes != data.num_bytes) {
+      mju_warning("Texture size does not match data size.");
+      return;
     }
 
     filament::Texture::PixelBufferDescriptor desc(
@@ -202,10 +241,16 @@ void Texture::Upload(const mjrfTextureData& data) {
         releaser.Acquire());
     texture_->setImage(*engine_, 0, std::move(desc));
   } else {
-    const int face_size = config_.width * GetFaceHeight(config_) * num_channels;
-    const int num_bytes = face_size * kNumFacesPerCube;
+    const int face_height = GetFaceHeight(config_);
+    const mjtSize face_size =
+        static_cast<mjtSize>(config_.width) * face_height * num_channels;
+    const mjtSize num_bytes = face_size * kNumFacesPerCube;
 
     if (config_.width == config_.height) {
+      if (face_size != data.num_bytes) {
+        mju_warning("Texture size does not match data size.");
+        return;
+      }
       // Create a new image buffer into which we can make 6 copies of the input
       // image to create a cubemap. Because this will be the actual buffer
       // passed to Filament, we use a new Releaser and allow the original to go
@@ -219,17 +264,18 @@ void Texture::Upload(const mjrfTextureData& data) {
                                                     type, &Releaser::Release,
                                                     copy_releaser.Acquire());
       texture_->setImage(*engine_, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0,
-                         /*zoffset=*/0, config_.width, GetFaceHeight(config_),
+                         /*zoffset=*/0, config_.width, face_height,
                          /*depth=*/6, std::move(desc));
     } else {
       if (num_bytes != data.num_bytes) {
-        mju_error("Texture size does not match data size.");
+        mju_warning("Texture size does not match data size.");
+        return;
       }
       filament::Texture::PixelBufferDescriptor desc(
           data.bytes, data.num_bytes, format, type, &Releaser::Release,
           releaser.Acquire());
       texture_->setImage(*engine_, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0,
-                         /*zoffset=*/0, config_.width, GetFaceHeight(config_),
+                         /*zoffset=*/0, config_.width, face_height,
                          /*depth=*/6, std::move(desc));
     }
   }

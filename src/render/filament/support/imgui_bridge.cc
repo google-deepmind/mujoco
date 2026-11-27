@@ -95,6 +95,9 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id,
     config.format = bpp == 4 ? mjPIXEL_FORMAT_RGBA8 : mjPIXEL_FORMAT_RGB8;
     config.color_space = mjCOLORSPACE_LINEAR;
     UniquePtr<mjrfTexture> new_texture = ::mujoco::CreateTexture(ctx_, config);
+    if (!new_texture) {
+      return 0;
+    }
     texture = new_texture.get();
     textures_.insert_or_assign(tex_id, std::move(new_texture));
   }
@@ -130,8 +133,12 @@ void ImguiBridge::CreateTexture(ImTextureData* data) {
   config.format = mjPIXEL_FORMAT_RGBA8;
   config.color_space = mjCOLORSPACE_LINEAR;
 
+  UniquePtr<mjrfTexture> texture = ::mujoco::CreateTexture(ctx_, config);
+  if (!texture) {
+    return;
+  }
   const uintptr_t tex_id = next_tex_id_++;
-  textures_.insert_or_assign(tex_id, ::mujoco::CreateTexture(ctx_, config));
+  textures_.insert_or_assign(tex_id, std::move(texture));
   data->SetTexID((ImTextureID)tex_id);
   UpdateTexture(data);
 }
@@ -241,7 +248,11 @@ void ImguiBridge::Update() {
     config.interleaved = true;
     config.index_type = mjINDEX_TYPE_U16;
     config.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-    meshes_.push_back(CreateMesh(ctx_, config));
+    auto new_mesh = CreateMesh(ctx_, config);
+    if (!new_mesh) {
+      continue;
+    }
+    meshes_.push_back(std::move(new_mesh));
     mjrfMesh* mesh = meshes_.back().get();
 
     mjrfMeshData data;
@@ -312,6 +323,7 @@ void ImguiBridge::Update() {
       ++renderable_index;
     }
   }
+  PrepareRenderables(renderable_index);
 }
 
 void ImguiBridge::PrepareRenderables(int count) {

@@ -47,6 +47,13 @@ static void getRendererInfo(mjrfContext* ctx, mjrRendererInfo* info) {
 
 static mjrfTexture* createTexture(mjrfContext* ctx,
                                   const mjrfTextureConfig* config) {
+  if (!config) {
+    mju_warning("Invalid (nullptr) config: createTexture");
+    return nullptr;
+  }
+  if (!Texture::ValidateConfig(*config)) {
+    return nullptr;
+  }
   mjrfTexture* texture =
       new Texture(FilamentContext::downcast(ctx)->GetEngine(), *config);
   texture->vtable = ctx->vtable;
@@ -58,6 +65,13 @@ static void destroyTexture(mjrfTexture* texture) {
 }
 
 static mjrfMesh* createMesh(mjrfContext* ctx, const mjrfMeshConfig* config) {
+  if (!config) {
+    mju_warning("Invalid (nullptr) config: createMesh");
+    return nullptr;
+  }
+  if (!Mesh::ValidateConfig(*config)) {
+    return nullptr;
+  }
   mjrfMesh* mesh =
       new Mesh(FilamentContext::downcast(ctx)->GetEngine(), *config);
   mesh->vtable = ctx->vtable;
@@ -79,6 +93,13 @@ static void destroyScene(mjrfScene* scene) {
 }
 
 static mjrfLight* createLight(mjrfContext* ctx, const mjrfLightParams* params) {
+  if (!params) {
+    mju_warning("Invalid (nullptr) params: createLight");
+    return nullptr;
+  }
+  if (!Light::ValidateParams(*params)) {
+    return nullptr;
+  }
   mjrfLight* light =
       new Light(FilamentContext::downcast(ctx)->GetEngine(), *params);
   light->vtable = ctx->vtable;
@@ -102,6 +123,13 @@ static void destroyRenderable(mjrfRenderable* renderable) {
 
 static mjrfRenderTarget* createRenderTarget(
     mjrfContext* ctx, const mjrfRenderTargetConfig* config) {
+  if (!config) {
+    mju_warning("Invalid (nullptr) config: createRenderTarget");
+    return nullptr;
+  }
+  if (!RenderTarget::ValidateConfig(*config)) {
+    return nullptr;
+  }
   mjrfRenderTarget* render_target =
       new RenderTarget(FilamentContext::downcast(ctx)->GetEngine(), *config);
   render_target->vtable = ctx->vtable;

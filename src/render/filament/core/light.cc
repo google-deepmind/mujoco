@@ -46,6 +46,19 @@ static std::pair<float, float> GetSpotLightConeAngles(float angle,
   return {inner, outer};
 }
 
+bool Light::ValidateParams(const mjrfLightParams& params) {
+  switch (params.type) {
+    case mjLIGHT_SPOT:
+    case mjLIGHT_DIRECTIONAL:
+    case mjLIGHT_POINT:
+    case mjLIGHT_IMAGE:
+      return true;
+    default:
+      mju_warning("Unsupported light type: %d", params.type);
+      return false;
+  }
+}
+
 Light::Light(filament::Engine* engine, const mjrfLightParams& params)
     : engine_(engine), params_(params) {
   // Filament treats image-based lights (IBLs) as separate objects (i.e.
@@ -88,7 +101,7 @@ Light::Light(filament::Engine* engine, const mjrfLightParams& params)
       type = filament::LightManager::Type::POINT;
       break;
     default:
-      mju_error("Unsupported light type: %d", params.type);
+      mju_warning("Unsupported light type: %d", params.type);
       return;
   }
 
