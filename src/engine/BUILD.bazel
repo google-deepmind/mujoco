@@ -485,6 +485,7 @@ cc_library(
         ":engine_collision_raysdf",
         ":engine_core",
         ":engine_core_util",
+        ":engine_crossplatform",
         ":engine_inline",
         ":engine_macro",
         ":engine_memory",

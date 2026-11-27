@@ -33,6 +33,7 @@
 #include "engine/engine_thread.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
@@ -1771,11 +1772,13 @@ static void addPair(const mjModel* m, int bf1, int bf2,
 
 // helper structure for SAP sorting
 struct _mjtSAP {
-  float value;
+  union {
+    float value;
+    uint32_t key;
+  };
   int id;
 };
 typedef struct _mjtSAP mjtSAP;
-
 
 
 // comparison function for SAP
@@ -1792,6 +1795,124 @@ static inline int SAPcmp(const mjtSAP* obj1, const mjtSAP* obj2, void* context) 
 
 // define SAPsort function for sorting SAP sorting
 mjSORT(SAPsort, mjtSAP, SAPcmp);
+
+
+// radix/counting sort thresholds and 8-bit radix bucket count
+enum {
+  mjRADIX_BUCKETS     = 256,   // 2^8 buckets per 8-bit radix pass
+  mjSAP_RADIX_MIN     = 96,    // minimum SAP endpoints for sapRadixSort
+  mjBF_COUNT_MIN      = 64,    // minimum pairs for 2-pass counting sort
+  mjBF_COUNT_MAXBOUND = 4096,  // maximum id bound for L1-resident counting sort
+  mjBF_RADIX_MIN      = 128,   // minimum pairs for 4-pass 8-bit LSD radix sort
+};
+
+
+// in-place exclusive prefix sum on histogram c[0..n-1]
+static inline void exclusivePrefixSum(int* c, int n) {
+  int sum = 0;
+  for (int i=0; i < n; i++) {
+    int k = c[i];
+    c[i] = sum;
+    sum += k;
+  }
+}
+
+
+// map IEEE-754 float to order-preserving uint32 key (-0.0f canonicalized to +0.0f)
+static inline uint32_t floatToRadixKey(float f) {
+  uint32_t bits;
+  memcpy(&bits, &f, sizeof(bits));
+  if (bits == 0x80000000u) {
+    bits = 0;
+  }
+
+  // flip sign bit for >= 0, all bits for < 0
+  uint32_t mask = ((uint32_t)0 - (bits >> 31)) | 0x80000000u;
+  return bits ^ mask;
+}
+
+
+// inverse of floatToRadixKey
+static inline float radixKeyToFloat(uint32_t key) {
+  uint32_t mask = ((key >> 31) - 1u) | 0x80000000u;
+  uint32_t bits = key ^ mask;
+  float f;
+  memcpy(&f, &bits, sizeof(f));
+  return f;
+}
+
+
+// stable 4-pass 8-bit LSD radix sort for SAP endpoints
+// outlined to keep mj_SAP stack frame small when unused
+static mjNOINLINE void sapRadixSort(mjtSAP* sortbuf, mjtSAP* buf, const mjtNum* x_min, int n) {
+  int cnt[4][mjRADIX_BUCKETS];
+  memset(cnt, 0, sizeof(cnt));
+
+  // encode float keys and accumulate all 4 byte histograms in one pass
+  for (int i=0; i < n; i++) {
+    uint32_t key = floatToRadixKey((float)x_min[i]);
+    sortbuf[i].key = key;
+    sortbuf[i].id = i;
+    cnt[0][key & 0xFFu]++;
+    cnt[1][(key >> 8) & 0xFFu]++;
+    cnt[2][(key >> 16) & 0xFFu]++;
+    cnt[3][key >> 24]++;
+  }
+
+  // find last active pass so key decoding folds into its scatter
+  int last_pass = -1;
+  uint32_t k0 = sortbuf[0].key;
+  for (int pass=0; pass < 4; pass++) {
+    if (cnt[pass][(k0 >> (8*pass)) & 0xFFu] < n) {
+      last_pass = pass;
+    }
+  }
+
+  // stable LSD radix passes, skipping any byte where all keys match
+  mjtSAP* src = sortbuf;
+  mjtSAP* dst = buf;
+  for (int pass=0; pass < 4; pass++) {
+    int shift = 8*pass;
+    if (cnt[pass][(k0 >> shift) & 0xFFu] == n) {
+      continue;
+    }
+
+    // exclusive prefix sum
+    int* c = cnt[pass];
+    exclusivePrefixSum(c, mjRADIX_BUCKETS);
+
+    // scatter (decode keys back to float on final active pass)
+    if (pass == last_pass) {
+      for (int i=0; i < n; i++) {
+        mjtSAP item = src[i];
+        int idx = c[(item.key >> shift) & 0xFFu]++;
+        dst[idx].value = radixKeyToFloat(item.key);
+        dst[idx].id = item.id;
+      }
+    } else {
+      for (int i=0; i < n; i++) {
+        dst[c[(src[i].key >> shift) & 0xFFu]++] = src[i];
+      }
+    }
+
+    mjtSAP* tmp = src;
+    src = dst;
+    dst = tmp;
+  }
+
+  // all keys equal: decode constant value
+  if (last_pass < 0) {
+    float val = radixKeyToFloat(k0);
+    for (int i=0; i < n; i++) {
+      sortbuf[i].value = val;
+    }
+  }
+
+  // copy back if odd number of passes
+  else if (src != sortbuf) {
+    memcpy(sortbuf, src, n * sizeof(mjtSAP));
+  }
+}
 
 
 // sort per-box SAP hits by sweep insertion rank and finalize (id1, id2) pairs
@@ -1835,18 +1956,25 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, const mjtByte* active, int n, i
   const mjtNum* x_min = aamm + n*(axis_x + 0);
   const mjtNum* x_max = aamm + n*(axis_x + 3);
 
-  // init sortbuf with primary axis min values
+  // init sortbuf with primary axis min values and sort along specified axis
   mjtSAP* sortbuf = mjSTACKALLOC(d, n, mjtSAP);
-  for (int i=0; i < n; i++) {
-    sortbuf[i].value = (float)x_min[i];
-    sortbuf[i].id = i;
-  }
-
-  // sort along specified axis
   {
     mj_markStack(d);
     mjtSAP* buf = mjSTACKALLOC(d, n, mjtSAP);
-    SAPsort(sortbuf, buf, n, NULL);
+
+    // radix sort for large n
+    if (n >= mjSAP_RADIX_MIN) {
+      sapRadixSort(sortbuf, buf, x_min, n);
+    }
+
+    // comparison sort for small n
+    else {
+      for (int i=0; i < n; i++) {
+        sortbuf[i].value = (float)x_min[i];
+        sortbuf[i].id = i;
+      }
+      SAPsort(sortbuf, buf, n, NULL);
+    }
     mj_freeStack(d);
   }
 
@@ -2032,6 +2160,118 @@ static inline int mjPacked32cmp(const mjPacked32* i, const mjPacked32* j, void* 
 mjSORT(bfsort, mjPacked32, mjPacked32cmp);
 
 
+// radix/counting sort for bodyflex pairs by (hi, lo); returns 1 if sorted, 0 if skipped
+// outlined to keep mj_broadphase stack frame small when unused
+static mjNOINLINE int bfRadixSort(mjData* d, mjPacked32* pair, mjPacked32* buf, int n, int maxid) {
+  int bound = mjMIN(maxid, 0x10000);
+
+  // 2-pass exact counting sort when bucket count fits in L1, is amortized by n,
+  // and fits in the remaining arena stack
+  if (bound > 0 && bound <= mjBF_COUNT_MAXBOUND && n >= (bound >> 1)) {
+    size_t need = mj_stackFrameBytes() +
+                  2 * mj_stackBytes((size_t)bound * sizeof(int), _Alignof(int));
+    if (mj_stackBytesAvailable(d) >= need) {
+      mj_markStack(d);
+      int* cnt_lo = mjSTACKALLOC(d, bound, int);
+      int* cnt_hi = mjSTACKALLOC(d, bound, int);
+      mju_zeroInt(cnt_lo, bound);
+      mju_zeroInt(cnt_hi, bound);
+
+      // count lo and hi histograms in a single pass
+      for (int i=0; i < n; i++) {
+        cnt_lo[pair[i].lo]++;
+        cnt_hi[pair[i].hi]++;
+      }
+
+      // exclusive prefix sums
+      exclusivePrefixSum(cnt_lo, bound);
+      exclusivePrefixSum(cnt_hi, bound);
+
+      // pass 1: scatter by lo (pair -> buf)
+      for (int i=0; i < n; i++) {
+        buf[cnt_lo[pair[i].lo]++] = pair[i];
+      }
+
+      // pass 2: scatter by hi (buf -> pair)
+      for (int i=0; i < n; i++) {
+        pair[cnt_hi[buf[i].hi]++] = buf[i];
+      }
+
+      mj_freeStack(d);
+      return 1;
+    }
+  }
+
+  // 4-pass 8-bit LSD radix sort for larger id ranges
+  if (n >= mjBF_RADIX_MIN) {
+    int cnt[4][mjRADIX_BUCKETS];
+    memset(cnt, 0, sizeof(cnt));
+
+    // accumulate all 4 byte histograms in one pass
+    for (int i=0; i < n; i++) {
+      uint16_t lo = pair[i].lo, hi = pair[i].hi;
+      cnt[0][lo & 0xFFu]++;
+      cnt[1][lo >> 8]++;
+      cnt[2][hi & 0xFFu]++;
+      cnt[3][hi >> 8]++;
+    }
+
+    // stable LSD radix passes, skipping any byte where all keys match
+    int n_hi = ((bound > 0 ? bound - 1 : 0xFFFF) >> 8) + 1;
+    int lim[4] = {mjRADIX_BUCKETS, n_hi, mjRADIX_BUCKETS, n_hi};
+    uint16_t lo0 = pair[0].lo, hi0 = pair[0].hi;
+    int b0[4] = {lo0 & 0xFFu, lo0 >> 8, hi0 & 0xFFu, hi0 >> 8};
+    mjPacked32* src = pair;
+    mjPacked32* dst = buf;
+    for (int p=0; p < 4; p++) {
+      if (cnt[p][b0[p]] == n) {
+        continue;
+      }
+
+      // exclusive prefix sum
+      int* c = cnt[p];
+      exclusivePrefixSum(c, lim[p]);
+
+      // scatter
+      switch (p) {
+        case 0:
+          for (int i=0; i < n; i++) {
+            dst[c[src[i].lo & 0xFFu]++] = src[i];
+          }
+          break;
+        case 1:
+          for (int i=0; i < n; i++) {
+            dst[c[src[i].lo >> 8]++] = src[i];
+          }
+          break;
+        case 2:
+          for (int i=0; i < n; i++) {
+            dst[c[src[i].hi & 0xFFu]++] = src[i];
+          }
+          break;
+        default:
+          for (int i=0; i < n; i++) {
+            dst[c[src[i].hi >> 8]++] = src[i];
+          }
+          break;
+      }
+
+      mjPacked32* tmp = src;
+      src = dst;
+      dst = tmp;
+    }
+
+    // copy back if odd number of passes
+    if (src != pair) {
+      memcpy(pair, src, n * sizeof(mjPacked32));
+    }
+    return 1;
+  }
+
+  return 0;
+}
+
+
 // return 1 if body b is paired against all collidable bodies/flexes without SAP, 0 otherwise
 static inline int alwaysColliding(const mjModel* m, int b) {
   return (b == 0 && m->body_geomnum[b] > 0) ||
@@ -2205,7 +2445,11 @@ static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int ma
   // sort bodyflex pairs by signature
   if (npair > 1) {
     mjPacked32* buf = mjSTACKALLOC(d, npair, mjPacked32);
-    bfsort(bfpair, buf, npair, NULL);
+    int use_radix = (npair >= mjBF_RADIX_MIN) ||
+                    (npair >= mjBF_COUNT_MIN && npair >= (nbodyflex >> 1));
+    if (!use_radix || !bfRadixSort(d, bfpair, buf, npair, nbodyflex)) {
+      bfsort(bfpair, buf, npair, NULL);
+    }
   }
 
   mj_freeStack(d);

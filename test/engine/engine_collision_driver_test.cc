@@ -2610,5 +2610,389 @@ TEST_F(MjCollisionTest, PlaneCylinderAlignedOnTiltedPlane) {
   }
 }
 
+// Verify that contacts in d->contact are ordered monotonically by canonical
+// (min_body, max_body) signature.
+void ExpectCanonicalBodyPairOrder(const mjModel* m, const mjData* d) {
+  uint32_t prev_sig = 0;
+  for (int i = 0; i < d->ncon; ++i) {
+    int b1 = m->geom_bodyid[d->contact[i].geom[0]];
+    int b2 = m->geom_bodyid[d->contact[i].geom[1]];
+    uint32_t sig = (static_cast<uint32_t>(std::min(b1, b2)) << 16) |
+                   static_cast<uint32_t>(std::max(b1, b2));
+    EXPECT_GE(sig, prev_sig);
+    prev_sig = sig;
+  }
+}
+
+TEST_F(MjCollisionTest, BroadphaseRadixSortMatchesBruteForce) {
+  // 120 spheres along a tilted 45-degree diagonal (triggers sapRadixSort
+  // n >= 96 and bfRadixSort 2-pass counting sort), spanning negative, zero,
+  // and positive coordinates plus a world plane.
+  std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="20 20 0.1"/>
+  )";
+  for (int i = 0; i < 120; ++i) {
+    double t = (i - 60) * 0.045;
+    double x = t;
+    double y = t + 0.03 * std::sin(1.7 * i);
+    double z = 0.05 + 0.02 * std::cos(1.1 * i);
+    xml += "      <body pos=\"" + std::to_string(x) + " " + std::to_string(y) +
+           " " + std::to_string(z) + "\">\n";
+    xml += "        <freejoint/>\n";
+    xml += "        <geom name=\"s" + std::to_string(i) +
+           "\" type=\"sphere\" size=\"0.055\"/>\n";
+    xml += "      </body>\n";
+  }
+  xml += "    </worldbody>\n  </mujoco>\n";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
+  mj_comPos(m.get(), d.get());
+  mj_collision(m.get(), d.get());
+
+  // Exact brute-force sphere-sphere and sphere-plane contacts
+  std::vector<GeomPair> expected;
+  for (int g1 = 1; g1 < m->ngeom; ++g1) {
+    if (d->geom_xpos[3 * g1 + 2] < m->geom_size[3 * g1]) {
+      expected.emplace_back("floor", mj_id2name(m.get(), mjOBJ_GEOM, g1));
+    }
+    for (int g2 = g1 + 1; g2 < m->ngeom; ++g2) {
+      mjtNum dx = d->geom_xpos[3 * g1 + 0] - d->geom_xpos[3 * g2 + 0];
+      mjtNum dy = d->geom_xpos[3 * g1 + 1] - d->geom_xpos[3 * g2 + 1];
+      mjtNum dz = d->geom_xpos[3 * g1 + 2] - d->geom_xpos[3 * g2 + 2];
+      mjtNum rsum = m->geom_size[3 * g1] + m->geom_size[3 * g2];
+      if (dx * dx + dy * dy + dz * dz < rsum * rsum) {
+        std::string n1 = mj_id2name(m.get(), mjOBJ_GEOM, g1);
+        std::string n2 = mj_id2name(m.get(), mjOBJ_GEOM, g2);
+        expected.emplace_back(std::min(n1, n2), std::max(n1, n2));
+      }
+    }
+  }
+  std::sort(expected.begin(), expected.end());
+
+  EXPECT_GT(expected.size(), 150u);
+  EXPECT_EQ(colliding_pairs(m.get(), d.get()), expected);
+  ExpectCanonicalBodyPairOrder(m.get(), d.get());
+}
+
+TEST_F(MjCollisionTest, BroadphaseSapRadixEdgeCases) {
+  // 1) All-equal x_min keys (last_pass < 0 in sapRadixSort): 100 coincident
+  // equal-radius spheres at the origin.
+  {
+    std::string xml = "<mujoco><worldbody>\n";
+    for (int i = 0; i < 100; ++i) {
+      xml +=
+          "  <body pos=\"0 0 0\"><freejoint/>"
+          "<geom type=\"sphere\" size=\"0.05\"/></body>\n";
+    }
+    xml += "</worldbody></mujoco>\n";
+
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    mj_kinematics(m.get(), d.get());
+    mj_comPos(m.get(), d.get());
+    mj_collision(m.get(), d.get());
+
+    EXPECT_EQ(d->ncon, 100 * 99 / 2);
+    ExpectCanonicalBodyPairOrder(m.get(), d.get());
+  }
+
+  // 2) Explicit -0.0f / +0.0f x_min endpoints reaching floatToRadixKey in
+  // sapRadixSort (9x9 flex -> 128 elements >= 96, elongated in X so axis = 0).
+  {
+    auto make_xml = [](const char* mode) {
+      return std::string(R"(
+      <mujoco>
+        <worldbody>
+          <flexcomp name="cloth" type="grid" dim="2" count="9 9 1"
+            spacing="0.08 0.04 0.04" pos="0 0 0.5" radius="0.008" mass="1">
+            <edge equality="true"/>
+            <contact selfcollide=")") +
+             mode + R"("/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>)";
+    };
+
+    char error[1024];
+    std::string xml_sap = make_xml("sap");
+    std::string xml_narrow = make_xml("narrow");
+    MjModelPtr m_sap =
+        LoadModelFromString(xml_sap.c_str(), error, sizeof(error));
+    ASSERT_THAT(m_sap.get(), NotNull()) << error;
+    MjModelPtr m_narrow =
+        LoadModelFromString(xml_narrow.c_str(), error, sizeof(error));
+    ASSERT_THAT(m_narrow.get(), NotNull()) << error;
+    MjDataPtr d_sap = MakeData(m_sap);
+    MjDataPtr d_narrow = MakeData(m_narrow);
+
+    // Fold cloth so self-collisions occur, then place two elements at exact
+    // -0.0 and +0.0 x_min endpoints (center = +-0.0, radius = 0.0 along X).
+    int nvert = m_sap->flex_vertnum[0];
+    for (int v = 0; v < nvert; ++v) {
+      int b = m_sap->flex_vertbodyid[v];
+      int qadr = m_sap->jnt_qposadr[m_sap->body_jntadr[b]];
+      double x = m_sap->body_pos[3 * b + 0];
+      if (x > 0.04) {
+        d_sap->qpos[qadr + 0] = -2.0 * x + 0.01;
+        d_sap->qpos[qadr + 2] = 0.005;
+      }
+      d_narrow->qpos[qadr + 0] = d_sap->qpos[qadr + 0];
+      d_narrow->qpos[qadr + 1] = d_sap->qpos[qadr + 1];
+      d_narrow->qpos[qadr + 2] = d_sap->qpos[qadr + 2];
+    }
+
+    for (auto [m, d] : std::vector<std::pair<mjModel*, mjData*>>{
+             {m_sap.get(), d_sap.get()}, {m_narrow.get(), d_narrow.get()}}) {
+      mj_kinematics(m, d);
+      mj_comPos(m, d);
+      mj_flex(m, d);
+      const mjtNum* bvh =
+          d->bvh_aabb_dyn + 6 * (m->flex_bvhadr[0] - m->nbvhstatic);
+      int axis =
+          (bvh[3] > bvh[4] && bvh[3] > bvh[5]) ? 0 : (bvh[4] > bvh[5] ? 1 : 2);
+      // Higher element id gets -0.0, lower gets +0.0 along the SAP axis so
+      // canonicalization keeps their relative order consistent with SAPcmp.
+      d->flexelem_aabb[6 * 10 + axis] = 0.0;
+      d->flexelem_aabb[6 * 10 + 3 + axis] = 0.0;
+      d->flexelem_aabb[6 * 20 + axis] = -0.0;
+      d->flexelem_aabb[6 * 20 + 3 + axis] = 0.0;
+      ASSERT_TRUE(std::signbit(
+          static_cast<float>(d->flexelem_aabb[6 * 20 + axis] -
+                             d->flexelem_aabb[6 * 20 + 3 + axis])));
+      mj_collision(m, d);
+    }
+
+    EXPECT_GT(d_sap->ncon, 10);
+    EXPECT_EQ(d_sap->ncon, d_narrow->ncon);
+  }
+}
+
+TEST_F(MjCollisionTest, BroadphaseSparseHighIdRadix) {
+  // 1) 4-pass unsorted case: 320 bodies (bound = 321 > 256, n >= 128,
+  // n < bound/2) with colliding non-floor box pairs across low and high body
+  // IDs placed so SAP emits them after (0, 272) in reverse body-ID order.
+  {
+    std::string xml = R"(
+    <mujoco>
+      <worldbody>
+        <geom name="floor" type="plane" size="200 200 0.1"/>
+    )";
+    for (int i = 0; i < 320; ++i) {
+      double x = i * 0.5;
+      double z = 0.05;
+      // Place colliding non-floor pairs in reverse ID order along X:
+      // (271, 272) at x=100, (260, 261) at x=110, (2, 3) at x=120.
+      if (i == 270) {
+        x = 100.0;
+        z = 1.0;
+      } else if (i == 271) {
+        x = 100.05;
+        z = 1.0;
+      } else if (i == 259) {
+        x = 110.0;
+        z = 1.0;
+      } else if (i == 260) {
+        x = 110.05;
+        z = 1.0;
+      } else if (i == 1) {
+        x = 120.0;
+        z = 0.05;
+      } else if (i == 2) {
+        x = 120.05;
+        z = 0.05;
+      }
+      xml += "      <body pos=\"" + std::to_string(x) + " 0 " +
+             std::to_string(z) + "\">\n";
+      xml += "        <freejoint/>\n";
+      if (i < 138 || i == 259 || i == 260 || i == 270 || i == 271) {
+        xml += "        <geom name=\"c" + std::to_string(i) +
+               "\" type=\"box\" size=\"0.06 0.06 0.06\"/>\n";
+      } else {
+        xml +=
+            "        <geom type=\"sphere\" size=\"0.05\" contype=\"0\""
+            " conaffinity=\"0\"/>\n";
+      }
+      xml += "      </body>\n";
+    }
+    xml += "    </worldbody>\n  </mujoco>\n";
+
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    mj_kinematics(m.get(), d.get());
+    mj_comPos(m.get(), d.get());
+    mj_collision(m.get(), d.get());
+
+    ExpectCanonicalBodyPairOrder(m.get(), d.get());
+    int floor_contacts = 0;
+    int low_pair = 0, mid_pair = 0, high_pair = 0;
+    for (int i = 0; i < d->ncon; ++i) {
+      int b1 = m->geom_bodyid[d->contact[i].geom[0]];
+      int b2 = m->geom_bodyid[d->contact[i].geom[1]];
+      int lo = std::min(b1, b2);
+      int hi = std::max(b1, b2);
+      if (lo == 0) {
+        floor_contacts++;
+      } else if (lo == 2 && hi == 3) {
+        low_pair++;
+      } else if (lo == 260 && hi == 261) {
+        mid_pair++;
+      } else if (lo == 271 && hi == 272) {
+        high_pair++;
+      }
+    }
+    EXPECT_EQ(floor_contacts, 138 * 4);
+    EXPECT_GT(low_pair, 0);
+    EXPECT_GT(mid_pair, 0);
+    EXPECT_GT(high_pair, 0);
+  }
+
+  // 2) 3-pass (odd) case exercising the src != pair memcpy copy-back:
+  // all pairs have hi < 256 (pass 3 skipped) while lo spans < 256 and >= 256.
+  {
+    std::string xml = R"(
+    <mujoco>
+      <worldbody>
+        <geom name="floor" type="plane" size="200 200 0.1"/>
+    )";
+    for (int i = 0; i < 320; ++i) {
+      double x = i * 0.5;
+      double z = 0.05;
+      // Non-floor pairs (200, 270) at x=100 and (2, 3) at x=120:
+      // hi in {0, 2, 200} (< 256), lo includes 270 (>= 256).
+      if (i == 199) {
+        x = 100.0;
+        z = 1.0;
+      } else if (i == 269) {
+        x = 100.05;
+        z = 1.0;
+      } else if (i == 1) {
+        x = 120.0;
+        z = 0.05;
+      } else if (i == 2) {
+        x = 120.05;
+        z = 0.05;
+      }
+      xml += "      <body pos=\"" + std::to_string(x) + " 0 " +
+             std::to_string(z) + "\">\n";
+      xml += "        <freejoint/>\n";
+      if (i < 138 || i == 199 || i == 269) {
+        xml += "        <geom name=\"c" + std::to_string(i) +
+               "\" type=\"box\" size=\"0.06 0.06 0.06\"/>\n";
+      } else {
+        xml +=
+            "        <geom type=\"sphere\" size=\"0.05\" contype=\"0\""
+            " conaffinity=\"0\"/>\n";
+      }
+      xml += "      </body>\n";
+    }
+    xml += "    </worldbody>\n  </mujoco>\n";
+
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    mj_kinematics(m.get(), d.get());
+    mj_comPos(m.get(), d.get());
+    mj_collision(m.get(), d.get());
+
+    ExpectCanonicalBodyPairOrder(m.get(), d.get());
+    int floor_contacts = 0;
+    int low_pair = 0, cross_pair = 0;
+    for (int i = 0; i < d->ncon; ++i) {
+      int b1 = m->geom_bodyid[d->contact[i].geom[0]];
+      int b2 = m->geom_bodyid[d->contact[i].geom[1]];
+      int lo = std::min(b1, b2);
+      int hi = std::max(b1, b2);
+      if (lo == 0) {
+        floor_contacts++;
+      } else if (lo == 2 && hi == 3) {
+        low_pair++;
+      } else if (lo == 200 && hi == 270) {
+        cross_pair++;
+      }
+    }
+    EXPECT_EQ(floor_contacts, 138 * 4);
+    EXPECT_GT(low_pair, 0);
+    EXPECT_GT(cross_pair, 0);
+  }
+}
+
+TEST_F(MjCollisionTest, FlexSAPOrderedLargeMatchesNarrow) {
+  // 8x8 grid -> 128 triangles (>= 96), exercising sapRadixSort with ordered=1
+  auto make_xml = [](const char* mode) {
+    return std::string(R"(
+    <mujoco>
+      <worldbody>
+        <flexcomp name="cloth" type="grid" dim="2" count="9 9 1"
+          spacing="0.04 0.04 0.04" pos="0 0 0.5" radius="0.008" mass="1">
+          <edge equality="true"/>
+          <contact selfcollide=")") +
+           mode + R"("/>
+        </flexcomp>
+      </worldbody>
+    </mujoco>)";
+  };
+
+  char error[1024];
+  std::string xml_sap = make_xml("sap");
+  std::string xml_narrow = make_xml("narrow");
+  MjModelPtr m_sap = LoadModelFromString(xml_sap.c_str(), error, sizeof(error));
+  ASSERT_THAT(m_sap.get(), NotNull()) << error;
+  MjModelPtr m_narrow =
+      LoadModelFromString(xml_narrow.c_str(), error, sizeof(error));
+  ASSERT_THAT(m_narrow.get(), NotNull()) << error;
+
+  MjDataPtr d_sap = MakeData(m_sap);
+  MjDataPtr d_narrow = MakeData(m_narrow);
+
+  int nvert = m_sap->flex_vertnum[0];
+  for (int v = 0; v < nvert; ++v) {
+    int b = m_sap->flex_vertbodyid[v];
+    int qadr = m_sap->jnt_qposadr[m_sap->body_jntadr[b]];
+    double x = m_sap->body_pos[3 * b + 0];
+    if (x > 0.02) {
+      d_sap->qpos[qadr + 0] = -2.0 * x + 0.01;
+      d_sap->qpos[qadr + 2] = 0.005;
+    }
+    d_narrow->qpos[qadr + 0] = d_sap->qpos[qadr + 0];
+    d_narrow->qpos[qadr + 1] = d_sap->qpos[qadr + 1];
+    d_narrow->qpos[qadr + 2] = d_sap->qpos[qadr + 2];
+  }
+
+  mj_forward(m_sap.get(), d_sap.get());
+  mj_forward(m_narrow.get(), d_narrow.get());
+
+  EXPECT_GT(d_sap->ncon, 20);
+  ASSERT_EQ(d_sap->ncon, d_narrow->ncon);
+
+  auto sorted_pairs = [](const mjData* d) {
+    std::vector<std::pair<std::pair<int, int>, mjtNum>> out;
+    out.reserve(d->ncon);
+    for (int i = 0; i < d->ncon; ++i) {
+      int e0 = std::min(d->contact[i].elem[0], d->contact[i].elem[1]);
+      int e1 = std::max(d->contact[i].elem[0], d->contact[i].elem[1]);
+      out.push_back({{e0, e1}, d->contact[i].dist});
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+  };
+
+  auto c_sap = sorted_pairs(d_sap.get());
+  auto c_narrow = sorted_pairs(d_narrow.get());
+  for (size_t i = 0; i < c_sap.size(); ++i) {
+    EXPECT_EQ(c_sap[i].first, c_narrow[i].first);
+    EXPECT_EQ(c_sap[i].second, c_narrow[i].second);
+  }
+}
 }  // namespace
 }  // namespace mujoco
