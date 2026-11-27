@@ -2261,12 +2261,39 @@ class ModelWriter {
     const auto &body_path = body_paths_[mjs_getId(body->element)];
     auto name = GetAvailablePrimName(ElementName(light->element),
                                      kTokens->light, body_path);
-    // Create a root Xform for the world body with the model name if it exists
-    // otherwise called 'World'.
-    auto light_spec =
-        CreatePrimSpec(layer_, body_path, name, pxr::UsdLuxTokens->SphereLight);
-
     int light_id = mjs_getId(light->element);
+    const int light_type = model_->light_type[light_id];
+    const bool directional = light_type == mjLIGHT_DIRECTIONAL;
+    auto light_spec = CreatePrimSpec(
+        layer_, body_path, name, directional ? pxr::UsdLuxTokens->DistantLight
+                                             : pxr::UsdLuxTokens->SphereLight);
+
+    const float* diffuse = model_->light_diffuse + 3 * light_id;
+    WriteUniformAttribute(light_spec, pxr::SdfValueTypeNames->Color3f,
+                          pxr::TfToken("inputs:color"),
+                          pxr::GfVec3f(diffuse[0], diffuse[1], diffuse[2]));
+    // Preserve an explicit positive intensity numerically. Classic Phong
+    // lights default to zero candela (unspecified), so use a unit intensity
+    // with their diffuse color. This is not a photometric unit conversion.
+    float intensity = model_->light_intensity[light_id];
+    if (intensity <= 0) {
+      intensity = 1.0f;
+    }
+    if (!model_->light_active[light_id]) {
+      intensity = 0.0f;
+    }
+    WriteUniformAttribute(light_spec, pxr::SdfValueTypeNames->Float,
+                          pxr::TfToken("inputs:intensity"), intensity);
+    if (light_type == mjLIGHT_SPOT) {
+      ApplyApiSchema(layer_, light_spec, pxr::TfToken("ShapingAPI"));
+      WriteUniformAttribute(light_spec, pxr::SdfValueTypeNames->Float,
+                            pxr::TfToken("inputs:shaping:cone:angle"),
+                            model_->light_cutoff[light_id]);
+      WriteUniformAttribute(light_spec, pxr::SdfValueTypeNames->Float,
+                            pxr::TfToken("inputs:shaping:cone:softness"),
+                            model_->light_softness[light_id]);
+    }
+
     pxr::GfVec3d dir(model_->light_dir[3 * light_id],
                      model_->light_dir[3 * light_id + 1],
                      model_->light_dir[3 * light_id + 2]);
