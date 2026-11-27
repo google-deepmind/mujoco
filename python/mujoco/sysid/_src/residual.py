@@ -355,7 +355,8 @@ def model_residual(
   if initial_ndim == 1:
     res_array = res_array.ravel()
   else:
-    res_array = res_array.reshape(res_array.shape[0], -1)
+    # Each candidate contains the residuals from all of its trajectory chunks.
+    res_array = res_array.reshape(n_fd, -1)
 
   return res_array.T, pred_sensordatas, measured_sensordatas
 
