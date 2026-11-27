@@ -1144,7 +1144,8 @@ std::string FilePath::StrLower() const {
 }
 
 // read file into memory buffer
-std::vector<uint8_t> FileToMemory(const char* filename) {
+std::vector<uint8_t> FileToMemory(const char* filename, bool* success) {
+  if (success) { *success = false; }
   FILE* fp = mju_fopen(filename, "rb");
   if (!fp) { return {}; }
 
@@ -1198,6 +1199,7 @@ std::vector<uint8_t> FileToMemory(const char* filename) {
 
   // close file, return contents
   fclose(fp);
+  if (success) { *success = true; }
   return buffer;
 }
 
