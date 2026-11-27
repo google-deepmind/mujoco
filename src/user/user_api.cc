@@ -335,6 +335,11 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel*   modelC     = static_cast<mjCModel*>(s->element);
   std::string state_name = "state";
 
+  struct LayoutGuard {
+    std::function<void()> restore;
+    ~LayoutGuard() { if (restore) { restore(); } }
+  } layout{d ? modelC->SaveRecompileLayout() : nullptr};
+
   mjCModel::mjRecompileState state;
   try {
     if (d) { modelC->SaveState(state_name, m, d, &state); }
@@ -354,6 +359,7 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
     mj_deleteModel(m);
     return -1;
   }
+  layout.restore = nullptr;
   return 0;
 }
 

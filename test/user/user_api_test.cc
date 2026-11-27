@@ -1475,6 +1475,109 @@ TEST_F(MujocoTest, RecompileFails) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, RecompileFailurePreservesLayoutForRetry) {
+  static constexpr char xml[] = R"(
+    <mujoco><worldbody>
+      <body name="a"><joint name="ja"/><geom size=".1"/></body>
+      <body name="b"><joint name="jb"/><geom size=".1"/></body>
+    </worldbody></mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjData* data = mj_makeData(model);
+  data->qpos[0] = 0.11;
+  data->qpos[1] = 0.22;
+  data->qvel[0] = 1.1;
+  data->qvel[1] = 2.2;
+
+  // Keep a model/data pair, as the Python binding does, while recompiling copies.
+  mjModel* attempt_model = mj_copyModel(nullptr, model);
+  mjData* attempt_data = mj_copyData(nullptr, model, data);
+  ASSERT_EQ(mjs_delete(spec, mjs_findBody(spec, "a")->element), 0);
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+  mjs_setName(body->element, "c");
+  mjs_addJoint(body, nullptr);
+  mjsGeom* geom = mjs_addGeom(body, nullptr);
+  geom->size[0] = 0.1;
+  geom->density = 0;
+  EXPECT_EQ(mj_recompile(spec, nullptr, attempt_model, attempt_data), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("mass and inertia"));
+
+  geom->density = 1000;
+  ASSERT_EQ(mj_recompile(spec, nullptr, model, data), 0) << mjs_getError(spec);
+  EXPECT_EQ(data->qpos[0], static_cast<mjtNum>(0.22));
+  EXPECT_EQ(data->qpos[1], 0);
+  EXPECT_EQ(data->qvel[0], static_cast<mjtNum>(2.2));
+  EXPECT_EQ(data->qvel[1], 0);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, RecompileRetryAfterCorrectingSubtree) {
+  for (bool keyframe : {false, true}) {
+    for (bool attach : {false, true}) {
+      SCOPED_TRACE(keyframe);
+      SCOPED_TRACE(attach);
+      std::string xml = R"(
+        <mujoco><worldbody>
+          <body name="a"><joint name="ja"/><geom size=".1"/></body>
+          <body name="b"><joint name="jb"/><geom size=".1"/></body>
+        </worldbody>)";
+      if (keyframe) { xml += R"(<keyframe><key qpos=".4 .8"/></keyframe>)"; }
+      xml += "</mujoco>";
+      std::array<char, 1000> error;
+      mjSpec* spec = mj_parseXMLString(xml.c_str(), nullptr, error.data(), error.size());
+      ASSERT_THAT(spec, NotNull()) << error.data();
+      mjModel* model = mj_compile(spec, nullptr);
+      ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+      mjData* data = mj_makeData(model);
+      data->qpos[0] = 0.11;
+      data->qpos[1] = 0.22;
+      data->qvel[0] = 1.1;
+      data->qvel[1] = 2.2;
+      mjModel* attempt_model = mj_copyModel(nullptr, model);
+      mjData* attempt_data = mj_copyData(nullptr, model, data);
+
+      ASSERT_EQ(mjs_delete(spec, mjs_findBody(spec, "a")->element), 0);
+      mjsBody* invalid = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+      mjs_addJoint(invalid, nullptr);
+      mjsGeom* geom = mjs_addGeom(invalid, nullptr);
+      geom->size[0] = 0.1;
+      geom->density = 0;
+      ASSERT_EQ(mj_recompile(spec, nullptr, attempt_model, attempt_data), -1);
+      ASSERT_EQ(mjs_delete(spec, invalid->element), 0);
+
+      mjSpec* child = attach ? mj_makeSpec() : nullptr;
+      mjsBody* body = mjs_addBody(mjs_findBody(attach ? child : spec, "world"), nullptr);
+      mjs_addJoint(body, nullptr);
+      mjs_addGeom(body, nullptr)->size[0] = 0.1;
+      if (attach) {
+        mjsFrame* frame = mjs_addFrame(mjs_findBody(spec, "world"), nullptr);
+        ASSERT_THAT(mjs_attach(frame->element, child->element, "d_", ""), NotNull())
+            << mjs_getError(spec);
+      }
+      ASSERT_EQ(mj_recompile(spec, nullptr, model, data), 0) << mjs_getError(spec);
+      EXPECT_EQ(model->nq, 2);
+      EXPECT_EQ(data->qpos[0], static_cast<mjtNum>(0.22));
+      EXPECT_EQ(data->qpos[1], 0);
+      EXPECT_EQ(data->qvel[0], static_cast<mjtNum>(2.2));
+      EXPECT_EQ(data->qvel[1], 0);
+      if (keyframe) {
+        EXPECT_EQ(model->key_qpos[0], static_cast<mjtNum>(0.8));
+        EXPECT_EQ(model->key_qpos[1], 0);
+      }
+      mj_deleteData(data);
+      mj_deleteModel(model);
+      mj_deleteSpec(child);
+      mj_deleteSpec(spec);
+    }
+  }
+}
+
 TEST_F(MujocoTest, ModifyShellInertiaFails) {
   static constexpr char xml[] = R"(
   <mujoco>
