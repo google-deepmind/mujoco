@@ -18,11 +18,7 @@
 
   <!-- Three cloths dropped over a sphere. All contacts are passive (cloth-cloth, self, and
        cloth-vs-static sphere) with stiffness carried implicitly by the effective metric. -->
-
-  <!-- The metric solve for qacc_smooth is iterative and its blocks do not see the vertex-to-vertex
-       coupling that contact introduces, so a contact-rich scene like this one needs a larger
-       iteration budget than the default to converge it. -->
-  <option timestep="0.002" solver="Newton" tolerance="1e-6" iterations="400" integrator="discrete"/>
+  <option timestep="0.002" solver="Newton" tolerance="1e-6" integrator="discrete"/>
 
   <size memory="50M"/>
 

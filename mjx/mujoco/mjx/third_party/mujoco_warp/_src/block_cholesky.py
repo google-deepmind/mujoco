@@ -42,7 +42,9 @@ def _create_newton_decrement_func(matrix_size_static: int, vector_size_static: i
 
 
 @lru_cache(maxsize=None)
-def create_blocked_cholesky_factorize_solve_func(block_size: int, matrix_size_static: int):
+def create_blocked_cholesky_factorize_solve_func(block_size: int, matrix_size_static: int, vector_size_static: int = 0):
+  HAS_VECTOR_SIZE = vector_size_static > 0
+
   @wp.func
   def blocked_cholesky_factorize_solve_func(
     # In:
@@ -110,7 +112,11 @@ def create_blocked_cholesky_factorize_solve_func(block_size: int, matrix_size_st
       )
       wp.tile_upper_solve_inplace(U_tile, tmp_tile)
 
-    wp.tile_store(x, rhs_tile, offset=(0, 0), bounds_check=False)
+    if wp.static(HAS_VECTOR_SIZE):
+      active_solution = wp.tile_view(rhs_tile, shape=(vector_size_static, 1), offset=(0, 0))
+      wp.tile_store(x, active_solution, offset=(0, 0), bounds_check=False)
+    else:
+      wp.tile_store(x, rhs_tile, offset=(0, 0), bounds_check=False)
 
   return blocked_cholesky_factorize_solve_func
 
@@ -320,11 +326,13 @@ def clz64(x: wp.uint64) -> int: ...
 
 
 @lru_cache(maxsize=None)
-def create_blocked_cholesky_sparse_tiles_factorize_solve_newton_func(
+def _create_blocked_cholesky_sparse_tiles_factorize_solve_func(
   block_size: int,
   matrix_size_static: int,
+  with_newton_decrement: bool,
   vector_size_static: int,
 ):
+  WITH_NEWTON_DECREMENT = with_newton_decrement
   nwords_static = (matrix_size_static // block_size + 63) // 64
 
   @wp.func
@@ -477,9 +485,27 @@ def create_blocked_cholesky_sparse_tiles_factorize_solve_newton_func(
         )
         wp.tile_upper_solve_inplace(U_tile, tmp_tile)
 
-    return wp.static(_create_newton_decrement_func(matrix_size_static, vector_size_static))(rhs_tile, b, result_out)
+    sums = wp.vec2(0.0)
+    if wp.static(WITH_NEWTON_DECREMENT):
+      sums = wp.static(_create_newton_decrement_func(matrix_size_static, vector_size_static))(rhs_tile, b, result_out)
+    else:
+      active_solution = wp.tile_view(rhs_tile, shape=(vector_size_static, 1), offset=(0, 0))
+      wp.tile_store(result_out, active_solution, offset=(0, 0), bounds_check=False)
+    return sums
 
   return blocked_cholesky_sparse_tiles_factorize_solve_func
+
+
+def create_blocked_cholesky_sparse_tiles_factorize_solve_func(
+  block_size: int, matrix_size_static: int, vector_size_static: int
+):
+  return _create_blocked_cholesky_sparse_tiles_factorize_solve_func(block_size, matrix_size_static, False, vector_size_static)
+
+
+def create_blocked_cholesky_sparse_tiles_factorize_solve_newton_func(
+  block_size: int, matrix_size_static: int, vector_size_static: int
+):
+  return _create_blocked_cholesky_sparse_tiles_factorize_solve_func(block_size, matrix_size_static, True, vector_size_static)
 
 
 @lru_cache(maxsize=None)
