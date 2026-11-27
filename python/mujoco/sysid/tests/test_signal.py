@@ -458,4 +458,3 @@ def test_apply_delay_does_not_mutate_input():
   assert not np.array_equal(delayed_ts.data[:, 0], original_data[:, 0])
   np.testing.assert_array_equal(delayed_ts.data[:, 1], original_data[:, 1])
   np.testing.assert_array_equal(ts.data, original_data)
-

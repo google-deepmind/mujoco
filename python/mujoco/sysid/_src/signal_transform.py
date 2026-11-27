@@ -307,4 +307,3 @@ class SignalTransform:
       res = res[:, indices]
 
     return res, sensordata_predicted, sensordata_measured
-
