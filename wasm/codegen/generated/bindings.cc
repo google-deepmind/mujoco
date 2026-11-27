@@ -1526,6 +1526,7 @@ void mj_constraintUpdate_wrapper(const MjModel& m, MjData& d, const NumberArray&
 
 void mj_contactForce_wrapper(const MjModel& m, const MjData& d, int id, const val& result) {
   UNPACK_VALUE(mjtNum, result);
+  CHECK_SIZE(result, 6);
   mj_contactForce(m.get(), d.get(), id, result_.data());
 }
 
@@ -1667,6 +1668,7 @@ void mj_initSensorHistory_wrapper(const MjModel& m, MjData& d, int id, const Num
 
 int mj_insideSite_wrapper(const MjModel& m, const MjData& d, int siteid, const NumberArray& point) {
   UNPACK_ARRAY(mjtNum, point);
+  CHECK_SIZE(point, 3);
   return mj_insideSite(m.get(), d.get(), siteid, point_.data());
 }
 
@@ -1793,6 +1795,10 @@ void mj_local2Global_wrapper(MjData& d, const val& xpos, const val& xmat, const 
   UNPACK_VALUE(mjtNum, xmat);
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, quat);
+  CHECK_SIZE(xpos, 3);
+  CHECK_SIZE(xmat, 9);
+  CHECK_SIZE(pos, 3);
+  CHECK_SIZE(quat, 4);
   mj_local2Global(d.get(), xpos_.data(), xmat_.data(), pos_.data(), quat_.data(), body, sameframe);
 }
 
@@ -1847,6 +1853,7 @@ void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, co
   UNPACK_NULLABLE_VALUE(int, geomid);
   UNPACK_VALUE(mjtNum, dist);
   UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  CHECK_SIZE(pnt, 3);
   CHECK_SIZE(dist, nray);
   CHECK_SIZE(geomid, nray);
   CHECK_SIZE(vec, 3 * nray);
@@ -1866,11 +1873,13 @@ void mj_normalizeQuat_wrapper(const MjModel& m, const val& qpos) {
 
 void mj_objectAcceleration_wrapper(const MjModel& m, const MjData& d, int objtype, int objid, const val& res, int flg_local) {
   UNPACK_VALUE(mjtNum, res);
+  CHECK_SIZE(res, 6);
   mj_objectAcceleration(m.get(), d.get(), objtype, objid, res_.data(), flg_local);
 }
 
 void mj_objectVelocity_wrapper(const MjModel& m, const MjData& d, int objtype, int objid, const val& res, int flg_local) {
   UNPACK_VALUE(mjtNum, res);
+  CHECK_SIZE(res, 6);
   mj_objectVelocity(m.get(), d.get(), objtype, objid, res_.data(), flg_local);
 }
 
@@ -1921,6 +1930,10 @@ mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt,
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
   UNPACK_NULLABLE_VALUE(int, geomid);
   UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  CHECK_SIZE(pnt, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(geomid, 1);
+  CHECK_SIZE(normal, 3);
   return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), normal_.data());
 }
 
@@ -1929,6 +1942,10 @@ mjtNum mj_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjt
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_VALUE(int, vertid);
   UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  CHECK_SIZE(pnt, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(vertid, 1);
+  CHECK_SIZE(normal, 3);
   return mj_rayFlex(m.get(), d.get(), flex_layer, flg_vert, flg_edge, flg_face, flg_skin, flexid, pnt_.data(), vec_.data(), vertid_.data(), normal_.data());
 }
 
@@ -1936,6 +1953,9 @@ mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  CHECK_SIZE(pnt, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(normal, 3);
   return mj_rayHfield(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
 }
 
@@ -1943,6 +1963,9 @@ mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const N
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  CHECK_SIZE(pnt, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(normal, 3);
   return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
 }
 
@@ -2085,6 +2108,10 @@ void mjd_quatIntegrate_wrapper(const NumberArray& vel, mjtNum scale, const val& 
   UNPACK_NULLABLE_VALUE(mjtNum, Dquat);
   UNPACK_NULLABLE_VALUE(mjtNum, Dvel);
   UNPACK_NULLABLE_VALUE(mjtNum, Dscale);
+  CHECK_SIZE(vel, 3);
+  CHECK_SIZE(Dquat, 9);
+  CHECK_SIZE(Dvel, 9);
+  CHECK_SIZE(Dscale, 3);
   mjd_quatIntegrate(vel_.data(), scale, Dquat_.data(), Dvel_.data(), Dscale_.data());
 }
 
@@ -2844,6 +2871,13 @@ std::optional<MjsFlex> mjs_makeFlex_wrapper(MjsBody& body, const String& name, c
   UNPACK_NULLABLE_ARRAY(double, pos);
   UNPACK_NULLABLE_ARRAY(double, quat);
   UNPACK_NULLABLE_ARRAY(double, origin);
+  CHECK_SIZE(count, 3);
+  CHECK_SIZE(cellcount, 3);
+  CHECK_SIZE(spacing, 3);
+  CHECK_SIZE(scale, 3);
+  CHECK_SIZE(pos, 3);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(origin, 3);
   mjsFlex* result = mjs_makeFlex(body.get(), name.as<const std::string>().data(), type.as<const std::string>().data(), dim, dof.as<const std::string>().data(), count_.data(), cellcount_.data(), spacing_.data(), scale_.data(), radius, mass, inertiabox, equality, rigid, flatskin, elastic2d, pos_.data(), quat_.data(), origin_.data(), file.as<const std::string>().data(), vfs.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -2879,6 +2913,7 @@ int mjs_numWarnings_wrapper(const MjSpec& spec) {
 std::string mjs_resolveOrientation_wrapper(const val& quat, mjtByte degree, const String& sequence, const MjsOrientation& orientation) {
   CHECK_VAL(sequence);
   UNPACK_VALUE(double, quat);
+  CHECK_SIZE(quat, 4);
   return std::string(mjs_resolveOrientation(quat_.data(), degree, sequence.as<const std::string>().data(), orientation.get()));
 }
 
@@ -2920,6 +2955,14 @@ std::string mjs_setToDCMotor_wrapper(MjsActuator& actuator, const val& motorcons
   UNPACK_NULLABLE_VALUE(double, controller);
   UNPACK_NULLABLE_VALUE(double, thermal);
   UNPACK_NULLABLE_VALUE(double, lugre);
+  CHECK_SIZE(motorconst, 2);
+  CHECK_SIZE(nominal, 3);
+  CHECK_SIZE(saturation, 3);
+  CHECK_SIZE(inductance, 2);
+  CHECK_SIZE(cogging, 3);
+  CHECK_SIZE(controller, 6);
+  CHECK_SIZE(thermal, 6);
+  CHECK_SIZE(lugre, 5);
   return std::string(mjs_setToDCMotor(actuator.get(), motorconst_.data(), resistance, nominal_.data(), saturation_.data(), inductance_.data(), cogging_.data(), controller_.data(), thermal_.data(), lugre_.data(), ctrlspec));
 }
 
@@ -2931,6 +2974,9 @@ std::string mjs_setToIntVelocity_wrapper(MjsActuator& actuator, double kp, const
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
   UNPACK_VALUE(double, timeconst);
+  CHECK_SIZE(kv, 1);
+  CHECK_SIZE(dampratio, 1);
+  CHECK_SIZE(timeconst, 1);
   return std::string(mjs_setToIntVelocity(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange));
 }
 
@@ -2941,12 +2987,16 @@ std::string mjs_setToMotor_wrapper(MjsActuator& actuator) {
 std::string mjs_setToMuscle_wrapper(MjsActuator& actuator, const val& timeconst, double tausmooth, const val& range, double force, double scale, double lmin, double lmax, double vmax, double fpmax, double fvmax) {
   UNPACK_VALUE(double, timeconst);
   UNPACK_VALUE(double, range);
+  CHECK_SIZE(timeconst, 2);
+  CHECK_SIZE(range, 2);
   return std::string(mjs_setToMuscle(actuator.get(), timeconst_.data(), tausmooth, range_.data(), force, scale, lmin, lmax, vmax, fpmax, fvmax));
 }
 
 std::string mjs_setToOrientation_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, int ctrlspec) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
+  CHECK_SIZE(kv, 1);
+  CHECK_SIZE(dampratio, 1);
   return std::string(mjs_setToOrientation(actuator.get(), kp, kv_.data(), dampratio_.data(), ctrlspec));
 }
 
@@ -2956,6 +3006,11 @@ std::string mjs_setToPID_wrapper(MjsActuator& actuator, double kp, const val& kv
   UNPACK_VALUE(double, ki);
   UNPACK_VALUE(double, imax);
   UNPACK_VALUE(double, slewmax);
+  CHECK_SIZE(kv, 1);
+  CHECK_SIZE(dampratio, 1);
+  CHECK_SIZE(ki, 1);
+  CHECK_SIZE(imax, 1);
+  CHECK_SIZE(slewmax, 1);
   return std::string(mjs_setToPID(actuator.get(), kp, kv_.data(), dampratio_.data(), ki_.data(), imax_.data(), slewmax_.data(), inheritrange, ctrlspec));
 }
 
@@ -2963,6 +3018,9 @@ std::string mjs_setToPosition_wrapper(MjsActuator& actuator, double kp, const va
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
   UNPACK_VALUE(double, timeconst);
+  CHECK_SIZE(kv, 1);
+  CHECK_SIZE(dampratio, 1);
+  CHECK_SIZE(timeconst, 1);
   return std::string(mjs_setToPosition(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange));
 }
 
@@ -3025,6 +3083,9 @@ void mju_add3_wrapper(const val& res, const NumberArray& vec1, const NumberArray
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec1);
   UNPACK_ARRAY(mjtNum, vec2);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec1, 3);
+  CHECK_SIZE(vec2, 3);
   mju_add3(res_.data(), vec1_.data(), vec2_.data());
 }
 
@@ -3042,6 +3103,9 @@ void mju_addScl3_wrapper(const val& res, const NumberArray& vec1, const NumberAr
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec1);
   UNPACK_ARRAY(mjtNum, vec2);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec1, 3);
+  CHECK_SIZE(vec2, 3);
   mju_addScl3(res_.data(), vec1_.data(), vec2_.data(), scl);
 }
 
@@ -3056,6 +3120,8 @@ void mju_addTo_wrapper(const val& res, const NumberArray& vec) {
 void mju_addTo3_wrapper(const val& res, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec, 3);
   mju_addTo3(res_.data(), vec_.data());
 }
 
@@ -3070,12 +3136,16 @@ void mju_addToScl_wrapper(const val& res, const NumberArray& vec, mjtNum scl) {
 void mju_addToScl3_wrapper(const val& res, const NumberArray& vec, mjtNum scl) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec, 3);
   mju_addToScl3(res_.data(), vec_.data(), scl);
 }
 
 void mju_axisAngle2Quat_wrapper(const val& res, const NumberArray& axis, mjtNum angle) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, axis);
+  CHECK_SIZE(res, 4);
+  CHECK_SIZE(axis, 3);
   mju_axisAngle2Quat(res_.data(), axis_.data(), angle);
 }
 
@@ -3169,12 +3239,16 @@ void mju_copy_wrapper(const val& res, const NumberArray& vec) {
 void mju_copy3_wrapper(const val& res, const NumberArray& data) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, data);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(data, 3);
   mju_copy3(res_.data(), data_.data());
 }
 
 void mju_copy4_wrapper(const val& res, const NumberArray& data) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, data);
+  CHECK_SIZE(res, 4);
+  CHECK_SIZE(data, 4);
   mju_copy4(res_.data(), data_.data());
 }
 
@@ -3182,6 +3256,9 @@ void mju_cross_wrapper(const val& res, const NumberArray& a, const NumberArray& 
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, a);
   UNPACK_ARRAY(mjtNum, b);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(a, 3);
+  CHECK_SIZE(b, 3);
   mju_cross(res_.data(), a_.data(), b_.data());
 }
 
@@ -3229,12 +3306,17 @@ void mju_derivQuat_wrapper(const val& res, const NumberArray& quat, const Number
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, vel);
+  CHECK_SIZE(res, 4);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(vel, 3);
   mju_derivQuat(res_.data(), quat_.data(), vel_.data());
 }
 
 mjtNum mju_dist3_wrapper(const NumberArray& pos1, const NumberArray& pos2) {
   UNPACK_ARRAY(mjtNum, pos1);
   UNPACK_ARRAY(mjtNum, pos2);
+  CHECK_SIZE(pos1, 3);
+  CHECK_SIZE(pos2, 3);
   return mju_dist3(pos1_.data(), pos2_.data());
 }
 
@@ -3249,6 +3331,8 @@ mjtNum mju_dot_wrapper(const NumberArray& vec1, const NumberArray& vec2) {
 mjtNum mju_dot3_wrapper(const NumberArray& vec1, const NumberArray& vec2) {
   UNPACK_ARRAY(mjtNum, vec1);
   UNPACK_ARRAY(mjtNum, vec2);
+  CHECK_SIZE(vec1, 3);
+  CHECK_SIZE(vec2, 3);
   return mju_dot3(vec1_.data(), vec2_.data());
 }
 
@@ -3257,6 +3341,10 @@ int mju_eig3_wrapper(const val& eigval, const val& eigvec, const val& quat, cons
   UNPACK_VALUE(mjtNum, eigvec);
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, mat);
+  CHECK_SIZE(eigval, 3);
+  CHECK_SIZE(eigvec, 9);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(mat, 9);
   return mju_eig3(eigval_.data(), eigvec_.data(), quat_.data(), mat_.data());
 }
 
@@ -3274,6 +3362,8 @@ void mju_euler2Quat_wrapper(const val& quat, const NumberArray& euler, const Str
   CHECK_VAL(seq);
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, euler);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(euler, 3);
   mju_euler2Quat(quat_.data(), euler_.data(), seq.as<const std::string>().data());
 }
 
@@ -3324,12 +3414,16 @@ int mju_isZero_wrapper(const NumberArray& vec, int n) {
 void mju_mat2Quat_wrapper(const val& quat, const NumberArray& mat) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, mat);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(mat, 9);
   mju_mat2Quat(quat_.data(), mat_.data());
 }
 
 int mju_mat2Rot_wrapper(const val& quat, const NumberArray& mat) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, mat);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(mat, 9);
   return mju_mat2Rot(quat_.data(), mat_.data());
 }
 
@@ -3381,6 +3475,9 @@ void mju_mulMatTVec3_wrapper(const val& res, const NumberArray& mat, const Numbe
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(mat, 9);
+  CHECK_SIZE(vec, 3);
   mju_mulMatTVec3(res_.data(), mat_.data(), vec_.data());
 }
 
@@ -3398,6 +3495,9 @@ void mju_mulMatVec3_wrapper(const val& res, const NumberArray& mat, const Number
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(mat, 9);
+  CHECK_SIZE(vec, 3);
   mju_mulMatVec3(res_.data(), mat_.data(), vec_.data());
 }
 
@@ -3408,6 +3508,12 @@ void mju_mulPose_wrapper(const val& posres, const val& quatres, const NumberArra
   UNPACK_ARRAY(mjtNum, quat1);
   UNPACK_ARRAY(mjtNum, pos2);
   UNPACK_ARRAY(mjtNum, quat2);
+  CHECK_SIZE(posres, 3);
+  CHECK_SIZE(quatres, 4);
+  CHECK_SIZE(pos1, 3);
+  CHECK_SIZE(quat1, 4);
+  CHECK_SIZE(pos2, 3);
+  CHECK_SIZE(quat2, 4);
   mju_mulPose(posres_.data(), quatres_.data(), pos1_.data(), quat1_.data(), pos2_.data(), quat2_.data());
 }
 
@@ -3415,6 +3521,9 @@ void mju_mulQuat_wrapper(const val& res, const NumberArray& quat1, const NumberA
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat1);
   UNPACK_ARRAY(mjtNum, quat2);
+  CHECK_SIZE(res, 4);
+  CHECK_SIZE(quat1, 4);
+  CHECK_SIZE(quat2, 4);
   mju_mulQuat(res_.data(), quat1_.data(), quat2_.data());
 }
 
@@ -3422,6 +3531,9 @@ void mju_mulQuatAxis_wrapper(const val& res, const NumberArray& quat, const Numb
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, axis);
+  CHECK_SIZE(res, 4);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(axis, 3);
   mju_mulQuatAxis(res_.data(), quat_.data(), axis_.data());
 }
 
@@ -3438,17 +3550,22 @@ mjtNum mju_mulVecMatVec_wrapper(const NumberArray& vec1, const NumberArray& mat,
 mjtNum mju_muscleBias_wrapper(mjtNum len, const NumberArray& lengthrange, mjtNum acc0, const NumberArray& prm) {
   UNPACK_ARRAY(mjtNum, lengthrange);
   UNPACK_ARRAY(mjtNum, prm);
+  CHECK_SIZE(lengthrange, 2);
+  CHECK_SIZE(prm, 9);
   return mju_muscleBias(len, lengthrange_.data(), acc0, prm_.data());
 }
 
 mjtNum mju_muscleDynamics_wrapper(mjtNum ctrl, mjtNum act, const NumberArray& prm) {
   UNPACK_ARRAY(mjtNum, prm);
+  CHECK_SIZE(prm, 3);
   return mju_muscleDynamics(ctrl, act, prm_.data());
 }
 
 mjtNum mju_muscleGain_wrapper(mjtNum len, mjtNum vel, const NumberArray& lengthrange, mjtNum acc0, const NumberArray& prm) {
   UNPACK_ARRAY(mjtNum, lengthrange);
   UNPACK_ARRAY(mjtNum, prm);
+  CHECK_SIZE(lengthrange, 2);
+  CHECK_SIZE(prm, 9);
   return mju_muscleGain(len, vel, lengthrange_.data(), acc0, prm_.data());
 }
 
@@ -3473,12 +3590,18 @@ void mju_negPose_wrapper(const val& posres, const val& quatres, const NumberArra
   UNPACK_VALUE(mjtNum, quatres);
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, quat);
+  CHECK_SIZE(posres, 3);
+  CHECK_SIZE(quatres, 4);
+  CHECK_SIZE(pos, 3);
+  CHECK_SIZE(quat, 4);
   mju_negPose(posres_.data(), quatres_.data(), pos_.data(), quat_.data());
 }
 
 void mju_negQuat_wrapper(const val& res, const NumberArray& quat) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
+  CHECK_SIZE(res, 4);
+  CHECK_SIZE(quat, 4);
   mju_negQuat(res_.data(), quat_.data());
 }
 
@@ -3489,6 +3612,7 @@ mjtNum mju_norm_wrapper(const NumberArray& res, int n) {
 
 mjtNum mju_norm3_wrapper(const NumberArray& vec) {
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(vec, 3);
   return mju_norm3(vec_.data());
 }
 
@@ -3499,11 +3623,13 @@ mjtNum mju_normalize_wrapper(const val& res, int n) {
 
 mjtNum mju_normalize3_wrapper(const val& vec) {
   UNPACK_VALUE(mjtNum, vec);
+  CHECK_SIZE(vec, 3);
   return mju_normalize3(vec_.data());
 }
 
 mjtNum mju_normalize4_wrapper(const val& vec) {
   UNPACK_VALUE(mjtNum, vec);
+  CHECK_SIZE(vec, 4);
   return mju_normalize4(vec_.data());
 }
 
@@ -3525,24 +3651,32 @@ void mju_printMatSparse_wrapper(const NumberArray& mat, const NumberArray& rownn
 void mju_quat2Mat_wrapper(const val& res, const NumberArray& quat) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
+  CHECK_SIZE(res, 9);
+  CHECK_SIZE(quat, 4);
   mju_quat2Mat(res_.data(), quat_.data());
 }
 
 void mju_quat2Vel_wrapper(const val& res, const NumberArray& quat, mjtNum dt) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(quat, 4);
   mju_quat2Vel(res_.data(), quat_.data(), dt);
 }
 
 void mju_quatIntegrate_wrapper(const val& quat, const NumberArray& vel, mjtNum scale) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, vel);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(vel, 3);
   mju_quatIntegrate(quat_.data(), vel_.data(), scale);
 }
 
 void mju_quatZ2Vec_wrapper(const val& quat, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(vec, 3);
   mju_quatZ2Vec(quat_.data(), vec_.data());
 }
 
@@ -3553,6 +3687,12 @@ mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  CHECK_SIZE(pos, 3);
+  CHECK_SIZE(mat, 9);
+  CHECK_SIZE(size, 3);
+  CHECK_SIZE(pnt, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(normal, 3);
   return mju_rayGeom(pos_.data(), mat_.data(), size_.data(), pnt_.data(), vec_.data(), geomtype, normal_.data());
 }
 
@@ -3562,6 +3702,9 @@ mjtNum mju_raySkin_wrapper(int nface, int nvert, const NumberArray& face, const 
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_VALUE(int, vertid);
+  CHECK_SIZE(pnt, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(vertid, 1);
   return mju_raySkin(nface, nvert, face_.data(), vert_.data(), pnt_.data(), vec_.data(), vertid_.data());
 }
 
@@ -3569,6 +3712,9 @@ void mju_rotVecQuat_wrapper(const val& res, const NumberArray& vec, const Number
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_ARRAY(mjtNum, quat);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(quat, 4);
   mju_rotVecQuat(res_.data(), vec_.data(), quat_.data());
 }
 
@@ -3583,6 +3729,8 @@ void mju_scl_wrapper(const val& res, const NumberArray& vec, mjtNum scl) {
 void mju_scl3_wrapper(const val& res, const NumberArray& vec, mjtNum scl) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec, 3);
   mju_scl3(res_.data(), vec_.data(), scl);
 }
 
@@ -3636,6 +3784,9 @@ void mju_sub3_wrapper(const val& res, const NumberArray& vec1, const NumberArray
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec1);
   UNPACK_ARRAY(mjtNum, vec2);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec1, 3);
+  CHECK_SIZE(vec2, 3);
   mju_sub3(res_.data(), vec1_.data(), vec2_.data());
 }
 
@@ -3650,6 +3801,8 @@ void mju_subFrom_wrapper(const val& res, const NumberArray& vec) {
 void mju_subFrom3_wrapper(const val& res, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec, 3);
   mju_subFrom3(res_.data(), vec_.data());
 }
 
@@ -3657,6 +3810,9 @@ void mju_subQuat_wrapper(const val& res, const NumberArray& qa, const NumberArra
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, qa);
   UNPACK_ARRAY(mjtNum, qb);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(qa, 4);
+  CHECK_SIZE(qb, 4);
   mju_subQuat(res_.data(), qa_.data(), qb_.data());
 }
 
@@ -3692,6 +3848,11 @@ void mju_transformSpatial_wrapper(const val& res, const NumberArray& vec, int fl
   UNPACK_ARRAY(mjtNum, newpos);
   UNPACK_ARRAY(mjtNum, oldpos);
   UNPACK_NULLABLE_ARRAY(mjtNum, rotnew2old);
+  CHECK_SIZE(res, 6);
+  CHECK_SIZE(vec, 6);
+  CHECK_SIZE(newpos, 3);
+  CHECK_SIZE(oldpos, 3);
+  CHECK_SIZE(rotnew2old, 9);
   mju_transformSpatial(res_.data(), vec_.data(), flg_force, newpos_.data(), oldpos_.data(), rotnew2old_.data());
 }
 
@@ -3708,6 +3869,10 @@ void mju_trnVecPose_wrapper(const val& res, const NumberArray& pos, const Number
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, vec);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(pos, 3);
+  CHECK_SIZE(quat, 4);
+  CHECK_SIZE(vec, 3);
   mju_trnVecPose(res_.data(), pos_.data(), quat_.data(), vec_.data());
 }
 
@@ -3717,6 +3882,7 @@ std::string mju_type2Str_wrapper(int type) {
 
 void mju_unit4_wrapper(const val& res) {
   UNPACK_VALUE(mjtNum, res);
+  CHECK_SIZE(res, 4);
   mju_unit4(res_.data());
 }
 
@@ -3741,11 +3907,13 @@ void mju_zero_wrapper(const val& res, int n) {
 
 void mju_zero3_wrapper(const val& res) {
   UNPACK_VALUE(mjtNum, res);
+  CHECK_SIZE(res, 3);
   mju_zero3(res_.data());
 }
 
 void mju_zero4_wrapper(const val& res) {
   UNPACK_VALUE(mjtNum, res);
+  CHECK_SIZE(res, 4);
   mju_zero4(res_.data());
 }
 
@@ -3757,6 +3925,9 @@ void mjv_alignToCamera_wrapper(const val& res, const NumberArray& vec, const Num
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_ARRAY(mjtNum, forward);
+  CHECK_SIZE(res, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(forward, 3);
   mjv_alignToCamera(res_.data(), vec_.data(), forward_.data());
 }
 
@@ -3779,6 +3950,10 @@ void mjv_cameraFrame_wrapper(const val& headpos, const val& forward, const val& 
   UNPACK_NULLABLE_VALUE(mjtNum, forward);
   UNPACK_NULLABLE_VALUE(mjtNum, up);
   UNPACK_NULLABLE_VALUE(mjtNum, right);
+  CHECK_SIZE(headpos, 3);
+  CHECK_SIZE(forward, 3);
+  CHECK_SIZE(up, 3);
+  CHECK_SIZE(right, 3);
   mjv_cameraFrame(headpos_.data(), forward_.data(), up_.data(), right_.data(), d.get(), cam.get());
 }
 
@@ -3786,6 +3961,9 @@ void mjv_cameraFrustum_wrapper(const val& zver, const val& zhor, const val& zcli
   UNPACK_NULLABLE_VALUE(float, zver);
   UNPACK_NULLABLE_VALUE(float, zhor);
   UNPACK_NULLABLE_VALUE(float, zclip);
+  CHECK_SIZE(zver, 2);
+  CHECK_SIZE(zhor, 2);
+  CHECK_SIZE(zclip, 2);
   mjv_cameraFrustum(zver_.data(), zhor_.data(), zclip_.data(), m.get(), cam.get());
 }
 
@@ -3793,6 +3971,9 @@ void mjv_cameraInModel_wrapper(const val& headpos, const val& forward, const val
   UNPACK_VALUE(mjtNum, headpos);
   UNPACK_VALUE(mjtNum, forward);
   UNPACK_VALUE(mjtNum, up);
+  CHECK_SIZE(headpos, 3);
+  CHECK_SIZE(forward, 3);
+  CHECK_SIZE(up, 3);
   mjv_cameraInModel(headpos_.data(), forward_.data(), up_.data(), scn.get());
 }
 
@@ -3800,12 +3981,17 @@ void mjv_cameraInRoom_wrapper(const val& headpos, const val& forward, const val&
   UNPACK_VALUE(mjtNum, headpos);
   UNPACK_VALUE(mjtNum, forward);
   UNPACK_VALUE(mjtNum, up);
+  CHECK_SIZE(headpos, 3);
+  CHECK_SIZE(forward, 3);
+  CHECK_SIZE(up, 3);
   mjv_cameraInRoom(headpos_.data(), forward_.data(), up_.data(), scn.get());
 }
 
 void mjv_connector_wrapper(MjvGeom& geom, int type, mjtNum width, const NumberArray& from, const NumberArray& to) {
   UNPACK_ARRAY(mjtNum, from);
   UNPACK_ARRAY(mjtNum, to);
+  CHECK_SIZE(from, 3);
+  CHECK_SIZE(to, 3);
   mjv_connector(geom.get(), type, width, from_.data(), to_.data());
 }
 
@@ -3838,6 +4024,10 @@ void mjv_initGeom_wrapper(MjvGeom& geom, int type, const NumberArray& size, cons
   UNPACK_NULLABLE_ARRAY(mjtNum, pos);
   UNPACK_NULLABLE_ARRAY(mjtNum, mat);
   UNPACK_NULLABLE_ARRAY(float, rgba);
+  CHECK_SIZE(size, 3);
+  CHECK_SIZE(pos, 3);
+  CHECK_SIZE(mat, 9);
+  CHECK_SIZE(rgba, 4);
   mjv_initGeom(geom.get(), type, size_.data(), pos_.data(), mat_.data(), rgba_.data());
 }
 
@@ -3854,6 +4044,10 @@ void mjv_model2room_wrapper(const val& roompos, const val& roomquat, const Numbe
   UNPACK_VALUE(mjtNum, roomquat);
   UNPACK_ARRAY(mjtNum, modelpos);
   UNPACK_ARRAY(mjtNum, modelquat);
+  CHECK_SIZE(roompos, 3);
+  CHECK_SIZE(roomquat, 4);
+  CHECK_SIZE(modelpos, 3);
+  CHECK_SIZE(modelquat, 4);
   mjv_model2room(roompos_.data(), roomquat_.data(), modelpos_.data(), modelquat_.data(), scn.get());
 }
 
@@ -3863,6 +4057,7 @@ void mjv_moveCamera_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum r
 
 void mjv_moveModel_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum reldy, const NumberArray& roomup, MjvScene& scn) {
   UNPACK_ARRAY(mjtNum, roomup);
+  CHECK_SIZE(roomup, 3);
   mjv_moveModel(m.get(), action, reldx, reldy, roomup_.data(), scn.get());
 }
 
@@ -3875,6 +4070,10 @@ void mjv_room2model_wrapper(const val& modelpos, const val& modelquat, const Num
   UNPACK_VALUE(mjtNum, modelquat);
   UNPACK_ARRAY(mjtNum, roompos);
   UNPACK_ARRAY(mjtNum, roomquat);
+  CHECK_SIZE(modelpos, 3);
+  CHECK_SIZE(modelquat, 4);
+  CHECK_SIZE(roompos, 3);
+  CHECK_SIZE(roomquat, 4);
   mjv_room2model(modelpos_.data(), modelquat_.data(), roompos_.data(), roomquat_.data(), scn.get());
 }
 
@@ -3883,6 +4082,10 @@ int mjv_select_wrapper(const MjModel& m, const MjData& d, const MjvOption& vopt,
   UNPACK_NULLABLE_VALUE(int, geomid);
   UNPACK_NULLABLE_VALUE(int, flexid);
   UNPACK_NULLABLE_VALUE(int, skinid);
+  CHECK_SIZE(selpnt, 3);
+  CHECK_SIZE(geomid, 1);
+  CHECK_SIZE(flexid, 1);
+  CHECK_SIZE(skinid, 1);
   return mjv_select(m.get(), d.get(), vopt.get(), aspectratio, relx, rely, scn.get(), selpnt_.data(), geomid_.data(), flexid_.data(), skinid_.data());
 }
 
