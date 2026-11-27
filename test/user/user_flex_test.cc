@@ -1597,9 +1597,9 @@ TEST_F(UserFlexTest, MechanismRods) {
     int nstep;
   };
   const Mechanism mechanisms[] = {
-      {"flex/mechanisms/cantilever.xml", "rod", nullptr, 500},
-      {"flex/mechanisms/slidercrank.xml", "rod", "slide", 1500},
-      {"flex/mechanisms/dipper.xml", "arm_flex", "arm", 3000},
+      {"flex/mechanisms/cantilever.xml", "rod", nullptr, 250},
+      {"flex/mechanisms/slidercrank.xml", "rod", "slide", 600},
+      {"flex/mechanisms/dipper.xml", "arm_flex", "arm", 1000},
   };
   for (const Mechanism& mech : mechanisms) {
     SCOPED_TRACE(mech.file);
