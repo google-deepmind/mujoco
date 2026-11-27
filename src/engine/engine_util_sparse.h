@@ -241,9 +241,16 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int
     res = v4_sum(sum);
   }
 
-  // scalar part
-  for (; i < nnz1; i++) {
+  // scalar part (at most 3 remaining elements, left-to-right)
+  int rem = nnz1 - i;
+  if (rem >= 1) {
     res += vec1[i] * vec2[ind1[i]];
+    if (rem >= 2) {
+      res += vec1[i+1] * vec2[ind1[i+1]];
+      if (rem >= 3) {
+        res += vec1[i+2] * vec2[ind1[i+2]];
+      }
+    }
   }
 
   return res;

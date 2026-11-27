@@ -30,10 +30,11 @@
 //------------------------------ sparse operations -------------------------------------------------
 
 
-// dot-productX3, first vector is sparse; supernode of size 3
-void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
-                     const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
-                     const mjtNum* vec2, int nnz1, const int* ind1) {
+// dot-productX3 helper (always inlined into mju_dotSparseX3 and mju_mulMatVecSparse)
+static mjALWAYS_INLINE void dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
+                                        const mjtNum* vec10, const mjtNum* vec11,
+                                        const mjtNum* vec12, const mjtNum* vec2,
+                                        int nnz1, const int* ind1) {
   int i = 0;
 
   // clear result
@@ -69,19 +70,93 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
     RES2 = v4_sum(sum2);
   }
 
-  // scalar part
-  for (; i < nnz1; i++) {
+  // scalar part (at most 3 remaining elements, left-to-right to match mju_dotSparse)
+  int rem = nnz1 - i;
+  if (rem >= 1) {
     mjtNum v2 = vec2[ind1[i]];
-
     RES0 += vec10[i] * v2;
     RES1 += vec11[i] * v2;
     RES2 += vec12[i] * v2;
+    if (rem >= 2) {
+      v2 = vec2[ind1[i+1]];
+      RES0 += vec10[i+1] * v2;
+      RES1 += vec11[i+1] * v2;
+      RES2 += vec12[i+1] * v2;
+      if (rem >= 3) {
+        v2 = vec2[ind1[i+2]];
+        RES0 += vec10[i+2] * v2;
+        RES1 += vec11[i+2] * v2;
+        RES2 += vec12[i+2] * v2;
+      }
+    }
   }
 
   // copy result
   *res0 = RES0;
   *res1 = RES1;
   *res2 = RES2;
+}
+
+
+// dot-productX3, first vector is sparse; supernode of size 3
+void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
+                     const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
+                     const mjtNum* vec2, int nnz1, const int* ind1) {
+  dotSparseX3(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
+}
+
+
+// dot-productX2, first vector is sparse; supernode of size 2
+static mjALWAYS_INLINE void dotSparseX2(mjtNum* res, const mjtNum* mat, const int* rowadr,
+                                        const mjtNum* vec2, int nnz1, const int* ind1) {
+  const mjtNum* vec10 = mat + rowadr[0];
+  const mjtNum* vec11 = mat + rowadr[1];
+  int i = 0;
+
+  // clear result
+  mjtNum RES0 = 0;
+  mjtNum RES1 = 0;
+  int nnz1_4 = nnz1 - 4;
+
+  // vector part: RESk = sum_i vec1k[i] * vec2[ind1[i]]
+  if (nnz1_4 >= 0) {
+    mjtNum4 val2 = v4_set(vec2[ind1[0]], vec2[ind1[1]], vec2[ind1[2]], vec2[ind1[3]]);
+    mjtNum4 sum0 = v4_mul(v4_load(vec10), val2);
+    mjtNum4 sum1 = v4_mul(v4_load(vec11), val2);
+
+    // parallel computation
+    for (i=4; i <= nnz1_4; i += 4) {
+      val2 = v4_set(vec2[ind1[i+0]], vec2[ind1[i+1]], vec2[ind1[i+2]], vec2[ind1[i+3]]);
+      sum0 = v4_add(sum0, v4_mul(v4_load(vec10+i), val2));
+      sum1 = v4_add(sum1, v4_mul(v4_load(vec11+i), val2));
+    }
+
+    // reduce
+    RES0 = v4_sum(sum0);
+    RES1 = v4_sum(sum1);
+  }
+
+  // scalar part (at most 3 remaining elements, left-to-right to match mju_dotSparse)
+  int rem = nnz1 - i;
+  if (rem >= 1) {
+    mjtNum v2 = vec2[ind1[i]];
+    RES0 += vec10[i] * v2;
+    RES1 += vec11[i] * v2;
+    if (rem >= 2) {
+      v2 = vec2[ind1[i+1]];
+      RES0 += vec10[i+1] * v2;
+      RES1 += vec11[i+1] * v2;
+      if (rem >= 3) {
+        v2 = vec2[ind1[i+2]];
+        RES0 += vec10[i+2] * v2;
+        RES1 += vec11[i+2] * v2;
+      }
+    }
+  }
+
+  // copy result
+  res[0] = RES0;
+  res[1] = RES1;
 }
 
 
@@ -219,35 +294,38 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
   }
 
   // regular or supernode
-  for (int r=0; r < nr; r++) {
-    if (rowsuper[r]) {
-      int rs = rowsuper[r] + 1;
+  for (int r=0; r < nr; ) {
+    int rs = rowsuper[r];
+
+    // supernode: rs+1 rows share the same column pattern
+    if (rs) {
+      rs++;
+      int nnz = rownnz[r];
+      const int* ind = colind + rowadr[r];
 
       // handle rows in blocks of 3
       while (rs >= 3) {
-        mju_dotSparseX3(res+r, res+r+1, res+r+2,
-                        mat+rowadr[r], mat+rowadr[r+1], mat+rowadr[r+2],
-                        vec, rownnz[r], colind+rowadr[r]);
-
+        dotSparseX3(res+r, res+r+1, res+r+2,
+                    mat+rowadr[r], mat+rowadr[r+1], mat+rowadr[r+2],
+                    vec, nnz, ind);
         r += 3;
         rs -= 3;
       }
 
-      // handle remaining rows
-      while (rs > 0) {
-        res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
-
-        r++;
-        rs--;
+      // handle remaining 2 rows (rs == 1 falls through to single-row path)
+      if (rs == 2) {
+        dotSparseX2(res+r, mat, rowadr+r, vec, nnz, ind);
+        r += 2;
+        continue;
+      } else if (!rs) {
+        continue;
       }
-
-      // go back one, because of outer for loop
-      r--;
     }
 
-    else {
-      res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
-    }
+    // single row
+    int adr = rowadr[r];
+    res[r] = mju_dotSparse(mat+adr, vec, rownnz[r], colind+adr);
+    r++;
   }
 }
 
