@@ -24,6 +24,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -267,6 +268,45 @@ TEST_F(MjCMeshTest, LoadSTLWithContentType) {
   EXPECT_THAT(model.get(), IsNull());
   EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
+}
+
+TEST_F(MjCMeshTest, ContentTypeOverridesFilename) {
+  const std::pair<const char*, const char*> formats[] = {
+      {"cube_complete.obj", "model/obj"},
+      {"cube.stl", "model/stl"},
+  };
+  const std::string dir = GetTestDataFilePath("user/testdata/");
+  for (const auto& [source, content_type] : formats) {
+    SCOPED_TRACE(content_type);
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    ASSERT_EQ(mj_addFileVFS(&vfs, dir.c_str(), source), 0);
+    mjResource* resource = mju_openResource("", source, &vfs, nullptr, 0);
+    ASSERT_THAT(resource, NotNull());
+    const void* contents = nullptr;
+    int nbytes = mju_readResource(resource, &contents);
+    ASSERT_GT(nbytes, 0);
+
+    for (const char* filename : {"mesh.data", "mesh"}) {
+      SCOPED_TRACE(filename);
+      ASSERT_EQ(mj_addBufferVFS(&vfs, filename, contents, nbytes), 0);
+      const std::string xml = absl::StrFormat(R"(
+        <mujoco>
+          <asset><mesh name="mesh" file="%s" content_type="%s"/></asset>
+          <worldbody><geom type="mesh" mesh="mesh"/></worldbody>
+        </mujoco>
+      )", filename, content_type);
+      char error[1024] = {};
+      MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+      ASSERT_THAT(model, NotNull()) << error;
+      EXPECT_EQ(model->nmesh, 1);
+      EXPECT_GT(model->nmeshvert, 0);
+      EXPECT_GT(model->nmeshface, 0);
+    }
+
+    mju_closeResource(resource);
+    mj_deleteVFS(&vfs);
+  }
 }
 
 TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
