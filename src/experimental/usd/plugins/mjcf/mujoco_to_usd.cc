@@ -2217,20 +2217,24 @@ class ModelWriter {
     // reproduce the code in mujoco/src/engine/engine_vis_visualize.c
     const float *cam_sensorsize = &model_->cam_sensorsize[cam_id * 2];
     bool use_intrinsic = cam_sensorsize[1] > 0.0f;
-    float znear = spec_->visual.map.znear * model_->stat.extent * 100;
-    float zfar = spec_->visual.map.zfar * model_->stat.extent * 100;
+    // Clipping planes are in stage units. USD expresses camera optics in
+    // tenths of a scene unit; preserve the existing focal length and aperture
+    // scale independently of the clipping range.
+    float znear = spec_->visual.map.znear * model_->stat.extent;
+    float zfar = spec_->visual.map.zfar * model_->stat.extent;
+    float focal_length = znear * 100;
     mjtNum fovy = model_->cam_fovy[cam_id];
     const float *cam_intrinsic = &model_->cam_intrinsic[cam_id * 4];
 
     const float aspect_ratio =
         use_intrinsic ? cam_sensorsize[0] / cam_sensorsize[1] : 4.0f / 3;
     float vertical_apperture =
-        2 * znear *
+        2 * focal_length *
         (use_intrinsic ? 1.0f / cam_intrinsic[1] *
                              (cam_sensorsize[1] / 2.f - cam_intrinsic[3])
                        : mju_tan((fovy / 2) * (mjPI / 180.0)));
     float horizontal_aperture =
-        use_intrinsic ? 2 * znear / cam_intrinsic[0] *
+        use_intrinsic ? 2 * focal_length / cam_intrinsic[0] *
                             (cam_sensorsize[0] / 2.f - cam_intrinsic[2])
                       : vertical_apperture * aspect_ratio;
 
@@ -2238,7 +2242,7 @@ class ModelWriter {
                           pxr::UsdGeomTokens->clippingRange,
                           pxr::GfVec2f(znear, zfar));
     WriteUniformAttribute(camera_spec, pxr::SdfValueTypeNames->Float,
-                          pxr::UsdGeomTokens->focalLength, znear);
+                          pxr::UsdGeomTokens->focalLength, focal_length);
     WriteUniformAttribute(camera_spec, pxr::SdfValueTypeNames->Float,
                           pxr::UsdGeomTokens->verticalAperture,
                           vertical_apperture);
