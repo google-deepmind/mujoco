@@ -17,14 +17,12 @@
 #include <array>
 #include <cmath>
 #include <cstring>
-#include <optional>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/support/filament_util.h"
 #include "render/filament/private/types.h"
 
 template <int N>
@@ -33,49 +31,10 @@ static void setf(float (&arr)[N], const std::array<float, N>& values) {
     arr[i] = values[i];
   }
 }
+
 template <int N>
 static void setf(float (&arr)[N], const float* values) {
   std::memcpy(arr, values, sizeof(arr));
-}
-
-template <typename E>
-static std::optional<E> parse_enum(std::string_view name) {
-  static_assert(std::is_enum_v<E>, "Unsupported enum type");
-  if (name.empty()) {
-    return std::nullopt;
-  }
-  if constexpr (std::is_same_v<E, mjrShadowType>) {
-    if (name == "none") return mjSHADOW_TYPE_NONE;
-    if (name == "hard") return mjSHADOW_TYPE_HARD;
-    if (name == "soft") return mjSHADOW_TYPE_SOFT;
-    // legacy names
-    if (name == "pcf") return mjSHADOW_TYPE_HARD;
-    if (name == "pcss") return mjSHADOW_TYPE_SOFT;
-  } else if constexpr (std::is_same_v<E, mjrToneMapper>) {
-    if (name == "aces") return mjTONE_MAPPER_ACES;
-    if (name == "aces_legacy") return mjTONE_MAPPER_ACES_LEGACY;
-    if (name == "filmic") return mjTONE_MAPPER_FILMIC;
-    if (name == "linear") return mjTONE_MAPPER_LINEAR;
-    if (name == "pbr_neutral") return mjTONE_MAPPER_PBR_NEUTRAL;
-  } else if constexpr (std::is_same_v<E, mjrColorSpace>) {
-    if (name == "linear") return mjCOLORSPACE_LINEAR;
-    if (name == "srgb") return mjCOLORSPACE_SRGB;
-  } else if constexpr (std::is_same_v<E, mjrQuality>) {
-    if (name == "low") return mjQUALITY_LOW;
-    if (name == "medium") return mjQUALITY_MEDIUM;
-    if (name == "high") return mjQUALITY_HIGH;
-    if (name == "ultra") return mjQUALITY_ULTRA;
-  } else if constexpr (std::is_same_v<E, mjrAmbientOcclusionType>) {
-    if (name == "none") return mjAMBIENT_OCCLUSION_TYPE_NONE;
-    if (name == "scalable") return mjAMBIENT_OCCLUSION_TYPE_SCALABLE;
-    if (name == "ground_truth") return mjAMBIENT_OCCLUSION_TYPE_GROUND_TRUTH;
-  } else if constexpr (std::is_same_v<E, mjrDitheringType>) {
-    if (name == "none") return mjDITHERING_TYPE_NONE;
-    if (name == "temporal") return mjDITHERING_TYPE_TEMPORAL;
-  } else {
-    static_assert(std::is_same_v<E, void>, "Unsupported enum type");
-  }
-  return std::nullopt;
 }
 
 // Helper class for reading values from mjModel custom fields.
@@ -85,22 +44,86 @@ struct ModelReader {
   // Reads a scalar value from the model.
   template <typename T>
   void operator()(T& value, const char* name) {
-    value = mujoco::ReadElement(model, name, value);
+    const int id = mj_name2id(model, mjOBJ_NUMERIC, name);
+    if (id < 0) {
+      return;
+    }
+    if (model->numeric_size[id] != 1) {
+      mju_warning("Invalid numeric size for '%s': expected 1, got %d", name,
+                  model->numeric_size[id]);
+      return;
+    }
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    if constexpr (std::is_same_v<T, bool>) {
+      value = static_cast<T>(*ptr != 0);
+    } else if constexpr (std::is_arithmetic_v<T>) {
+      value = static_cast<T>(*ptr);
+    }
   }
+
   // Reads a vector value from the model.
   template <typename T, size_t N>
   void operator()(T (&arr)[N], const char* name) {
-    mujoco::ReadElement<T>(model, name, arr);
+    const int id = mj_name2id(model, mjOBJ_NUMERIC, name);
+    if (id < 0) {
+      return;
+    }
+    if (model->numeric_size[id] != static_cast<int>(N)) {
+      mju_warning("Invalid numeric size for '%s': expected %d, got %d", name,
+                  static_cast<int>(N), model->numeric_size[id]);
+      return;
+    }
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    for (int i = 0; i < static_cast<int>(N); ++i) {
+      arr[i] = static_cast<T>(ptr[i]);
+    }
   }
+
   // Reads an enum value from the model (stored as a string).
   template <typename T>
   void operator()(int& value, const char* name, T e) {
-    std::string_view id = mujoco::ReadElement<const char*>(model, name, "");
-    const std::optional<T> tmp = parse_enum<T>(id);
-    if (tmp.has_value()) {
-      value = static_cast<int>(tmp.value());
+    const int id = mj_name2id(model, mjOBJ_TEXT, name);
+    if (id < 0) {
+      return;
     }
+    std::string_view txt = model->text_data + model->text_adr[id];
+    if (txt.empty()) {
+      return;
+    }
+    if constexpr (std::is_same_v<T, mjrShadowType>) {
+      if (txt == "none") { value = mjSHADOW_TYPE_NONE; return; }
+      if (txt == "hard") { value = mjSHADOW_TYPE_HARD; return; }
+      if (txt == "soft") { value = mjSHADOW_TYPE_SOFT; return; }
+      // legacy names
+      if (txt == "pcf") { value = mjSHADOW_TYPE_HARD; return; }
+      if (txt == "pcss") { value = mjSHADOW_TYPE_SOFT; return; }
+    } else if constexpr (std::is_same_v<T, mjrToneMapper>) {
+      if (txt == "aces") { value = mjTONE_MAPPER_ACES; return; }
+      if (txt == "aces_legacy") { value = mjTONE_MAPPER_ACES_LEGACY; return; }
+      if (txt == "filmic") { value = mjTONE_MAPPER_FILMIC; return; }
+      if (txt == "linear") { value = mjTONE_MAPPER_LINEAR; return; }
+      if (txt == "pbr_neutral") { value = mjTONE_MAPPER_PBR_NEUTRAL; return; }
+    } else if constexpr (std::is_same_v<T, mjrColorSpace>) {
+      if (txt == "linear") { value = mjCOLORSPACE_LINEAR; return; }
+      if (txt == "srgb") { value = mjCOLORSPACE_SRGB; return; }
+    } else if constexpr (std::is_same_v<T, mjrQuality>) {
+      if (txt == "low") { value = mjQUALITY_LOW; return; }
+      if (txt == "medium") { value = mjQUALITY_MEDIUM; return; }
+      if (txt == "high") { value = mjQUALITY_HIGH; return; }
+      if (txt == "ultra") { value = mjQUALITY_ULTRA; return; }
+    } else if constexpr (std::is_same_v<T, mjrAmbientOcclusionType>) {
+      if (txt == "none") { value = mjAMBIENT_OCCLUSION_TYPE_NONE; return; }
+      if (txt == "scalable") { value = mjAMBIENT_OCCLUSION_TYPE_SCALABLE; return; }
+      if (txt == "ground_truth") { value = mjAMBIENT_OCCLUSION_TYPE_GROUND_TRUTH; return; }
+    } else if constexpr (std::is_same_v<T, mjrDitheringType>) {
+      if (txt == "none") { value = mjDITHERING_TYPE_NONE; return; }
+      if (txt == "temporal") { value = mjDITHERING_TYPE_TEMPORAL; return; }
+    } else {
+      static_assert(std::is_same_v<T, void>, "Unsupported enum type");
+    }
+    mju_warning("Unsupported enum value for %s: %s", name, txt.data());
   }
+
   const mjModel* model;
 };
 
