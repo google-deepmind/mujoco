@@ -3124,5 +3124,133 @@ TEST_F(MjCollisionTest, BroadphaseAlignedAndTiltedFrameMatch) {
   EXPECT_EQ(has_mesh_box, 1);
   EXPECT_EQ(has_flex, 1);
 }
+
+TEST_F(MjCollisionTest, FlexAAMMVertexCountsAlignedAndTiltedMatch) {
+  // Exercise all flexAAMM vertex-count paths in both axis-aligned and tilted
+  // SAP frames:
+  // - tri3 (3 verts): < 4 init + tail, probed only at tail vertex 2
+  // - quad4 (4 verts): exact multiple of 4 (no scalar tail)
+  // - sheet10 (10 verts): 2 full 4-wide SIMD chunks (0..3, 4..7) + 2-vert tail
+  //   (8..9), with separate probes overlapping ONLY chunk 1 (verts 4..7 at
+  //   y=-0.50) and ONLY the scalar tail (vert 9 at x=+0.52).
+  auto make_xml = [](bool tilted_frame) {
+    std::string s = R"(
+    <mujoco>
+      <worldbody>
+        <body name="probe_tri3_tail" pos="0.00 0.35 0.05">
+          <freejoint/>
+          <geom name="g_tri3_tail" type="sphere" size="0.02"/>
+        </body>
+        <body name="probe_quad4" pos="-0.40 0.00 0.05">
+          <freejoint/>
+          <geom name="g_quad4" type="sphere" size="0.02"/>
+        </body>
+        <body name="probe_sheet10_chunk1" pos="0.025 -0.50 0.05">
+          <freejoint/>
+          <geom name="g_sheet10_chunk1" type="sphere" size="0.02"/>
+        </body>
+        <body name="probe_sheet10_tail" pos="0.52 0.05 0.05">
+          <freejoint/>
+          <geom name="g_sheet10_tail" type="sphere" size="0.02"/>
+        </body>
+        <flexcomp name="tri3" type="direct" dim="2" radius="0.02" mass="1"
+          point="0.00 0.00 0.05  0.05 0.00 0.05  0.00 0.35 0.05"
+          element="0 1 2">
+          <edge equality="true"/>
+          <contact selfcollide="none"/>
+        </flexcomp>
+        <flexcomp name="quad4" type="grid" dim="2" count="2 2 1"
+          spacing="0.05 0.05 0.05" pos="-0.40 0.00 0.05"
+          radius="0.02" mass="1">
+          <edge equality="true"/>
+          <contact selfcollide="none"/>
+        </flexcomp>
+        <flexcomp name="sheet10" type="direct" dim="2" radius="0.02" mass="1"
+          point="0.00  0.00 0.05  0.05  0.00 0.05
+                 0.00  0.05 0.05  0.05  0.05 0.05
+                 0.00 -0.45 0.05  0.05 -0.45 0.05
+                 0.00 -0.50 0.05  0.05 -0.50 0.05
+                 0.48  0.00 0.05  0.52  0.05 0.05"
+          element="0 1 2  1 3 2  4 5 6  5 7 6  1 8 9">
+          <edge equality="true"/>
+          <contact selfcollide="none"/>
+        </flexcomp>
+    )";
+    if (tilted_frame) {
+      s += R"(
+        <body pos="5 5 2">
+          <freejoint/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+        <body pos="-5 -5 -2">
+          <freejoint/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+      )";
+    } else {
+      s += R"(
+        <body pos="5 0 0.05">
+          <freejoint/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+        <body pos="-5 0 0.05">
+          <freejoint/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+      )";
+    }
+    s += "      </worldbody>\n    </mujoco>\n";
+    return s;
+  };
+
+  char error[1024];
+  std::string xml_aligned = make_xml(false);
+  std::string xml_tilted = make_xml(true);
+  MjModelPtr ma =
+      LoadModelFromString(xml_aligned.c_str(), error, sizeof(error));
+  ASSERT_THAT(ma.get(), NotNull()) << error;
+  MjModelPtr mt = LoadModelFromString(xml_tilted.c_str(), error, sizeof(error));
+  ASSERT_THAT(mt.get(), NotNull()) << error;
+  ASSERT_EQ(ma->nflex, 3);
+  EXPECT_EQ(ma->flex_vertnum[0], 3);
+  EXPECT_EQ(ma->flex_vertnum[1], 4);
+  EXPECT_EQ(ma->flex_vertnum[2], 10);
+
+  MjDataPtr da = MakeData(ma);
+  MjDataPtr dt = MakeData(mt);
+  mj_forward(ma.get(), da.get());
+  mj_forward(mt.get(), dt.get());
+
+  EXPECT_GT(da->ncon, 0);
+  ASSERT_EQ(da->ncon, dt->ncon);
+
+  int g_tri3_tail = mj_name2id(ma.get(), mjOBJ_GEOM, "g_tri3_tail");
+  int g_quad4 = mj_name2id(ma.get(), mjOBJ_GEOM, "g_quad4");
+  int g_chunk1 = mj_name2id(ma.get(), mjOBJ_GEOM, "g_sheet10_chunk1");
+  int g_tail = mj_name2id(ma.get(), mjOBJ_GEOM, "g_sheet10_tail");
+  int hit_tri3_tail = 0, hit_quad4 = 0, hit_chunk1 = 0, hit_tail = 0;
+
+  for (int i = 0; i < da->ncon; ++i) {
+    EXPECT_EQ(da->contact[i].geom[0], dt->contact[i].geom[0]);
+    EXPECT_EQ(da->contact[i].geom[1], dt->contact[i].geom[1]);
+    EXPECT_EQ(da->contact[i].flex[0], dt->contact[i].flex[0]);
+    EXPECT_EQ(da->contact[i].flex[1], dt->contact[i].flex[1]);
+    EXPECT_EQ(da->contact[i].elem[0], dt->contact[i].elem[0]);
+    EXPECT_EQ(da->contact[i].elem[1], dt->contact[i].elem[1]);
+    EXPECT_EQ(da->contact[i].dist, dt->contact[i].dist);
+    int g = da->contact[i].geom[0] >= 0 ? da->contact[i].geom[0]
+                                        : da->contact[i].geom[1];
+    int f = da->contact[i].flex[0] >= 0 ? da->contact[i].flex[0]
+                                        : da->contact[i].flex[1];
+    if (g == g_tri3_tail && f == 0) hit_tri3_tail++;
+    if (g == g_quad4 && f == 1) hit_quad4++;
+    if (g == g_chunk1 && f == 2) hit_chunk1++;
+    if (g == g_tail && f == 2) hit_tail++;
+  }
+  EXPECT_GT(hit_tri3_tail, 0);
+  EXPECT_GT(hit_quad4, 0);
+  EXPECT_GT(hit_chunk1, 0);
+  EXPECT_GT(hit_tail, 0);
+}
 }  // namespace
 }  // namespace mujoco

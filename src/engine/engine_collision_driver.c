@@ -1634,11 +1634,99 @@ static void mj_collideTree(const mjModel* m, mjData* d, mjcPairArena* arena, int
 #endif
 
 
-// SAP projection frame
+// preloaded SAP projection frame (lane 3 = 0 for all mjtNum4 members)
 typedef struct {
   mjtNum frame[9];   // rows are frame axes (e0, e1, e2)
+  mjtNum4 c0;        // column 0 of frame
+  mjtNum4 c1;        // column 1 of frame
+  mjtNum4 c2;        // column 2 of frame
   int axis_aligned;  // 1 if frame is the identity matrix
 } mjSAPFrame;
+
+
+// horizontal minimum of 4 lanes
+static inline mjtNum hmin4(mjtNum4 a) {
+  mjtNum tmp[4];
+  v4_store(tmp, a);
+  mjtNum lo01 = mjMIN(tmp[0], tmp[1]);
+  mjtNum lo23 = mjMIN(tmp[2], tmp[3]);
+  return mjMIN(lo01, lo23);
+}
+
+
+// horizontal maximum of 4 lanes
+static inline mjtNum hmax4(mjtNum4 a) {
+  mjtNum tmp[4];
+  v4_store(tmp, a);
+  mjtNum hi01 = mjMAX(tmp[0], tmp[1]);
+  mjtNum hi23 = mjMAX(tmp[2], tmp[3]);
+  return mjMAX(hi01, hi23);
+}
+
+
+// project a 3D vector onto the 3 rows of sap_frame: out[j] = dot(v, frame_j)
+static inline mjtNum4 projectSAP(const mjSAPFrame* sap_frame, const mjtNum v[3]) {
+  return sap_frame->axis_aligned
+         ? v4_load3(v)
+         : v4_lincomb3(sap_frame->c0, sap_frame->c1, sap_frame->c2, v[0], v[1], v[2]);
+}
+
+
+// project 4 flex vertices onto 3 frame rows: t_r = f[3*r]*vx + f[3*r+1]*vy + f[3*r+2]*vz
+static inline void projectFlex4(mjtNum4* tx, mjtNum4* ty, mjtNum4* tz,
+                                const mjtNum* p, const mjtNum4 f[9]) {
+  mjtNum4 vx, vy, vz;
+  v4_load4x3(p, &vx, &vy, &vz);
+  *tx = v4_add(v4_add(v4_mul(f[0], vx), v4_mul(f[1], vy)), v4_mul(f[2], vz));
+  *ty = v4_add(v4_add(v4_mul(f[3], vx), v4_mul(f[4], vy)), v4_mul(f[5], vz));
+  *tz = v4_add(v4_add(v4_mul(f[6], vx), v4_mul(f[7], vy)), v4_mul(f[8], vz));
+}
+
+
+// compute unpadded AAMM of flex vertices in sap_frame
+static void flexAAMM(mjtNum aamm[6], const mjtNum* vbase, int flex_vertnum,
+                     const mjSAPFrame* sap_frame) {
+  mjtNum4 vmin, vmax;
+  int i;
+
+  // 4-wide SIMD main loop: v = frame * vbase[3*i + 0..2] for 4 vertices at a time
+  if (flex_vertnum >= 4) {
+    mjtNum4 f[9];
+    for (int k=0; k < 9; k++) {
+      f[k] = v4_splat(sap_frame->frame[k]);
+    }
+    mjtNum4 tx, ty, tz;
+    projectFlex4(&tx, &ty, &tz, vbase, f);
+    mjtNum4 minx = tx, maxx = tx;
+    mjtNum4 miny = ty, maxy = ty;
+    mjtNum4 minz = tz, maxz = tz;
+    for (i=4; i+4 <= flex_vertnum; i += 4) {
+      projectFlex4(&tx, &ty, &tz, vbase + 3*i, f);
+      minx = v4_min(minx, tx);
+      maxx = v4_max(maxx, tx);
+      miny = v4_min(miny, ty);
+      maxy = v4_max(maxy, ty);
+      minz = v4_min(minz, tz);
+      maxz = v4_max(maxz, tz);
+    }
+
+    // reduce 4-lane bounds
+    vmin = v4_set(hmin4(minx), hmin4(miny), hmin4(minz), 0);
+    vmax = v4_set(hmax4(maxx), hmax4(maxy), hmax4(maxz), 0);
+  } else {
+    vmin = vmax = projectSAP(sap_frame, vbase);
+    i = 1;
+  }
+
+  // scalar tail for remaining vertices
+  for (; i < flex_vertnum; i++) {
+    mjtNum4 v = projectSAP(sap_frame, vbase + 3*i);
+    vmin = v4_min(vmin, v);
+    vmax = v4_max(vmax, v);
+  }
+  v4_store3(aamm, vmin);
+  v4_store3(aamm+3, vmax);
+}
 
 
 // make AAMM (xmin[3], xmax[3]) for one bodyflex, in the frame whose axes are the rows of sap_frame
@@ -1646,7 +1734,6 @@ static void makeAAMM(const mjModel* m, mjData* d,
                      mjtNum* x_min, mjtNum* y_min, mjtNum* z_min,
                      mjtNum* x_max, mjtNum* y_max, mjtNum* z_max,
                      int bf, const mjSAPFrame* sap_frame) {
-  const mjtNum* frame = sap_frame->frame;
   mjtNum aamm[6] = {0};
   mjtNum override_margin = mjENABLED(mjENBL_OVERRIDE) ? 0.5 * m->opt.o_margin : 0;
 
@@ -1655,6 +1742,10 @@ static void makeAAMM(const mjModel* m, mjData* d,
     int body = bf;
     int body_geomnum = m->body_geomnum[body];
     int has_filter = (mjcb_contactfilter != NULL);
+    int speculative = speculativeEnabled(m);
+    mjtNum4 vzero = v4_splat(0);
+    mjtNum4 vmin = vzero;
+    mjtNum4 vmax = vzero;
     int first = 1;
 
     // process collidable body geoms (body is collidable, should have geoms)
@@ -1664,55 +1755,93 @@ static void makeAAMM(const mjModel* m, mjData* d,
         continue;
       }
       mjtNum margin = override_margin ? override_margin
-                                       : m->geom_margin[geom] + m->geom_gap[geom];
-      mjtNum _aamm[6];
+                                      : m->geom_margin[geom] + m->geom_gap[geom];
 
       const mjtNum* aabb = m->geom_aabb + 6*geom;
       const mjtNum* size = m->geom_aabb + 6*geom + 3;
       const mjtNum* xpos = d->geom_xpos + 3*geom;
       const mjtNum* xmat = d->geom_xmat + 9*geom;
 
-      // compute center in global coordinates
-      mjtNum pos[3];
-      mji_mulMatVec3(pos, xmat, aabb);
-      mju_addTo3(pos, xpos);
-
-      mjtNum axis[9];
-      mji_transpose3(axis, xmat);
       mjtNum r_half = m->geom_rbound[geom];
       mjtNum dx[3], dw[3];
-      mjtNum s = speculativeEnabled(m) ? geomStepSweep(m, d, geom, 0, dx, dw) : 0;
+      mjtNum s = speculative ? geomStepSweep(m, d, geom, 0, dx, dw) : 0;
       mjtNum s_rot = s > 0 ? mju_norm3(dw) * r_half : 0;
 
-      for (int j=0; j < 3; j++) {
-        const mjtNum* frame_j = frame + 3*j;
-        mjtNum aabb_cen = mju_dot3(pos, frame_j);
-        mjtNum aabb_half = mju_abs(size[0] * mju_dot3(axis + 0, frame_j))
-                         + mju_abs(size[1] * mju_dot3(axis + 3, frame_j))
-                         + mju_abs(size[2] * mju_dot3(axis + 6, frame_j))
-                         + s_rot;
-        mjtNum r_cen = mju_dot3(xpos, frame_j);
-        mjtNum lo = mju_max(r_cen - r_half, aabb_cen - aabb_half);
-        mjtNum hi = mju_min(r_cen + r_half, aabb_cen + aabb_half);
-        if (s > 0) {
-          mjtNum d_proj = mju_dot3(dx, frame_j);
-          lo += mju_min(0, d_proj);
-          hi += mju_max(0, d_proj);
+      // project geom center onto the 3 frame axes: r_cen[j] = dot(xpos, frame_j)
+      mjtNum4 vr_cen = projectSAP(sap_frame, xpos);
+      mjtNum4 vr_half = v4_splat(r_half);
+      mjtNum4 vlo, vhi;
+
+      // centered geom whose box encloses its bounding sphere (e.g. sphere):
+      // |M_j0|*s0 + |M_j1|*s1 + |M_j2|*s2 >= r_half for any orthonormal M = frame*xmat
+      int centered = (aabb[0] == 0 && aabb[1] == 0 && aabb[2] == 0);
+      if (centered && size[0] >= r_half && size[1] >= r_half && size[2] >= r_half) {
+        vlo = v4_sub(vr_cen, vr_half);
+        vhi = v4_add(vr_cen, vr_half);
+      } else {
+        // compute center in global coordinates (skip when aabb center is zero)
+        mjtNum4 vaabb_cen;
+        if (centered) {
+          vaabb_cen = vr_cen;
+        } else {
+          mjtNum pos[3];
+          mji_mulMatVec3(pos, xmat, aabb);
+          mju_addTo3(pos, xpos);
+          vaabb_cen = projectSAP(sap_frame, pos);
         }
-        _aamm[j + 0] = lo - margin;
-        _aamm[j + 3] = hi + margin;
+
+        // project geom axes onto frame: m_k[j] = dot(xmat col k, frame_j)
+        mjtNum4 m0, m1, m2;
+        if (sap_frame->axis_aligned) {
+          m0 = v4_set(xmat[0], xmat[3], xmat[6], 0);
+          m1 = v4_set(xmat[1], xmat[4], xmat[7], 0);
+          m2 = v4_set(xmat[2], xmat[5], xmat[8], 0);
+        } else {
+          mjtNum4 c0 = sap_frame->c0, c1 = sap_frame->c1, c2 = sap_frame->c2;
+          m0 = v4_lincomb3(c0, c1, c2, xmat[0], xmat[3], xmat[6]);
+          m1 = v4_lincomb3(c0, c1, c2, xmat[1], xmat[4], xmat[7]);
+          m2 = v4_lincomb3(c0, c1, c2, xmat[2], xmat[5], xmat[8]);
+        }
+
+        // aabb_half[j] = |m0[j]|*size[0] + |m1[j]|*size[1] + |m2[j]|*size[2] + s_rot
+        mjtNum4 vaabb_half = v4_lincomb3(v4_abs(m0), v4_abs(m1), v4_abs(m2),
+                                         size[0], size[1], size[2]);
+        if (s > 0) {
+          vaabb_half = v4_add(vaabb_half, v4_splat(s_rot));
+        }
+
+        // tighten interval using both bounding sphere and oriented box
+        vlo = v4_max(v4_sub(vr_cen, vr_half), v4_sub(vaabb_cen, vaabb_half));
+        vhi = v4_min(v4_add(vr_cen, vr_half), v4_add(vaabb_cen, vaabb_half));
       }
+
+      // expand interval by speculative translation sweep
+      if (s > 0) {
+        mjtNum4 vd_proj = projectSAP(sap_frame, dx);
+        vlo = v4_add(vlo, v4_min(vzero, vd_proj));
+        vhi = v4_add(vhi, v4_max(vzero, vd_proj));
+      }
+
+      // expand by margin
+      mjtNum4 vmargin = v4_splat(margin);
+      vlo = v4_sub(vlo, vmargin);
+      vhi = v4_add(vhi, vmargin);
 
       // update body aamm
       if (first) {
-        mju_copy(aamm, _aamm, 6);
+        vmin = vlo;
+        vmax = vhi;
         first = 0;
       } else {
-        for (int j=0; j < 3; j++) {
-          aamm[j]   = mju_min(aamm[j],   _aamm[j]);
-          aamm[j+3] = mju_max(aamm[j+3], _aamm[j+3]);
-        }
+        vmin = v4_min(vmin, vlo);
+        vmax = v4_max(vmax, vhi);
       }
+    }
+
+    // store accumulated body bounds
+    if (!first) {
+      v4_store3(aamm, vmin);
+      v4_store3(aamm+3, vmax);
     }
   }
 
@@ -1723,27 +1852,13 @@ static void makeAAMM(const mjModel* m, mjData* d,
     const mjtNum* vbase = d->flexvert_xpos + 3*m->flex_vertadr[f];
 
     // process flex vertices
-    for (int i=0; i < flex_vertnum; i++) {
-      mjtNum v[3];
-
-      // compute vertex coordinates in given frame
-      mju_mulMatVec(v, frame, vbase+3*i, 3, 3);
-
-      // update aamm
-      if (i == 0) {
-        mju_copy3(aamm, v);
-        mju_copy3(aamm+3, v);
-      } else {
-        for (int j=0; j < 3; j++) {
-          aamm[j]   = mju_min(aamm[j], v[j]);
-          aamm[j+3] = mju_max(aamm[j+3], v[j]);
-        }
-      }
+    if (flex_vertnum > 0) {
+      flexAAMM(aamm, vbase, flex_vertnum, sap_frame);
     }
 
     // correct for flex radius and margin
     mjtNum margin = override_margin ? override_margin
-                                     : m->flex_margin[f] + m->flex_gap[f];
+                                    : m->flex_margin[f] + m->flex_gap[f];
     mjtNum box[2];
     mjtNum pad = mj_rodBoxSize(m, f, box) ? mju_max(m->flex_radius[f], mju_norm(box, 2))
                                           : m->flex_radius[f];
@@ -2201,6 +2316,9 @@ static inline void mulSym3Vec(mjtNum res[3], const mjtNum S[6], const mjtNum v[3
 // initialize sap_frame to the world identity frame
 static inline void initIdentitySAPFrame(mjSAPFrame* sap_frame) {
   mju_eye(sap_frame->frame, 3);
+  sap_frame->c0 = v4_set(1, 0, 0, 0);
+  sap_frame->c1 = v4_set(0, 1, 0, 0);
+  sap_frame->c2 = v4_set(0, 0, 1, 0);
   sap_frame->axis_aligned = 1;
 }
 
@@ -2326,10 +2444,13 @@ static int makeSAPFrame(const mjModel* m, const mjData* d, mjSAPFrame* sap_frame
   mjtNum e2[3];
   mji_cross(e2, e0, e1);
 
-  // store frame rows
+  // store frame rows and preloaded columns
   mji_copy3(sap_frame->frame + 0, e0);
   mji_copy3(sap_frame->frame + 3, e1);
   mji_copy3(sap_frame->frame + 6, e2);
+  sap_frame->c0 = v4_set(e0[0], e1[0], e2[0], 0);
+  sap_frame->c1 = v4_set(e0[1], e1[1], e2[1], 0);
+  sap_frame->c2 = v4_set(e0[2], e1[2], e2[2], 0);
   sap_frame->axis_aligned = 0;
   return 0;
 }
