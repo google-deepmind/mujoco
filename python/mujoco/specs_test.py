@@ -18,6 +18,7 @@ import gc
 import inspect
 import math
 import os
+import struct
 import textwrap
 import typing
 import zipfile  # pylint: disable=unused-import
@@ -1861,6 +1862,227 @@ class SpecsTest(absltest.TestCase):
     child4 = mujoco.MjSpec()
     with self.assertRaisesRegex(ValueError, 'Frame not found.'):
       parent.attach(child4, frame='invalid_frame', prefix='child3-')
+
+  def test_attach_asset_files(self):
+    # A 2x2 RGB PNG, also suitable for a heightfield or cube texture face.
+    png = bytes.fromhex(
+        '89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a73'
+        '0000001249444154789c63f8cfc0c000c20cff8100001fee05fb0bd9688b00000000'
+        '49454e44ae426082'
+    )
+    # A triangle bound to one body named "bone", in the SKN file format.
+    skin = (
+        struct.pack('<4i', 3, 0, 1, 1)
+        + struct.pack('<9f3i', 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 2)
+        + struct.pack('<40s3f4fi', b'bone', 0, 0, 0, 1, 0, 0, 0, 3)
+        + struct.pack('<3i3f', 0, 1, 2, 1, 1, 1)
+    )
+    assets = {
+        'meshes/shared.obj': b'v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n',
+        'textures/shared.png': png,
+        'skins/shared.skn': skin,
+    }
+    files = {
+        'mesh': 'meshes/shared.obj',
+        'texture': 'textures/shared.png',
+        'hfield': 'textures/shared.png',
+        'skin': 'skins/shared.skn',
+        'cube': 'textures/shared.png',
+    }
+
+    def make_spec(kind, prefix):
+      spec = mujoco.MjSpec()
+      spec.assets = dict(assets)
+      if kind == 'cube':
+        spec.add_texture(
+            name=prefix + kind,
+            type=mujoco.mjtTexture.mjTEXTURE_CUBE,
+            cubefiles=[files[kind]] * 6,
+        )
+      else:
+        kwargs = {'name': prefix + kind, 'file': files[kind]}
+        if kind == 'texture':
+          kwargs['type'] = mujoco.mjtTexture.mjTEXTURE_2D
+        elif kind == 'hfield':
+          kwargs['size'] = [1, 1, 1, 0.1]
+        elif kind == 'skin':
+          spec.worldbody.add_body(name='bone').add_geom(size=[0.1, 0, 0])
+        getattr(spec, 'add_' + kind)(**kwargs)
+      return spec
+
+    def assert_files(spec, kind, prefix='', suffix=''):
+      name = prefix + kind + suffix
+      asset = getattr(spec, 'texture' if kind == 'cube' else kind)(name)
+      expected = files[kind].replace('shared', prefix + 'shared' + suffix)
+      if kind == 'cube':
+        self.assertEqual(list(asset.cubefiles), [expected] * 6)
+        self.assertEqual(asset.file, '')
+      else:
+        self.assertEqual(asset.file, expected)
+      return expected
+
+    for kind in files:
+      for copy_during_attach in (False, True):
+        for mount in ('frame', 'site'):
+          for prefix, suffix in (('child_', ''), ('', '_child'), ('child_', '_v1')):
+            with self.subTest(
+                kind=kind,
+                copy_during_attach=copy_during_attach,
+                mount=mount,
+                prefix=prefix,
+                suffix=suffix,
+            ):
+              parent = make_spec(kind, 'parent_')
+              parent.copy_during_attach = copy_during_attach
+              child = make_spec(kind, '')
+              target = getattr(parent.worldbody, 'add_' + mount)()
+              parent.attach(child, prefix=prefix, suffix=suffix, **{mount: target})
+
+              # Existing parent elements can refer to the same source filename.
+              # They should stay unchanged while the imported files are renamed.
+              existing = getattr(parent, 'texture' if kind == 'cube' else kind)(
+                  'parent_' + kind
+              )
+              if kind == 'cube':
+                self.assertEqual(list(existing.cubefiles), [files[kind]] * 6)
+              else:
+                self.assertEqual(existing.file, files[kind])
+              expected = assert_files(parent, kind, prefix, suffix)
+              self.assertEqual(parent.assets[expected], assets[files[kind]])
+              count = 'ntex' if kind in ('texture', 'cube') else 'n' + kind
+              self.assertEqual(getattr(parent.compile(), count), 2)
+
+              if copy_during_attach:
+                # The source remains compilable and reusable, and another copy
+                # changes neither its paths nor the first copy's paths.
+                assert_files(child, kind)
+                self.assertEqual(getattr(child.compile(), count), 1)
+                parent.attach(
+                    child, prefix='second_', suffix='_v2', **{mount: target}
+                )
+                assert_files(parent, kind, 'second_', '_v2')
+                assert_files(parent, kind, prefix, suffix)
+                assert_files(child, kind)
+                self.assertEqual(getattr(parent.compile(), count), 3)
+
+  def test_attach_extensionless_asset_in_dotted_directory(self):
+    for directory, prefix in (
+        ('textures.v1', 'child_'),
+        ('textures', 'child.v1_'),
+        ('textures.v1', 'child/'),
+    ):
+      with self.subTest(directory=directory, prefix=prefix):
+        child = mujoco.MjSpec.from_string(
+            f'<mujoco><compiler texturedir="{directory}"/><asset>'
+            '<texture name="image" type="2d" content_type="image/png" file="shared"/>'
+            '</asset></mujoco>',
+            assets={directory + '/shared': _TINY_PNG},
+        )
+        self.assertEqual(child.compile().ntex, 1)
+        parent = mujoco.MjSpec()
+        parent.copy_during_attach = True
+        parent.attach(
+            child, frame=parent.worldbody.add_frame(), prefix=prefix, suffix='_v2'
+        )
+        self.assertEqual(parent.compile().ntex, 1)
+        self.assertIn(directory + '/' + prefix + 'shared_v2', parent.assets)
+        self.assertEqual(
+            parent.texture(prefix + 'image_v2').file, prefix + 'shared_v2'
+        )
+
+  def test_attach_mixed_asset_sources(self):
+    directory = self.create_tempdir().full_path
+    skin = (
+        struct.pack('<4i', 3, 0, 1, 1)
+        + struct.pack('<9f3i', 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 2)
+        + struct.pack('<40s3f4fi', b'bone', 0, 0, 0, 1, 0, 0, 0, 3)
+        + struct.pack('<3i3f', 0, 1, 2, 1, 1, 1)
+    )
+    for filename, content in (('disk.png', _TINY_PNG), ('disk.skn', skin)):
+      with open(os.path.join(directory, filename), 'wb') as f:
+        f.write(content)
+
+    for copy_during_attach in (False, True):
+      for absolute in (False, True):
+        for memory_texture in (False, True):
+          with self.subTest(
+              copy_during_attach=copy_during_attach,
+              absolute=absolute,
+              memory_texture=memory_texture,
+          ):
+            child = mujoco.MjSpec()
+            child.meshdir = directory
+            child.texturedir = 'textures'
+            child.assets = {'unrelated.txt': b'unrelated'}
+            if memory_texture:
+              child.assets['textures/memory.png'] = _TINY_PNG
+              child.add_texture(
+                  name='memory', type=mujoco.mjtTexture.mjTEXTURE_2D,
+                  file='MEMORY.png',
+              )
+            hfield_file = (
+                os.path.join(directory, 'disk.png') if absolute else 'disk.png'
+            )
+            skin_file = (
+                os.path.join(directory, 'disk.skn') if absolute else 'disk.skn'
+            )
+            child.add_hfield(
+                name='terrain', file=hfield_file, size=[1, 1, 1, 0.1]
+            )
+            child.add_skin(name='skin', file=skin_file)
+            child.worldbody.add_body(name='bone').add_geom(size=[0.1, 0, 0])
+            parent = mujoco.MjSpec()
+            parent.copy_during_attach = copy_during_attach
+            parent.attach(
+                child, prefix='child_', suffix='_v1',
+                frame=parent.worldbody.add_frame(),
+            )
+            self.assertEqual(parent.hfield('child_terrain_v1').file, hfield_file)
+            self.assertEqual(parent.skin('child_skin_v1').file, skin_file)
+            if memory_texture:
+              self.assertEqual(
+                  parent.texture('child_memory_v1').file, 'child_MEMORY_v1.png'
+              )
+            model = parent.compile()
+            self.assertEqual(model.nhfield, 1)
+            self.assertEqual(model.nskin, 1)
+            self.assertEqual(model.ntex, int(memory_texture))
+
+  def test_attach_unicode_asset_file(self):
+    filename = 'テクスチャ/顔.png'
+    child = mujoco.MjSpec()
+    child.assets = {filename: _TINY_PNG}
+    child.add_texture(
+        name='image', type=mujoco.mjtTexture.mjTEXTURE_2D, file=filename
+    )
+    self.assertEqual(child.compile().ntex, 1)
+    parent = mujoco.MjSpec()
+    parent.copy_during_attach = True
+    parent.attach(
+        child, frame=parent.worldbody.add_frame(), prefix='子_', suffix='_v1'
+    )
+    self.assertEqual(parent.compile().ntex, 1)
+    self.assertIn('テクスチャ/子_顔_v1.png', parent.assets)
+    self.assertEqual(parent.texture('子_image_v1').file, 'テクスチャ/子_顔_v1.png')
+
+  def test_attach_disk_archive_asset(self):
+    archive = os.path.join(self.create_tempdir().full_path, 'assets.mjz')
+    with zipfile.ZipFile(archive, 'w') as z:
+      z.writestr('terrain.png', _TINY_PNG)
+    filename = archive.replace('\\', '/') + '/terrain.png'
+    for copy_during_attach in (False, True):
+      with self.subTest(copy_during_attach=copy_during_attach):
+        child = mujoco.MjSpec()
+        child.assets = {'fallback/terrain.png': _TINY_PNG}
+        child.add_hfield(name='terrain', file=filename, size=[1, 1, 1, 0.1])
+        self.assertEqual(child.compile().nhfield, 1)
+        parent = mujoco.MjSpec()
+        parent.copy_during_attach = copy_during_attach
+        parent.attach(
+            child, frame=parent.worldbody.add_frame(), prefix='child_', suffix='_v1'
+        )
+        self.assertEqual(parent.hfield('child_terrain_v1').file, filename)
+        self.assertEqual(parent.compile().nhfield, 1)
 
   def test_attach_asset_conflict_exception_safety(self):
     parent = mujoco.MjSpec()
