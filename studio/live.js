@@ -81,6 +81,23 @@ function resolveScheme(url) {
   return url;
 }
 
+// Match the filename handling in FetchUrl (emscripten.cc), so a primed
+// resource has the same decoder-visible name as a directly fetched resource.
+function responseFilename(response) {
+  const disposition = response.headers.get('content-disposition') || '';
+  for (const field of disposition.split(';')) {
+    const part = field.trim();
+    if (part.toLowerCase().startsWith('filename=')) {
+      let filename = part.substring(9).trim();
+      if (filename.startsWith('"') && filename.endsWith('"')) {
+        filename = filename.substring(1, filename.length - 1);
+      }
+      return filename;
+    }
+  }
+  return '';
+}
+
 async function prefetchModelAssets(rootUrl, onProgress) {
   // Only prefetch when the root URL is one we know how to fetch from
   // Javascript. Other resource-provider-backed schemes (e.g., uploaded files
@@ -105,7 +122,7 @@ async function prefetchModelAssets(rootUrl, onProgress) {
         return false;
       }
       const bytes = new Uint8Array(await resp.arrayBuffer());
-      Module.primeFetchCache(httpUrl, bytes);
+      Module.primeFetchCache(httpUrl, bytes, responseFilename(resp));
       stats.files++;
       stats.bytes += bytes.length;
       onProgress?.(stats);
