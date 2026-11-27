@@ -79,9 +79,11 @@ MJAPI void mj_effShift(const mjModel* m, mjData* d);
 MJAPI void mj_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                         int flg_contact);
 
-// solve (M + B) x = b by PCG preconditioned with mj_effPrec, to opt.tolerance on the relative
-// residual; x = M^-1 b when the metric is inactive. Warns (mjWARN_INERTIA) if the iteration cap
-// is reached before convergence, in which case x is returned under-converged.
+// solve (M + B) x = b: directly by Cholesky under solver=Newton (3x3-block effChol when covered,
+// else general sparse or dense Cholesky), or by PCG preconditioned with mj_effPrec to
+// opt.tolerance on the relative residual; x = M^-1 b when the metric is inactive. Warns
+// (mjWARN_INERTIA) if the PCG iteration cap is reached before convergence, in which case x is
+// returned under-converged.
 MJAPI void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
 
 // stack bytes mj_effLower takes on an island of size nv with nr1 rank-1 rows and nR nonzeros

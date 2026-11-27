@@ -2101,12 +2101,14 @@ Deformables
    Flex :ref:`elasticity <flex-elasticity>` is usually the stiffest force in a deformable model, and only ``discrete``
    integrates it implicitly in position. Under ``implicit`` and ``implicitfast`` it raises a runtime error, while
    ``Euler`` integrates it explicitly and needs sub-millisecond timesteps; with ``discrete``, ``1–4 ms`` is typical.
-   ``Newton`` (the default) is the best choice under ``discrete`` -- especially for stiff rods, shells, cloth, and
-   :ref:`ipc <option-flag-ipc>` contact -- typically with :at:`tolerance` ``1e-6`` (raising :at:`iterations` to
-   ``150–400`` only in very contact-rich scenes). Prefer ``CG`` (typically with :at:`tolerance` ``1e-5``--``1e-6``) in
-   two cases: multi-cell ``equality="strain"`` grids (whose dense per-cell constraint blocks cause heavy Cholesky
-   fill-in) and large but relatively soft 3D meshes (where ``CG`` converges in a few cheap matrix-free iterations
-   without 3D fill-in). ``PGS`` and :at:`noslip_iterations` are not supported with flex; see
+   ``Newton`` (the default) uses direct Cholesky factorization for both the unconstrained smooth solve
+   (``qacc_smooth``) and the constraint solve, making it the best choice under ``discrete`` for stiff rods, shells,
+   cloth, articulated or interpolated flexes, and :ref:`ipc <option-flag-ipc>` contact -- typically with
+   :at:`tolerance` ``1e-6``. Prefer ``CG`` (which uses iterative matrix-free / block-SGS preconditioned CG for both
+   the smooth and constraint solves, typically with :at:`tolerance` ``1e-5``--``1e-6``) in two cases: multi-cell
+   ``equality="strain"`` grids (whose dense per-cell constraint blocks cause heavy Cholesky fill-in) and large but
+   relatively soft 3D tetrahedral meshes (where ``CG`` converges in a few cheap iterative sweeps without paying for 3D
+   Cholesky fill-in). ``PGS`` and :at:`noslip_iterations` are not supported with flex; see
    :ref:`Integrators <geIntegrators>` for current limitations.
 
 **Stiffness and damping** (:ref:`elasticity <flex-elasticity>`, :ref:`edge <flexcomp-edge-equality>`):

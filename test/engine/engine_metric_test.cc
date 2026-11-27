@@ -1329,5 +1329,212 @@ TEST_F(MetricTest, EffUseQHDiagExactAndGeneralKDiag) {
   EXPECT_GT(d_gen->qH[tri_diag], d_gen->qLD[tri_diag]);
 }
 
+// Newton solver solves (M + S) * qacc_smooth = rhs directly by sparse or dense
+// Cholesky whenever 3x3-block effChol does not cover the metric (uncovered 3D
+// passive flex contacts, articulated/interpolated flexes, or 3D tetrahedral
+// flexes), without hitting mjWARN_INERTIA at iterations=1, and falls back
+// safely under tight stack.
+TEST_F(MetricTest, EffSolveNewtonDirect) {
+  auto check_residual = [](const mjModel* m, mjData* d) {
+    std::vector<mjtNum> rhs(m->nv), lhs(m->nv);
+    mju_add(rhs.data(), d->qfrc_smooth, d->efm_c, m->nv);
+    if (d->efm_ca) {
+      mju_addTo(rhs.data(), d->efm_ca, m->nv);
+    }
+    mj_mulM(m, d, lhs.data(), d->qacc_smooth);
+    mj_effMulAdd(m, d, lhs.data(), d->qacc_smooth, /*flg_contact=*/1);
+    mjtNum err = 0, norm = mju_norm(rhs.data(), m->nv);
+    ASSERT_GT(norm, 0);
+    for (int i = 0; i < m->nv; i++) {
+      mjtNum diff = lhs[i] - rhs[i];
+      err += diff * diff;
+    }
+    EXPECT_NEAR(mju_sqrt(err) / norm, 0.0, MjTol(1e-12, 5e-5));
+  };
+
+  auto rel_err = [](const mjtNum* a, const mjtNum* b, int n) {
+    mjtNum num = 0, den = 0;
+    for (int i = 0; i < n; i++) {
+      mjtNum diff = a[i] - b[i];
+      num += diff * diff;
+      den += b[i] * b[i];
+    }
+    return mju_sqrt(num / mju_max(mjMINVAL, den));
+  };
+
+  // 1. Uncovered passive flex contacts (3D tet + 2D cloth): sparse, dense,
+  // aliasing (x == b), and tight-stack fallback.
+  static constexpr char kUncoveredPassiveXml[] = R"(
+  <mujoco>
+    <option integrator="discrete" solver="Newton" iterations="1"
+            tolerance="1e-10"/>
+    <worldbody>
+      <geom type="plane" size="1 1 0.1" friction="0.6"/>
+      <flexcomp name="lower" type="grid" count="3 3 2" spacing="0.04 0.04 0.04"
+                pos="0 0 0.024" radius="0.006" mass="0.3" dim="3">
+        <contact selfcollide="none" passive="true" condim="3" friction="0.6"/>
+        <elasticity young="5e3" poisson="0.3" damping="1e-2"/>
+      </flexcomp>
+      <flexcomp name="upper" type="grid" count="4 4 1" spacing="0.04 0.04 0.04"
+                pos="0.01 0.01 0.052" radius="0.006" mass="0.2" dim="2">
+        <contact selfcollide="auto" passive="true" condim="3" friction="0.6"/>
+        <elasticity young="5e3" poisson="0.3" thickness="2e-3"
+                    elastic2d="both" damping="1e-2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m =
+      LoadModelFromString(kUncoveredPassiveXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  for (int i = 0; i < m->nv; i++) {
+    d->qvel[i] = 0.2 * mju_sin(0.9 * i + 0.3) - 0.1 * (i % 3 == 2);
+  }
+  mj_forward(m.get(), d.get());
+  ASSERT_GT(d->nefmcon, 0);
+  EXPECT_EQ(d->warning[mjWARN_INERTIA].number, 0);
+  ASSERT_NO_FATAL_FAILURE(check_residual(m.get(), d.get()));
+
+  // in-place aliasing (x == b) matches out-of-place solve
+  std::vector<mjtNum> rhs(m->nv);
+  mju_add(rhs.data(), d->qfrc_smooth, d->efm_c, m->nv);
+  if (d->efm_ca) {
+    mju_addTo(rhs.data(), d->efm_ca, m->nv);
+  }
+  std::vector<mjtNum> alias_buf = rhs;
+  mj_effSolve(m.get(), d.get(), alias_buf.data(), alias_buf.data());
+  for (int i = 0; i < m->nv; i++) {
+    EXPECT_MJTNUM_EQ(alias_buf[i], d->qacc_smooth[i]);
+  }
+
+  // dense Jacobian path (!mj_isSparse) matches sparse path
+  m->opt.jacobian = mjJAC_DENSE;
+  MjDataPtr d_dense = MakeData(m);
+  mju_copy(d_dense->qvel, d->qvel, m->nv);
+  mj_forward(m.get(), d_dense.get());
+  EXPECT_EQ(d_dense->warning[mjWARN_INERTIA].number, 0);
+  EXPECT_NEAR(rel_err(d_dense->qacc_smooth, d->qacc_smooth, m->nv), 0.0,
+              MjTol(1e-12, 2e-4));
+  m->opt.jacobian = mjJAC_AUTO;
+
+  // tight-stack fallback: restrict available stack so effSolveNewton backs off
+  // to PCG (which expectedly warns at iterations=1) without crashing
+  {
+    MockWarningHandler warning_handler;
+    warning_handler.ExpectWarnings("Flex stiffness is too ill-conditioned");
+    warning_handler.ExpectWarnings("Inertia matrix is too close to singular");
+    mj_markStack(d.get());
+    size_t keep = 8 * static_cast<size_t>(m->nv) * sizeof(mjtNum) + 4096;
+    size_t avail = d->narena - d->pstack - d->parena;
+    if (avail > keep) {
+      mj_stackAllocByte(d.get(), avail - keep, 8);
+    }
+    std::vector<mjtNum> fallback(m->nv);
+    mj_effSolve(m.get(), d.get(), fallback.data(), rhs.data());
+    mj_freeStack(d.get());
+    EXPECT_GT(d->warning[mjWARN_INERTIA].number, 0);
+  }
+
+  // 2. Stiff interpolated (quadratic) flex under Newton: direct Cholesky solves
+  // in one shot at iterations=1 without mjWARN_INERTIA.
+  static constexpr char kInterpXml[] = R"(
+  <mujoco>
+    <option integrator="discrete" solver="Newton" iterations="1"
+            tolerance="1e-10" timestep="0.001"/>
+    <worldbody>
+      <body name="base" pos="0 0 0.5">
+        <joint type="hinge" axis="0 1 0"/>
+        <geom type="box" size="0.02 0.02 0.02" mass="0.1"
+              contype="0" conaffinity="0"/>
+        <flexcomp name="beam" type="grid" count="5 2 2"
+                  spacing="0.04 0.03 0.03" pos="0.1 0 0" dim="3"
+                  dof="quadratic" mass="0.2" radius="0.002">
+          <elasticity young="1e7" poisson="0.3" damping="0.002"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <pin id="0 1 2 3"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_interp = LoadModelFromString(kInterpXml, error, sizeof(error));
+  ASSERT_THAT(m_interp.get(), NotNull()) << error;
+  MjDataPtr d_interp = MakeData(m_interp);
+  mj_forward(m_interp.get(), d_interp.get());
+  EXPECT_EQ(d_interp->warning[mjWARN_INERTIA].number, 0);
+  ASSERT_NO_FATAL_FAILURE(check_residual(m_interp.get(), d_interp.get()));
+
+  // 3. Stiff standalone 3D tet with nefmcon=0: solved directly by Cholesky
+  // under Newton at iterations=1 without invoking iterative SGS.
+  static constexpr char kStiffTetXml[] = R"(
+  <mujoco>
+    <option integrator="discrete" solver="Newton" iterations="1"
+            tolerance="1e-10" timestep="0.002"/>
+    <worldbody>
+      <flexcomp name="tet" type="grid" count="3 3 3" spacing="0.04 0.04 0.04"
+                pos="0 0 0.5" radius="0.002" mass="0.3" dim="3">
+        <elasticity young="1e6" poisson="0.3" damping="0.01"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <pin id="0 1 2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_tet = LoadModelFromString(kStiffTetXml, error, sizeof(error));
+  ASSERT_THAT(m_tet.get(), NotNull()) << error;
+  MjDataPtr d_tet = MakeData(m_tet);
+  for (int i = 0; i < m_tet->nv; i++) {
+    d_tet->qvel[i] = 0.1 * mju_sin(0.7 * i + 0.2);
+  }
+  mj_forward(m_tet.get(), d_tet.get());
+  ASSERT_EQ(d_tet->nefmcon, 0);
+  EXPECT_EQ(d_tet->warning[mjWARN_INERTIA].number, 0);
+  ASSERT_NO_FATAL_FAILURE(check_residual(m_tet.get(), d_tet.get()));
+
+  // 4. Covered 2D cloth alongside a multi-DOF stiff tendon at iterations=0:
+  // effCholCoversMetric routes to effSolveNewton without eagerly filling efm_L.
+  static constexpr char kClothTendonXml[] = R"(
+  <mujoco>
+    <option integrator="discrete" solver="Newton" iterations="0"
+            tolerance="1e-10" timestep="0.002"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.05 0.05 1"
+                pos="0 0 0.5" radius="0.002" mass="0.2" dim="2">
+        <elasticity young="1e4" poisson="0.2" thickness="0.002"
+                    elastic2d="both" damping="0.01"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <pin id="0 3"/>
+      </flexcomp>
+      <body pos="1 0 0.5">
+        <joint name="j1" type="slide" axis="1 0 0"/>
+        <geom type="sphere" size="0.02" mass="0.2" contype="0" conaffinity="0"/>
+      </body>
+      <body pos="1.2 0 0.5">
+        <joint name="j2" type="slide" axis="1 0 0"/>
+        <geom type="sphere" size="0.02" mass="0.2" contype="0" conaffinity="0"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed name="t" stiffness="1e5" damping="10">
+        <joint joint="j1" coef="1"/>
+        <joint joint="j2" coef="-1"/>
+      </fixed>
+    </tendon>
+  </mujoco>
+  )";
+  MjModelPtr m_ten = LoadModelFromString(kClothTendonXml, error, sizeof(error));
+  ASSERT_THAT(m_ten.get(), NotNull()) << error;
+  MjDataPtr d_ten = MakeData(m_ten);
+  d_ten->qpos[m_ten->nq - 2] = 0.05;
+  mj_forward(m_ten.get(), d_ten.get());
+  ASSERT_GT(d_ten->nefmL, 0);
+  EXPECT_EQ(d_ten->efm_L[0], 2);  // EFF_CHOL_PENDING: efm_L not filled
+  ASSERT_GT(d_ten->nefmT, 0);
+  EXPECT_EQ(d_ten->warning[mjWARN_INERTIA].number, 0);
+  ASSERT_NO_FATAL_FAILURE(check_residual(m_ten.get(), d_ten.get()));
+}
+
 }  // namespace
 }  // namespace mujoco

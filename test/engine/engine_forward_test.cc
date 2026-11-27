@@ -5850,7 +5850,7 @@ TEST_F(ForwardTest, DiscreteArticulatedFlexNewtonMatchesCG) {
                     MjNear(smooth_cg[i], 1e-8 * scale, 4e-3 * scale))
             << "xml " << xml_idx << " cone " << cone << " dof " << i;
         EXPECT_THAT(data->qacc[i],
-                    MjNear(qacc_cg[i], 1e-6 * scale, 1e-4 * scale))
+                    MjNear(qacc_cg[i], 1e-6 * scale, 5e-4 * scale))
             << "xml " << xml_idx << " cone " << cone << " dof " << i;
       }
 
@@ -6026,7 +6026,7 @@ TEST_F(ForwardTest, DiscreteArticulatedFlexSolverFallbackAndCopy) {
     mj_fwdConstraint(model.get(), copy);
 
     EXPECT_THAT(AsVector(copy->qacc, nv),
-                Pointwise(MjNear(1e-10 * scale, 1e-4 * scale), qacc_cg))
+                Pointwise(MjNear(1e-10 * scale, 5e-4 * scale), qacc_cg))
         << "use_island=" << use_island;
     mj_deleteData(copy);
   }

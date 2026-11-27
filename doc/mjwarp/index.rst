@@ -1311,6 +1311,15 @@ determines if Warp's ``U'U`` Cholesky factorization
 `wp.tile_cholesky <https://nvidia.github.io/warp/stable/language_reference/_generated/warp.tile_cholesky.html>`__,
 MuJoCo's sparse reverse-mode ``L'DL`` routine, or a simple diagonal inverse routine is employed.
 
+Discrete smooth solve
+---------------------
+
+Under ``integrator="discrete"`` with ``solver="Newton"``, MuJoCo solves the unconstrained smooth acceleration
+``qacc_smooth`` directly by Cholesky when the 3x3-block sparse factor does not cover the metric. MJWarp keeps
+parallel Jacobi-preconditioned CG in ``eff_solve`` for non-covered 3D and articulated flexes, since serial
+per-world factorizations or sweeps over large ``nv`` underperform parallel GPU matvecs; both converge to the
+same ``qacc_smooth`` within ``opt.tolerance``.
+
 Options
 -------
 

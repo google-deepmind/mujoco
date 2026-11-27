@@ -168,7 +168,7 @@ class SkillClaimsTest(absltest.TestCase):
       with self.assertRaisesRegex(ValueError, 'R0 is not orthonormal'):
         mujoco.MjModel.from_xml_string(flat_xml)
 
-  def test_effsolve_pcg_runs_for_all_solvers_and_exact_on_rods_and_2d(self):
+  def test_effsolve_follows_solver_and_exact_on_rods_and_2d(self):
     # 1D rod and non-interpolated 2D flex use exact sparse Cholesky (1 iter).
     rod_xml = """<mujoco>
       <option timestep="0.01" integrator="discrete" iterations="1"
@@ -213,8 +213,9 @@ class SkillClaimsTest(absltest.TestCase):
           d_cloth.warning[mujoco.mjtWarning.mjWARN_INERTIA].number, 0
       )
 
-    # Stiff 3D trilinear flex iterates in mj_effSolve for BOTH Newton and CG.
-    for solver in ('Newton', 'CG'):
+    # Stiff 3D trilinear flex: Newton solves directly by Cholesky (0 warnings
+    # at iterations=1), while CG iterates via SGS PCG and hits the cap.
+    for solver, expect_warn in (('Newton', False), ('CG', True)):
       solid_xml = f"""<mujoco>
         <option timestep="0.01" integrator="discrete" solver="{solver}"
                 iterations="1" tolerance="1e-8"/>
@@ -231,9 +232,14 @@ class SkillClaimsTest(absltest.TestCase):
       m_solid = mujoco.MjModel.from_xml_string(solid_xml)
       d_solid = mujoco.MjData(m_solid)
       mujoco.mj_step(m_solid, d_solid)
-      self.assertGreater(
-          d_solid.warning[mujoco.mjtWarning.mjWARN_INERTIA].number, 0
-      )
+      if expect_warn:
+        self.assertGreater(
+            d_solid.warning[mujoco.mjtWarning.mjWARN_INERTIA].number, 0
+        )
+      else:
+        self.assertEqual(
+            d_solid.warning[mujoco.mjtWarning.mjWARN_INERTIA].number, 0
+        )
 
   def test_refsafe_clamps_equalities_under_euler_and_implicitfast_only(self):
     def edge_aref(integrator: str, timeconst: float) -> float:

@@ -699,10 +699,12 @@ Discrete-time (``discrete``)
    gains (clamped to the stabilizing sign), flex elasticity and damping, and the dissipative drag component of fluid
    forces. Terms which fit inside the sparsity pattern of :math:`M` (the joint diagonals, the fluid drag blocks) join
    its tree-structured factorization with no fill-in and add no cost to the solve; the couplings introduced by tendon,
-   actuator and flex terms are applied matrix-free inside the iterative solvers. This split determines solver support:
-   ``CG`` is matrix-free and requires only products with :math:`\widehat{M}`, and ``Newton`` merges the metric directly
-   into its Hessian, while the dual ``PGS`` and :ref:`noslip<option-noslip_iterations>` solvers require an explicit
-   factorization.
+   actuator and flex terms are applied matrix-free inside the iterative solvers. This split determines solver behavior
+   for both the unconstrained smooth solve (``qacc_smooth``) and the constraint solve: ``CG`` stays iterative and
+   matrix-free (requiring only products with :math:`\widehat{M}` and a cheap preconditioner, such as block-SGS on 3D
+   flexes), whereas ``Newton`` solves ``qacc_smooth`` directly by Cholesky (using a 3x3-block sparse factor on covered
+   1D/2D flexes and general sparse or dense Cholesky otherwise) and merges the metric directly into its Hessian. The
+   dual ``PGS`` and :ref:`noslip<option-noslip_iterations>` solvers require an explicit factorization.
 
    Under ``PGS``, tendon and actuator terms are therefore excluded from the metric and their forces integrate
    explicitly, like the sparsity-pattern restriction of ``implicit`` above. Noslip post-processing under a primal solver

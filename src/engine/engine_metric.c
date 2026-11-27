@@ -1275,6 +1275,42 @@ static void effCholFill(const mjModel* m, mjData* d, const mjEffChol* c, mjtNum*
     mju_zero(scratch, 6*nq);
   }
 
+  // scatter single-dof tendon and actuator diagonal stiffness onto covered triples
+  for (int t=0; t < d->nefmT; t++) {
+    mjtNum s = d->efm_ts[t];
+    int i = d->efm_tid[t];
+    if (!s || m->ten_J_rownnz[i] != 1) {
+      continue;
+    }
+    int j = m->ten_J_rowadr[i];
+    int dof = m->ten_J_colind[j], k = blk[dof];
+    if (k >= 0) {
+      int row = 3*c->perm[k] + (dof - c->dofid[k]);
+      H[c->L_rowadr[row] + c->L_rownnz[row] - 1] += s * d->ten_J[j] * d->ten_J[j];
+    }
+  }
+  for (int t=0; t < d->nefmA; t++) {
+    mjtNum s = d->efm_as[t];
+    if (!s) {
+      continue;
+    }
+    int i = d->efm_aid[t];
+    int oadr = m->actuator_outadr[i];
+    for (int m_out=0; m_out < m->actuator_outnum[i]; m_out++) {
+      int r = oadr + m_out;
+      if (d->moment_rownnz[r] != 1) {
+        continue;
+      }
+      int j = d->moment_rowadr[r];
+      int dof = d->moment_colind[j], k = blk[dof];
+      if (k >= 0) {
+        int row = 3*c->perm[k] + (dof - c->dofid[k]);
+        H[c->L_rowadr[row] + c->L_rownnz[row] - 1] +=
+            s * d->actuator_moment[j] * d->actuator_moment[j];
+      }
+    }
+  }
+
   // scatter passive flex contact rank-1 terms (scale * row' * row) on covered triples
   if (d->nefmcon) {
     for (int k=0; k < nb; k++) qmark[k] = -1;
@@ -2610,90 +2646,312 @@ int mj_effLower(const mjModel* m, mjData* d, int island, int flg_addM, int nr1, 
 }
 
 
-// accurate solve of (M + K) x = b by PCG with the metric preconditioner, converging the
-// relative residual to opt.tolerance; used for qacc_smooth. Reaching opt.iterations means the
-// metric is too ill-conditioned for the preconditioner: warn (mjWARN_INERTIA, worst-residual dof)
-// and return x under-converged.
+static int flexMatrixFree(const mjModel* m, const mjData* d, int f, int interp_asm, int gen_csr);
+
+
+// return 1 if mj_effMulAdd applies any matrix-free flex operator not assembled into d->efm_K
+static int effMatrixFree(const mjModel* m, const mjData* d) {
+  int gen_csr = efmGeneralCSR(d);
+  if (gen_csr || (mjDISABLED(mjDSBL_SPRING) && mjDISABLED(mjDSBL_DAMPER))) {
+    return 0;
+  }
+  int interp_asm = d->nefmK && mjd_flexInterpAssemblable(m);
+  for (int f=0; f < m->nflex; f++) {
+    if (flexMatrixFree(m, d, f, interp_asm, gen_csr)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+// return 1 if dof falls inside any 3-dof block covered by d->efm_dofid
+static int effCholHasDof(const int* dofid, int nb, int dof) {
+  int lo = 0, hi = nb - 1;
+  while (lo <= hi) {
+    int mid = lo + (hi - lo)/2;
+    int start = dofid[mid];
+    if (dof < start) {
+      hi = mid - 1;
+    } else if (dof >= start + 3) {
+      lo = mid + 1;
+    } else {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+// return 1 if effChol + qH cover all covered-tree inertia blocks and active passive contact,
+// tendon, and actuator rank-1 terms without omitting off-diagonals or covered-block diagonals
+static int effCholCoversMetric(const mjModel* m, const mjData* d) {
+  int nb = d->nefmdof;
+  const int* dofid = d->efm_dofid;
+
+  // covered vertex bodies with child joints have M couplings outside their 3x3 block
+  for (int k=0; k < nb; k++) {
+    if (m->tree_dofnum[m->dof_treeid[dofid[k]]] != 3) {
+      return 0;
+    }
+  }
+
+  // passive flex contacts: every dof of an active contact must lie in a covered block
+  if (d->nefmcon && 3*nb < m->nv) {
+    for (int adr=0; adr < d->nefmcon; ) {
+      int nnz = d->efm_con_ind[adr];
+      mjtNum scale = d->efm_con_val[adr];
+      const int* ci = d->efm_con_ind + adr + 2;
+      adr += 2 + nnz;
+      if (scale <= 0) {
+        continue;
+      }
+      for (int a=0; a < nnz; a++) {
+        if (!effCholHasDof(dofid, nb, ci[a])) {
+          return 0;
+        }
+      }
+    }
+  }
+
+  // tendons: single-dof terms are exact in effChol/qH; multi-dof couplings need effSolveNewton
+  for (int t=0; t < d->nefmT; t++) {
+    if (d->efm_ts[t] && m->ten_J_rownnz[d->efm_tid[t]] > 1) {
+      return 0;
+    }
+  }
+
+  // actuators: single-dof terms are exact in effChol/qH; multi-dof couplings need effSolveNewton
+  for (int t=0; t < d->nefmA; t++) {
+    if (!d->efm_as[t]) {
+      continue;
+    }
+    int i = d->efm_aid[t];
+    int oadr = m->actuator_outadr[i];
+    for (int k=0; k < m->actuator_outnum[i]; k++) {
+      if (d->moment_rownnz[oadr + k] > 1) {
+        return 0;
+      }
+    }
+  }
+
+  return 1;
+}
+
+
+// solve (M + S) x = b directly by sparse or dense Cholesky; returns 0 if stack space is exhausted
+static int effSolveNewton(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
+  int nv = m->nv;
+  int nr1 = 0, nR = 0;
+  int nHcap = mj_effLowerCap(m, d, /*island=*/-1, /*flg_addM=*/1, &nr1, &nR);
+  size_t lower_scratch = mj_effLowerScratch(nv, nr1, nR);
+  size_t h_int_cnt = 2*(size_t)nv + (size_t)nHcap;
+  size_t need = mj_stackFrameBytes() + effIntBytes(h_int_cnt) + effNumBytes((size_t)nHcap) +
+                lower_scratch;
+  if (mj_stackBytesAvailable(d) < need) {
+    return 0;
+  }
+
+  mj_markStack(d);
+  int* H_ints = effInts(d, h_int_cnt);
+  mjtNum* H_val = mjSTACKALLOC(d, nHcap > 0 ? nHcap : 1, mjtNum);
+  int* H_rownnz = H_ints;
+  int* H_rowadr = H_ints + nv;
+  int* H_colind = H_ints + 2*nv;
+  int nH = mj_effLower(m, d, /*island=*/-1, /*flg_addM=*/1, nr1, nR,
+                       H_rownnz, H_rowadr, H_colind, H_val);
+
+  // dense Cholesky
+  if (!mj_isSparse(m)) {
+    size_t dense_nums = (size_t)nv * (size_t)nv + (x == b ? (size_t)nv : 0);
+    if (mj_stackBytesAvailable(d) < effNumBytes(dense_nums)) {
+      mj_freeStack(d);
+      return 0;
+    }
+    mjtNum* dense_buf = mjSTACKALLOC(d, dense_nums > 0 ? dense_nums : 1, mjtNum);
+    mjtNum* L = dense_buf;
+    mju_zero(L, nv*nv);
+    mju_addToSymSparse(L, H_val, nv, H_rownnz, H_rowadr, H_colind, /*flg_upper=*/0);
+    mju_cholFactor(L, nv, mjMINVAL);
+    const mjtNum* rhs = b;
+    if (x == b) {
+      mjtNum* rhs_buf = dense_buf + (size_t)nv*nv;
+      mju_copy(rhs_buf, b, nv);
+      rhs = rhs_buf;
+    }
+    mju_cholSolve(x, L, rhs, nv);
+    mj_freeStack(d);
+    return 1;
+  }
+
+  // transpose lower-triangle H to upper-triangle HT and run symbolic Cholesky counting
+  size_t sym_int_cnt = 6*(size_t)nv + (size_t)nH;
+  size_t chol_count_bytes = mj_stackFrameBytes() + 2*effIntBytes((size_t)nv);
+  if (mj_stackBytesAvailable(d) < effIntBytes(sym_int_cnt) + chol_count_bytes) {
+    mj_freeStack(d);
+    return 0;
+  }
+  int* sym_ints  = effInts(d, sym_int_cnt);
+  int* HT_rownnz = sym_ints;
+  int* HT_rowadr = sym_ints + nv;
+  int* L_rownnz  = sym_ints + 2*nv;
+  int* L_rowadr  = sym_ints + 3*nv;
+  int* LT_rownnz = sym_ints + 4*nv;
+  int* LT_rowadr = sym_ints + 5*nv;
+  int* HT_colind = sym_ints + 6*nv;
+  mju_transposeSparse(NULL, NULL, nv, nv, HT_rownnz, HT_rowadr, HT_colind, NULL,
+                      H_rownnz, H_rowadr, H_colind, NULL);
+  int nL = mju_cholFactorSymbolic(NULL, L_rownnz, L_rowadr, NULL, LT_rownnz, LT_rowadr, NULL, NULL,
+                                  HT_rownnz, HT_rowadr, HT_colind, nv, d);
+
+  // allocate L structures, run symbolic fill, numeric Cholesky, and solve
+  size_t nL_int = 3*(size_t)nL + 2*(size_t)nv;
+  size_t nL_num = (size_t)nL + (x == b ? (size_t)nv : 0);
+  size_t chol_fill_bytes = mj_stackFrameBytes() + 3*effIntBytes((size_t)nv);
+  if (mj_stackBytesAvailable(d) < effIntBytes(nL_int) + effNumBytes(nL_num) + chol_fill_bytes) {
+    mj_freeStack(d);
+    return 0;
+  }
+  int* L_ints     = effInts(d, nL_int);
+  mjtNum* L_nums  = mjSTACKALLOC(d, nL_num > 0 ? nL_num : 1, mjtNum);
+  int* L_colind   = L_ints;
+  int* LT_colind  = L_ints + nL;
+  int* LT_map     = L_ints + 2*nL;
+  int* L_super    = L_ints + 3*nL;
+  int* cholscratch = L_ints + 3*nL + nv;
+  mjtNum* L       = L_nums;
+
+  mju_cholFactorSymbolic(L_colind, L_rownnz, L_rowadr, LT_colind, LT_rownnz, LT_rowadr, LT_map,
+                         L_super, HT_rownnz, HT_rowadr, HT_colind, nv, d);
+  mju_cholFactorNumeric(L, nv, mjMINVAL, L_rownnz, L_rowadr, L_colind,
+                        LT_rownnz, LT_rowadr, LT_colind, LT_map, L_super,
+                        H_val, H_rownnz, H_rowadr, H_colind, cholscratch);
+
+  const mjtNum* rhs = b;
+  if (x == b) {
+    mjtNum* rhs_buf = L_nums + nL;
+    mju_copy(rhs_buf, b, nv);
+    rhs = rhs_buf;
+  }
+  mju_cholSolveSparse(x, L, rhs, nv, L_rownnz, L_rowadr, L_colind);
+
+  mj_freeStack(d);
+  return 1;
+}
+
+
+// accurate solve of (M + K) x = b: directly by Cholesky under solver=Newton (3x3-block effChol
+// when it covers the metric, else general sparse or dense Cholesky via effSolveNewton), or by PCG
+// with the metric preconditioner (with block-SGS under CG) converging the relative residual to
+// opt.tolerance; used for qacc_smooth. Reaching opt.iterations means the metric is too
+// ill-conditioned for the preconditioner: warn (mjWARN_INERTIA, worst-residual dof) and return x
+// under-converged.
 void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   if (!d->efm_active) {
     mj_effPrec(m, d, x, b);
     return;
   }
 
-  // backbone-only metric (no tendon, actuator or flex couplings): the qH solve inside the
+  // backbone-only metric (no tendon, actuator, contact or flex couplings): the qH solve inside the
   // block-apply is the exact metric solve, skip the iteration. Beyond the saved iterations,
   // the direct solve is block-decoupled across trees, which sleeping trees rely on
-  if (!d->nefmT && !d->nefmA && !mj_effFlexAny(m)) {
+  if (!d->nefmT && !d->nefmA && !d->nefmcon && !mj_effFlexAny(m)) {
     effBlockApply(m, d, NULL, x, b);
     return;
   }
+
   int nv = m->nv;
+  mjtNum bn = mju_dot(b, b, nv);
+  if (bn <= mjMINVAL) {
+    mju_zero(x, nv);
+    if (d->threadpool) {
+      effCholEnsure(m, d);
+    }
+    return;
+  }
+
+  // Newton: solve (M + S) directly by Cholesky unless 3x3-block effChol already covers the metric
+  // (falls through to PCG only if a flex remains matrix-free or stack space is exhausted);
+  // defer effCholReady so d->efm_L is not filled when effSolveNewton will solve from scratch
+  int chol_ready = -1;
+  if (m->opt.solver == mjSOL_NEWTON && !effMatrixFree(m, d)) {
+    int chol_covers = m->opt.iterations > 0 && effCholReserved(d) && !efmGeneralCSR(d) &&
+                      effCholCoversMetric(m, d);
+    if (chol_covers) {
+      mjEffChol cs;
+      chol_ready = effCholReady(m, d, /*is_island=*/0, &cs);
+      chol_covers = chol_ready;
+    }
+    if (!chol_covers && effSolveNewton(m, d, x, b)) {
+      return;
+    }
+  }
+  if (chol_ready < 0) {
+    mjEffChol cs;
+    chol_ready = effCholReady(m, d, /*is_island=*/0, &cs);
+  }
+
   mj_markStack(d);
   mjtNum* r = mjSTACKALLOC(d, nv, mjtNum);
   mju_copy(r, b, nv);   // before zeroing x: b may alias x
   mju_zero(x, nv);
-  mjtNum bn = mju_dot(r, r, nv);
-  if (bn > mjMINVAL) {
-    // converge the relative residual to opt.tolerance; both sides are squared norms
-#ifdef mjUSESINGLE
-    // float cannot reach a 1e-8 relative residual (eps ~1.2e-7): without a floor every step of
-    // every covered model would run to opt.iterations and then warn.
-    mjtNum tolerance = mju_max(m->opt.tolerance, 1e-5);
-#else
-    mjtNum tolerance = m->opt.tolerance;
-#endif
-    mjtNum tol = tolerance*tolerance*bn;
-    int capped = 1;   // cleared by either exit below; still set means the cap was reached
-    mjEffChol cs;
-    int use_sgs = d->nefmK && !effCholReady(m, d, /*is_island=*/0, &cs);
-    if (!use_sgs || !effSolveSGS(m, d, x, r, bn, tol, &capped)) {
-      mjtNum* z = mjSTACKALLOC(d, nv, mjtNum);
-      mjtNum* p = mjSTACKALLOC(d, nv, mjtNum);
-      mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
-      effBlockApply(m, d, NULL, z, r);
-      mju_copy(p, z, nv);
-      mjtNum rz = mju_dot(r, z, nv);
-      for (int it = 0; it < m->opt.iterations; it++) {
-        mju_mulSymVecSparse(Ap, d->M, p, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
-        mj_effMulAdd(m, d, Ap, p, /*flg_contact=*/1);
-        mjtNum pAp = mju_dot(p, Ap, nv);
-        // curvature breakdown: the metric has no curvature along p, so no further progress is
-        // possible and x is the best available. Not a budget failure, so it does not warn.
-        if (pAp <= 0) { capped = 0; break; }
-        mjtNum alpha = rz/pAp;
-        mju_addToScl(x, p, alpha, nv);
-        mju_addToScl(r, Ap, -alpha, nv);
-        if (mju_dot(r, r, nv) < tol) { capped = 0; break; }
-        effBlockApply(m, d, NULL, z, r);
-        mjtNum rznew = mju_dot(r, z, nv);
-        mju_addScl(p, z, p, rznew/rz, nv);
-        rz = rznew;
-      }
-    }
 
-    // Ran out of iterations with the residual still above tolerance: the metric is too
-    // ill-conditioned for the blocks to solve within the budget. Blame the dof carrying the
-    // largest residual.
-    // mjWARN_INERTIA is the closest existing warning (reusing it avoids an ABI addition), but on
-    // its own it points the user at their inertia when the cause is the flex stiffness, so say so
-    // first. Gate on the same first-time condition mj_warning uses, or a model that fails every
-    // step would print this thousands of times a second.
-    if (capped && mju_dot(r, r, nv) >= tol) {
-      int worst = 0;
-      for (int i = 1; i < nv; i++) {
-        if (mju_abs(r[i]) > mju_abs(r[worst])) worst = i;
-      }
-      if (!d->warning[mjWARN_INERTIA].number) {
-        mju_warning("Flex stiffness is too ill-conditioned for the effective-metric block "
-                    "preconditioner: the M+K solve ran out of iterations at a relative residual "
-                    "of %.2e and qacc_smooth is under-converged. Reported as a singular inertia "
-                    "below, because M+K is the effective inertia.",
-                    mju_sqrt(mju_dot(r, r, nv)/bn));
-      }
-      mj_warning(d, mjWARN_INERTIA, worst);
+  // converge the relative residual to opt.tolerance; both sides are squared norms
+#ifdef mjUSESINGLE
+  // float cannot reach a 1e-8 relative residual (eps ~1.2e-7): without a floor every step of
+  // every covered model would run to opt.iterations and then warn.
+  mjtNum tolerance = mju_max(m->opt.tolerance, 1e-5);
+#else
+  mjtNum tolerance = m->opt.tolerance;
+#endif
+  mjtNum tol = tolerance*tolerance*bn;
+  int capped = 1;   // cleared by either exit below; still set means the cap was reached
+  int use_sgs = d->nefmK && !chol_ready;
+  if (!use_sgs || !effSolveSGS(m, d, x, r, bn, tol, &capped)) {
+    mjtNum* z = mjSTACKALLOC(d, nv, mjtNum);
+    mjtNum* p = mjSTACKALLOC(d, nv, mjtNum);
+    mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
+    effBlockApply(m, d, NULL, z, r);
+    mju_copy(p, z, nv);
+    mjtNum rz = mju_dot(r, z, nv);
+    for (int it = 0; it < m->opt.iterations; it++) {
+      mju_mulSymVecSparse(Ap, d->M, p, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+      mj_effMulAdd(m, d, Ap, p, /*flg_contact=*/1);
+      mjtNum pAp = mju_dot(p, Ap, nv);
+      // curvature breakdown: the metric has no curvature along p, so no further progress is
+      // possible and x is the best available. Not a budget failure, so it does not warn.
+      if (pAp <= 0) { capped = 0; break; }
+      mjtNum alpha = rz/pAp;
+      mju_addToScl(x, p, alpha, nv);
+      mju_addToScl(r, Ap, -alpha, nv);
+      if (mju_dot(r, r, nv) < tol) { capped = 0; break; }
+      effBlockApply(m, d, NULL, z, r);
+      mjtNum rznew = mju_dot(r, z, nv);
+      mju_addScl(p, z, p, rznew/rz, nv);
+      rz = rznew;
     }
-  } else if (d->threadpool) {
-    effCholEnsure(m, d);
+  }
+
+  // Ran out of iterations with the residual still above tolerance: the metric is too
+  // ill-conditioned for the blocks to solve within the budget. Blame the dof carrying the
+  // largest residual.
+  // mjWARN_INERTIA is the closest existing warning (reusing it avoids an ABI addition), but on
+  // its own it points the user at their inertia when the cause is the flex stiffness, so say so
+  // first. Gate on the same first-time condition mj_warning uses, or a model that fails every
+  // step would print this thousands of times a second.
+  if (capped && mju_dot(r, r, nv) >= tol) {
+    int worst = 0;
+    for (int i = 1; i < nv; i++) {
+      if (mju_abs(r[i]) > mju_abs(r[worst])) worst = i;
+    }
+    if (!d->warning[mjWARN_INERTIA].number) {
+      mju_warning("Flex stiffness is too ill-conditioned for the effective-metric block "
+                  "preconditioner: the M+K solve ran out of iterations at a relative residual "
+                  "of %.2e and qacc_smooth is under-converged. Reported as a singular inertia "
+                  "below, because M+K is the effective inertia.",
+                  mju_sqrt(mju_dot(r, r, nv)/bn));
+    }
+    mj_warning(d, mjWARN_INERTIA, worst);
   }
   mj_freeStack(d);
 }
@@ -3303,6 +3561,12 @@ void mj_effActuation(const mjModel* m, mjData* d, int flg_factor) {
                  m->M_rownnz, m->M_rowadr, m->M_colind,
                  sleep_filter ? d->dof_awake_ind : NULL);
     }
+  }
+
+  // actuation-stage diagonal updates invalidate a previously factored effChol
+  // (e.g. mj_forwardSkip re-running only the actuation stage)
+  if (d->nefmA && effCholReserved(d) && d->efm_L[0] == 1) {
+    d->efm_L[0] = EFF_CHOL_PENDING;
   }
 }
 

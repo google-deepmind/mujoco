@@ -1807,7 +1807,13 @@ TEST_F(IpcTest, SparseFactorSmallArena) {
     mj_deleteData(data);
     return maxuse;
   };
+  // under Newton with a large default arena, BlocksCopy uses effSolveNewton
+  // (full sparse Cholesky on the stack, larger than the AMD-ordered effChol);
+  // probe the qH-block fallback floor under CG, then test small-arena overflow
+  // under Newton
+  mb->opt.solver = mjSOL_CG;
   size_t blocks = peak(mb, false);
+  mb->opt.solver = mjSOL_NEWTON;
   size_t factor = peak(m, true);
   ASSERT_GT(factor, blocks);
 

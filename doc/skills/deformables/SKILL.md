@@ -89,28 +89,30 @@ springs, and servo `kp` in `M_hat = M + h*D + h^2*K`, stable up to `0.016` s
 `damping="0.005"` and `0.2`-`0.5` ms undamped on the benchmark cantilever),
 adds numerical damping `damping = timestep`
 ([`references/benchmarks.md`](references/benchmarks.md)), stores `qacc =
-(v_next - v)/h`, and skips `refsafe` on equalities. For **every** solver,
-`qacc_smooth = (M_hat)^-1 f` (`mj_effSolve`) runs PCG on `M_hat`: 1D rods and
-non-interpolated 2D flexes build a per-step sparse Cholesky preconditioner (1
-iter on rods/2D stretch, a few on 2D bend), whereas 3D `full` and all
-`trilinear`/`quadratic` flexes (`dim=2` shells included) use symmetric
-Gauss-Seidel (SGS) preconditioned PCG and iterate up to `opt.iterations`
+(v_next - v)/h`, and skips `refsafe` on equalities. The unconstrained smooth
+solve `qacc_smooth = (M_hat)^-1 f` (`mj_effSolve`) follows `opt.solver`: 1D
+rods and non-interpolated 2D flexes use a per-step 3x3-block sparse Cholesky
+factor (1 iter on rods/2D stretch, a few on 2D bend); otherwise, `Newton`
+solves `M_hat` directly by sparse/dense Cholesky (no iteration cap), whereas
+`CG` uses symmetric Gauss-Seidel (SGS) preconditioned PCG up to `opt.iterations`
 (hitting the cap warns `"Flex stiffness is too ill-conditioned..."` as
 `mjWARN_INERTIA`, leaving `qacc_smooth` unconverged).
 
 -   **`solver="Newton"` (default -- unless factorization is prohibitive):**
-    Sparse-Cholesky factors `M_hat` + constraints (`gradient ~ 1e-12`-`1e-15`).
-    Supports all `dof` modes, articulated attachments (`<pin>` on jointed
-    bodies, `<connect>`, `<weld>`, `2d`, `radial`), and `ipc`
-    (`tolerance="1e-6"`, `iterations="150"`-`"400"` across `model/flex/`).
+    Sparse-Cholesky factors `M_hat` (for both `qacc_smooth` and constraints;
+    `gradient ~ 1e-12`-`1e-15`). Supports all `dof` modes, articulated
+    attachments (`<pin>` on jointed bodies, `<connect>`, `<weld>`, `2d`,
+    `radial`), and `ipc` (`tolerance="1e-6"`, `iterations="150"`-`"400"` in
+    contact-rich scenes).
 -   **`solver="CG"` (energy-accurate vs. `Newton` force-accurate):** `Newton`
     drives `gradient` (unbalanced generalized force) to `~1e-15`; `CG` stops
     once `improvement` (per-iteration drop in step-error energy) is below
     `tolerance`, so stiff-mode positions match `Newton` but
     `gradient ~ O(sqrt(tolerance))`
-    ([`benchmarks.md`](references/benchmarks.md)). Faster at high fill-in below
-    `opt.iterations` (`clay`, `bunny_shell`, `basket`, `plate`, `sphere_full`);
-    use `Newton` if `gradient < tolerance` is needed or `CG` stalls/drifts
+    ([`benchmarks.md`](references/benchmarks.md)). Faster at high 3D fill-in
+    below `opt.iterations` (`clay`, `press`, `floppy`, `bunny_multicell`,
+    `bunny_quadratic`, `bunny_shell`, `basket`, `plate`, `sphere_full`); use
+    `Newton` if `gradient < tolerance` is needed or `CG` stalls/drifts
     (`PGS`/`noslip` fail under `discrete`; `sleep`+`island` ok sans `ipc`).
 -   **Material `<elasticity>`:** `young` in `Pa` (`1e4`-`1e5` foam, `1e6`-`2e7`
     rubber/rods); **keep 3D `poisson <= 0.45`** in `[0, 0.5)` (`0.5` locks &
@@ -461,12 +463,14 @@ Tracks A and B run on **`MJWarp` (`mujoco_warp`, `impl='warp'`)** in `float32`
 -   **Integrator & solver regimes:** **`Euler`** runs `< 3` ms/step at `1` world
     across all 16 scenes (`13` `Newton`, plus `3` `CG` on `basket`/`plate`/
     `sphere_full`). **`Newton` + `discrete`** beats 1 CPU core at `1` world on
-    4/16 scenes (up to `3.1x`) and 1D rods use exact sparse `effChol` (`1.2`-
+    2/13 scenes (up to `3.1x`) and 1D rods use exact sparse `effChol` (`1.2`-
     `2.8` ms at `1`, `1.9x`-`8.0x` at `64`), while cloth/3D contact fill-in and
-    `efm0_L` hold back 3 scenes; **`CG` + `discrete`** (`bunny_shell`, `clay`)
-    beats CPU at `1` world (`1.2x`, `8.2x`) when `solver_niter < iterations`.
-    Unlike CPU, other `discrete` flexes keep parallel Jacobi PCG in
-    `eff_solve`: serial SGS is much slower on GPU (`references/mjwarp.md`).
+    `efm0_L` hold back 3 scenes; **`CG` + `discrete`** (`bunny_multicell`,
+    `bunny_shell`, `floppy`, `press`, `clay`) beats `Newton` on H100 and reaches
+    `23.7x`-`60.7x` CPU throughput at `64` worlds when
+    `solver_niter < iterations`. Unlike CPU, other `discrete` flexes keep
+    parallel Jacobi PCG in `eff_solve` under both `Newton` and `CG`: serial
+    per-world factorizations/sweeps are much slower on GPU (`references/mjwarp.md`).
 -   **Size buffers (`make_data` / `put_data`):** Defaults overflow on 20/34
     scenes (`nefc`, causing `NaN`s); `nconmax >= 16384`, `njmax >= 16384`,
     `njmax_nnz >= 1048576` cleared all 34 (`--measure_alloc` / `d.overflow`).
@@ -480,7 +484,7 @@ Tracks A and B run on **`MJWarp` (`mujoco_warp`, `impl='warp'`)** in `float32`
 | :--- | :--- | :--- |
 | Runtime error on `implicit`, `implicitfast`, `Euler`, or `RK4` | `<elasticity>` rejects `implicit`/`implicitfast`; `passive="true"` and `MjSpec` `flex.elastic3d = 1` reject all non-`discrete` integrators | Set `<option integrator="discrete" solver="Newton"/>`. |
 | `"PGS and noslip not yet supported"`, slow `Newton`, or unconverged `CG` | `discrete` flex rejects `PGS`/`noslip_iterations > 0`; `Newton` factors can fill in at large `nv`, while energy-accurate `CG` stops once `improvement < tolerance` at `gradient ~ O(sqrt(tolerance))` and can hit `opt.iterations` on stiff coupled contacts | Use `Newton` when `gradient < opt.tolerance` is required or `solver_niter == opt.iterations`; use `CG` on large/high-fill-in meshes that finish below `opt.iterations`; keep `noslip_iterations="0"`. |
-| `mjWARN_INERTIA` (`"Flex stiffness is too ill-conditioned..."`) | `mj_effSolve` PCG on `M_hat` hit `opt.iterations` (3D `full` or any `trilinear`/`quadratic` flex, including `dim=2` shells), leaving `qacc_smooth` under-converged | Increase `<option iterations="300"/>` (or `"500"`), or reduce `young` / mesh or lattice resolution. |
+| `mjWARN_INERTIA` (`"Flex stiffness is too ill-conditioned..."`) | `mj_effSolve` PCG on `M_hat` hit `opt.iterations` (under `solver="CG"`, or on tight-stack/matrix-free fallback under `Newton`), leaving `qacc_smooth` under-converged | Switch to `solver="Newton"` (direct Cholesky), increase `<option iterations="300"/>` (or `"500"`), or reduce `young` / mesh or lattice resolution. |
 | Compile error on parent/ancestor joints or joint `damping` | Unpinned `full`/`trilinear`/`quadratic` flex under jointed body, or `<default><joint damping="..."/>` active on flex | Remove parent joints (or `<pin>` >= 1 node; avoid `(0, 0, 0)` on interpolated nodes while the `mj_flexPassiveInterp` bug is open), and scope joint `damping` defaults away from `<flexcomp>`. |
 | `"Spacing must be larger than geometry size"` or step-1 `QACC` | Procedural `spacing < 2*radius + margin` (compile error), initial overlap, or `Euler` with `<elasticity damping>` exceeding `2 / (damping * omega_max^2)` | Keep `spacing >= 5*radius`, use `integrator="discrete"` with `<elasticity damping="0.01"/>`, or set `selfcollide="none"`. |
 | `dim="2"` zero stiffness, `"positive thickness"`, `"R0 is not orthonormal"`, or `"Pin grid..."` | `elastic2d` defaults to `"none"`; `thickness` defaults to `-1`; flat `dim="2"` interpolated lattice has degenerate 3D bounding box; `<pin grid>` int count mismatch | Set `elastic2d="both"`/`"stretch"` with `thickness > 0`, use `dof="full"` on flat sheets, and pass `dim` ints per `grid` point / `2*dim` per `gridrange`. |

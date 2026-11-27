@@ -45,41 +45,44 @@ default `make_data` flex buffer heuristics, or supported flex features
         running in `1.58`-`2.26` ms/step at `nworld=1` (`4.1x`-`5.9x` faster on
         GPU than `Newton` on `basket.xml` and `sphere_full.xml`, beating 1 CPU
         core on both) and `17.2x`-`31.7x` faster than 1 CPU core at `nworld=64`.
-    -   **`Newton` + `discrete` (Track A, 16 runnable scenes):** Faster than 1
-        CPU core at `nworld=1` on 4 scenes (`drape.xml` `3.1x`, `strain.xml`
-        `2.0x`, `bunny_multicell.xml` `1.6x`, `floppy.xml` `1.2x`) and within
-        `1.6x` on 6 of 16 (adding `hollow_vs_solid.xml` and `press.xml`;
-        `17.9x`-`85.6x` faster at `nworld=64`). All 6 1D rod scenes use the
-        exact sparse 3x3-blocked Cholesky preconditioner (`effChol`, 0 PCG
-        iterations) and run in `1.2`-`2.8` ms/step at `nworld=1`, and
-        articulated `gripper_trilinear.xml` (`nv = 33`) runs in `2.00` ms/step
+    -   **`Newton` + `discrete` (Track A, 13 runnable scenes):** Faster than 1
+        CPU core at `nworld=1` on 2 scenes (`drape.xml` `3.1x`, `strain.xml`
+        `2.0x`) and within `1.4x` on `hollow_vs_solid.xml` (`1.8x`-`85.6x`
+        faster at `nworld=64`). All 6 1D rod scenes use the exact sparse
+        3x3-blocked Cholesky preconditioner (`effChol`, 0 PCG iterations) and
+        run in `1.2`-`2.8` ms/step at `nworld=1`, and articulated
+        `gripper_trilinear.xml` (`nv = 33`) runs in `2.00` ms/step
         (`3.2x`-`13.1x` slower than sub-millisecond CPU `mj_step` due to GPU
         kernel-launch overhead at small `nv = 33`-`283`; `1.8x`-`8.0x` faster at
         `nworld=64`). Other CSR-assembled `discrete` flexes (3D `full`,
-        `trilinear`, 2D stretch cloth) keep parallel Jacobi PCG in `eff_solve`,
-        unlike CPU `mj_effSolve` (Eisenstat SGS): a 1-thread/world SGS port
-        was `12x`-`85x` slower in `eff_solve` and `2.1x`-`31x` slower per step
-        on an A100 (`floppy.xml` `nworld=1/64/1024`, `clay.xml` `nworld=1/64`),
-        because ~6-31 serial sweeps over `nv = 1153`-`6349` rows on one thread
-        per world lose to `(nworld, nv)`-parallel matvecs despite ~3x fewer
-        iterations. The remaining 3 scenes are held back at `nworld=1` by: (1)
-        single-thread `efm0_L` triangular solve (`poncho_edgeequality.xml` `123`
-        ms/step), (2) Cholesky fill-in on self-colliding cloth and dense 3D
-        contact (`poncho.xml` `100` ms/step, `poncho_edgeequality.xml` `123`
-        ms/step, `gripper.xml` `28.6` ms/step), and (3) constraint-solver
-        overhead when passive-contact cloth has `nefc == 0`.
-    -   **`CG` + `discrete` (Track A, 2 scenes: `bunny_shell.xml`,
+        `trilinear`, 2D stretch cloth) keep parallel Jacobi PCG in `eff_solve`
+        under both `Newton` and `CG`, unlike CPU `mj_effSolve` (direct Cholesky
+        under `Newton`, Eisenstat SGS under `CG`): serial per-world
+        factorizations or sweeps over large `nv` lose badly to
+        `(nworld, nv)`-parallel GPU matvecs (a 1-thread/world SGS port was
+        `12x`-`85x` slower in `eff_solve` and `2.1x`-`31x` slower per step on an
+        A100 on `floppy.xml` `nworld=1/64/1024` and `clay.xml` `nworld=1/64`,
+        despite ~3x fewer iterations). The remaining 3 scenes are held back at
+        `nworld=1` by: (1) single-thread `efm0_L` triangular solve
+        (`poncho_edgeequality.xml` `123` ms/step), (2) Cholesky fill-in on
+        self-colliding cloth and dense 3D contact (`poncho.xml` `100` ms/step,
+        `poncho_edgeequality.xml` `123` ms/step, `gripper.xml` `28.6` ms/step),
+        and (3) constraint-solver overhead when passive-contact cloth has
+        `nefc == 0`.
+    -   **`CG` + `discrete` (Track A, 5 runnable scenes: `bunny_multicell.xml`,
+        `bunny_shell.xml`, `floppy.xml`, `press.xml`,
         `model/plastic/clay.xml`):** Although both solvers check `improvement <
         opt.tolerance || gradient < opt.tolerance` in `mj_solPrimal`, `Newton`'s
         exact Hessian step is force-accurate (`~1e-15`), whereas `CG` is
         energy-accurate and stops once `improvement < opt.tolerance`
         (`gradient ~ O(sqrt(tolerance))`). Where `CG` finishes below
-        `opt.iterations` (`bunny_shell.xml` ~`10` mean iterations,
-        `plastic/clay.xml` `nv = 6349`, both `0%` cap hits), it beats 1 CPU core
-        even at `nworld=1` (`1.2x` and `8.2x` faster) and reaches `33.0x` and
-        `41.6x` at `nworld=64`; on stiff coupled or self-colliding contacts
-        where `CG` hits `opt.iterations` (`poncho`, `strain`, `gripper`), keep
-        `Newton`.
+        `opt.iterations` (`bunny_multicell.xml` ~`3.8` mean iters, `press.xml`
+        ~`4.2`, `bunny_shell.xml` ~`10`, `floppy.xml` ~`15.8`,
+        `plastic/clay.xml` `nv = 6349`, all `0%` cap hits), it beats `Newton` on
+        H100 at both `nworld=1` and `nworld=64` (up to `2.71x`/`3.75x` faster on
+        `floppy.xml`) and reaches `23.7x`-`60.7x` single-core CPU throughput at
+        `nworld=64`; on stiff coupled or self-colliding contacts where `CG` hits
+        `opt.iterations` (`poncho`, `strain`, `gripper`), keep `Newton`.
 -   **Unsupported on `MJWarp` (`MJX-JAX` supports no flex at all):**
     `dof="quadratic"` (`mechanisms/cantilever.xml`, `quadratic.xml`,
     `bunny_quadratic.xml`), `<flag ipc="enable"/>` (`bag.xml`, `bag_hoop.xml`),
@@ -95,7 +98,7 @@ overall `nworld=1` ratio vs. C, H100 `nworld=64` `ms / world-step` and
 throughput speedup vs. 1 C core (`> 1x` = faster than C), and which default
 `make_data(model)` buffers overflowed without explicit sizing.
 
-### 2.1 `Newton` + `discrete` (20 Scenes)
+### 2.1 `Newton` + `discrete` (16 Scenes)
 
 *Measured at MuJoCo `a2db3285b`, `mujoco_warp` `792775aa5` (1000 steps, H100).*
 
@@ -104,13 +107,10 @@ throughput speedup vs. 1 C core (`> 1x` = faster than C), and which default
 | `bag.xml` | 2049 | 100% | 45.67 | -- | Unsupported (`ipc`) | -- | -- |
 | `bag_hoop.xml` | 2049 | 100% | 48.62 | -- | Unsupported (`ipc`) | -- | -- |
 | `belt.xml` | 76 | 0% | 0.10 | 1.36 (1.36) | 13.0x slower | 0.056 (1.9x) | ok |
-| `bunny_multicell.xml` | 178 | 96% | 3.34 | 2.14 (2.11) | 1.6x faster | 0.074 (45.2x) | `njmax_nnz`, narrowphase |
-| `bunny_quadratic.xml` | 82 | 87% | 2.13 | -- | Unsupported (`quadratic`) | -- | -- |
 | `cable.xml` | 157 | 100% | 0.32 | 1.86 (1.86) | 5.9x slower | 0.070 (4.5x) | ok |
 | `coil.xml` | 280 | 100% | 0.64 | 2.70 (2.66) | 4.2x slower | 0.091 (7.0x) | ok |
 | `curved_rods.xml` | 283 | 89% | 0.78 | 2.77 (2.76) | 3.6x slower | 0.097 (8.0x) | ok |
 | `drape.xml` | 1521 | 94% | 51.84 | 16.96 (14.72) | 3.1x faster | 0.606 (85.6x) | broadphase |
-| `floppy.xml` | 1153 | 70% | 7.52 | 6.17 (7.40) | 1.2x faster | 0.251 (30.0x) | ok |
 | `gripper.xml` | 1047 | 100% | 2.66 | 28.58 (28.58) | 10.8x slower | 0.598 (4.4x) | `nefc` |
 | `gripper_trilinear.xml` | 33 | 100% | 0.15 | 2.00 (2.00) | 13.1x slower | 0.082 (1.8x) | ok |
 | `hollow_vs_solid.xml` | 594 | 95% | 2.35 | 3.23 (3.21) | 1.4x slower | 0.099 (23.7x) | `nefc` |
@@ -119,17 +119,20 @@ throughput speedup vs. 1 C core (`> 1x` = faster than C), and which default
 | `mechanisms/slidercrank.xml` | 87 | 0% | 0.20 | 1.20 (1.20) | 6.1x slower | 0.052 (3.8x) | ok |
 | `poncho.xml` | 1458 | 100% | 24.33 | 99.63 (108.82) | 4.1x slower | 1.682 (14.5x) | broadphase |
 | `poncho_edgeequality.xml` | 1458 | 100% | 25.81 | 122.78 (124.30) | 4.8x slower | 2.286 (11.3x) | `nefc` |
-| `press.xml` | 386 | 78% | 1.21 | 1.91 (1.87) | 1.6x slower | 0.068 (17.9x) | ok |
 | `strain.xml` | 54 | 83% | 3.92 | 1.93 (1.84) | 2.0x faster | 0.210 (18.6x) | `nefc`, CCD |
 
-### 2.2 `CG` + `discrete` (2 Scenes)
+### 2.2 `CG` + `discrete` (6 Scenes)
 
-*Measured at MuJoCo `fd2426dd5`, `mujoco_warp` `0f1d2e4a2` (1000 steps, H100).*
+*`bunny_shell.xml` and `clay.xml` measured at MuJoCo `fd2426dd5`, `mujoco_warp` `0f1d2e4a2`; `bunny_multicell.xml`, `floppy.xml`, and `press.xml` remeasured after switching to `CG` (1000 steps, Forge H100).*
 
 | Scene | nv | Con% | C ms | MJW nw=1 (500+) ms | nw=1 vs. C | MJW nw=64 ms/w (xC) | Default `make_data` |
 | :--- | ---: | ---: | ---: | ---: | :--- | :--- | :--- |
+| `bunny_multicell.xml` | 178 | 96% | 1.33 | 2.30 | 1.7x slower | 0.056 (23.7x) | `njmax_nnz`, narrowphase |
+| `bunny_quadratic.xml` | 82 | 87% | 1.48 | -- | Unsupported (`quadratic`) | -- | -- |
 | `bunny_shell.xml` | 169 | 96% | 2.46 | 2.10 (1.76) | 1.2x faster | 0.075 (33.0x) | `nefc`, narrowphase |
+| `floppy.xml` | 1153 | 70% | 3.67 | 2.28 | 1.6x faster | 0.060 (60.7x) | ok |
 | `model/plastic/clay.xml` | 6349 | 4% | 30.13 | 3.68 (2.89) | 8.2x faster | 0.725 (41.6x) | CCD |
+| `press.xml` | 386 | 78% | 1.25 | 1.76 | 1.4x slower | 0.039 (32.0x) | ok |
 
 ### 2.3 `Newton` + `Euler` (15 Scenes)
 
