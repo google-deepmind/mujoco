@@ -15,6 +15,7 @@
 """USD exporter."""
 
 import os
+import pathlib
 from typing import List, Optional, Union
 
 import mujoco
@@ -260,9 +261,8 @@ class USDExporter:
       relative_path = os.path.relpath(
           self.assets_directory, self.frames_directory
       )
-      img_path = os.path.join(
-          relative_path, texture_file_name
-      )
+      # USD asset paths always use forward slashes, even on Windows.
+      img_path = pathlib.PurePath(relative_path, texture_file_name).as_posix()
 
       self.texture_files.append(img_path)
 
