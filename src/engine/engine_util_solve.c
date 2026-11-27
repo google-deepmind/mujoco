@@ -92,7 +92,10 @@ static mjNOINLINE int cholFactorSmall(mjtNum* restrict mat, int n, mjtNum mindia
 
 // cold fallback for a rank-deficient 2-column panel
 static mjNOINLINE int cholFactorDeficient2(mjtNum* restrict mat, int n, int j, mjtNum mindiag) {
-  return cholFactorCol(mat, n, j, mindiag) + cholFactorCol(mat, n, j+1, mindiag);
+  // separate statements: column j+1 reads column j, operand order of + is unspecified
+  int deficient = cholFactorCol(mat, n, j, mindiag);
+  deficient += cholFactorCol(mat, n, j+1, mindiag);
+  return deficient;
 }
 
 
