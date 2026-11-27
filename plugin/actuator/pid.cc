@@ -146,8 +146,15 @@ mjtNum Pid::GetCtrl(const mjModel* m, const mjData* d, int actuator_idx,
     if (m->actuator_ctrlnum[actuator_idx] > 0) {
       int ctrladr = m->actuator_ctrladr[actuator_idx];
       ctrl = d->ctrl[ctrladr];
+
+      // read delayed controls using the same history as native actuators
+      if (m->actuator_delay[actuator_idx]) {
+        const mjtNum* delayed = mj_readCtrl(m, d, actuator_idx, d->time, &ctrl, -1);
+        if (delayed) ctrl = delayed[0];
+      }
+
       // clamp ctrl
-      if (m->actuator_ctrllimited[ctrladr]) {
+      if (!(m->opt.disableflags & mjDSBL_CLAMPCTRL) && m->actuator_ctrllimited[ctrladr]) {
         ctrl = mju_clip(ctrl, m->actuator_ctrlrange[2 * ctrladr],
                         m->actuator_ctrlrange[2 * ctrladr + 1]);
       }

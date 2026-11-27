@@ -35,6 +35,86 @@ using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
+TEST_F(PidTest, DisableControlClamping) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.pid">
+        <instance name="pid"><config key="kp" value="4"/></instance>
+      </plugin>
+    </extension>
+    <worldbody>
+      <body><joint name="joint"/><geom size="0.1"/></body>
+    </worldbody>
+    <actuator>
+      <plugin joint="joint" instance="pid" ctrllimited="true" ctrlrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+
+  for (mjtNum ctrl : {-2.0, 2.0}) {
+    data->ctrl[0] = ctrl;
+    mj_forward(model.get(), data.get());
+    EXPECT_EQ(data->actuator_force[0], ctrl > 0 ? 4 : -4);
+
+    model->opt.disableflags |= mjDSBL_CLAMPCTRL;
+    mj_forward(model.get(), data.get());
+    EXPECT_EQ(data->actuator_force[0], 4*ctrl);
+
+    model->opt.disableflags &= ~mjDSBL_CLAMPCTRL;
+    mj_forward(model.get(), data.get());
+    EXPECT_EQ(data->actuator_force[0], ctrl > 0 ? 4 : -4);
+  }
+}
+
+TEST_F(PidTest, DelayedControl) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <extension>
+      <plugin plugin="mujoco.pid">
+        <instance name="pid"><config key="kp" value="4"/></instance>
+      </plugin>
+    </extension>
+    <worldbody>
+      <body><joint name="joint"/><geom size="0.1"/></body>
+    </worldbody>
+    <actuator>
+      <plugin joint="joint" instance="pid" delay="0.02" nsample="3" interp="linear"
+              ctrllimited="true" ctrlrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mjtNum times[3] = {0, 0.01, 0.02};
+  mjtNum values[3] = {-0.5, 0.5, 1.5};
+  mj_initCtrlHistory(model.get(), data.get(), 0, times, values);
+  data->ctrl[0] = 9;
+
+  // exact history lookup
+  data->time = 0.03;
+  mj_forward(model.get(), data.get());
+  EXPECT_THAT(data->actuator_force[0], MjNear(2, 1e-14, 1e-6));
+
+  // interpolated history lookup
+  data->time = 0.0325;
+  mj_forward(model.get(), data.get());
+  EXPECT_THAT(data->actuator_force[0], MjNear(3, 1e-14, 1e-6));
+
+  // delayed values are still subject to control clamping
+  data->time = 0.04;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->actuator_force[0], 4);
+  model->opt.disableflags |= mjDSBL_CLAMPCTRL;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->actuator_force[0], 6);
+}
+
 TEST_F(PidTest, PGain) {
   constexpr absl::string_view kModelXml = R"(
   <mujoco>
