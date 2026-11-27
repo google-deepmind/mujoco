@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_collision_convex.h"
 
+#include <cmath>
 #include <string>
 #include <string_view>
 
@@ -536,6 +537,95 @@ TEST_F(MjcConvexTest, HFieldMarginAndGap) {
   }
   EXPECT_GT(ngeom, 0);
   EXPECT_GT(nflex, 0);
+}
+
+TEST_F(MjcConvexTest, HillclimbWarmStartMatchesBruteForce) {
+  // 24-vertex 12-gon prism with flat caps and 10 interior vertices so
+  // vert_globalid is non-identity; exercises cold start, warm start with
+  // grid_idx != meshindex, and back-to-back queries with grid_idx == meshindex.
+  std::string verts;
+  for (int i = 0; i < 10; ++i) {
+    double a = 0.6 * i;
+    verts += std::to_string(0.02 * std::cos(a)) + " " +
+             std::to_string(0.02 * std::sin(a)) + " 0  ";
+  }
+  for (int k = 0; k < 12; ++k) {
+    double a = 2.0 * mjPI * k / 12.0;
+    double x = 0.12 * std::cos(a);
+    double y = 0.12 * std::sin(a);
+    verts += std::to_string(x) + " " + std::to_string(y) + " -0.08  ";
+    verts += std::to_string(x) + " " + std::to_string(y) + " 0.08  ";
+  }
+  std::string xml = std::string(R"(
+  <mujoco>
+    <asset>
+      <mesh name="p" vertex=")") +
+                    verts + R"("/>
+    </asset>
+    <worldbody>
+      <body pos="0.1 -0.2 0.3" euler="15 25 35">
+        <freejoint/>
+        <geom name="g" type="mesh" mesh="p"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
+  mj_comPos(m.get(), d.get());
+
+  int g = mj_name2id(m.get(), mjOBJ_GEOM, "g");
+  mjCCDObj obj_warm, obj_cold;
+  mjc_initCCDObj(&obj_warm, m.get(), d.get(), g, 0);
+  mjc_initCCDObj(&obj_cold, m.get(), d.get(), g, 0);
+  ASSERT_THAT(obj_warm.data.mesh.graph, NotNull());
+
+  int mid = m->geom_dataid[g];
+  int nvert = m->mesh_vertnum[mid];
+  const float* vdata = m->mesh_vert + 3 * m->mesh_vertadr[mid];
+
+  for (int t = 0; t < 40; ++t) {
+    mjtNum dir[3];
+    // Repeat identical direction on consecutive iterations (t % 5 == 3, 4) to
+    // guarantee the grid_idx == imax warm-start branch runs.
+    if (t % 5 == 3 || t % 5 == 4) {
+      dir[0] = 0;
+      dir[1] = 0;
+      dir[2] = 1;
+    } else {
+      double th = 0.73 * t;
+      double ph = 1.11 * t;
+      dir[0] = std::cos(th) * std::cos(ph);
+      dir[1] = std::sin(th) * std::cos(ph);
+      dir[2] = std::sin(ph);
+    }
+    obj_cold.meshindex = -1;
+    mjtNum res_warm[3], res_cold[3];
+    obj_warm.support(res_warm, &obj_warm, dir);
+    obj_cold.support(res_cold, &obj_cold, dir);
+
+    // Non-tied rotated directions produce bit-identical support vertices.
+    EXPECT_EQ(obj_warm.meshindex, obj_cold.meshindex);
+    EXPECT_EQ(obj_warm.vertindex, obj_cold.vertindex);
+    for (int k = 0; k < 3; ++k) {
+      EXPECT_EQ(res_warm[k], res_cold[k]);
+    }
+
+    // Brute-force maximum projection over all mesh vertices.
+    mjtNum best_dot = -1e30;
+    for (int v = 0; v < nvert; ++v) {
+      mjtNum lv[3] = {vdata[3 * v], vdata[3 * v + 1], vdata[3 * v + 2]};
+      mjtNum gv[3];
+      mju_mulMatVec3(gv, obj_warm.mat, lv);
+      mju_addTo3(gv, obj_warm.pos);
+      mjtNum dot = mju_dot3(gv, dir);
+      if (dot > best_dot) best_dot = dot;
+    }
+    EXPECT_EQ(mju_dot3(res_warm, dir), best_dot);
+  }
 }
 
 }  // namespace
