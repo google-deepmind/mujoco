@@ -1634,11 +1634,19 @@ static void mj_collideTree(const mjModel* m, mjData* d, mjcPairArena* arena, int
 #endif
 
 
-// make AAMM (xmin[3], xmax[3]) for one bodyflex, in the frame whose axes are the rows of frame
+// SAP projection frame
+typedef struct {
+  mjtNum frame[9];   // rows are frame axes (e0, e1, e2)
+  int axis_aligned;  // 1 if frame is the identity matrix
+} mjSAPFrame;
+
+
+// make AAMM (xmin[3], xmax[3]) for one bodyflex, in the frame whose axes are the rows of sap_frame
 static void makeAAMM(const mjModel* m, mjData* d,
                      mjtNum* x_min, mjtNum* y_min, mjtNum* z_min,
                      mjtNum* x_max, mjtNum* y_max, mjtNum* z_max,
-                     int bf, const mjtNum* frame) {
+                     int bf, const mjSAPFrame* sap_frame) {
+  const mjtNum* frame = sap_frame->frame;
   mjtNum aamm[6] = {0};
   mjtNum override_margin = mjENABLED(mjENBL_OVERRIDE) ? 0.5 * m->opt.o_margin : 0;
 
@@ -2144,24 +2152,186 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, const mjtByte* active, int n, i
 }
 
 
-// add vector to covariance
-static void updateCov(mjtNum cov[9], const mjtNum vec[3], const mjtNum cen[3]) {
-  mjtNum dif[3] = {vec[0]-cen[0], vec[1]-cen[1], vec[2]-cen[2]};
-  mjtNum D00 = dif[0]*dif[0];
-  mjtNum D01 = dif[0]*dif[1];
-  mjtNum D02 = dif[0]*dif[2];
-  mjtNum D11 = dif[1]*dif[1];
-  mjtNum D12 = dif[1]*dif[2];
-  mjtNum D22 = dif[2]*dif[2];
-  cov[0] += D00;
-  cov[1] += D01;
-  cov[2] += D02;
-  cov[3] += D01;
-  cov[4] += D11;
-  cov[5] += D12;
-  cov[6] += D02;
-  cov[7] += D12;
-  cov[8] += D22;
+// accumulator for shifted single-pass covariance (s[6]: 00, 01, 02, 11, 12, 22)
+typedef struct {
+  mjtNum p0[3];   // shift origin (first point)
+  mjtNum sum[3];  // sum of shifted points
+  mjtNum s[6];    // upper triangle of shifted outer-product sum
+  int cnt;        // number of accumulated points
+} mjCovAccum;
+
+
+// accumulate one point into shifted single-pass covariance sums
+static inline void addShiftedCov(mjCovAccum* acc, const mjtNum p[3]) {
+  // first point sets shift origin
+  if (!acc->cnt) {
+    mji_copy3(acc->p0, p);
+  }
+
+  // accumulate shifted point
+  else {
+    mjtNum dx = p[0] - acc->p0[0];
+    mjtNum dy = p[1] - acc->p0[1];
+    mjtNum dz = p[2] - acc->p0[2];
+    acc->sum[0] += dx;
+    acc->sum[1] += dy;
+    acc->sum[2] += dz;
+    acc->s[0] += dx*dx;
+    acc->s[1] += dx*dy;
+    acc->s[2] += dx*dz;
+    acc->s[3] += dy*dy;
+    acc->s[4] += dy*dz;
+    acc->s[5] += dz*dz;
+  }
+  acc->cnt++;
+}
+
+
+// multiply symmetric 3x3 matrix S[6] (00, 01, 02, 11, 12, 22) by vector v[3]
+static inline void mulSym3Vec(mjtNum res[3], const mjtNum S[6], const mjtNum v[3]) {
+  mjtNum r0 = S[0]*v[0] + S[1]*v[1] + S[2]*v[2];
+  mjtNum r1 = S[1]*v[0] + S[3]*v[1] + S[4]*v[2];
+  mjtNum r2 = S[2]*v[0] + S[4]*v[1] + S[5]*v[2];
+  res[0] = r0;
+  res[1] = r1;
+  res[2] = r2;
+}
+
+
+// initialize sap_frame to the world identity frame
+static inline void initIdentitySAPFrame(mjSAPFrame* sap_frame) {
+  mju_eye(sap_frame->frame, 3);
+  sap_frame->axis_aligned = 1;
+}
+
+
+// build a covariance-aligned orthonormal SAP frame via shifted single-pass covariance
+// and power iteration; returns primary SAP axis (0, 1, or 2), or -1 if no points exist
+static int makeSAPFrame(const mjModel* m, const mjData* d, mjSAPFrame* sap_frame, int has_filter) {
+  int ngeom = m->ngeom, nflex = m->nflex;
+  mjCovAccum acc = {0};
+
+  // find center and shifted covariance of non-world collidable geoms in one pass
+  for (int i=0; i < ngeom; i++) {
+    if (m->geom_bodyid[i] && (has_filter || geomCollidable(m, i))) {
+      addShiftedCov(&acc, d->geom_xpos + 3*i);
+    }
+  }
+
+  // flex vertices
+  for (int f=0; f < nflex; f++) {
+    if (!flexCollidable(m, f)) {
+      continue;
+    }
+    int vstart = m->flex_vertadr[f];
+    int vend = vstart + m->flex_vertnum[f];
+    for (int v=vstart; v < vend; v++) {
+      if (m->flex_vertbodyid[v]) {
+        addShiftedCov(&acc, d->flexvert_xpos + 3*v);
+      }
+    }
+  }
+
+  // no collidable points
+  if (acc.cnt == 0) {
+    return -1;
+  }
+
+  // centered covariance scaled by cnt: C = sum(d*d') - sum(d)*sum(d)'/cnt
+  mjtNum inv_cnt = 1 / (mjtNum)acc.cnt;
+  mjtNum mx = acc.sum[0]*inv_cnt, my = acc.sum[1]*inv_cnt, mz = acc.sum[2]*inv_cnt;
+  mjtNum C[6] = {
+    mju_max(0, acc.s[0] - acc.sum[0]*mx),
+    acc.s[1] - acc.sum[0]*my,
+    acc.s[2] - acc.sum[0]*mz,
+    mju_max(0, acc.s[3] - acc.sum[1]*my),
+    acc.s[4] - acc.sum[1]*mz,
+    mju_max(0, acc.s[5] - acc.sum[2]*mz)
+  };
+
+  // use world frame directly when covariance is nearly axis-aligned
+  // SAP is exact in any frame, a rough one prunes as well
+  mjtNum dmax = mju_max(C[0], mju_max(C[3], C[5]));
+  mjtNum off = mju_max(mju_abs(C[1]), mju_max(mju_abs(C[2]), mju_abs(C[4])));
+  int best_axis = (C[0] >= C[3] && C[0] >= C[5]) ? 0 : (C[3] >= C[5] ? 1 : 2);
+  if (dmax <= mjMINVAL || off <= 0.1*dmax) {
+    initIdentitySAPFrame(sap_frame);
+    return best_axis;
+  }
+
+  // construct covariance-aligned 3D frame: eigenvectors are rows of frame
+  // normalize by trace so eigenvalues lie in [0, 1]
+  mju_scl(C, C, 1 / (C[0] + C[3] + C[5]), 6);
+
+  // power iteration for primary axis e0, starting from C * e_best_axis
+  mjtNum e0[3];
+  if (best_axis == 0) {
+    e0[0] = C[0];
+    e0[1] = C[1];
+    e0[2] = C[2];
+  } else if (best_axis == 1) {
+    e0[0] = C[1];
+    e0[1] = C[3];
+    e0[2] = C[4];
+  } else {
+    e0[0] = C[2];
+    e0[1] = C[4];
+    e0[2] = C[5];
+  }
+  for (int iter=0; iter < 3; iter++) {
+    mulSym3Vec(e0, C, e0);
+  }
+
+  // degenerate or non-finite covariance: fall back to identity frame
+  if (!(mju_normalize3(e0) >= mjMINVAL)) {
+    initIdentitySAPFrame(sap_frame);
+    return best_axis;
+  }
+
+  // deflate C along e0: D = C - (e0' C e0) * e0 * e0'
+  mjtNum ce0[3];
+  mulSym3Vec(ce0, C, e0);
+  mjtNum lam0 = mju_dot3(e0, ce0);
+  mjtNum D[6] = {
+    C[0] - lam0*e0[0]*e0[0],
+    C[1] - lam0*e0[0]*e0[1],
+    C[2] - lam0*e0[0]*e0[2],
+    C[3] - lam0*e0[1]*e0[1],
+    C[4] - lam0*e0[1]*e0[2],
+    C[5] - lam0*e0[2]*e0[2]
+  };
+
+  // initial vector orthogonal to e0 from least-aligned world axis
+  mjtNum u[3] = {0, 0, 0};
+  mjtNum ax = mju_abs(e0[0]), ay = mju_abs(e0[1]), az = mju_abs(e0[2]);
+  int min_axis = (ax <= ay && ax <= az) ? 0 : (ay <= az ? 1 : 2);
+  u[min_axis] = 1;
+  mji_addToScl3(u, e0, -e0[min_axis]);
+  mju_normalize3(u);
+
+  // power iteration on D for secondary axis e1
+  mjtNum e1[3];
+  mji_copy3(e1, u);
+  for (int iter=0; iter < 2; iter++) {
+    mulSym3Vec(e1, D, e1);
+  }
+
+  // re-orthogonalize e1 against e0
+  mji_addToScl3(e1, e0, -mju_dot3(e1, e0));
+  if (!(mju_normalize3(e1) >= 1e-6)) {
+    mji_copy3(e1, u);
+  }
+
+  // complete right-handed orthonormal frame: e2 = e0 x e1
+  mjtNum e2[3];
+  mji_cross(e2, e0, e1);
+
+  // store frame rows
+  mji_copy3(sap_frame->frame + 0, e0);
+  mji_copy3(sap_frame->frame + 3, e1);
+  mji_copy3(sap_frame->frame + 6, e2);
+  sap_frame->axis_aligned = 0;
+  return 0;
 }
 
 
@@ -2299,12 +2469,11 @@ static inline int alwaysColliding(const mjModel* m, int b) {
 
 // broadphase collision detector
 static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int maxpair) {
-  int npair = 0, nbody = m->nbody, ngeom = m->ngeom, nflex = m->nflex;
+  int npair = 0, nbody = m->nbody, nflex = m->nflex;
   int nbodyflex = nbody + nflex;
   int dsbl_filterparent = mjDISABLED(mjDSBL_FILTERPARENT);
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < nbody;
   int has_filter = (mjcb_contactfilter != NULL);
-  mjtNum cov[9], cen[3], eigval[3], eigvec[9], frame[9], quat[4];
 
   mj_markStack(d);
   mjtByte* skip_sap = mjSTACKALLOC(d, nbody, mjtByte);
@@ -2358,58 +2527,11 @@ static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int ma
   }
 
   if (ncollide > 1 && (nawake > 0 || (has_mocap && has_asleep))) {
-    // find center of non-world collidable geoms and flex vertices
-    int cnt = 0;
-    mju_zero3(cen);
-    for (int i=0; i < ngeom; i++) {
-      if (m->geom_bodyid[i] && (has_filter || geomCollidable(m, i))) {
-        mju_addTo3(cen, d->geom_xpos+3*i);
-        cnt++;
-      }
-    }
-    for (int f=0; f < nflex; f++) {
-      if (!flexCollidable(m, f)) {
-        continue;
-      }
-      int vstart = m->flex_vertadr[f];
-      int vend = vstart + m->flex_vertnum[f];
-      for (int v=vstart; v < vend; v++) {
-        if (m->flex_vertbodyid[v]) {
-          mju_addTo3(cen, d->flexvert_xpos+3*v);
-          cnt++;
-        }
-      }
-    }
+    // construct SAP projection frame and primary sweep axis
+    mjSAPFrame sap_frame;
+    int sap_axis = makeSAPFrame(m, d, &sap_frame, has_filter);
 
-    if (cnt > 0) {
-      mju_scl3(cen, cen, 1.0/cnt);
-
-      // compute covariance
-      mju_zero(cov, 9);
-      for (int i=0; i < ngeom; i++) {
-        if (m->geom_bodyid[i] && (has_filter || geomCollidable(m, i))) {
-          updateCov(cov, d->geom_xpos+3*i, cen);
-        }
-      }
-      for (int f=0; f < nflex; f++) {
-        if (!flexCollidable(m, f)) {
-          continue;
-        }
-        int vstart = m->flex_vertadr[f];
-        int vend = vstart + m->flex_vertnum[f];
-        for (int v=vstart; v < vend; v++) {
-          if (m->flex_vertbodyid[v]) {
-            updateCov(cov, d->flexvert_xpos+3*v, cen);
-          }
-        }
-      }
-      mju_scl(cov, cov, 1.0/cnt, 9);
-
-      // construct covariance-aligned 3D frame: eigenvectors are columns of eigvec, rows of frame
-      // SAP is exact in any frame, a rough one prunes as well
-      mju_eig3Tol(eigval, eigvec, quat, cov, 1e-3);
-      mji_transpose3(frame, eigvec);
-
+    if (sap_axis >= 0) {
       // allocate and construct AAMMs for collidable only
       mjtNum* aamm = mjSTACKALLOC(d, 6*ncollide, mjtNum);
       for (int i=0; i < ncollide; i++) {
@@ -2419,14 +2541,14 @@ static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int ma
                        aamm + 2*ncollide + i,
                        aamm + 3*ncollide + i,
                        aamm + 4*ncollide + i,
-                       aamm + 5*ncollide + i, bfid[i], frame);
+                       aamm + 5*ncollide + i, bfid[i], &sap_frame);
       }
 
       // call SAP (pass active mask only when passive entries exist)
       int maxsappair = ncollide*(ncollide-1)/2;
       mjPacked32* sappair = mjSTACKALLOC(d, maxsappair, mjPacked32);
       const mjtByte* sap_active = (nactive < ncollide) ? active : NULL;
-      int nsappair = mj_SAP(d, aamm, sap_active, ncollide, 0, 0, sappair, maxsappair);
+      int nsappair = mj_SAP(d, aamm, sap_active, ncollide, sap_axis, 0, sappair, maxsappair);
       if (nsappair < 0) {
         mjERROR("SAP failed");
       }

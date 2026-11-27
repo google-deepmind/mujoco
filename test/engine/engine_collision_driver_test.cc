@@ -3037,5 +3037,92 @@ TEST_F(MjCollisionTest, BroadphaseFlushZeroMarginBoxesIdentityFrame) {
             std::vector<GeomPair>(4, {"floor_box", "top_box"}));
   EXPECT_EQ(d->ncon, 4);
 }
+
+TEST_F(MjCollisionTest, BroadphaseAlignedAndTiltedFrameMatch) {
+  // Axis-aligned identity fast path and tilted PCA power-iteration frame must
+  // produce identical contacts for an asymmetric mesh, box, and flex.
+  auto make_xml = [](bool tilted_frame) {
+    std::string s = R"(
+    <mujoco>
+      <asset>
+        <mesh name="asym"
+          vertex="0.1 0 0  0.3 0 0  0.1 0.2 0  0.1 0 0.2"/>
+      </asset>
+      <worldbody>
+        <body name="mesh_body" pos="0.0 0.0 0.05" euler="15 25 35">
+          <freejoint/>
+          <geom name="mesh_geom" type="mesh" mesh="asym"/>
+        </body>
+        <body name="box_body" pos="0.12 0.05 0.05">
+          <freejoint/>
+          <geom name="box_geom" type="box" size="0.06 0.06 0.06"/>
+        </body>
+        <flexcomp name="sheet6" type="grid" dim="2" count="3 2 1"
+          spacing="0.05 0.05 0.05" pos="0.12 0.02 0.05"
+          radius="0.02" mass="1">
+          <edge equality="true"/>
+          <contact selfcollide="none"/>
+        </flexcomp>
+    )";
+    if (tilted_frame) {
+      s += R"(
+        <body pos="5 5 2">
+          <freejoint/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+        <body pos="-5 -5 -2">
+          <freejoint/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+      )";
+    } else {
+      s += R"(
+        <body pos="5 0 0">
+          <freejoint/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+        <body pos="-5 0 0">
+          <freejoint/>
+          <geom type="sphere" size="0.05"/>
+        </body>
+      )";
+    }
+    s += "      </worldbody>\n    </mujoco>\n";
+    return s;
+  };
+
+  char error[1024];
+  std::string xml_aligned = make_xml(false);
+  std::string xml_tilted = make_xml(true);
+  MjModelPtr ma =
+      LoadModelFromString(xml_aligned.c_str(), error, sizeof(error));
+  ASSERT_THAT(ma.get(), NotNull()) << error;
+  MjModelPtr mt = LoadModelFromString(xml_tilted.c_str(), error, sizeof(error));
+  ASSERT_THAT(mt.get(), NotNull()) << error;
+  MjDataPtr da = MakeData(ma);
+  MjDataPtr dt = MakeData(mt);
+  mj_forward(ma.get(), da.get());
+  mj_forward(mt.get(), dt.get());
+
+  EXPECT_GT(da->ncon, 0);
+  ASSERT_EQ(da->ncon, dt->ncon);
+  int has_mesh_box = 0, has_flex = 0;
+  for (int i = 0; i < da->ncon; ++i) {
+    EXPECT_EQ(da->contact[i].geom[0], dt->contact[i].geom[0]);
+    EXPECT_EQ(da->contact[i].geom[1], dt->contact[i].geom[1]);
+    EXPECT_EQ(da->contact[i].flex[0], dt->contact[i].flex[0]);
+    EXPECT_EQ(da->contact[i].flex[1], dt->contact[i].flex[1]);
+    EXPECT_EQ(da->contact[i].elem[0], dt->contact[i].elem[0]);
+    EXPECT_EQ(da->contact[i].elem[1], dt->contact[i].elem[1]);
+    EXPECT_EQ(da->contact[i].dist, dt->contact[i].dist);
+    if (da->contact[i].flex[1] >= 0) {
+      has_flex = 1;
+    } else if (da->contact[i].geom[0] >= 0 && da->contact[i].geom[1] >= 0) {
+      has_mesh_box = 1;
+    }
+  }
+  EXPECT_EQ(has_mesh_box, 1);
+  EXPECT_EQ(has_flex, 1);
+}
 }  // namespace
 }  // namespace mujoco
