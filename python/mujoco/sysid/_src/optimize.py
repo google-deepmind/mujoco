@@ -105,7 +105,7 @@ def _scipy_least_squares(
 
     jac_arg = _jac_fn
   else:
-    jac_arg = "2-point"
+    jac_arg = kwargs.pop("jac", "2-point")
 
   return scipy_optimize.least_squares(
       residual_fn,
@@ -212,6 +212,8 @@ def optimize(
       * ``x_scale``: per-parameter scaling, forwarded to the backend; see
         :func:`scipy.optimize.least_squares` and
         :func:`mujoco.minimize.least_squares`.
+      * ``jac``: Jacobian callable or finite-difference scheme for the
+        ``"scipy"`` backend (defaults to ``"2-point"``).
 
   Returns:
     ``(opt_params, opt_result)`` — the optimized ParameterDict and a
