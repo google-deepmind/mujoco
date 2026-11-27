@@ -263,13 +263,17 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
           return;
         }
 
-        // Collision renaming: if this archive path is already in use, try again with an incremented
-        // suffix.
+        // Collision renaming: reserve model.xml for the root XML and compare normalized archive
+        // paths so directories such as "." cannot hide a collision.
         fs::path file      = localized;
         fs::path parent    = file.parent_path();
         fs::path stem      = file.stem();
         fs::path extension = file.extension();
-        for (int i = 0; archive_entries.contains((root_dir / file).generic_string()); ++i) {
+        auto occupied = [&]() {
+          const std::string path = (root_dir / file).lexically_normal().generic_string();
+          return path == "model.xml" || archive_entries.contains(path);
+        };
+        for (int i = 0; occupied(); ++i) {
           std::string new_name = stem.string() + "_" + std::to_string(i) + extension.string();
           file                 = parent / new_name;
         }
@@ -277,7 +281,7 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
         add_rewrites(file);
 
         // path relative to the root XML in the archive, named with '/' separators on every platform
-        const fs::path archive_path           = root_dir / file;
+        const fs::path archive_path           = (root_dir / file).lexically_normal();
         archived_paths[{root_dir, full_path}] = file;
         archive_entries[archive_path.generic_string()] =
             AssetEntry{archive_path, owning_spec_dir, full_spec_path};
