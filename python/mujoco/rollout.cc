@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -219,10 +220,14 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m,
 
 // check size of optional argument to rollout(), return raw pointer
 mjtNum* get_array_ptr(std::optional<const py::array_t<mjtNum>> arg,
-                      const char* name, int nbatch, int nstep, int dim) {
+                      const char* name, int nbatch, int nstep, int dim,
+                      bool writable = false) {
   // if empty return nullptr
   if (!arg.has_value()) {
     return nullptr;
+  }
+  if (writable && !arg->writeable()) {
+    throw py::value_error(std::string(name) + " must be writable");
   }
 
   // get info
@@ -311,9 +316,9 @@ class Rollout {
         get_array_ptr(warmstart0, "warmstart0", nbatch, 1, model_ptrs[0]->nv);
     mjtNum* control_ptr =
         get_array_ptr(control, "control", nbatch, nstep, ncontrol);
-    mjtNum* state_ptr = get_array_ptr(state, "state", nbatch, nstep, nstate);
+    mjtNum* state_ptr = get_array_ptr(state, "state", nbatch, nstep, nstate, true);
     mjtNum* sensordata_ptr = get_array_ptr(sensordata, "sensordata", nbatch,
-                                           nstep, model_ptrs[0]->nsensordata);
+                                           nstep, model_ptrs[0]->nsensordata, true);
 
     // perform rollouts
     {
