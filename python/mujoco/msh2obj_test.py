@@ -14,7 +14,10 @@
 # ==============================================================================
 """Tests for msh2obj.py."""
 
+import runpy
+import sys
 import tempfile
+from unittest import mock
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -55,6 +58,37 @@ _XML = """
 
 
 class MshTest(parameterized.TestCase):
+
+  @parameterized.named_parameters(
+      ("missing_input", False, FileNotFoundError),
+      ("invalid_input", True, ValueError),
+  )
+  def test_cli_preserves_output_on_conversion_error(self, create_input, error):
+    with tempfile.TemporaryDirectory() as tmpdir:
+      msh_path = epath.Path(tmpdir) / "input.msh"
+      obj_path = epath.Path(tmpdir) / "output.obj"
+      if create_input:
+        # A complete header with missing vertex data fails validation.
+        msh_path.write_bytes(np.array([4, 0, 0, 4], np.int32).tobytes())
+      obj_path.write_text("existing output\n")
+      argv = ["msh2obj", "-i", str(msh_path), "-o", str(obj_path)]
+      with mock.patch.object(sys, "argv", argv):
+        with self.assertRaises(error):
+          runpy.run_path(msh2obj.__file__, run_name="__main__")
+      self.assertEqual(obj_path.read_text(), "existing output\n")
+
+  def test_cli_writes_converted_output(self):
+    with tempfile.TemporaryDirectory() as tmpdir:
+      msh_path = epath.Path(tmpdir) / "input.msh"
+      obj_path = epath.Path(tmpdir) / "output.obj"
+      msh_path.write_bytes(
+          np.array([1, 0, 0, 0], np.int32).tobytes()
+          + np.array([1, 2, 3], np.float32).tobytes()
+      )
+      argv = ["msh2obj", "-i", str(msh_path), "-o", str(obj_path)]
+      with mock.patch.object(sys, "argv", argv):
+        runpy.run_path(msh2obj.__file__, run_name="__main__")
+      self.assertEqual(obj_path.read_text(), "v 1.0 2.0 3.0\n")
 
   @parameterized.named_parameters(
       ("vertices_only", False, False, "f 1 3 2"),
