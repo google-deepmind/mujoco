@@ -24,9 +24,10 @@ import json
 import pathlib
 from typing import Literal, TypeAlias
 
-import mujoco
 import numpy as np
 import scipy.interpolate
+
+import mujoco
 
 
 class SignalType(Enum):
@@ -60,6 +61,7 @@ def decode_signal_mapping(encoded: str) -> SignalMappingType:
       name: (SignalType(sig_type), np.asarray(indices, dtype=int))
       for name, (sig_type, indices) in raw.items()
   }
+
 
 InterpolationMethod = Literal[
     "linear", "cubic", "quadratic", "quintic", "zero_order_hold", "zoh"
@@ -584,7 +586,7 @@ class TimeSeries:
           f"Length of times ({len(self.times)}) and data ({len(self.data)})"
           " must match"
       )
-    if not np.all(np.diff(self.times) > 0):
+    if not np.all(self.times[1:] > self.times[:-1]):
       raise ValueError("times must be strictly increasing")
 
   def __len__(self) -> int:
@@ -731,7 +733,7 @@ class TimeSeries:
       # Make sure new_times is valid.
       if new_times.ndim != 1:
         raise ValueError("new_times must be a 1D array")
-      if not np.all(np.diff(new_times) > 0):
+      if not np.all(new_times[1:] > new_times[:-1]):
         raise ValueError("new_times must be strictly increasing")
 
     assert new_times is not None
