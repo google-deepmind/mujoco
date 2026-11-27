@@ -612,6 +612,8 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
 // return the plugin instances that elements or defaults reference by name or point to, including
 // the elements in the subtree of body, which can be outside the tree
 std::unordered_set<const mjsElement*> mjCModel::ReferencedPlugins(const mjCBody* body) {
+  if (plugins_.empty()) { return {}; }
+
   std::unordered_set<std::string>       names;
   std::unordered_set<const mjsElement*> pointers;
 
@@ -646,6 +648,8 @@ std::unordered_set<const mjsElement*> mjCModel::ReferencedPlugins(const mjCBody*
 
 
 void mjCModel::RemovePlugins(const std::unordered_set<const mjsElement*>& referenced) {
+  if (referenced.empty()) { return; }
+
   std::unordered_set<const mjsElement*> remaining = ReferencedPlugins();
 
   // remove plugins that are no longer referenced, keep plugins that were never referenced
@@ -766,10 +770,23 @@ std::vector<mjCBase*> mjCModel::RemoveFromTree(const mjCFrame& frame) {
 // remove subtree from the tree, then remove all elements that reference it
 template <class T>
 mjCModel& mjCModel::RemoveSubtree(const T& subtree) {
-  mjCModel oldmodel(*this);
+  // snapshot the model before removal only if referencing elements may need cleanup
+  const bool              has_refs = !skins_.empty() ||
+                                     !flexes_.empty() ||
+                                     !pairs_.empty() ||
+                                     !excludes_.empty() ||
+                                     !tendons_.empty() ||
+                                     !equalities_.empty() ||
+                                     !actuators_.empty() ||
+                                     !sensors_.empty() ||
+                                     !tuples_.empty();
+  std::optional<mjCModel> oldmodel;
+  if (has_refs) {
+    oldmodel.emplace(*this);
 
-  // create global lists in the old model, the name maps copied from a compiled model can be stale
-  oldmodel.ProcessLists(/*checkrepeat=*/false);
+    // create global lists in the old model, the name maps copied from a compiled model can be stale
+    oldmodel->ProcessLists(/*checkrepeat=*/false);
+  }
 
   // create global lists in this model if not compiled
   if (!IsCompiled()) { ProcessLists(/*checkrepeat=*/false); }
@@ -787,19 +804,21 @@ mjCModel& mjCModel::RemoveSubtree(const T& subtree) {
 
   // check if we have to remove anything else; flexes before the elements that can reference them,
   // tuples last, since they can reference any of them
-  RemoveFromList(skins_, oldmodel);
-  RemoveFromList(flexes_, oldmodel);
-  RemoveFromList(pairs_, oldmodel);
-  RemoveFromList(excludes_, oldmodel);
-  RemoveFromList(tendons_, oldmodel);
-  RemoveFromList(equalities_, oldmodel);
-  RemoveFromList(actuators_, oldmodel);
-  RemoveFromList(sensors_, oldmodel);
-  size_t ntuples;
-  do {
-    ntuples = tuples_.size();
-    RemoveFromList(tuples_, oldmodel);
-  } while (tuples_.size() != ntuples);
+  if (oldmodel.has_value()) {
+    RemoveFromList(skins_, *oldmodel);
+    RemoveFromList(flexes_, *oldmodel);
+    RemoveFromList(pairs_, *oldmodel);
+    RemoveFromList(excludes_, *oldmodel);
+    RemoveFromList(tendons_, *oldmodel);
+    RemoveFromList(equalities_, *oldmodel);
+    RemoveFromList(actuators_, *oldmodel);
+    RemoveFromList(sensors_, *oldmodel);
+    size_t ntuples;
+    do {
+      ntuples = tuples_.size();
+      RemoveFromList(tuples_, *oldmodel);
+    } while (tuples_.size() != ntuples);
+  }
 
   // structure changed, the signature is no longer valid
   InvalidateSignature();
@@ -937,22 +956,37 @@ void mjCModel::operator-=(mjsElement* el) {
     if (static_cast<mjCDef*>(el)->model != this) {
       throw mjCError(nullptr, "default is not in this model");
     }
+    throw mjCError(nullptr, "defaults cannot be deleted, use detach instead");
   }
 
-  mjCModel oldmodel(*this);
-  oldmodel.ProcessLists(/*checkrepeat=*/false);
+  if (el->elemtype == mjOBJ_BODY || el->elemtype == mjOBJ_FRAME) {
+    mjCBody*  body  = el->elemtype == mjOBJ_BODY ? static_cast<mjCBody*>(el) : nullptr;
+    mjCFrame* frame = el->elemtype == mjOBJ_FRAME ? static_cast<mjCFrame*>(el) : nullptr;
+    if (frame && !FrameOwner(*frame)) { throw mjCError(nullptr, "frame is not in this model"); }
 
-  // plugin instances referenced before the deletion, mjs_bodyToFrame removes the body from the tree
-  mjCBody* body = el->elemtype == mjOBJ_BODY ? static_cast<mjCBody*>(el) : nullptr;
-  std::unordered_set<const mjsElement*> referenced = ReferencedPlugins(body);
-
-  if (body) { *this -= *body; }
-
-  // throws before anything is modified if the frame is not in the tree
-  if (el->elemtype == mjOBJ_FRAME) {
-    mjCFrame* frame  = static_cast<mjCFrame*>(el);
-    *this           -= *frame;
+    // plugin instances referenced before deletion; mjs_bodyToFrame detaches body first
+    std::unordered_set<const mjsElement*> referenced = ReferencedPlugins(body);
+    if (body) {
+      *this -= *body;
+    } else {
+      *this -= *frame;
+    }
+    RemovePlugins(referenced);
+    static_cast<mjCBase*>(el)->Release();
+    return;
   }
+
+  // snapshot the model before removal only if a remaining tuple may reference the element
+  std::optional<mjCModel> oldmodel;
+  if (std::any_of(tuples_.begin(), tuples_.end(), [el](const mjCTuple* tuple) {
+        return tuple != el;
+      })) {
+    oldmodel.emplace(*this);
+    oldmodel->ProcessLists(/*checkrepeat=*/false);
+  }
+
+  // plugin instances referenced before the deletion
+  std::unordered_set<const mjsElement*> referenced = ReferencedPlugins();
 
   // an element with values in the keyframes of a compiled model: they are now pending, the next
   // compilation reassembles them without it; bodies and frames do this when their subtree is
@@ -968,17 +1002,6 @@ void mjCModel::operator-=(mjsElement* el) {
   ResetTreeLists();
 
   switch (el->elemtype) {
-    case mjOBJ_BODY:
-      break;  // removed above
-
-    case mjOBJ_FRAME:
-      break;  // removed above, frames are meta elements and have no object list
-
-    case mjOBJ_DEFAULT:
-      MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
-      throw mjCError(nullptr, "defaults cannot be deleted, use detach instead");
-      break;
-
     case mjOBJ_GEOM:
       deletefromlist(&(static_cast<mjCGeom*>(el)->body->geoms), el);
       break;
@@ -1017,11 +1040,13 @@ void mjCModel::operator-=(mjsElement* el) {
   MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
 
-  size_t ntuples;
-  do {
-    ntuples = tuples_.size();
-    RemoveFromList(tuples_, oldmodel);
-  } while (tuples_.size() != ntuples);
+  if (oldmodel.has_value()) {
+    size_t ntuples;
+    do {
+      ntuples = tuples_.size();
+      RemoveFromList(tuples_, *oldmodel);
+    } while (tuples_.size() != ntuples);
+  }
 
   // delete the plugin instances that only the removed elements referenced
   RemovePlugins(referenced);
