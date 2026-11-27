@@ -377,12 +377,7 @@ def build_residual_fn(**captured_kwargs):
   """
 
   def built_residual_fn(x, params, **kwargs):
-    return residual(
-        x,
-        params,
-        **captured_kwargs,
-        **kwargs,
-    )
+    return residual(x, params, **(captured_kwargs | kwargs))
 
   return built_residual_fn
 
