@@ -2154,9 +2154,99 @@ TEST_F(SolverTest, PrimalEllipticMultiSpanAndCondim46) {
     for (int i = 0; i < model->nv; ++i) {
       mjtNum scale = std::max(mjtNum{1}, mju_abs(d_dense->qacc[i]));
       EXPECT_NEAR(d_dense->qacc[i] / scale, d_sparse->qacc[i] / scale,
-                  MjTol(5e-15, 2e-5))
+                  MjTol(5e-14, 2e-5))
           << "solver=" << solver << " dof=" << i;
     }
+  }
+}
+
+// Verify dense elliptic Newton does not latch cone folding on a single small
+// late-column cone contact (10*U << Lflops) after refactor_L fires on earlier
+// DOFs. On iteration 0, boxes 0..2 transition SATISFIED -> QUADRATIC with
+// 10*U_quad > Lflops while sphere 3 slides on DOFs 18..23 (10*U = 1050 vs
+// Lflops = 4900). Continuing to iteration 1 must stay on rank-1 cone updates
+// and match restarting from iteration 0's qacc (where FactorizeHessian passes
+// cost_L = 0), rather than latching folded Cholesky on H + V'*V.
+TEST_F(SolverTest, DenseEllipticConeFoldDoesNotLatch) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option cone="elliptic" solver="Newton" jacobian="dense"
+            timestep="0.01" tolerance="0">
+      <flag island="disable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="20 20 0.1" condim="1"/>
+      <body pos="-2 0 0.049">
+        <freejoint/>
+        <geom type="box" size="0.05 0.05 0.05" condim="1"/>
+      </body>
+      <body pos="0 0 0.049">
+        <freejoint/>
+        <geom type="box" size="0.05 0.05 0.05" condim="1"/>
+      </body>
+      <body pos="2 0 0.049">
+        <freejoint/>
+        <geom type="box" size="0.05 0.05 0.05" condim="1"/>
+      </body>
+      <body pos="4 0 0.095">
+        <freejoint/>
+        <geom type="sphere" size="0.1" condim="6" priority="1"
+              solimp="0.9999 0.9999 0.001" friction="0.5 0.05 0.01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  ASSERT_EQ(model->nv, 24);
+
+  auto init_state = [](MjDataPtr& d) {
+    // small upward box qvel makes aref slightly negative so qacc=0 is
+    // SATISFIED (accepted over qacc_smooth=-9.81) and flips QUADRATIC on iter 0
+    for (int b = 0; b < 3; ++b) {
+      d->qvel[6 * b + 2] = 0.03;
+    }
+    d->qvel[18] = 2.5;
+    d->qvel[19] = -1.3;
+    d->qvel[20] = -0.2;
+    d->qvel[21] = 1.7;
+    d->qvel[22] = -0.9;
+    d->qvel[23] = 2.1;
+  };
+
+  // two continuous Newton iterations: iter 0 triggers refactor_L on boxes 0..2
+  model->opt.iterations = 2;
+  MjDataPtr d_cont = MakeData(model);
+  init_state(d_cont);
+  mj_forward(model.get(), d_cont.get());
+  ASSERT_EQ(d_cont->solver_niter[0], 2);
+  ASSERT_EQ(d_cont->solver[0].nchange, 12);
+  ASSERT_EQ(d_cont->solver[0].nupdate, 17);
+
+  // 1 + 1 restart: pass 2 starts at iter 0's qacc where FactorizeHessian
+  // passes cost_L = 0 and therefore uses rank-1 HessianConeUpdate
+  model->opt.iterations = 1;
+  MjDataPtr d_step1 = MakeData(model);
+  init_state(d_step1);
+  mj_forward(model.get(), d_step1.get());
+  int sphere_adr = d_step1->contact[d_step1->ncon - 1].efc_address;
+  ASSERT_EQ(d_step1->efc_state[sphere_adr], mjCNSTRSTATE_CONE);
+
+  MjDataPtr d_step2 = MakeData(model);
+  init_state(d_step2);
+  mju_copy(d_step2->qacc_warmstart, d_step1->qacc, model->nv);
+  mj_forward(model.get(), d_step2.get());
+  ASSERT_EQ(d_cont->efc_state[sphere_adr], mjCNSTRSTATE_CONE);
+
+  // sphere 3 (DOFs 18..23) is decoupled from boxes 0..2; stiff solimp separates
+  // folded cholFactor(H + V'*V) (~7.7e-13 / ~1.0e-4) from rank-1
+  // cholUpdate(L, V) (~7.1e-14 / ~7.3e-7)
+  for (int i = 18; i < 24; ++i) {
+    mjtNum scale = std::max(mjtNum{1}, mju_abs(d_step2->qacc[i]));
+    EXPECT_NEAR(d_cont->qacc[i] / scale, d_step2->qacc[i] / scale,
+                MjTol(2e-13, 2e-5))
+        << "dof=" << i;
   }
 }
 
