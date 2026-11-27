@@ -200,25 +200,27 @@ def parse_spec_structs(*paths):
 
   Returns:
     A dict mapping struct name -> {field: (ctype, dim-or-None)}.
-    Nested anonymous sub-structs (the mjVisual sections) are exposed as
+    Nested sub-structs (the mjVisual sections) are exposed as
     'Outer.subname' pseudo-structs.
   """
   structs = {}
   field_re = re.compile(
       r'^\s*([\w<>*]+(?:\s*\*)?)\s+(\w+)(\[([^\]]+)\])?\s*;', re.M)
+  substruct_re = re.compile(
+      r'struct(?:\s+\w+)?\s*\{(.*?)\}\s+(\w+);', re.S)
   for path in paths:
     with open(path, encoding='utf-8') as f:
       text = f.read()
     for m in re.finditer(r'typedef struct (mj\w+)_ \{(.*?)\n\} \1;', text,
                          re.S):
       name, body = m.group(1), m.group(2)
-      for sm in re.finditer(r'struct \{(.*?)\} (\w+);', body, re.S):
+      for sm in substruct_re.finditer(body):
         sub_fields = {}
         for fm in field_re.finditer(sm.group(1)):
           ctype, fname, _, dim = fm.groups()
           sub_fields[fname] = (ctype.replace(' ', ''), dim)
         structs[f'{name}.{sm.group(2)}'] = sub_fields
-      body = re.sub(r'struct \{.*?\} \w+;', '', body, flags=re.S)
+      body = substruct_re.sub('', body)
       fields = {}
       for fm in field_re.finditer(body):
         ctype, fname, _, dim = fm.groups()

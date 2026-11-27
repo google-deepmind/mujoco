@@ -17,6 +17,7 @@
 import os
 import re
 import sys
+import tempfile
 
 _DOC_GEN = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../doc/generate')
@@ -104,6 +105,32 @@ def _check_up_to_date(test_case, rel_path, generated_content):
 
 
 class DocTest(googletest.TestCase):
+
+  def test_parse_nested_structs(self):
+    """Checks named and anonymous sub-structs retain their field namespaces."""
+    for tag in ('', 'mjNested_'):
+      with self.subTest(tag=tag), tempfile.TemporaryDirectory() as directory:
+        path = os.path.join(directory, 'nested.h')
+        with open(path, 'w', encoding='utf-8') as file:
+          file.write(f'''\
+typedef struct mjOuter_ {{
+  struct {tag} {{
+    float color[3];
+    int active;
+  }} nested;
+  double value;
+}} mjOuter;
+''')
+        self.assertEqual(
+            generate_read_table.parse_spec_structs(path),
+            {
+                'mjOuter': {'value': ('double', None)},
+                'mjOuter.nested': {
+                    'color': ('float', '3'),
+                    'active': ('int', None),
+                },
+            },
+        )
 
   def test_api_header(self):
     """Checks that references.h matches the generated output."""
