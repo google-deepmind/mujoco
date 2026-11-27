@@ -576,10 +576,6 @@ def arrays2traj(
     ctrl_mapping: Signal mapping for control data.
   """
   nbatch = state.shape[0]
-  # TODO(kevin): When is np.tile/atleast_2d/etc necessary?
-  # initial_states = np.tile(initial_states, (nbatch, 1))
-  # control = np.tile(control, (nbatch, 1, 1))
-  # control_times = np.tile(control_times, (nbatch, 1))
   initial_states = np.atleast_2d(initial_states)
   if control.ndim == 2:
     control = control[np.newaxis, :, :]
@@ -589,12 +585,16 @@ def arrays2traj(
     models_list = [models] * nbatch
   else:
     models_list = list(models)
+    if len(models_list) == 1:
+      models_list *= nbatch
 
   return [
       SystemTrajectory(
           model=models_list[i],
           control=timeseries.TimeSeries(
-              control_times[i], control[i], signal_mapping=ctrl_mapping
+              control_times[0 if control_times.shape[0] == 1 else i],
+              control[0 if control.shape[0] == 1 else i],
+              signal_mapping=ctrl_mapping,
           ),
           # NOTE(kevin): When using mjSTATE_FULLPHYSICS, the first element of
           # the state corresponds to the simulation time. The reason we do not
@@ -603,7 +603,9 @@ def arrays2traj(
           sensordata=timeseries.TimeSeries(
               state[i][:, 0], sensordata[i], signal_mapping
           ),
-          initial_state=initial_states[i],
+          initial_state=initial_states[
+              0 if initial_states.shape[0] == 1 else i
+          ],
           state=timeseries.TimeSeries(
               times=state[i][:, 0], data=state[i], signal_mapping=state_mapping
           ),
