@@ -361,6 +361,231 @@ TEST_F(MjCollisionTest, TestOBB) {
       false);
 }
 
+TEST_F(MjCollisionTest, TestOBBMatchesReference) {
+  // Reference 6-axis SAT implementation matching the original Gottschalk logic.
+  // Returns -1 if close to the separating boundary (ill-conditioned).
+  auto ref_obb = [](const mjtNum aabb1[6], const mjtNum aabb2[6],
+                    const mjtNum xpos1[3], const mjtNum xmat1[9],
+                    const mjtNum xpos2[3], const mjtNum xmat2[9], mjtNum margin,
+                    mjtNum eps) -> int {
+    bool inf1[3] = {aabb1[3] >= mjMAXVAL, aabb1[4] >= mjMAXVAL,
+                    aabb1[5] >= mjMAXVAL};
+    bool inf2[3] = {aabb2[3] >= mjMAXVAL, aabb2[4] >= mjMAXVAL,
+                    aabb2[5] >= mjMAXVAL};
+    if ((inf1[0] && inf1[1] && inf1[2]) || (inf2[0] && inf2[1] && inf2[2])) {
+      return 1;
+    }
+    const mjtNum* aabb[2] = {aabb1, aabb2};
+    const mjtNum* xmat[2] = {xmat1, xmat2};
+    const mjtNum* xpos[2] = {xpos1, xpos2};
+    bool infinite[2] = {inf1[0] || inf1[1] || inf1[2],
+                        inf2[0] || inf2[1] || inf2[2]};
+    double xc[2][3], n[2][3][3];
+    for (int i = 0; i < 2; ++i) {
+      for (int r = 0; r < 3; ++r) {
+        double v = xmat[i]
+                       ? (static_cast<double>(xmat[i][3 * r + 0]) * aabb[i][0] +
+                          static_cast<double>(xmat[i][3 * r + 1]) * aabb[i][1] +
+                          static_cast<double>(xmat[i][3 * r + 2]) * aabb[i][2])
+                       : static_cast<double>(aabb[i][r]);
+        xc[i][r] = v + (xpos[i] ? static_cast<double>(xpos[i][r]) : 0.0);
+        for (int c = 0; c < 3; ++c) {
+          n[i][r][c] = xmat[i] ? static_cast<double>(xmat[i][3 * c + r])
+                               : (r == c ? 1.0 : 0.0);
+        }
+      }
+    }
+    auto dot = [](const double a[3], const double b[3]) {
+      return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    };
+    bool near_boundary = false;
+    for (int j = 0; j < 2; ++j) {
+      if (infinite[1 - j]) continue;
+      for (int k = 0; k < 3; ++k) {
+        double proj[2], rad[2];
+        for (int i = 0; i < 2; ++i) {
+          proj[i] = dot(xc[i], n[j][k]);
+          rad[i] = std::abs(aabb[i][3] * dot(n[i][0], n[j][k])) +
+                   std::abs(aabb[i][4] * dot(n[i][1], n[j][k])) +
+                   std::abs(aabb[i][5] * dot(n[i][2], n[j][k]));
+        }
+        double diff = std::abs(proj[1] - proj[0]) - (rad[0] + rad[1] + margin);
+        if (std::abs(diff) < eps) {
+          near_boundary = true;
+        }
+        if (diff > eps) {
+          return 0;
+        }
+      }
+    }
+    return near_boundary ? -1 : 1;
+  };
+
+  std::uint64_t state = 0x123456789abcdefULL;
+  auto unif = [&state]() -> mjtNum {
+    state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+    double u = static_cast<double>(state >> 11) / 9007199254740992.0;
+    return static_cast<mjtNum>(2.0 * u - 1.0);
+  };
+  auto rand_mat = [&unif](mjtNum mat[9]) {
+    mjtNum q[4] = {unif(), unif(), unif(), unif()};
+    mju_normalize4(q);
+    mju_quat2Mat(mat, q);
+  };
+
+  const mjtNum eps = MjEps(1e-10, 1e-4);
+  int n_overlap = 0, n_sep = 0;
+  for (int trial = 0; trial < 200; ++trial) {
+    mjtNum pos1[3] = {unif(), unif(), unif()};
+    mjtNum pos2[3] = {unif(), unif(), unif()};
+    mjtNum mat1[9], mat2[9];
+    rand_mat(mat1);
+    rand_mat(mat2);
+
+    // exercise all 4 NULL-frame combinations
+    const mjtNum* p1 = (trial % 4 == 2 || trial % 4 == 3) ? nullptr : pos1;
+    const mjtNum* m1 = (trial % 4 == 2 || trial % 4 == 3) ? nullptr : mat1;
+    const mjtNum* p2 = (trial % 4 == 1 || trial % 4 == 3) ? nullptr : pos2;
+    const mjtNum* m2 = (trial % 4 == 1 || trial % 4 == 3) ? nullptr : mat2;
+
+    mjtNum product[36], offset[12];
+    mjtBool init = true;
+    for (int sub = 0; sub < 4; ++sub) {
+      mjtNum aabb1[6] = {static_cast<mjtNum>(0.5) * unif(),
+                         static_cast<mjtNum>(0.5) * unif(),
+                         static_cast<mjtNum>(0.5) * unif(),
+                         static_cast<mjtNum>(0.05 + 0.5 * std::abs(unif())),
+                         static_cast<mjtNum>(0.05 + 0.5 * std::abs(unif())),
+                         static_cast<mjtNum>(0.05 + 0.5 * std::abs(unif()))};
+      mjtNum aabb2[6] = {static_cast<mjtNum>(0.5) * unif(),
+                         static_cast<mjtNum>(0.5) * unif(),
+                         static_cast<mjtNum>(0.5) * unif(),
+                         static_cast<mjtNum>(0.05 + 0.5 * std::abs(unif())),
+                         static_cast<mjtNum>(0.05 + 0.5 * std::abs(unif())),
+                         static_cast<mjtNum>(0.05 + 0.5 * std::abs(unif()))};
+      mjtNum margin = static_cast<mjtNum>(0.1) * unif();
+      int expected = ref_obb(aabb1, aabb2, p1, m1, p2, m2, margin, eps);
+      int got_cached = mj_collideOBB(aabb1, aabb2, p1, m1, p2, m2, margin,
+                                     product, offset, &init);
+      int got_uncached = mj_collideOBB(aabb1, aabb2, p1, m1, p2, m2, margin,
+                                       nullptr, nullptr, nullptr);
+      EXPECT_FALSE(init);
+      if (expected >= 0) {
+        EXPECT_EQ(got_cached, expected) << "trial " << trial << " sub " << sub;
+        EXPECT_EQ(got_uncached, expected)
+            << "trial " << trial << " sub " << sub;
+        if (expected) {
+          n_overlap++;
+        } else {
+          n_sep++;
+        }
+      }
+    }
+  }
+  EXPECT_GT(n_overlap, 100);
+  EXPECT_GT(n_sep, 100);
+
+  // Infinite plane cases: plane vs finite box (above/below), rotated plane,
+  // plane vs plane, and all-3-infinite box.
+  mjtNum plane[6] = {0,        0,        -static_cast<mjtNum>(0.5) * mjMAXVAL,
+                     mjMAXVAL, mjMAXVAL, static_cast<mjtNum>(0.5) * mjMAXVAL};
+  mjtNum box[6] = {0,
+                   0,
+                   0,
+                   static_cast<mjtNum>(0.1),
+                   static_cast<mjtNum>(0.1),
+                   static_cast<mjtNum>(0.1)};
+  mjtNum all_inf[6] = {0, 0, 0, mjMAXVAL, mjMAXVAL, mjMAXVAL};
+  mjtNum p_origin[3] = {0, 0, 0};
+  // In single precision, 0.5 * mjMAXVAL (5e9f) has ULP 512, so z must exceed
+  // 512 to be distinguishable from the plane's center offset.
+  mjtNum p_above[3] = {0, 0, MjEps(0.5, 2000.0)};
+  mjtNum p_touch[3] = {0, 0, static_cast<mjtNum>(0.05)};
+  mjtNum eye[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  mjtNum rot[9];
+  rand_mat(rot);
+  mjtNum product[36], offset[12];
+  mjtBool init = true;
+  EXPECT_EQ(mj_collideOBB(plane, box, p_origin, eye, p_above, rot, 0, product,
+                          offset, &init),
+            0);
+  EXPECT_EQ(mj_collideOBB(plane, box, p_origin, eye, p_above, rot, 0, nullptr,
+                          nullptr, nullptr),
+            0);
+  init = true;
+  EXPECT_EQ(mj_collideOBB(plane, box, p_origin, eye, p_touch, rot, 0, product,
+                          offset, &init),
+            1);
+  EXPECT_EQ(mj_collideOBB(box, plane, p_above, rot, p_origin, eye, 0, nullptr,
+                          nullptr, nullptr),
+            0);
+  EXPECT_EQ(mj_collideOBB(box, plane, p_touch, rot, p_origin, eye, 0, nullptr,
+                          nullptr, nullptr),
+            1);
+  EXPECT_EQ(mj_collideOBB(plane, plane, p_origin, eye, p_above, rot, 0, nullptr,
+                          nullptr, nullptr),
+            1);
+  EXPECT_EQ(mj_collideOBB(all_inf, box, p_origin, eye, p_above, rot, 0, nullptr,
+                          nullptr, nullptr),
+            1);
+}
+
+TEST_F(MjCollisionTest, MidphaseMatchesAllToAllMultiGeom) {
+  // Multi-geom bodies mixing fullinertia, diaginertia, rotated geoms, spheres,
+  // boxes, capsules, planes, and margins: midphase must match all-to-all.
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="5 5 0.1"/>
+      <geom name="wall" type="plane" pos="0.4 0 0" zaxis="-1 0 0"
+            size="5 5 0.1"/>
+      <body name="a" pos="0 0 0.15" euler="15 25 35">
+        <freejoint/>
+        <inertial pos="0.01 -0.02 0.01" mass="1"
+                  fullinertia="0.02 0.03 0.04 0.005 -0.003 0.004"/>
+        <geom name="a_box0" type="box" size="0.08 0.04 0.03" pos="-0.06 0 0"
+              margin="0.005"/>
+        <geom name="a_box1" type="box" size="0.04 0.07 0.02" pos="0.07 0.02 0"
+              euler="30 20 10"/>
+        <geom name="a_cap" type="capsule" size="0.03 0.06" pos="0 -0.06 0.02"
+              euler="45 0 30"/>
+        <geom name="a_sph" type="sphere" size="0.04" pos="0 0 -0.07"/>
+      </body>
+      <body name="b" pos="0.12 0.03 0.16" euler="-20 40 10">
+        <freejoint/>
+        <inertial pos="0 0 0" mass="1" diaginertia="0.02 0.02 0.02"/>
+        <geom name="b_box0" type="box" size="0.06 0.05 0.04" pos="-0.04 0 0"/>
+        <geom name="b_box1" type="box" size="0.03 0.03 0.05" pos="0.06 -0.03 0"/>
+        <geom name="b_cyl" type="cylinder" size="0.03 0.05" pos="0 0.05 0.01"
+              euler="10 50 20" gap="0.01"/>
+        <geom name="b_sph" type="sphere" size="0.04" pos="-0.02 -0.04 -0.05"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  MjDataPtr d_mid = MakeData(m);
+  MjDataPtr d_all = MakeData(m);
+
+  for (int step = 0; step < 20; ++step) {
+    m->opt.disableflags = 0;
+    mj_fwdPosition(m.get(), d_mid.get());
+    m->opt.disableflags = mjDSBL_MIDPHASE;
+    mju_copy(d_all->qpos, d_mid->qpos, m->nq);
+    mju_copy(d_all->qvel, d_mid->qvel, m->nv);
+    mj_fwdPosition(m.get(), d_all.get());
+    ASSERT_EQ(d_mid->ncon, d_all->ncon) << "step " << step;
+    EXPECT_EQ(colliding_pairs(m.get(), d_mid.get()),
+              colliding_pairs(m.get(), d_all.get()))
+        << "step " << step;
+    m->opt.disableflags = 0;
+    mj_step(m.get(), d_mid.get());
+  }
+}
+
 TEST_F(MjCollisionTest, PlaneInBody) {
   constexpr char xml[] = R"(
   <mujoco>
