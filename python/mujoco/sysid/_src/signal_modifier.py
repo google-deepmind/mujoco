@@ -76,7 +76,7 @@ def apply_bias(
     bias: Parameter whose ``.value`` is added to the sensor columns.
   """
   indices = ts.get_indices(sensor_name)[1]
-  data_out = ts.data.copy()
+  data_out = ts.data.astype(np.result_type(ts.data, bias.value), copy=True)
   data_out[..., indices] += bias.value
   return timeseries.TimeSeries(ts.times, data_out, ts.signal_mapping)
 
@@ -94,7 +94,7 @@ def apply_gain(
     gain: Parameter whose ``.value`` multiplies the sensor columns.
   """
   indices = ts.get_indices(sensor_name)[1]
-  data_out = ts.data.copy()
+  data_out = ts.data.astype(np.result_type(ts.data, gain.value), copy=True)
   data_out[..., indices] *= gain.value
   return timeseries.TimeSeries(ts.times, data_out, ts.signal_mapping)
 
@@ -118,7 +118,9 @@ def apply_delay(
   )
   ts_sensor_delayed = ts_sensor.resample(ts.times - delay.value)
 
-  data_out = ts.data.copy()
+  data_out = ts.data.astype(
+      np.result_type(ts.data, ts_sensor_delayed.data), copy=True
+  )
   data_out[:, indices] = ts_sensor_delayed.data
 
   return timeseries.TimeSeries(ts.times, data_out, ts.signal_mapping)
