@@ -1537,6 +1537,21 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
 }
 
 
+// return row count and constraint type for a contact with given dim and cone
+static inline int contactRowInfo(int* type, int dim, int ispyramid) {
+  if (dim == 1) {
+    *type = mjCNSTR_CONTACT_FRICTIONLESS;
+    return 1;
+  } else if (ispyramid) {
+    *type = mjCNSTR_CONTACT_PYRAMIDAL;
+    return 2*(dim - 1);
+  } else {
+    *type = mjCNSTR_CONTACT_ELLIPTIC;
+    return dim;
+  }
+}
+
+
 // return last DOF index of body's weld body, or -1 if static
 static inline int bodyLastDof(const mjModel* m, int body) {
   int b = m->body_weldid[body];
@@ -1587,6 +1602,142 @@ static inline int contactPairNnz(const mjModel* m, int b1, int b2) {
 
   // same tree: walk ancestor chains until they meet at the lowest common ancestor
   return sameTreeNnz(m->dof_parentid, bodyLastDof(m, b1), bodyLastDof(m, b2));
+}
+
+
+// shared context for per-contact Jacobian helpers
+typedef struct {
+  const mjModel* m;
+  const mjData* d;
+  const mjContact* con;
+  int ispyramid;
+} mjContactCtx;
+
+
+// lazily allocated stack scratch buffers for flex/multi-body contacts
+typedef struct {
+  mjtNum* jac;
+  mjtNum* jacdifp;
+  mjtNum* jacdifr;
+  mjtNum* jac1p;
+  mjtNum* jac2p;
+  mjtNum* jac1r;
+  mjtNum* jac2r;
+  int* chain;
+} mjContactScratch;
+
+
+// populate contact constraint metadata rows starting at nefc
+static inline void setContactMeta(mjData* d, const mjContact* con, int conid,
+                                  int nefc, int nrows, int type) {
+  // set pos and margin
+  if (type == mjCNSTR_CONTACT_ELLIPTIC) {
+    d->efc_pos[nefc] = con->dist;
+    d->efc_margin[nefc] = con->includemargin;
+    for (int r=1; r < nrows; r++) {
+      d->efc_pos[nefc+r] = 0;
+      d->efc_margin[nefc+r] = 0;
+    }
+  } else {
+    for (int r=0; r < nrows; r++) {
+      d->efc_pos[nefc+r] = con->dist;
+      d->efc_margin[nefc+r] = con->includemargin;
+    }
+  }
+
+  // set frictionloss, type and id
+  for (int r=0; r < nrows; r++) {
+    d->efc_frictionloss[nefc+r] = 0;
+    d->efc_type[nefc+r] = type;
+    d->efc_id[nefc+r] = conid;
+  }
+}
+
+
+// negate 3x3 contact frame
+static inline void negFrame(mjtNum Fneg[9], const mjtNum F[9]) {
+  for (int k=0; k < 9; k++) {
+    Fneg[k] = -F[k];
+  }
+}
+
+
+// compute one DOF's translational contact Jacobian column: jp = cdof[3..5] + cross(cdof[0..2], off)
+static inline void computeContactDof(mjtNum jp[3], const mjtNum* cdof, const mjtNum offset[3]) {
+  mjtNum tmp[3];
+  mji_cross(tmp, cdof, offset);
+  mji_add3(jp, cdof+3, tmp);
+}
+
+
+// write rotated dim=3 contact Jacobian column into row-strided J at column col, return normal j[0]
+static inline mjtNum writeContactDof3(mjtNum* restrict J, int stride, int col,
+                                      const mjtNum F[9], const mjtNum friction[5],
+                                      int ispyramid, const mjtNum jp[3]) {
+  mjtNum j[3];
+  mji_mulMatVec3(j, F, jp);
+
+  // pyramidal friction cone
+  if (ispyramid) {
+    mjtNum mu0 = friction[0], mu1 = friction[1];
+    J[0*stride+col] = j[0] + j[1]*mu0;
+    J[1*stride+col] = j[0] + j[1]*(-mu0);
+    J[2*stride+col] = j[0] + j[2]*mu1;
+    J[3*stride+col] = j[0] + j[2]*(-mu1);
+  }
+
+  // elliptic friction cone
+  else {
+    J[0*stride+col] = j[0];
+    J[1*stride+col] = j[1];
+    J[2*stride+col] = j[2];
+  }
+  return j[0];
+}
+
+
+// write rotational contact Jacobian rows (dim > 3) for one DOF at column col
+static inline void writeContactDofRot(mjtNum* restrict J, int stride, int col,
+                                      const mjtNum F[9], const mjContact* con, int ispyramid,
+                                      mjtNum j0, const mjtNum jr[3]) {
+  int dim = mjMIN(con->dim, 6);
+
+  // pyramidal friction cone
+  if (ispyramid) {
+    for (int k=3; k < dim; k++) {
+      mjtNum jk = mju_dot3(F + 3*(k-3), jr);
+      mjtNum muk = con->friction[k-1];
+      J[(2*k-2)*stride+col] = j0 + jk*muk;
+      J[(2*k-1)*stride+col] = j0 + jk*(-muk);
+    }
+  }
+
+  // elliptic friction cone
+  else {
+    for (int r=3; r < dim; r++) {
+      J[r*stride+col] = mju_dot3(F + 3*(r-3), jr);
+    }
+  }
+}
+
+
+// rotate one DOF of a contact Jacobian into signed frame F and write rows at column col
+static inline void writeContactDof(mjtNum* restrict J, int stride, int col,
+                                   const mjtNum F[9], const mjContact* con, int ispyramid,
+                                   const mjtNum jp[3], const mjtNum jr[3]) {
+  int dim = con->dim;
+
+  // rotate into contact frame and write directly into d->efc_J
+  if (dim == 1) {
+    J[col] = mju_dot3(F, jp);
+  } else {
+    mjtNum j0 = writeContactDof3(J, stride, col, F, con->friction, ispyramid, jp);
+
+    // torsional and rolling rows
+    if (dim > 3) {
+      writeContactDofRot(J, stride, col, F, con, ispyramid, j0, jr);
+    }
+  }
 }
 
 
@@ -1643,14 +1794,99 @@ static inline void rotateJac3(mjtNum* restrict res, const mjtNum F[9],
 }
 
 
+// general (flex/multi-body) contact instantiation (outlined off rigid fast path)
+static mjNOINLINE void instantiateContactGeneral(const mjModel* m, mjData* d, mjContact* con,
+                                                 int conid, int issparse, int ispyramid,
+                                                 mjContactScratch* scratch) {
+  int dim = con->dim, nv = m->nv;
+  mjtNum cpos[6], cmargin[6];
+
+  // lazily allocate stack scratch once for the contact loop (caller marks/frees stack)
+  if (!scratch->jac) {
+    scratch->jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+    scratch->jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
+    scratch->jacdifr = mjSTACKALLOC(d, 3*nv, mjtNum);
+    scratch->jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
+    scratch->jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
+    scratch->jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
+    scratch->jac2r = mjSTACKALLOC(d, 3*nv, mjtNum);
+    scratch->chain = issparse ? mjSTACKALLOC(d, nv, int) : NULL;
+  }
+
+  mjtNum* jac = scratch->jac;
+  mjtNum* jacdifp = scratch->jacdifp;
+  mjtNum* jacdifr = scratch->jacdifr;
+  int* chain = scratch->chain;
+
+  int NV = mj_contactJacobian(m, d, con, dim, jacdifp, jacdifr,
+                              scratch->jac1p, scratch->jac2p,
+                              scratch->jac1r, scratch->jac2r, chain);
+
+  // skip contact if no DOFs affected
+  if (NV == 0) {
+    con->efc_address = -1;
+    con->exclude = 3;
+    return;
+  }
+
+  // rotate Jacobian differences to contact frame
+  rotateJac3(jac, con->frame, jacdifp, dim > 1 ? 3 : 1, NV);
+  if (dim > 3) {
+    rotateJac3(jac + 3*NV, con->frame, jacdifr, dim-3, NV);
+  }
+
+  // make frictionless contact
+  if (dim == 1) {
+    // add constraint
+    mj_addConstraint(m, d, jac, &(con->dist), &(con->includemargin), 0,
+                     1, mjCNSTR_CONTACT_FRICTIONLESS, conid,
+                     issparse ? NV : 0,
+                     issparse ? chain : NULL);
+  }
+
+  // make pyramidal friction cone
+  else if (ispyramid) {
+    // pos = dist
+    cpos[0] = cpos[1] = con->dist;
+    cmargin[0] = cmargin[1] = con->includemargin;
+
+    // one pair per friction dimension
+    for (int k=1; k < con->dim; k++) {
+      // Jacobian for pair of opposing pyramid edges
+      mju_addScl(jacdifp, jac, jac + k*NV, con->friction[k-1], NV);
+      mju_addScl(jacdifp + NV, jac, jac + k*NV, -con->friction[k-1], NV);
+
+      // add constraint
+      mj_addConstraint(m, d, jacdifp, cpos, cmargin, 0,
+                       2, mjCNSTR_CONTACT_PYRAMIDAL, conid,
+                       issparse ? NV : 0,
+                       issparse ? chain : NULL);
+    }
+  }
+
+  // make elliptic friction cone
+  else {
+    // normal pos = dist, all others 0
+    mju_zero(cpos, con->dim);
+    mju_zero(cmargin, con->dim);
+    cpos[0] = con->dist;
+    cmargin[0] = con->includemargin;
+
+    // add constraint
+    mj_addConstraint(m, d, jac, cpos, cmargin, 0,
+                     con->dim, mjCNSTR_CONTACT_ELLIPTIC, conid,
+                     issparse ? NV : 0,
+                     issparse ? chain : NULL);
+  }
+}
+
+
 // dense single-body-per-side contact instantiation: fuse Jacobian walk, frame rotation, and cone
 static void instantiateContactDense(const mjModel* m, mjData* d, const mjContact* con,
                                     int conid, const int bid[2], int ispyramid) {
   int nv = m->nv, dim = con->dim, nefc = d->nefc;
-  int b1 = m->body_weldid[bid[0]];
-  int b2 = m->body_weldid[bid[1]];
-  int da1 = m->body_dofnum[b1] ? m->body_dofadr[b1] + m->body_dofnum[b1] - 1 : -1;
-  int da2 = m->body_dofnum[b2] ? m->body_dofadr[b2] + m->body_dofnum[b2] - 1 : -1;
+  int da1 = bodyLastDof(m, bid[0]);
+  int da2 = bodyLastDof(m, bid[1]);
 
   mjtNum offset1[3], offset2[3];
   if (da1 >= 0) {
@@ -1660,17 +1896,7 @@ static void instantiateContactDense(const mjModel* m, mjData* d, const mjContact
     mji_sub3(offset2, con->pos, d->subtree_com + 3*m->body_rootid[bid[1]]);
   }
 
-  int nrows, type;
-  if (dim == 1) {
-    nrows = 1;
-    type = mjCNSTR_CONTACT_FRICTIONLESS;
-  } else if (ispyramid) {
-    nrows = 2*(dim - 1);
-    type = mjCNSTR_CONTACT_PYRAMIDAL;
-  } else {
-    nrows = dim;
-    type = mjCNSTR_CONTACT_ELLIPTIC;
-  }
+  int type, nrows = contactRowInfo(&type, dim, ispyramid);
 
   // zero output rows once; only affected non-common ancestor DOFs are written
   mjtNum* J = d->efc_J + nefc*nv;
@@ -1744,40 +1970,365 @@ static void instantiateContactDense(const mjModel* m, mjData* d, const mjContact
   }
 
   // set constraint metadata
-  if (type == mjCNSTR_CONTACT_ELLIPTIC) {
-    d->efc_pos[nefc] = con->dist;
-    d->efc_margin[nefc] = con->includemargin;
-    for (int r=1; r < nrows; r++) {
-      d->efc_pos[nefc+r] = 0;
-      d->efc_margin[nefc+r] = 0;
+  setContactMeta(d, con, conid, nefc, nrows, type);
+  d->nefc = nefc + nrows;
+}
+
+
+// write one simple body's DOFs into shifted J and ind (outlined to keep slider loop small)
+static mjNOINLINE void writeContactSimpleSide(mjtNum* restrict J, int* restrict ind, int NV,
+                                              int body, const mjtNum F[9],
+                                              const mjContactCtx* ctx) {
+  const mjModel* m = ctx->m;
+  const mjData* d = ctx->d;
+  const mjContact* con = ctx->con;
+  const mjtNum* cdof_all = d->cdof;
+  int adr = m->body_dofadr[body];
+  int n = m->body_dofnum[body];
+  int dim = con->dim, ispyramid = ctx->ispyramid;
+
+  // simple body has contiguous own DOFs
+  for (int k=0; k < n; k++) {
+    ind[k] = adr + k;
+  }
+
+  // simple slider body with dim > 1: angular cdof is zero, so jp = cdof[3..5] and jr = 0
+  if (m->body_simple[body] == 2) {
+    mjtNum jr[3] = {0, 0, 0};
+    for (int k=0; k < n; k++) {
+      writeContactDof(J, NV, k, F, con, ispyramid, cdof_all + 6*(adr+k) + 3, jr);
     }
-  } else {
+    return;
+  }
+
+  // compute point-to-com offset
+  mjtNum offset[3];
+  mji_sub3(offset, con->pos, d->subtree_com + 3*m->body_rootid[body]);
+
+  // freejoint body: first 3 DOFs have jp = I_3 and jr = 0, so F * jp = F
+  int k0 = 0;
+  if (m->body_jntnum[body] == 1 && m->jnt_type[m->body_jntadr[body]] == mjJNT_FREE) {
+    k0 = 3;
+
+    // frictionless contact
+    if (dim == 1) {
+      mji_copy3(J, F);
+    }
+
+    // pyramidal friction cone
+    else if (ispyramid) {
+      mjtNum mu0 = con->friction[0], mu1 = con->friction[1];
+      for (int k=0; k < 3; k++) {
+        mjtNum j0 = F[k], j1 = F[3+k], j2 = F[6+k];
+        J[0*NV+k] = j0 + j1*mu0;
+        J[1*NV+k] = j0 + j1*(-mu0);
+        J[2*NV+k] = j0 + j2*mu1;
+        J[3*NV+k] = j0 + j2*(-mu1);
+        for (int r=3; r < dim; r++) {
+          J[(2*r-2)*NV+k] = j0;
+          J[(2*r-1)*NV+k] = j0;
+        }
+      }
+    }
+
+    // elliptic friction cone
+    else {
+      mji_copy3(J, F);
+      mji_copy3(J + NV, F + 3);
+      mji_copy3(J + 2*NV, F + 6);
+      for (int r=3; r < dim; r++) {
+        mji_zero3(J + r*NV);
+      }
+    }
+  }
+
+  // remaining simple-body DOFs (freejoint rotational 3..5, hinge, ball)
+  if (dim == 3) {
+    for (int k=k0; k < n; k++) {
+      mjtNum jp[3];
+      computeContactDof(jp, cdof_all + 6*(adr+k), offset);
+      writeContactDof3(J, NV, k, F, con->friction, ispyramid, jp);
+    }
+  }
+
+  // general dim path (dim == 1, 4, 6)
+  else {
+    for (int k=k0; k < n; k++) {
+      const mjtNum* cdof = cdof_all + 6*(adr+k);
+      mjtNum jp[3];
+      computeContactDof(jp, cdof, offset);
+      writeContactDof(J, NV, k, F, con, ispyramid, jp, cdof);
+    }
+  }
+}
+
+
+// write articulated ancestor chain into shifted J and ind (outlined off simple-body fast path)
+static mjNOINLINE void writeContactChainSparse(mjtNum* restrict J, int* restrict ind, int NV,
+                                               int n, int body, const mjtNum F[9],
+                                               const mjContactCtx* ctx) {
+  const mjModel* m = ctx->m;
+  const mjData* d = ctx->d;
+  const mjContact* con = ctx->con;
+  const mjtNum* cdof_all = d->cdof;
+  const int* dof_parentid = m->dof_parentid;
+  int da = bodyLastDof(m, body);
+
+  mjtNum offset[3];
+  mji_sub3(offset, con->pos, d->subtree_com + 3*m->body_rootid[body]);
+
+  // walk ancestor DOFs backwards into [0, n)
+  for (int ci=n-1; ci >= 0; ci--) {
+    int dof = da;
+    da = dof_parentid[da];
+    ind[ci] = dof;
+    const mjtNum* cdof = cdof_all + 6*dof;
+    mjtNum jp[3];
+    computeContactDof(jp, cdof, offset);
+    writeContactDof(J, NV, ci, F, con, ctx->ispyramid, jp, cdof);
+  }
+}
+
+
+// write one sparse contact side into shifted J and ind
+static inline void writeContactSideSparse(mjtNum* restrict J, int* restrict ind, int NV,
+                                          int n, int body, const mjtNum F[9],
+                                          const mjContactCtx* ctx) {
+  const mjModel* m = ctx->m;
+
+  // simple slider body with frictionless contact: direct dot product with slide axes
+  if (m->body_simple[body] == 2 && ctx->con->dim == 1) {
+    int adr = m->body_dofadr[body];
+    const mjtNum* cdof_all = ctx->d->cdof;
+    for (int k=0; k < n; k++) {
+      ind[k] = adr + k;
+      J[k] = mju_dot3(F, cdof_all + 6*(adr+k) + 3);
+    }
+    return;
+  }
+
+  // other simple bodies (freejoint, hinge, ball, frictional slider)
+  if (m->body_simple[body]) {
+    writeContactSimpleSide(J, ind, NV, body, F, ctx);
+  }
+
+  // articulated ancestor chain
+  else {
+    writeContactChainSparse(J, ind, NV, n, body, F, ctx);
+  }
+}
+
+
+// merge two same-tree ancestor chains into J and ind (outlined off cross-tree fast path)
+static mjNOINLINE int writeContactSameTreeSparse(mjtNum* restrict J, int* restrict ind,
+                                                 const int bid[2], const mjContactCtx* ctx) {
+  const mjModel* m = ctx->m;
+  const mjData* d = ctx->d;
+  const mjContact* con = ctx->con;
+  int da1 = bodyLastDof(m, bid[0]);
+  int da2 = bodyLastDof(m, bid[1]);
+  const int* dof_parentid = m->dof_parentid;
+  const mjtNum* cdof_all = d->cdof;
+
+  // count nonzeros before writing directly into CSR rows
+  int NV = sameTreeNnz(dof_parentid, da1, da2);
+  if (!NV) {
+    return 0;
+  }
+
+  mjtNum offset1[3], offset2[3], Fneg[9];
+  mji_sub3(offset1, con->pos, d->subtree_com + 3*m->body_rootid[bid[0]]);
+  mji_sub3(offset2, con->pos, d->subtree_com + 3*m->body_rootid[bid[1]]);
+  negFrame(Fneg, con->frame);
+
+  // merge descending chains backwards into [0, NV)
+  int ci = NV - 1;
+  while (da1 != da2) {
+    int dof;
+    const mjtNum* F;
+    const mjtNum* offset;
+    if (da2 > da1) {
+      dof = da2;
+      da2 = dof_parentid[da2];
+      F = con->frame;
+      offset = offset2;
+    } else {
+      dof = da1;
+      da1 = dof_parentid[da1];
+      F = Fneg;
+      offset = offset1;
+    }
+    ind[ci] = dof;
+    const mjtNum* cdof = cdof_all + 6*dof;
+    mjtNum jp[3];
+    computeContactDof(jp, cdof, offset);
+    writeContactDof(J, NV, ci, F, con, ctx->ispyramid, jp, cdof);
+    ci--;
+  }
+  return NV;
+}
+
+
+// copy first row's column indices across rows 1..nrows-1 (outlined for dim > 3)
+static mjNOINLINE void copyContactColindMany(int* restrict ind, int NV, int nrows) {
+  for (int r=1; r < nrows; r++) {
+    mju_copyInt(ind + r*NV, ind, NV);
+  }
+}
+
+
+// duplicate first row's column indices across rows 1..nrows-1 of a sparse contact block
+static inline void copyContactColind(int* restrict ind, int NV, int nrows) {
+  // single row: nothing to duplicate
+  if (nrows == 1) {
+    return;
+  }
+
+  // elliptic dim == 3 (3 rows)
+  else if (nrows == 3) {
+    int* restrict ind1 = ind + NV;
+    int* restrict ind2 = ind + 2*NV;
+    for (int k=0; k < NV; k++) {
+      int c = ind[k];
+      ind1[k] = c;
+      ind2[k] = c;
+    }
+  }
+
+  // pyramidal dim == 3 (4 rows)
+  else if (nrows == 4) {
+    int* restrict ind1 = ind + NV;
+    int* restrict ind2 = ind + 2*NV;
+    int* restrict ind3 = ind + 3*NV;
+    for (int k=0; k < NV; k++) {
+      int c = ind[k];
+      ind1[k] = c;
+      ind2[k] = c;
+      ind3[k] = c;
+    }
+  }
+
+  // higher-dim contacts (dim == 4, 6)
+  else {
+    copyContactColindMany(ind, NV, nrows);
+  }
+}
+
+
+// sparse contact instantiation loop (outlined from mj_instantiateContact)
+static mjNOINLINE void instantiateContactSparse(const mjModel* m, mjData* d, int ispyramid) {
+  int ncon = d->ncon;
+  int nefc = d->nefc;
+  int adr0 = nefc ? d->efc_J_rowadr[nefc-1] + d->efc_J_rownnz[nefc-1] : 0;
+
+  // zero jac sentinel only (avoids = {0} YMM stores on rigid path; rest set on first use)
+  mjContactScratch scratch;
+  scratch.jac = NULL;
+
+  // find contacts to be included
+  for (int i=0; i < ncon; i++) {
+    mjContact* con = d->contact + i;
+    if (con->exclude) {
+      continue;
+    }
+
+    // flex or multi-body contact
+    int bid[2];
+    if (!contactSingleBody(m, con, bid)) {
+      if (!scratch.jac) {
+        mj_markStack(d);
+      }
+      d->nefc = nefc;
+      con->efc_address = nefc;
+      instantiateContactGeneral(m, d, con, i, /*issparse=*/1, ispyramid, &scratch);
+      nefc = d->nefc;
+      adr0 = nefc ? d->efc_J_rowadr[nefc-1] + d->efc_J_rownnz[nefc-1] : 0;
+      continue;
+    }
+
+    // skip contacts between welded or static bodies
+    if (noDofs(m, bid, 2)) {
+      con->efc_address = -1;
+      con->exclude = 3;
+      continue;
+    }
+
+    int type, nrows = contactRowInfo(&type, con->dim, ispyramid);
+    mjtNum* J = d->efc_J + adr0;
+    int* ind = d->efc_J_colind + adr0;
+    int t1 = m->body_treeid[bid[0]];
+    int t2 = m->body_treeid[bid[1]];
+    mjContactCtx ctx = {m, d, con, ispyramid};
+    int NV;
+
+    // different trees (or static/world side): DOF intervals are disjoint and ordered by treeid
+    if (t1 != t2) {
+      int n1 = contactSideNnz(m, bid[0]);
+      int n2 = contactSideNnz(m, bid[1]);
+      NV = n1 + n2;
+
+      // place lower-treeid side first so column indices stay ascending
+      int s1 = t1 < t2 ? 0 : n2;
+      int s2 = t2 < t1 ? 0 : n1;
+      if (n1) {
+        mjtNum Fneg[9];
+        negFrame(Fneg, con->frame);
+        writeContactSideSparse(J+s1, ind+s1, NV, n1, bid[0], Fneg, &ctx);
+      }
+      if (n2) {
+        writeContactSideSparse(J+s2, ind+s2, NV, n2, bid[1], con->frame, &ctx);
+      }
+    }
+
+    // same tree (self-collision): merge descending chains backwards to common ancestor
+    else {
+      NV = writeContactSameTreeSparse(J, ind, bid, &ctx);
+    }
+
+    // skip contact if no DOFs affected
+    if (!NV) {
+      con->efc_address = -1;
+      con->exclude = 3;
+      continue;
+    }
+
+    // set CSR row descriptors and duplicate column indices across remaining rows
+    con->efc_address = nefc;
     for (int r=0; r < nrows; r++) {
-      d->efc_pos[nefc+r] = con->dist;
-      d->efc_margin[nefc+r] = con->includemargin;
+      d->efc_J_rowadr[nefc+r] = adr0 + r*NV;
+      d->efc_J_rownnz[nefc+r] = NV;
     }
+    copyContactColind(ind, NV, nrows);
+
+    // set constraint metadata
+    setContactMeta(d, con, i, nefc, nrows, type);
+    nefc += nrows;
+    adr0 += nrows*NV;
   }
-  for (int r=0; r < nrows; r++) {
-    d->efc_frictionloss[nefc+r] = 0;
-    d->efc_type[nefc+r] = type;
-    d->efc_id[nefc+r] = conid;
+
+  d->nefc = nefc;
+  if (scratch.jac) {
+    mj_freeStack(d);
   }
-  d->nefc += nrows;
 }
 
 
 // frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d) {
-  int ispyramid = mj_isPyramidal(m), issparse = mj_isSparse(m), ncon = d->ncon;
-  int dim, NV, nv = m->nv, *chain = NULL;
-  mjContact* con;
-  mjtNum cpos[6], cmargin[6];
-  mjtNum *jac = NULL, *jacdifp = NULL, *jacdifr = NULL;
-  mjtNum *jac1p = NULL, *jac2p = NULL, *jac1r = NULL, *jac2r = NULL;
-
-  if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || nv == 0) {
+  int ncon = d->ncon;
+  if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || m->nv == 0) {
     return;
   }
+
+  int ispyramid = mj_isPyramidal(m);
+  if (mj_isSparse(m)) {
+    instantiateContactSparse(m, d, ispyramid);
+    return;
+  }
+
+  // zero jac sentinel only (avoids = {0} YMM stores on rigid path; rest set on first use)
+  mjContactScratch scratch;
+  scratch.jac = NULL;
 
   // find contacts to be included
   for (int i=0; i < ncon; i++) {
@@ -1786,13 +2337,12 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     }
 
     // get contact info, save efc_address
-    con = d->contact + i;
-    dim = con->dim;
+    mjContact* con = d->contact + i;
     con->efc_address = d->nefc;
 
     // dense single-body-per-side fast path: bypass scratch buffers and mju_mulMatMat
     int bid[2];
-    if (!issparse && contactSingleBody(m, con, bid)) {
+    if (contactSingleBody(m, con, bid)) {
       if (noDofs(m, bid, 2)) {
         con->efc_address = -1;
         con->exclude = 3;
@@ -1802,83 +2352,14 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // lazily allocate stack scratch for sparse or flex contacts
-    if (!jac) {
+    // flex or multi-body contact
+    if (!scratch.jac) {
       mj_markStack(d);
-      jac = mjSTACKALLOC(d, 6*nv, mjtNum);
-      jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
-      jacdifr = mjSTACKALLOC(d, 3*nv, mjtNum);
-      jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
-      jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
-      jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
-      jac2r = mjSTACKALLOC(d, 3*nv, mjtNum);
-      if (issparse) {
-        chain = mjSTACKALLOC(d, nv, int);
-      }
     }
-
-    NV = mj_contactJacobian(m, d, con, dim, jacdifp, jacdifr,
-                            jac1p, jac2p, jac1r, jac2r, chain);
-
-    // skip contact if no DOFs affected
-    if (NV == 0) {
-      con->efc_address = -1;
-      con->exclude = 3;
-      continue;
-    }
-
-    // rotate Jacobian differences to contact frame
-    rotateJac3(jac, con->frame, jacdifp, dim > 1 ? 3 : 1, NV);
-    if (dim > 3) {
-      rotateJac3(jac + 3*NV, con->frame, jacdifr, dim-3, NV);
-    }
-
-    // make frictionless contact
-    if (dim == 1) {
-      // add constraint
-      mj_addConstraint(m, d, jac, &(con->dist), &(con->includemargin), 0,
-                       1, mjCNSTR_CONTACT_FRICTIONLESS, i,
-                       issparse ? NV : 0,
-                       issparse ? chain : NULL);
-    }
-
-    // make pyramidal friction cone
-    else if (ispyramid) {
-      // pos = dist
-      cpos[0] = cpos[1] = con->dist;
-      cmargin[0] = cmargin[1] = con->includemargin;
-
-      // one pair per friction dimension
-      for (int k=1; k < con->dim; k++) {
-        // Jacobian for pair of opposing pyramid edges
-        mju_addScl(jacdifp, jac, jac + k*NV, con->friction[k-1], NV);
-        mju_addScl(jacdifp + NV, jac, jac + k*NV, -con->friction[k-1], NV);
-
-        // add constraint
-        mj_addConstraint(m, d, jacdifp, cpos, cmargin, 0,
-                         2, mjCNSTR_CONTACT_PYRAMIDAL, i,
-                         issparse ? NV : 0,
-                         issparse ? chain : NULL);
-      }
-    }
-
-    // make elliptic friction cone
-    else {
-      // normal pos = dist, all others 0
-      mju_zero(cpos, con->dim);
-      mju_zero(cmargin, con->dim);
-      cpos[0] = con->dist;
-      cmargin[0] = con->includemargin;
-
-      // add constraint
-      mj_addConstraint(m, d, jac, cpos, cmargin, 0,
-                       con->dim, mjCNSTR_CONTACT_ELLIPTIC, i,
-                       issparse ? NV : 0,
-                       issparse ? chain : NULL);
-    }
+    instantiateContactGeneral(m, d, con, i, /*issparse=*/0, ispyramid, &scratch);
   }
 
-  if (jac) {
+  if (scratch.jac) {
     mj_freeStack(d);
   }
 }

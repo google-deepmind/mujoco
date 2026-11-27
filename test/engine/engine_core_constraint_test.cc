@@ -2781,8 +2781,8 @@ void ExpectContactRowsMatchReference(const mjModel* m, const mjData* d,
       std::memcpy(actual_row.data(), d->efc_J + er * nv, nv * sizeof(mjtNum));
     }
 
-    // use EXPECT_EQ rather than memcmp because signed zeros (+0.0 vs -0.0)
-    // can differ on zero entries
+    // use EXPECT_EQ rather than memcmp because negFrame and the freejoint I_3
+    // copy can preserve -0.0 where mju_mulMatMat sums produce +0.0
     for (int col = 0; col < nv; ++col) {
       EXPECT_EQ(actual_row[col], ref_J[r * nv + col])
           << "jac=" << jac_mode << " condim=" << condim << " cone=" << cone
@@ -2791,8 +2791,139 @@ void ExpectContactRowsMatchReference(const mjModel* m, const mjData* d,
   }
 }
 
+TEST_F(CoreConstraintTest, ContactInstantiationMatchesReferenceExact) {
+  // covers: simple sliders (body_simple == 2), freejoints (body_simple == 1),
+  // simple ball (body_simple == 1), deep articulated chains (>= 6 DOFs),
+  // same-tree self-collision, cross-tree, welded child, and welded-pair
+  // zero-DOF exclusion (exclude == 3)
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="5 5 .1"/>
+      <body name="slider1" pos="-1 0 .09">
+        <joint type="slide" axis="1 0 0"/>
+        <joint type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+      <body name="slider2" pos="-0.85 0 .09">
+        <joint type="slide" axis="1 0 0"/>
+        <joint type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+      <body name="free1" pos="0 0 .09">
+        <freejoint/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+      <body name="free2" pos=".15 0 .09">
+        <freejoint/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+      <body name="simple_ball" pos="-.35 0 .09">
+        <joint type="ball"/>
+        <geom type="sphere" size=".1" mass="1"/>
+      </body>
+      <body name="chain_root" pos=".4 0 .15">
+        <freejoint/>
+        <geom type="sphere" size=".16" mass="1"/>
+        <body name="link1" pos=".05 0 0">
+          <inertial pos="0 0 0" mass=".2" diaginertia=".01 .01 .01"/>
+          <joint type="hinge" axis="0 1 0"/>
+          <body name="link2" pos=".05 0 0">
+            <inertial pos="0 0 0" mass=".2" diaginertia=".01 .01 .01"/>
+            <joint type="hinge" axis="1 0 0"/>
+            <body name="link3" pos=".05 0 0">
+              <inertial pos="0 0 0" mass=".2" diaginertia=".01 .01 .01"/>
+              <joint type="hinge" axis="0 0 1"/>
+              <body name="link4" pos=".05 0 0">
+                <joint type="hinge" axis="0 1 0"/>
+                <geom name="g_link4" type="sphere" size=".16" mass=".5"/>
+                <body name="welded_leaf" pos=".03 0 0">
+                  <geom name="g_leaf" type="sphere" size=".14" mass=".2"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+        <body name="branch2" pos=".18 0 0">
+          <joint type="hinge" axis="1 0 0"/>
+          <joint type="hinge" axis="0 1 0"/>
+          <geom type="sphere" size=".16" mass=".5"/>
+        </body>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="g_link4" geom2="g_leaf"/>
+    </contact>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+
+  // verify every body class compiled with the expected body_simple level
+  int b_slider1 = mj_name2id(m.get(), mjOBJ_BODY, "slider1");
+  int b_free1 = mj_name2id(m.get(), mjOBJ_BODY, "free1");
+  int b_ball = mj_name2id(m.get(), mjOBJ_BODY, "simple_ball");
+  int b_leaf = mj_name2id(m.get(), mjOBJ_BODY, "welded_leaf");
+  EXPECT_EQ(m->body_simple[b_slider1], 2);
+  EXPECT_EQ(m->body_simple[b_free1], 1);
+  EXPECT_EQ(m->body_simple[b_ball], 1);
+  EXPECT_EQ(m->body_simple[b_leaf], 0);
+
+  std::vector<mjtNum> vel(m->nv);
+  for (int v = 0; v < m->nv; ++v) {
+    vel[v] = 0.2 * ((v % 5) - 2);
+  }
+
+  for (int jac_mode : {mjJAC_SPARSE, mjJAC_DENSE}) {
+    m->opt.jacobian = jac_mode;
+    for (int condim : {1, 3, 4, 6}) {
+      for (int g = 0; g < m->ngeom; ++g) {
+        m->geom_condim[g] = condim;
+      }
+      for (int cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+        m->opt.cone = cone;
+        MjDataPtr d = MakeData(m);
+        mj_integratePos(m.get(), d->qpos, vel.data(), 0.05);
+        mj_forward(m.get(), d.get());
+        ASSERT_GE(d->ncon, 8)
+            << "jac=" << jac_mode << " condim=" << condim << " cone=" << cone;
+
+        int ispyramid = mj_isPyramidal(m.get());
+        int checked_contacts = 0;
+        int excluded_nodof = 0;
+        for (int c = 0; c < d->ncon; ++c) {
+          const mjContact& con = d->contact[c];
+          if (con.exclude && con.exclude != 3) {
+            continue;
+          }
+          int ref_nrows = 0;
+          std::vector<mjtNum> ref_J = ReferenceContactRows(
+              m.get(), d.get(), &con, ispyramid, &ref_nrows);
+          if (ref_nrows == 0) {
+            EXPECT_EQ(con.efc_address, -1);
+            EXPECT_EQ(con.exclude, 3);
+            excluded_nodof++;
+            continue;
+          }
+          ASSERT_GE(con.efc_address, 0);
+          checked_contacts++;
+          ExpectContactRowsMatchReference(m.get(), d.get(), c, ref_J, ref_nrows,
+                                          jac_mode, condim, cone);
+        }
+        EXPECT_GE(checked_contacts, 7);
+        EXPECT_GE(excluded_nodof, 1);
+      }
+    }
+  }
+}
+
 TEST_F(CoreConstraintTest, FlexContactMatchesReferenceExact) {
-  // exercises rotateJac3 for flex contacts across dim 1, 3, 4, 6
+  // exercises instantiateContactGeneral, lazy mjContactScratch reuse, and
+  // rotateJac3 for dim 1, 3, 4, 6
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
