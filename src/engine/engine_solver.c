@@ -1662,6 +1662,16 @@ void mj_solNoSlip_island(const mjModel* m, mjData* d, int island, int maxiter) {
 
 //------------------------- Primal solvers ---------------------------------------------------------
 
+// max number of pre-scanned elliptic/scalar runs in mjPrimalContext
+#define mjMAXCONERUNS 64
+
+// contiguous run in [efc_cone_start, nefc): dim is 3/4/6 for 4-wide elliptic, 0 for scalar
+typedef struct {
+  int start;
+  int end;
+  int dim;
+} mjConeRun;
+
 // Primal context
 typedef struct {
   int is_sparse;          // 1: sparse, 0: dense
@@ -1724,9 +1734,9 @@ typedef struct {
   mjtNum* search;         // linesearch vector                            (nv x 1)
   mjtNum* quad;           // quadratic polynomials for constraint costs   (nefc x 3)
   int* oldstate;          // previous constraint state                    (nefc x 1)
-  int efc_cone_start;     // first elliptic contact row, or nefc if none
-  int efc_cone3_start;    // start of 4-wide contiguous dim=3 elliptic contacts
-  int efc_cone3_end;      // end of 4-wide contiguous dim=3 elliptic contacts
+  int efc_cone_start;                  // first elliptic contact row, or nefc if none
+  int ncone_runs;                      // number of runs in [efc_cone_start, nefc)
+  mjConeRun cone_runs[mjMAXCONERUNS];  // pre-scanned 4-wide elliptic and scalar runs
 
   // CG arrays (PrimalAllocate, CG only)
   mjtNum* gradold;        // previous gradient                            (nv x 1)
@@ -1821,17 +1831,58 @@ typedef struct {
 } mjPrimalContext;
 
 
-// return 1 if 4 contiguous dim=3 elliptic contacts start at pos
-static inline int isFourDim3Elliptic(const mjPrimalContext* ctx, int pos) {
-  return pos + 12 <= ctx->nefc &&
-         ctx->efc_type[pos+0] == mjCNSTR_CONTACT_ELLIPTIC &&
-         ctx->contact[ctx->efc_id[pos+0]].dim == 3 &&
-         ctx->efc_type[pos+3] == mjCNSTR_CONTACT_ELLIPTIC &&
-         ctx->contact[ctx->efc_id[pos+3]].dim == 3 &&
-         ctx->efc_type[pos+6] == mjCNSTR_CONTACT_ELLIPTIC &&
-         ctx->contact[ctx->efc_id[pos+6]].dim == 3 &&
-         ctx->efc_type[pos+9] == mjCNSTR_CONTACT_ELLIPTIC &&
-         ctx->contact[ctx->efc_id[pos+9]].dim == 3;
+// return dim (3, 4, or 6) if 4 contiguous elliptic contacts of that dim start at pos, else 0
+static inline int matchConeBatch4(const mjPrimalContext* ctx, int pos) {
+  if (ctx->efc_type[pos] != mjCNSTR_CONTACT_ELLIPTIC) {
+    return 0;
+  }
+  int dim = ctx->contact[ctx->efc_id[pos]].dim;
+  if ((dim != 3 && dim != 4 && dim != 6) || pos + 4*dim > ctx->nefc) {
+    return 0;
+  }
+  if (ctx->efc_type[pos+1*dim] == mjCNSTR_CONTACT_ELLIPTIC &&
+      ctx->contact[ctx->efc_id[pos+1*dim]].dim == dim &&
+      ctx->efc_type[pos+2*dim] == mjCNSTR_CONTACT_ELLIPTIC &&
+      ctx->contact[ctx->efc_id[pos+2*dim]].dim == dim &&
+      ctx->efc_type[pos+3*dim] == mjCNSTR_CONTACT_ELLIPTIC &&
+      ctx->contact[ctx->efc_id[pos+3*dim]].dim == dim) {
+    return dim;
+  }
+  return 0;
+}
+
+
+// partition [efc_cone_start, nefc) into 4-wide dim=3/4/6 elliptic runs and scalar runs
+static void scanConeRuns(mjPrimalContext* ctx) {
+  int nruns = 0, pos = ctx->efc_cone_start, nefc = ctx->nefc;
+  while (pos < nefc) {
+    // last slot absorbs any remaining rows as a scalar run
+    if (nruns == mjMAXCONERUNS - 1) {
+      ctx->cone_runs[nruns++] = (mjConeRun){pos, nefc, 0};
+      break;
+    }
+
+    // 4-wide batched elliptic run (dim 3, 4, or 6)
+    int dim = matchConeBatch4(ctx, pos);
+    if (dim) {
+      int start = pos;
+      do {
+        pos += 4*dim;
+      } while (pos < nefc && matchConeBatch4(ctx, pos) == dim);
+      ctx->cone_runs[nruns++] = (mjConeRun){start, pos, dim};
+    }
+
+    // scalar run: merge non-batched rows until the next 4-wide batch
+    else {
+      int start = pos;
+      do {
+        pos += (ctx->efc_type[pos] == mjCNSTR_CONTACT_ELLIPTIC)
+                   ? ctx->contact[ctx->efc_id[pos]].dim : 1;
+      } while (pos < nefc && !matchConeBatch4(ctx, pos));
+      ctx->cone_runs[nruns++] = (mjConeRun){start, pos, 0};
+    }
+  }
+  ctx->ncone_runs = nruns;
 }
 
 
@@ -1938,10 +1989,9 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     }
   }
 
-  // check whether any elliptic contact constraint is actually present and find 4-wide dim=3 span
+  // check whether any elliptic contact constraint is actually present and partition cone runs
   ctx->efc_cone_start = ctx->nefc;
-  ctx->efc_cone3_start = ctx->nefc;
-  ctx->efc_cone3_end = ctx->nefc;
+  ctx->ncone_runs = 0;
   if (ctx->is_elliptic) {
     int has_elliptic = 0;
     if (d->ncon > 0) {
@@ -1955,22 +2005,7 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     }
     ctx->is_elliptic = has_elliptic;
     if (has_elliptic) {
-      int pos = ctx->efc_cone_start;
-      int start = pos, end = pos;
-      while (pos + 12 <= ctx->nefc) {
-        if (isFourDim3Elliptic(ctx, pos)) {
-          start = pos;
-          do {
-            pos += 12;
-          } while (isFourDim3Elliptic(ctx, pos));
-          end = pos;
-          break;
-        }
-        pos += (ctx->efc_type[pos] == mjCNSTR_CONTACT_ELLIPTIC)
-                   ? ctx->contact[ctx->efc_id[pos]].dim : 1;
-      }
-      ctx->efc_cone3_start = start;
-      ctx->efc_cone3_end = end;
+      scanConeRuns(ctx);
     }
   }
 }
@@ -2534,23 +2569,64 @@ static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
 }
 
 
-// 36-element SoA layout in ctx->quad + 3*i for 4 contiguous dim=3 elliptic contacts (4*3*3 = 36)
+// SoA layout in ctx->quad + 3*i for 4 contiguous dim=3/4/6 elliptic contacts
+//  (dim=3 uses 36/36, dim=4 uses 40/48, dim=6 uses 48/72 mjtNums)
 enum {
   CONE4_Q0 = 0,  CONE4_Q1 = 4,  CONE4_Q2 = 8,
   CONE4_U0 = 12, CONE4_T0 = 16, CONE4_DM = 20,
-  CONE4_MU = 24, CONE4_F0 = 28, CONE4_F1 = 32
+  CONE4_MU = 24, CONE4_F0 = 28, CONE4_F1 = 32,
+  CONE4_F2 = 36, CONE4_F3 = 40, CONE4_F4 = 44
 };
 
 
-// 4-wide batched preparation for contiguous dim=3 elliptic contacts
-static void PrimalPrepareElliptic4(mjPrimalContext* ctx) {
+// load and deinterleave 4 contiguous 4-row contacts into 4 vectors
+static inline void load4x4(mjtNum4 dst[4], const mjtNum* src) {
+  dst[0] = v4_load(src+0);
+  dst[1] = v4_load(src+4);
+  dst[2] = v4_load(src+8);
+  dst[3] = v4_load(src+12);
+  v4_transpose(&dst[0], &dst[1], &dst[2], &dst[3]);
+}
+
+
+// load and deinterleave 4 contiguous 6-row contacts into 6 vectors
+static inline void load4x6(mjtNum4 dst[6], const mjtNum* src) {
+  dst[0] = v4_load(src+0);
+  dst[1] = v4_load(src+6);
+  dst[2] = v4_load(src+12);
+  dst[3] = v4_load(src+18);
+  v4_transpose(&dst[0], &dst[1], &dst[2], &dst[3]);
+  dst[4] = v4_set(src[4], src[10], src[16], src[22]);
+  dst[5] = v4_set(src[5], src[11], src[17], src[23]);
+}
+
+
+// compute and store shared cone4 header fields (Q0..Q2, U0, T0, Dm, mu)
+static inline void storeCone4Header(mjtNum* w, mjtNum4 vq0, mjtNum4 vq1, mjtNum4 vq2,
+                                    mjtNum4 J0, mjtNum4 D0, mjtNum4 vUU, mjtNum4 vmu) {
   mjtNum4 vhalf = v4_splat(0.5);
-  mjtNum4 vone = v4_splat(1);
-  for (int i = ctx->efc_cone3_start; i < ctx->efc_cone3_end; i += 12) {
+  mjtNum4 vone  = v4_splat(1);
+  mjtNum4 vU0   = v4_mul(J0, vmu);
+  mjtNum4 vT0   = v4_sqrt(vUU);
+  mjtNum4 mu2   = v4_mul(vmu, vmu);
+  mjtNum4 vDm   = v4_div(D0, v4_mul(mu2, v4_add(vone, mu2)));
+  v4_store(w+CONE4_Q0, v4_mul(vhalf, vq0));
+  v4_store(w+CONE4_Q1, vq1);
+  v4_store(w+CONE4_Q2, v4_mul(vhalf, vq2));
+  v4_store(w+CONE4_U0, vU0);
+  v4_store(w+CONE4_T0, vT0);
+  v4_store(w+CONE4_DM, vDm);
+  v4_store(w+CONE4_MU, vmu);
+}
+
+
+// 4-wide batched preparation for contiguous dim=3 elliptic contacts [start, end)
+static void PrimalPrepareElliptic3(mjPrimalContext* ctx, int start, int end) {
+  for (int i = start; i < end; i += 12) {
     mjtNum4 J0, J1, J2, K0, K1, K2, D0, D1, D2;
-    v4_load4x3(ctx->Jaref + i, &J0, &J1, &J2);
-    v4_load4x3(ctx->Jv + i, &K0, &K1, &K2);
-    v4_load4x3(ctx->efc_D + i, &D0, &D1, &D2);
+    v4_load4x3(ctx->Jaref+i, &J0, &J1, &J2);
+    v4_load4x3(ctx->Jv+i, &K0, &K1, &K2);
+    v4_load4x3(ctx->efc_D+i, &D0, &D1, &D2);
 
     const mjContact* c0 = ctx->contact + ctx->efc_id[i+0];
     const mjContact* c1 = ctx->contact + ctx->efc_id[i+3];
@@ -2565,85 +2641,102 @@ static void PrimalPrepareElliptic4(mjPrimalContext* ctx) {
     mjtNum4 DJ0 = v4_mul(D0, J0);
     mjtNum4 DJ1 = v4_mul(D1, J1);
     mjtNum4 DJ2 = v4_mul(D2, J2);
-    mjtNum4 vq0 = v4_mul(vhalf, v4_add(v4_add(v4_mul(J0, DJ0), v4_mul(J1, DJ1)),
-                                       v4_mul(J2, DJ2)));
+    mjtNum4 vq0 = v4_add(v4_add(v4_mul(J0, DJ0), v4_mul(J1, DJ1)), v4_mul(J2, DJ2));
     mjtNum4 vq1 = v4_add(v4_add(v4_mul(K0, DJ0), v4_mul(K1, DJ1)), v4_mul(K2, DJ2));
-    mjtNum4 vq2 = v4_mul(vhalf, v4_add(v4_add(v4_mul(v4_mul(K0, D0), K0),
-                                              v4_mul(v4_mul(K1, D1), K1)),
-                                       v4_mul(v4_mul(K2, D2), K2)));
+    mjtNum4 vq2 = v4_add(v4_add(v4_mul(v4_mul(K0, D0), K0), v4_mul(v4_mul(K1, D1), K1)),
+                         v4_mul(v4_mul(K2, D2), K2));
 
     // cone quantities at alpha=0 (normal U0, tangential norm T0, middle-zone metric Dm)
-    mjtNum4 vU0 = v4_mul(J0, vmu);
     mjtNum4 vU1 = v4_mul(J1, vf0);
     mjtNum4 vU2 = v4_mul(J2, vf1);
-    mjtNum4 vT0 = v4_sqrt(v4_add(v4_mul(vU1, vU1), v4_mul(vU2, vU2)));
-    mjtNum4 mu2 = v4_mul(vmu, vmu);
-    mjtNum4 vDm = v4_div(D0, v4_mul(mu2, v4_add(vone, mu2)));
+    mjtNum4 vUU = v4_add(v4_mul(vU1, vU1), v4_mul(vU2, vU2));
 
     mjtNum* w = ctx->quad + 3*i;
-    v4_store(w + CONE4_Q0, vq0);
-    v4_store(w + CONE4_Q1, vq1);
-    v4_store(w + CONE4_Q2, vq2);
-    v4_store(w + CONE4_U0, vU0);
-    v4_store(w + CONE4_T0, vT0);
-    v4_store(w + CONE4_DM, vDm);
-    v4_store(w + CONE4_MU, vmu);
-    v4_store(w + CONE4_F0, vf0);
-    v4_store(w + CONE4_F1, vf1);
+    storeCone4Header(w, vq0, vq1, vq2, J0, D0, vUU, vmu);
+    v4_store(w+CONE4_F0, vf0);
+    v4_store(w+CONE4_F1, vf1);
   }
 }
 
 
-// prepare quadratic polynomials and contact cone quantities
-static void PrimalPrepare(mjPrimalContext* ctx) {
-  int nv = ctx->nv, ne = ctx->ne, nefc = ctx->nefc;
-  const mjtNum* v = ctx->search;
-
-  // Gauss: alpha^2*0.5*v'*M*v + alpha*v'*(Ma-qfrc_smooth) + 0.5*(a-qacc_smooth)'*(Ma-qfrc_smooth)
-  //  quadGauss[0] already computed in PrimalUpdateConstraint
-  mjtNum qg1 = mju_dot(v, ctx->Ma, nv) - mju_dot(ctx->qfrc_smooth, v, nv);
-  mjtNum qg2 = 0.5*mju_dot(v, ctx->Mv, nv);
-
-  // fold alpha-invariant equality rows directly into quadGauss[1..2] once per linesearch
-  if (ne > 0) {
-    mjtNum4 vhalf = v4_splat(0.5);
-    mjtNum4 eq1_v = v4_splat(0), eq2_v = v4_splat(0);
-    int i = 0;
-    for (; i + 4 <= ne; i += 4) {
-      mjtNum4 vj0 = v4_load(ctx->Jaref + i);
-      mjtNum4 vjv = v4_load(ctx->Jv + i);
-      mjtNum4 vd  = v4_load(ctx->efc_D + i);
-      eq1_v = v4_add(eq1_v, v4_mul(vjv, v4_mul(vd, vj0)));
-      eq2_v = v4_add(eq2_v, v4_mul(vhalf, v4_mul(v4_mul(vjv, vd), vjv)));
-    }
-    qg1 += v4_sum(eq1_v);
-    qg2 += v4_sum(eq2_v);
-    for (; i < ne; i++) {
-      mjtNum Jv = ctx->Jv[i];
-      mjtNum D = ctx->efc_D[i];
-      qg1 += Jv*(D*ctx->Jaref[i]);
-      qg2 += 0.5*(Jv*D*Jv);
-    }
+// compute bottom-zone quadratic and tangential norm for 4 contiguous dim-row contacts, store header
+static mjALWAYS_INLINE void prepareConeQuad4(mjtNum* w, const mjtNum4* J, const mjtNum4* K,
+                                             const mjtNum4* D, const mjtNum4* vf,
+                                             mjtNum4 vmu, int dim) {
+  // scalar equivalent: q0 = sum(J*D*J), q1 = sum(K*D*J), q2 = sum(K*D*K), UU = sum((J*f)^2)
+  mjtNum4 DJ0 = v4_mul(D[0], J[0]);
+  mjtNum4 vq0 = v4_mul(J[0], DJ0);
+  mjtNum4 vq1 = v4_mul(K[0], DJ0);
+  mjtNum4 vq2 = v4_mul(v4_mul(K[0], D[0]), K[0]);
+  mjtNum4 vUU = v4_splat(0);
+  for (int j=1; j < dim; j++) {
+    mjtNum4 DJj = v4_mul(D[j], J[j]);
+    vq0 = v4_add(vq0, v4_mul(J[j], DJj));
+    vq1 = v4_add(vq1, v4_mul(K[j], DJj));
+    vq2 = v4_add(vq2, v4_mul(v4_mul(K[j], D[j]), K[j]));
+    mjtNum4 vUj = v4_mul(J[j], vf[j-1]);
+    vUU = v4_add(vUU, v4_mul(vUj, vUj));
   }
-  ctx->quadGauss[1] = qg1;
-  ctx->quadGauss[2] = qg2;
-
-  // fast path: no elliptic cones (unilateral rows are evaluated directly from Jaref, Jv, efc_D)
-  if (!ctx->is_elliptic) {
-    return;
+  storeCone4Header(w, vq0, vq1, vq2, J[0], D[0], vUU, vmu);
+  for (int j=0; j < dim-1; j++) {
+    v4_store(w + CONE4_F0 + 4*j, vf[j]);
   }
+}
 
-  // 4-wide batched preparation for contiguous dim=3 elliptic contacts
-  PrimalPrepareElliptic4(ctx);
 
-  // process remaining elliptic cones outside 4-wide dim=3 span
-  for (int i = ctx->efc_cone_start; i < nefc; i++) {
-    if (i == ctx->efc_cone3_start) {
-      i = ctx->efc_cone3_end;
-      if (i >= nefc) {
-        break;
-      }
-    }
+// 4-wide batched preparation for contiguous dim=4 elliptic contacts [start, end)
+//  outlined to keep PrimalPrepare's stack frame small when dim=4 contacts are absent
+static mjNOINLINE void PrimalPrepareElliptic4(mjPrimalContext* ctx, int start, int end) {
+  for (int i = start; i < end; i += 16) {
+    mjtNum4 J[4], K[4], D[4];
+    load4x4(J, ctx->Jaref+i);
+    load4x4(K, ctx->Jv+i);
+    load4x4(D, ctx->efc_D+i);
+
+    const mjContact* c0 = ctx->contact + ctx->efc_id[i+0];
+    const mjContact* c1 = ctx->contact + ctx->efc_id[i+4];
+    const mjContact* c2 = ctx->contact + ctx->efc_id[i+8];
+    const mjContact* c3 = ctx->contact + ctx->efc_id[i+12];
+
+    mjtNum4 vmu = v4_set(c0->mu, c1->mu, c2->mu, c3->mu);
+    mjtNum4 vf[4] = {v4_load3(c0->friction), v4_load3(c1->friction),
+                     v4_load3(c2->friction), v4_load3(c3->friction)};
+    v4_transpose(&vf[0], &vf[1], &vf[2], &vf[3]);
+    prepareConeQuad4(ctx->quad + 3*i, J, K, D, vf, vmu, 4);
+  }
+}
+
+
+// 4-wide batched preparation for contiguous dim=6 elliptic contacts [start, end)
+//  outlined to keep PrimalPrepare's stack frame small when dim=6 contacts are absent
+static mjNOINLINE void PrimalPrepareElliptic6(mjPrimalContext* ctx, int start, int end) {
+  for (int i = start; i < end; i += 24) {
+    mjtNum4 J[6], K[6], D[6];
+    load4x6(J, ctx->Jaref+i);
+    load4x6(K, ctx->Jv+i);
+    load4x6(D, ctx->efc_D+i);
+
+    const mjContact* c0 = ctx->contact + ctx->efc_id[i+0];
+    const mjContact* c1 = ctx->contact + ctx->efc_id[i+6];
+    const mjContact* c2 = ctx->contact + ctx->efc_id[i+12];
+    const mjContact* c3 = ctx->contact + ctx->efc_id[i+18];
+
+    mjtNum4 vmu = v4_set(c0->mu, c1->mu, c2->mu, c3->mu);
+    mjtNum4 vf[5];
+    vf[0] = v4_load(c0->friction);
+    vf[1] = v4_load(c1->friction);
+    vf[2] = v4_load(c2->friction);
+    vf[3] = v4_load(c3->friction);
+    v4_transpose(&vf[0], &vf[1], &vf[2], &vf[3]);
+    vf[4] = v4_set(c0->friction[4], c1->friction[4], c2->friction[4], c3->friction[4]);
+    prepareConeQuad4(ctx->quad + 3*i, J, K, D, vf, vmu, 6);
+  }
+}
+
+
+// scalar preparation for non-batched elliptic contacts in [start, end)
+static void PrimalPrepareEllipticScalar(mjPrimalContext* ctx, int start, int end) {
+  for (int i = start; i < end; i++) {
     if (ctx->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
       continue;
     }
@@ -2686,6 +2779,61 @@ static void PrimalPrepare(mjPrimalContext* ctx) {
     quad[0] *= 0.5;
     quad[2] *= 0.5;
     i += (dim-1);
+  }
+}
+
+
+// prepare quadratic polynomials and contact cone quantities
+static void PrimalPrepare(mjPrimalContext* ctx) {
+  int nv = ctx->nv, ne = ctx->ne;
+  const mjtNum* v = ctx->search;
+
+  // Gauss: alpha^2*0.5*v'*M*v + alpha*v'*(Ma-qfrc_smooth) + 0.5*(a-qacc_smooth)'*(Ma-qfrc_smooth)
+  //  quadGauss[0] already computed in PrimalUpdateConstraint
+  mjtNum qg1 = mju_dot(v, ctx->Ma, nv) - mju_dot(ctx->qfrc_smooth, v, nv);
+  mjtNum qg2 = 0.5*mju_dot(v, ctx->Mv, nv);
+
+  // fold alpha-invariant equality rows directly into quadGauss[1..2] once per linesearch
+  if (ne > 0) {
+    mjtNum4 vhalf = v4_splat(0.5);
+    mjtNum4 eq1_v = v4_splat(0), eq2_v = v4_splat(0);
+    int i = 0;
+    for (; i + 4 <= ne; i += 4) {
+      mjtNum4 vj0 = v4_load(ctx->Jaref + i);
+      mjtNum4 vjv = v4_load(ctx->Jv + i);
+      mjtNum4 vd  = v4_load(ctx->efc_D + i);
+      eq1_v = v4_add(eq1_v, v4_mul(vjv, v4_mul(vd, vj0)));
+      eq2_v = v4_add(eq2_v, v4_mul(vhalf, v4_mul(v4_mul(vjv, vd), vjv)));
+    }
+    qg1 += v4_sum(eq1_v);
+    qg2 += v4_sum(eq2_v);
+    for (; i < ne; i++) {
+      mjtNum Jv = ctx->Jv[i];
+      mjtNum D = ctx->efc_D[i];
+      qg1 += Jv*(D*ctx->Jaref[i]);
+      qg2 += 0.5*(Jv*D*Jv);
+    }
+  }
+  ctx->quadGauss[1] = qg1;
+  ctx->quadGauss[2] = qg2;
+
+  // fast path: no elliptic cones (unilateral rows are evaluated directly from Jaref, Jv, efc_D)
+  if (!ctx->is_elliptic) {
+    return;
+  }
+
+  // process pre-scanned 4-wide batched and scalar runs
+  for (int r=0; r < ctx->ncone_runs; r++) {
+    const mjConeRun* run = ctx->cone_runs + r;
+    if (run->dim == 3) {
+      PrimalPrepareElliptic3(ctx, run->start, run->end);
+    } else if (run->dim == 4) {
+      PrimalPrepareElliptic4(ctx, run->start, run->end);
+    } else if (run->dim == 6) {
+      PrimalPrepareElliptic6(ctx, run->start, run->end);
+    } else {
+      PrimalPrepareEllipticScalar(ctx, run->start, run->end);
+    }
   }
 }
 
@@ -2826,6 +2974,123 @@ static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu,
 }
 
 
+// 4-wide Huber cost at point vx given zone masks (m_q: quadratic, m_n: linear negative)
+static inline mjtNum4 frictionCost4(mjtNum4 vx, mjtMask4 m_q, mjtMask4 m_n,
+                                    mjtNum4 vf, mjtNum4 vhD, mjtNum4 vhRf) {
+  mjtNum4 vlin = v4_mul(vf, v4_select(m_n, v4_sub(vhRf, vx), v4_add(vhRf, vx)));
+  return v4_select(m_q, v4_mul(v4_mul(vhD, vx), vx), vlin);
+}
+
+
+// branchless 4-wide evaluation for friction rows [ne, ne+nf)
+//  outlined to keep PrimalEval's stack frame small when nf == 0
+static mjNOINLINE void PrimalEvalFriction(const mjPrimalContext* ctx, mjtNum alpha,
+                                          mjtNum* cost, mjtNum deriv[2]) {
+  int ne = ctx->ne, nf = ctx->nf;
+  const mjtNum* Jaref_f = ctx->Jaref + ne;
+  const mjtNum* Jv_f    = ctx->Jv + ne;
+  const mjtNum* floss_f = ctx->efc_frictionloss + ne;
+  const mjtNum* D_f     = ctx->efc_D + ne;
+  const mjtNum* R_f     = ctx->efc_R + ne;
+  mjtNum c_acc = *cost, d0_acc = deriv[0], d1_acc = deriv[1];
+  int k = 0;
+
+  // 4-wide SIMD Huber cost delta and derivatives
+  // scalar equivalent: cost += frictionCostDif(start, x, f, Rf, D); update deriv[0..1]
+  if (nf >= 4) {
+    mjtNum4 valpha = v4_splat(alpha);
+    mjtNum4 vhalf  = v4_splat(0.5);
+    mjtNum4 vnhalf = v4_splat(-0.5);
+    mjtNum4 vzero  = v4_splat(0);
+
+    for (; k+4 <= nf; k += 4) {
+      // search point, friction loss, bound (Rf)
+      mjtNum4 vstart = v4_load(Jaref_f+k);
+      mjtNum4 vdir   = v4_load(Jv_f+k);
+      mjtNum4 vx     = v4_add(vstart, v4_mul(valpha, vdir));
+      mjtNum4 vf     = v4_load(floss_f+k);
+      mjtNum4 vD     = v4_load(D_f+k);
+      mjtNum4 vRf    = v4_mul(v4_load(R_f+k), vf);
+      mjtNum4 vnRf   = v4_xorsign(vRf, 1, 1, 1, 1);
+
+      // zone masks at start and x: quadratic (-Rf < v < Rf), linear neg (v <= -Rf), linear pos
+      mjtMask4 ms_q = v4_and(v4_cmplt(vnRf, vstart), v4_cmplt(vstart, vRf));
+      mjtMask4 ms_n = v4_cmple(vstart, vnRf);
+      mjtMask4 ms_p = v4_not(v4_or(ms_q, ms_n));
+
+      mjtMask4 mx_q = v4_and(v4_cmplt(vnRf, vx), v4_cmplt(vx, vRf));
+      mjtMask4 mx_n = v4_cmple(vx, vnRf);
+      mjtMask4 mx_p = v4_not(v4_or(mx_q, mx_n));
+
+      // derivatives at x: quadratic (D*x*dir, D*dir*dir), linear neg (-f*dir), linear pos (f*dir)
+      mjtNum4 vfdir  = v4_mul(vf, vdir);
+      mjtNum4 vnfdir = v4_xorsign(vfdir, 1, 1, 1, 1);
+      mjtNum4 vd0 = v4_select(mx_q, v4_mul(v4_mul(vD, vx), vdir),
+                              v4_select(mx_n, vnfdir, vfdir));
+      mjtNum4 vd1 = v4_select(mx_q, v4_mul(v4_mul(vD, vdir), vdir), vzero);
+
+      // same-zone cost delta: 0.5*D*(x-s)*(x+s) if both quad, +/-f*(x-s) if both linear
+      mjtMask4 m_qq = v4_and(ms_q, mx_q);
+      mjtMask4 m_nn = v4_and(ms_n, mx_n);
+      mjtMask4 m_pp = v4_and(ms_p, mx_p);
+      mjtNum4 vdx   = v4_sub(vx, vstart);
+      mjtNum4 vc_qq = v4_mul(v4_mul(v4_mul(vhalf, vD), vdx), v4_add(vx, vstart));
+      mjtNum4 vc_ln = v4_mul(vf, v4_select(mx_n, v4_sub(vstart, vx), vdx));
+      mjtNum4 vc    = v4_select(m_qq, vc_qq, vc_ln);
+
+      // zone crossing: frictionCost(x) - frictionCost(start)
+      mjtMask4 m_diff = v4_not(v4_or(m_qq, v4_or(m_nn, m_pp)));
+      if (v4_any(m_diff)) {
+        mjtNum4 vhD  = v4_mul(vhalf, vD);
+        mjtNum4 vhRf = v4_mul(vnhalf, vRf);
+        mjtNum4 vcx  = frictionCost4(vx, mx_q, mx_n, vf, vhD, vhRf);
+        mjtNum4 vcs  = frictionCost4(vstart, ms_q, ms_n, vf, vhD, vhRf);
+        vc = v4_select(m_diff, v4_sub(vcx, vcs), vc);
+      }
+
+      // sum lanes sequentially to match scalar addition order
+      c_acc  = v4_addseq(c_acc, vc);
+      d0_acc = v4_addseq(d0_acc, vd0);
+      d1_acc = v4_addseq(d1_acc, vd1);
+    }
+  }
+
+  // scalar remainder
+  for (; k < nf; k++) {
+    // search point, friction loss, bound (Rf)
+    mjtNum start = Jaref_f[k];
+    mjtNum dir   = Jv_f[k];
+    mjtNum x     = start + alpha*dir;
+    mjtNum f     = floss_f[k];
+    mjtNum D     = D_f[k];
+    mjtNum Rf    = R_f[k]*f;
+
+    // cost delta
+    c_acc += frictionCostDif(start, x, f, Rf, D);
+
+    // -bound < x < bound : quadratic
+    if (-Rf < x && x < Rf) {
+      d0_acc += D*x*dir;
+      d1_acc += D*dir*dir;
+    }
+
+    // x < -bound : linear negative
+    else if (x <= -Rf) {
+      d0_acc += -f*dir;
+    }
+
+    // bound < x : linear positive
+    else {
+      d0_acc += f*dir;
+    }
+  }
+
+  *cost    = c_acc;
+  deriv[0] = d0_acc;
+  deriv[1] = d1_acc;
+}
+
+
 // branchless 4-wide evaluation for unilateral prefix [ne+nf, efc_cone_start)
 //  uses factored difference-of-squares cost to avoid cancellation on active-set crossings
 static void PrimalEvalUnilateral(const mjPrimalContext* ctx, mjtNum alpha,
@@ -2895,28 +3160,161 @@ static void PrimalEvalUnilateral(const mjPrimalContext* ctx, mjtNum alpha,
 }
 
 
-// 4-wide batched evaluation for contiguous dim=3 elliptic cones [efc_cone3_start, efc_cone3_end)
-static void PrimalEvalElliptic4(const mjPrimalContext* ctx, mjtNum alpha,
-                                mjtNum* cost, mjtNum deriv[2]) {
-  if (ctx->efc_cone3_start >= ctx->efc_cone3_end) {
-    return;
-  }
+// 4-wide elliptic cone coordinates and metric at alpha=0 and alpha
+typedef struct {
+  mjtNum4 mu, Dm, U0, V0, T0, N, T;
+} mjConeState4;
 
-  mjtNum4 valpha = v4_splat(alpha);
+// 4-wide elliptic zone masks at alpha=0 and alpha
+typedef struct {
+  mjtMask4 top0, bot0, mid0, top, bot, mid;
+} mjConeZones4;
+
+
+// load 4-wide elliptic cone coordinates at alpha=0 and alpha from precomputed SoA header
+static inline mjConeState4 loadConeState4(const mjtNum* w, mjtNum4 K0,
+                                          mjtNum4 valpha, mjtNum4 vTsqr) {
+  mjConeState4 s;
+  s.mu = v4_load(w+CONE4_MU);
+  s.Dm = v4_load(w+CONE4_DM);
+  s.U0 = v4_load(w+CONE4_U0);
+  s.V0 = v4_mul(K0, s.mu);
+  s.T0 = v4_load(w+CONE4_T0);
+  s.N  = v4_add(s.U0, v4_mul(valpha, s.V0));
+  s.T  = v4_sqrt(vTsqr);
+  return s;
+}
+
+
+// squared 2D determinant (a0*b1 - a1*b0)^2 for Lagrange identity in middle-zone Hessian
+static inline mjtNum4 crossSq4(mjtNum4 a0, mjtNum4 a1, mjtNum4 b0, mjtNum4 b1) {
+  mjtNum4 d = v4_sub(v4_mul(a0, b1), v4_mul(a1, b0));
+  return v4_mul(d, d);
+}
+
+
+// 0.5*Dm*x*x matching scalar left-associativity (exact_scalar=1) or dim=3 right-associativity (0)
+static inline mjtNum4 halfDmSq4(mjtNum4 vDm, mjtNum4 vx, int exact_scalar) {
+  mjtNum4 vhalf = v4_splat(0.5);
+  return exact_scalar ? v4_mul(v4_mul(v4_mul(vhalf, vDm), vx), vx)
+                      : v4_mul(vhalf, v4_mul(vDm, v4_mul(vx, vx)));
+}
+
+
+// classify 4 elliptic contacts into top, bottom, and middle zones at alpha=0 and alpha
+static inline mjConeZones4 ellipticZones4(const mjConeState4* s, mjtNum4 vTsqr) {
   mjtNum4 vzero = v4_splat(0);
+  mjConeZones4 z;
+
+  // zone masks at alpha=0 (for T >= 0 and mu >= 0, U >= mu*T covers T == 0)
+  z.top0 = v4_cmpge(s->U0, v4_mul(s->mu, s->T0));
+  z.bot0 = v4_andnot(z.top0, v4_or(v4_cmple(s->T0, vzero),
+                                   v4_cmple(v4_add(v4_mul(s->mu, s->U0), s->T0), vzero)));
+  z.mid0 = v4_not(v4_or(z.top0, z.bot0));
+
+  // zone masks at alpha
+  z.top = v4_cmpge(s->N, v4_mul(s->mu, s->T));
+  z.bot = v4_andnot(z.top, v4_or(v4_cmple(vTsqr, vzero),
+                                 v4_cmple(v4_add(v4_mul(s->mu, s->N), s->T), vzero)));
+  z.mid = v4_not(v4_or(z.top, z.bot));
+  return z;
+}
+
+
+// bottom-zone and zone-crossing cost delta plus bottom-zone derivatives for 4 elliptic contacts
+//  exact_scalar=1 matches scalar ellipticCostDif for dim=4/6; exact_scalar=0 preserves dim=3 parity
+static inline void ellipticBaseAndCross4(mjtNum4* vc, mjtNum4* vd0, mjtNum4* vd1,
+                                         const mjtNum* w, mjtNum4 valpha,
+                                         const mjConeState4* s, const mjConeZones4* z,
+                                         int exact_scalar) {
+  mjtNum4 vzero = v4_splat(0);
+
+  // bottom-zone quadratic cost delta and derivatives
+  mjtNum4 vq1   = v4_load(w+CONE4_Q1);
+  mjtNum4 vq2   = v4_load(w+CONE4_Q2);
+  mjtNum4 vdq   = v4_mul(valpha, v4_add(v4_mul(valpha, vq2), vq1));
+  mjtNum4 vdqbb = exact_scalar
+                      ? v4_add(v4_mul(v4_mul(valpha, valpha), vq2), v4_mul(valpha, vq1))
+                      : vdq;
+  mjtNum4 c     = v4_select(v4_and(z->bot0, z->bot), vdqbb, vzero);
+  mjtNum4 v2q2  = v4_add(vq2, vq2);
+  *vd0 = v4_select(z->bot, exact_scalar
+                               ? v4_add(v4_mul(v4_mul(v4_splat(2), valpha), vq2), vq1)
+                               : v4_add(v4_mul(valpha, v2q2), vq1),
+                   vzero);
+  *vd1 = v4_select(z->bot, v2q2, vzero);
+
+  // zone crossing: exact cost delta for all 6 transitions between {top, mid, bot}
+  mjtMask4 m_cross = v4_or(v4_xor(z->top0, z->top), v4_xor(z->bot0, z->bot));
+  if (v4_any(m_cross)) {
+    mjtNum4 vq0  = v4_load(w+CONE4_Q0);
+    mjtNum4 gap0 = halfDmSq4(s->Dm, v4_add(v4_mul(s->mu, s->U0), s->T0), exact_scalar);
+    mjtNum4 gap  = halfDmSq4(s->Dm, v4_add(v4_mul(s->mu, s->N), s->T), exact_scalar);
+    mjtNum4 cm0  = halfDmSq4(s->Dm, v4_sub(s->U0, v4_mul(s->mu, s->T0)), exact_scalar);
+    mjtNum4 cm   = halfDmSq4(s->Dm, v4_sub(s->N, v4_mul(s->mu, s->T)), exact_scalar);
+
+    c = v4_add(c, v4_select(v4_and(z->mid0, z->bot), v4_add(vdq, gap0), vzero));
+    c = v4_add(c, v4_select(v4_and(z->bot0, z->mid), v4_sub(vdq, gap), vzero));
+    c = v4_add(c, v4_select(v4_and(z->top0, z->bot), v4_add(vdqbb, vq0), vzero));
+    c = v4_add(c, v4_select(v4_and(z->top0, z->mid), cm, vzero));
+    c = v4_sub(c, v4_select(v4_and(z->mid0, z->top), cm0, vzero));
+    c = v4_sub(c, v4_select(v4_and(z->bot0, z->top), vq0, vzero));
+  }
+  *vc = c;
+}
+
+
+// middle -> middle rationalized cost delta for 4 elliptic contacts
+static inline mjtNum4 ellipticMidCost4(const mjConeState4* s, mjtNum4 valpha,
+                                       mjtNum4 vTsqr_delta, mjtMask4 m_mid0_mid,
+                                       int exact_scalar) {
+  mjtNum4 vzero    = v4_splat(0);
+  mjtNum4 safe_sum = v4_select(m_mid0_mid, v4_add(s->T, s->T0), v4_splat(1));
+  mjtNum4 vT_delta = v4_div(v4_select(m_mid0_mid, vTsqr_delta, vzero), safe_sum);
+  mjtNum4 vr_delta = v4_sub(v4_mul(valpha, s->V0), v4_mul(s->mu, vT_delta));
+  mjtNum4 vr0      = v4_sub(s->U0, v4_mul(s->mu, s->T0));
+  mjtNum4 v2r0p    = v4_add(v4_add(vr0, vr0), vr_delta);
+  mjtNum4 vc_mid   = exact_scalar
+                         ? v4_mul(v4_mul(v4_mul(v4_splat(0.5), s->Dm), vr_delta), v2r0p)
+                         : v4_mul(v4_splat(0.5), v4_mul(s->Dm, v4_mul(vr_delta, v2r0p)));
+  return v4_select(m_mid0_mid, vc_mid, vzero);
+}
+
+
+// middle-zone derivatives for 4 elliptic contacts
+static inline void ellipticMidDeriv4(mjtNum4* vd0, mjtNum4* vd1, const mjConeState4* s,
+                                     mjtNum4 vT1, mjtNum4 vNT, mjtNum4 vdet,
+                                     mjtMask4 m_mid, int exact_scalar) {
+  mjtNum4 vzero  = v4_splat(0);
+  mjtNum4 dNmT   = v4_sub(s->V0, v4_mul(s->mu, vT1));
+  mjtNum4 vNmT   = v4_sub(s->N, v4_mul(s->mu, s->T));
+  mjtNum4 mid_d0 = exact_scalar ? v4_mul(v4_mul(s->Dm, vNmT), dNmT)
+                                : v4_mul(s->Dm, v4_mul(vNmT, dNmT));
+  mjtNum4 mid_d1 = v4_mul(s->Dm, v4_sub(v4_mul(dNmT, dNmT),
+                                        v4_mul(v4_sub(vNT, s->mu), v4_mul(s->mu, vdet))));
+  *vd0 = v4_add(*vd0, v4_select(m_mid, mid_d0, vzero));
+  *vd1 = v4_add(*vd1, v4_select(m_mid, mid_d1, vzero));
+}
+
+
+// 4-wide batched evaluation for contiguous dim=3 elliptic cones [start, end)
+static void PrimalEvalElliptic3(const mjPrimalContext* ctx, int start, int end, mjtNum alpha,
+                                mjtNum* cost, mjtNum deriv[2]) {
+  mjtNum4 valpha = v4_splat(alpha);
+  mjtNum4 vzero  = v4_splat(0);
   mjtNum4 acc_cost = vzero, acc_d0 = vzero, acc_d1 = vzero;
 
-  for (int i = ctx->efc_cone3_start; i < ctx->efc_cone3_end; i += 12) {
+  for (int i = start; i < end; i += 12) {
     const mjtNum* w = ctx->quad + 3*i;
 
     mjtNum4 J0, J1, J2, K0, K1, K2;
-    v4_load4x3(ctx->Jaref + i, &J0, &J1, &J2);
-    v4_load4x3(ctx->Jv + i, &K0, &K1, &K2);
+    v4_load4x3(ctx->Jaref+i, &J0, &J1, &J2);
+    v4_load4x3(ctx->Jv+i, &K0, &K1, &K2);
     (void)J0;  // J0 already scaled into CONE4_U0
 
     // normal (N) and tangential (W1, W2, T) cone coordinates at alpha
-    mjtNum4 vf0 = v4_load(w + CONE4_F0);
-    mjtNum4 vf1 = v4_load(w + CONE4_F1);
+    mjtNum4 vf0 = v4_load(w+CONE4_F0);
+    mjtNum4 vf1 = v4_load(w+CONE4_F1);
     mjtNum4 vU1 = v4_mul(J1, vf0);
     mjtNum4 vV1 = v4_mul(K1, vf0);
     mjtNum4 vW1 = v4_add(vU1, v4_mul(valpha, vV1));
@@ -2925,107 +3323,255 @@ static void PrimalEvalElliptic4(const mjPrimalContext* ctx, mjtNum alpha,
     mjtNum4 vV2 = v4_mul(K2, vf1);
     mjtNum4 vW2 = v4_add(vU2, v4_mul(valpha, vV2));
 
-    mjtNum4 vmu = v4_load(w + CONE4_MU);
-    mjtNum4 vU0 = v4_load(w + CONE4_U0);
-    mjtNum4 vV0 = v4_mul(K0, vmu);
-    mjtNum4 vN  = v4_add(vU0, v4_mul(valpha, vV0));
-
     mjtNum4 vTsqr = v4_add(v4_mul(vW1, vW1), v4_mul(vW2, vW2));
-    mjtNum4 vT = v4_sqrt(vTsqr);
-    mjtNum4 vT0 = v4_load(w + CONE4_T0);
+    mjConeState4 s = loadConeState4(w, K0, valpha, vTsqr);
 
-    // zone masks at alpha=0 and alpha (for T >= 0 and mu >= 0, U >= mu*T covers T == 0)
-    mjtMask4 m_top0 = v4_cmpge(vU0, v4_mul(vmu, vT0));
-    mjtMask4 m_bot0 = v4_andnot(m_top0, v4_or(v4_cmple(vT0, vzero),
-                                              v4_cmple(v4_add(v4_mul(vmu, vU0), vT0), vzero)));
-    mjtMask4 m_mid0 = v4_not(v4_or(m_top0, m_bot0));
-
-    mjtMask4 m_top = v4_cmpge(vN, v4_mul(vmu, vT));
-    mjtMask4 m_bot = v4_andnot(m_top, v4_or(v4_cmple(vTsqr, vzero),
-                                            v4_cmple(v4_add(v4_mul(vmu, vN), vT), vzero)));
-    mjtMask4 m_mid = v4_not(v4_or(m_top, m_bot));
-
-    // bottom-zone quadratic cost delta and derivatives
-    mjtNum4 vq1 = v4_load(w + CONE4_Q1);
-    mjtNum4 vq2 = v4_load(w + CONE4_Q2);
-    mjtNum4 vdq = v4_mul(valpha, v4_add(v4_mul(valpha, vq2), vq1));
-    mjtNum4 vc  = v4_select(v4_and(m_bot0, m_bot), vdq, vzero);
-    mjtNum4 v2q2 = v4_add(vq2, vq2);
-    mjtNum4 vd0 = v4_select(m_bot, v4_add(v4_mul(valpha, v2q2), vq1), vzero);
-    mjtNum4 vd1 = v4_select(m_bot, v2q2, vzero);
+    // classify zones and evaluate bottom + crossing cost and bottom derivatives
+    mjConeZones4 z = ellipticZones4(&s, vTsqr);
+    mjtNum4 vc, vd0, vd1;
+    ellipticBaseAndCross4(&vc, &vd0, &vd1, w, valpha, &s, &z, /*exact_scalar=*/0);
 
     // middle -> middle: factored cost delta avoiding sqrt cancellation
-    mjtMask4 m_mid0_mid = v4_and(m_mid0, m_mid);
+    mjtMask4 m_mid0_mid = v4_and(z.mid0, z.mid);
     if (v4_any(m_mid0_mid)) {
-      mjtNum4 vDm = v4_load(w + CONE4_DM);
       mjtNum4 vTsqr_delta = v4_add(v4_mul(v4_mul(valpha, vV1), v4_add(vU1, vW1)),
                                    v4_mul(v4_mul(valpha, vV2), v4_add(vU2, vW2)));
-      mjtNum4 safe_sum = v4_select(m_mid0_mid, v4_add(vT, vT0), v4_splat(1));
-      mjtNum4 vT_delta = v4_div(v4_select(m_mid0_mid, vTsqr_delta, vzero), safe_sum);
-      mjtNum4 vr_delta = v4_sub(v4_mul(valpha, vV0), v4_mul(vmu, vT_delta));
-      mjtNum4 vr0 = v4_sub(vU0, v4_mul(vmu, vT0));
-      mjtNum4 vc_mid = v4_mul(v4_splat(0.5),
-                              v4_mul(vDm, v4_mul(vr_delta, v4_add(v4_add(vr0, vr0), vr_delta))));
-      vc = v4_add(vc, v4_select(m_mid0_mid, vc_mid, vzero));
-    }
-
-    // zone crossing: exact cost delta for all 6 transitions between {top, mid, bot}
-    mjtMask4 m_cross = v4_or(v4_xor(m_top0, m_top), v4_xor(m_bot0, m_bot));
-    if (v4_any(m_cross)) {
-      mjtNum4 vq0  = v4_load(w + CONE4_Q0);
-      mjtNum4 vDm  = v4_load(w + CONE4_DM);
-      mjtNum4 vhalf = v4_splat(0.5);
-      mjtNum4 bnd0 = v4_add(v4_mul(vmu, vU0), vT0);
-      mjtNum4 gap0 = v4_mul(vhalf, v4_mul(vDm, v4_mul(bnd0, bnd0)));
-      mjtNum4 bnd  = v4_add(v4_mul(vmu, vN), vT);
-      mjtNum4 gap  = v4_mul(vhalf, v4_mul(vDm, v4_mul(bnd, bnd)));
-      mjtNum4 vr0  = v4_sub(vU0, v4_mul(vmu, vT0));
-      mjtNum4 vr   = v4_sub(vN, v4_mul(vmu, vT));
-      mjtNum4 cm0  = v4_mul(vhalf, v4_mul(vDm, v4_mul(vr0, vr0)));
-      mjtNum4 cm   = v4_mul(vhalf, v4_mul(vDm, v4_mul(vr, vr)));
-
-      vc = v4_add(vc, v4_select(v4_and(m_mid0, m_bot), v4_add(vdq, gap0), vzero));
-      vc = v4_add(vc, v4_select(v4_and(m_bot0, m_mid), v4_sub(vdq, gap), vzero));
-      vc = v4_add(vc, v4_select(v4_and(m_top0, m_bot), v4_add(vdq, vq0), vzero));
-      vc = v4_add(vc, v4_select(v4_and(m_top0, m_mid), cm, vzero));
-      vc = v4_sub(vc, v4_select(v4_and(m_mid0, m_top), cm0, vzero));
-      vc = v4_sub(vc, v4_select(v4_and(m_bot0, m_top), vq0, vzero));
+      vc = v4_add(vc, ellipticMidCost4(&s, valpha, vTsqr_delta, m_mid0_mid,
+                                       /*exact_scalar=*/0));
     }
     acc_cost = v4_add(acc_cost, vc);
 
     // middle-zone derivatives (skip division if no lane is in middle zone)
-    if (v4_any(m_mid)) {
-      mjtNum4 vDm    = v4_load(w + CONE4_DM);
-      mjtNum4 safe_T = v4_select(m_mid, vT, v4_splat(1));
-      mjtNum4 vTinv  = v4_select(m_mid, v4_div(v4_splat(1), safe_T), vzero);
+    if (v4_any(z.mid)) {
+      mjtNum4 safe_T = v4_select(z.mid, s.T, v4_splat(1));
+      mjtNum4 vTinv  = v4_select(z.mid, v4_div(v4_splat(1), safe_T), vzero);
       mjtNum4 vWV    = v4_add(v4_mul(vW1, vV1), v4_mul(vW2, vV2));
-      mjtNum4 What1  = v4_mul(vW1, vTinv);
-      mjtNum4 What2  = v4_mul(vW2, vTinv);
-      mjtNum4 d01    = v4_sub(v4_mul(What1, vV2), v4_mul(What2, vV1));
-      mjtNum4 det    = v4_mul(d01, d01);
-      mjtNum4 vT1    = v4_mul(vWV, vTinv);
-      mjtNum4 vNT    = v4_mul(vN, vTinv);
-      mjtNum4 dNmT   = v4_sub(vV0, v4_mul(vmu, vT1));
-      mjtNum4 mid_d0 = v4_mul(vDm, v4_mul(v4_sub(vN, v4_mul(vmu, vT)), dNmT));
-      mjtNum4 mid_d1 = v4_mul(vDm, v4_sub(v4_mul(dNmT, dNmT),
-                                          v4_mul(v4_sub(vNT, vmu), v4_mul(vmu, det))));
-      vd0 = v4_add(vd0, v4_select(m_mid, mid_d0, vzero));
-      vd1 = v4_add(vd1, v4_select(m_mid, mid_d1, vzero));
+      mjtNum4 vdet   = crossSq4(v4_mul(vW1, vTinv), v4_mul(vW2, vTinv), vV1, vV2);
+      ellipticMidDeriv4(&vd0, &vd1, &s, v4_mul(vWV, vTinv), v4_mul(s.N, vTinv),
+                        vdet, z.mid, /*exact_scalar=*/0);
     }
     acc_d0 = v4_add(acc_d0, vd0);
     acc_d1 = v4_add(acc_d1, vd1);
   }
 
-  *cost += v4_sum(acc_cost);
+  *cost    += v4_sum(acc_cost);
   deriv[0] += v4_sum(acc_d0);
   deriv[1] += v4_sum(acc_d1);
 }
 
 
+// 4-wide batched evaluation body for contiguous dim=4 or dim=6 elliptic cones [start, end)
+static mjALWAYS_INLINE void evalEllipticDim4(const mjPrimalContext* ctx, int start, int end,
+                                             mjtNum alpha, mjtNum* cost, mjtNum deriv[2],
+                                             int dim) {
+  int nd = dim - 1;
+  mjtNum4 valpha = v4_splat(alpha);
+  mjtNum4 vzero  = v4_splat(0);
+  mjtNum c_acc = *cost, d0_acc = deriv[0], d1_acc = deriv[1];
+
+  // scalar equivalent: evaluate ellipticCostDif and zone derivatives for each dim-row contact
+  for (int i = start; i < end; i += 4*dim) {
+    const mjtNum* w = ctx->quad + 3*i;
+
+    mjtNum4 J[6], K[6];
+    if (dim == 4) {
+      load4x4(J, ctx->Jaref+i);
+      load4x4(K, ctx->Jv+i);
+    } else {
+      load4x6(J, ctx->Jaref+i);
+      load4x6(K, ctx->Jv+i);
+    }
+
+    // normal (N) and nd tangential (W[0..nd-1], T) cone coordinates at alpha
+    mjtNum4 U[5], V[5], W[5];
+    mjtNum4 vTsqr = vzero;
+    for (int j=0; j < nd; j++) {
+      mjtNum4 vfj = v4_load(w + CONE4_F0 + 4*j);
+      U[j] = v4_mul(J[j+1], vfj);
+      V[j] = v4_mul(K[j+1], vfj);
+      W[j] = v4_add(U[j], v4_mul(valpha, V[j]));
+      vTsqr = v4_add(vTsqr, v4_mul(W[j], W[j]));
+    }
+    mjConeState4 s = loadConeState4(w, K[0], valpha, vTsqr);
+
+    // classify zones and evaluate bottom + crossing cost and bottom derivatives
+    mjConeZones4 z = ellipticZones4(&s, vTsqr);
+    mjtNum4 vc, vd0, vd1;
+    ellipticBaseAndCross4(&vc, &vd0, &vd1, w, valpha, &s, &z, /*exact_scalar=*/1);
+
+    // middle -> middle: factored cost delta avoiding sqrt cancellation
+    mjtMask4 m_mid0_mid = v4_and(z.mid0, z.mid);
+    if (v4_any(m_mid0_mid)) {
+      mjtNum4 vTsqr_delta = vzero;
+      for (int j=0; j < nd; j++) {
+        vTsqr_delta = v4_add(vTsqr_delta, v4_mul(v4_mul(valpha, V[j]), v4_add(U[j], W[j])));
+      }
+      vc = v4_add(vc, ellipticMidCost4(&s, valpha, vTsqr_delta, m_mid0_mid,
+                                       /*exact_scalar=*/1));
+    }
+
+    // middle-zone derivatives (skip division if no lane is in middle zone)
+    if (v4_any(z.mid)) {
+      mjtNum4 safe_T = v4_select(z.mid, s.T, v4_splat(1));
+      mjtNum4 vWV    = vzero;
+      mjtNum4 What[5];
+      for (int j=0; j < nd; j++) {
+        vWV = v4_add(vWV, v4_mul(W[j], V[j]));
+        What[j] = v4_div(W[j], safe_T);
+      }
+
+      // cross-product norm squared ||What ^ V||^2 via Lagrange identity to avoid cancellation
+      mjtNum4 vdet = vzero;
+      for (int j=0; j < nd; j++) {
+        for (int k=j+1; k < nd; k++) {
+          vdet = v4_add(vdet, crossSq4(What[j], What[k], V[j], V[k]));
+        }
+      }
+      ellipticMidDeriv4(&vd0, &vd1, &s, v4_div(vWV, safe_T), v4_div(s.N, safe_T),
+                        vdet, z.mid, /*exact_scalar=*/1);
+    }
+
+    // sum lanes sequentially to match scalar addition order
+    c_acc  = v4_addseq(c_acc, vc);
+    d0_acc = v4_addseq(d0_acc, vd0);
+    d1_acc = v4_addseq(d1_acc, vd1);
+  }
+
+  *cost    = c_acc;
+  deriv[0] = d0_acc;
+  deriv[1] = d1_acc;
+}
+
+
+// 4-wide batched evaluation for contiguous dim=4 elliptic cones [start, end)
+//  outlined to keep PrimalEval's stack frame small when dim=4 contacts are absent
+static mjNOINLINE void PrimalEvalElliptic4(const mjPrimalContext* ctx, int start, int end,
+                                           mjtNum alpha, mjtNum* cost, mjtNum deriv[2]) {
+  evalEllipticDim4(ctx, start, end, alpha, cost, deriv, 4);
+}
+
+
+// 4-wide batched evaluation for contiguous dim=6 elliptic cones [start, end)
+//  outlined to keep PrimalEval's stack frame small when dim=6 contacts are absent
+static mjNOINLINE void PrimalEvalElliptic6(const mjPrimalContext* ctx, int start, int end,
+                                           mjtNum alpha, mjtNum* cost, mjtNum deriv[2]) {
+  evalEllipticDim4(ctx, start, end, alpha, cost, deriv, 6);
+}
+
+
+// scalar evaluation for non-batched elliptic and inequality rows [start, end)
+static void PrimalEvalEllipticScalar(const mjPrimalContext* ctx, int start, int end,
+                                     mjtNum alpha, mjtNum* cost, mjtNum deriv[2]) {
+  for (int i = start; i < end; i++) {
+    if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {         // elliptic cone
+      // extract contact info
+      const mjContact* con = ctx->contact + ctx->efc_id[i];
+      const mjtNum* Jaref = ctx->Jaref + i;
+      const mjtNum* Jv = ctx->Jv + i;
+      const mjtNum* friction = con->friction;
+      const mjtNum* quad = ctx->quad + 3*i;
+      int dim = con->dim;
+      mjtNum mu = con->mu;
+
+      // unpack quad
+      mjtNum U0 = quad[3];
+      mjtNum V0 = quad[4];
+      mjtNum Dm = quad[6];
+
+      // normal and tangential components at alpha (formed componentwise before squaring)
+      mjtNum N = U0 + alpha*V0;
+      mjtNum V[5], W[5];
+      mjtNum Tsqr = 0, WV = 0, Tsqr_delta = 0;
+      for (int j=0; j < dim-1; j++) {
+        mjtNum Uj = Jaref[j+1]*friction[j];
+        mjtNum Vj = Jv[j+1]*friction[j];
+        mjtNum Wj = Uj + alpha*Vj;
+        V[j] = Vj;
+        W[j] = Wj;
+        Tsqr += Wj*Wj;
+        WV += Wj*Vj;
+        Tsqr_delta += alpha*Vj*(Uj + Wj);
+      }
+      mjtNum T = mju_sqrt(Tsqr);
+
+      // shifted cost
+      *cost += ellipticCostDif(quad, alpha, mu, N, T, Tsqr_delta);
+
+      // no tangential force : top or bottom zone
+      if (Tsqr <= 0) {
+        // bottom zone: quadratic derivatives
+        if (N < 0) {
+          deriv[0] += 2*alpha*quad[2] + quad[1];
+          deriv[1] += 2*quad[2];
+        }
+
+        // top zone: nothing to do
+      }
+
+      // otherwise regular processing
+      else {
+        // N>=mu*T : top zone
+        if (N >= mu*T) {
+          // nothing to do
+        }
+
+        // mu*N+T<=0 : bottom zone
+        else if (mu*N+T <= 0) {
+          deriv[0] += 2*alpha*quad[2] + quad[1];
+          deriv[1] += 2*quad[2];
+        }
+
+        // otherwise middle zone
+        else {
+          // unit tangent What = W / T
+          mjtNum What[5];
+          for (int j=0; j < dim-1; j++) {
+            What[j] = W[j] / T;
+          }
+
+          // cross-product norm squared ||What ^ V||^2 via Lagrange identity to avoid cancellation
+          mjtNum det = 0;
+          for (int j=0; j < dim-1; j++) {
+            for (int k=j+1; k < dim-1; k++) {
+              mjtNum djk = What[j]*V[k] - What[k]*V[j];
+              det += djk*djk;
+            }
+          }
+
+          // derivatives
+          mjtNum N1 = V0;
+          mjtNum T1 = WV / T;
+          deriv[0] += Dm*(N-mu*T)*(N1-mu*T1);
+          deriv[1] += Dm*((N1-mu*T1)*(N1-mu*T1) + (N/T - mu)*(-mu*det));
+        }
+      }
+
+      // advance to next constraint
+      i += (dim-1);
+    } else {                                                    // inequality
+      // search point
+      mjtNum start_j = ctx->Jaref[i];
+      mjtNum jv = ctx->Jv[i];
+      mjtNum d = ctx->efc_D[i];
+      mjtNum step = alpha*jv;
+      mjtNum x = start_j + step;
+
+      // active
+      if (x < 0) {
+        mjtNum djv = d*jv;
+        deriv[0] += x*djv;
+        deriv[1] += jv*djv;
+        *cost += (start_j < 0) ? 0.5*d*step*(start_j + x) : 0.5*d*x*x;
+      } else if (start_j < 0) {
+        *cost -= 0.5*d*start_j*start_j;
+      }
+    }
+  }
+}
+
+
 // evaluate shifted linesearch cost: cost(alpha) - cost(0), and derivatives
 static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
-  int ne = ctx->ne, nf = ctx->nf, nefc = ctx->nefc;
-
   // clear result
   mjtNum cost = 0, alpha = p->alpha;
   mjtNum deriv[2] = {0, 0};
@@ -3034,33 +3580,8 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
   mjtNum qg1 = ctx->quadGauss[1], qg2 = ctx->quadGauss[2];
 
   // friction: compute cost(alpha) - cost(0) directly
-  for (int i=ne; i < ne + nf; i++) {
-    // search point, friction loss, bound (Rf)
-    mjtNum start = ctx->Jaref[i];
-    mjtNum dir = ctx->Jv[i];
-    mjtNum x = start + alpha*dir;
-    mjtNum f = ctx->efc_frictionloss[i];
-    mjtNum D = ctx->efc_D[i];
-    mjtNum Rf = ctx->efc_R[i]*f;
-
-    // cost delta
-    cost += frictionCostDif(start, x, f, Rf, D);
-
-    // -bound < x < bound : quadratic
-    if (-Rf < x && x < Rf) {
-      deriv[0] += D*x*dir;
-      deriv[1] += D*dir*dir;
-    }
-
-    // x < -bound : linear negative
-    else if (x <= -Rf) {
-      deriv[0] += -f*dir;
-    }
-
-    // bound < x : linear positive
-    else {
-      deriv[0] += f*dir;
-    }
+  if (ctx->nf > 0) {
+    PrimalEvalFriction(ctx, alpha, &cost, deriv);
   }
 
   // unilateral prefix [ne+nf, efc_cone_start)
@@ -3068,119 +3589,16 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
 
   // elliptic cones
   if (ctx->is_elliptic) {
-    // 4-wide batched evaluation for contiguous dim=3 elliptic cones
-    PrimalEvalElliptic4(ctx, alpha, &cost, deriv);
-
-    // general path for remaining / non-dim3 constraints
-    for (int i = ctx->efc_cone_start; i < nefc; i++) {
-      if (i == ctx->efc_cone3_start) {
-        i = ctx->efc_cone3_end;
-        if (i >= nefc) {
-          break;
-        }
-      }
-      if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {       // elliptic cone
-        // extract contact info
-        const mjContact* con = ctx->contact + ctx->efc_id[i];
-        const mjtNum* Jaref = ctx->Jaref + i;
-        const mjtNum* Jv = ctx->Jv + i;
-        const mjtNum* friction = con->friction;
-        mjtNum* quad = ctx->quad + 3*i;
-        int dim = con->dim;
-        mjtNum mu = con->mu;
-
-        // unpack quad
-        mjtNum U0 = quad[3];
-        mjtNum V0 = quad[4];
-        mjtNum Dm = quad[6];
-
-        // normal and tangential components at alpha (formed componentwise before squaring)
-        mjtNum N = U0 + alpha*V0;
-        mjtNum V[5], W[5];
-        mjtNum Tsqr = 0, WV = 0, Tsqr_delta = 0;
-        for (int j=0; j < dim-1; j++) {
-          mjtNum Uj = Jaref[j+1]*friction[j];
-          mjtNum Vj = Jv[j+1]*friction[j];
-          mjtNum Wj = Uj + alpha*Vj;
-          V[j] = Vj;
-          W[j] = Wj;
-          Tsqr += Wj*Wj;
-          WV += Wj*Vj;
-          Tsqr_delta += alpha*Vj*(Uj + Wj);
-        }
-        mjtNum T = mju_sqrt(Tsqr);
-
-        // shifted cost
-        cost += ellipticCostDif(quad, alpha, mu, N, T, Tsqr_delta);
-
-        // no tangential force : top or bottom zone
-        if (Tsqr <= 0) {
-          // bottom zone: quadratic derivatives
-          if (N < 0) {
-            deriv[0] += 2*alpha*quad[2] + quad[1];
-            deriv[1] += 2*quad[2];
-          }
-
-          // top zone: nothing to do
-        }
-
-        // otherwise regular processing
-        else {
-          // N>=mu*T : top zone
-          if (N >= mu*T) {
-            // nothing to do
-          }
-
-          // mu*N+T<=0 : bottom zone
-          else if (mu*N+T <= 0) {
-            deriv[0] += 2*alpha*quad[2] + quad[1];
-            deriv[1] += 2*quad[2];
-          }
-
-          // otherwise middle zone
-          else {
-            // unit tangent What = W / T
-            mjtNum What[5];
-            for (int j=0; j < dim-1; j++) {
-              What[j] = W[j] / T;
-            }
-
-            // cross-product norm squared ||What ^ V||^2 via Lagrange identity to avoid cancellation
-            mjtNum det = 0;
-            for (int j=0; j < dim-1; j++) {
-              for (int k=j+1; k < dim-1; k++) {
-                mjtNum djk = What[j]*V[k] - What[k]*V[j];
-                det += djk*djk;
-              }
-            }
-
-            // derivatives
-            mjtNum N1 = V0;
-            mjtNum T1 = WV / T;
-            deriv[0] += Dm*(N-mu*T)*(N1-mu*T1);
-            deriv[1] += Dm*((N1-mu*T1)*(N1-mu*T1) + (N/T - mu)*(-mu*det));
-          }
-        }
-
-        // advance to next constraint
-        i += (dim-1);
-      } else {                                                  // inequality
-        // search point
-        mjtNum start = ctx->Jaref[i];
-        mjtNum jv = ctx->Jv[i];
-        mjtNum d = ctx->efc_D[i];
-        mjtNum step = alpha*jv;
-        mjtNum x = start + step;
-
-        // active
-        if (x < 0) {
-          mjtNum djv = d*jv;
-          deriv[0] += x*djv;
-          deriv[1] += jv*djv;
-          cost += (start < 0) ? 0.5*d*step*(start + x) : 0.5*d*x*x;
-        } else if (start < 0) {
-          cost -= 0.5*d*start*start;
-        }
+    for (int r=0; r < ctx->ncone_runs; r++) {
+      const mjConeRun* run = ctx->cone_runs + r;
+      if (run->dim == 3) {
+        PrimalEvalElliptic3(ctx, run->start, run->end, alpha, &cost, deriv);
+      } else if (run->dim == 4) {
+        PrimalEvalElliptic4(ctx, run->start, run->end, alpha, &cost, deriv);
+      } else if (run->dim == 6) {
+        PrimalEvalElliptic6(ctx, run->start, run->end, alpha, &cost, deriv);
+      } else {
+        PrimalEvalEllipticScalar(ctx, run->start, run->end, alpha, &cost, deriv);
       }
     }
   }
