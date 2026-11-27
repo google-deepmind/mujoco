@@ -270,6 +270,17 @@ class ModelIOTest(parameterized.TestCase):
     mx = mjx.put_model(m)
     self.assertTrue(mx.opt.enableflags & EnableBit.IPC)
 
+  def test_noslip_not_implemented(self):
+    m = mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <option noslip_iterations="3"/>
+          <worldbody/>
+        </mujoco>""")
+    with self.assertRaisesRegex(NotImplementedError, 'Noslip'):
+      mjx.put_model(m, impl='jax')
+    # the C++ backend runs MuJoCo's own noslip
+    mjx.put_model(m, impl='cpp', keepalive_refs={})
+
   def test_pgs_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(
