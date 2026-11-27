@@ -1313,31 +1313,339 @@ int mju_sqrMatTDSparseSymbolic(
 }
 
 
-// accumulate supernode block and off-diagonal row entries with fixed SIMD width (force inline)
-static mjALWAYS_INLINE
-void accumSuperRow(
-    mjtNum block[mjMAXSUPER][mjMAXSUPER], mjtNum* restrict buffer,
-    const mjtNum* restrict scale, const mjtNum* const matT_s[mjMAXSUPER],
-    const int* restrict ind_k, const mjtNum* restrict val_k,
-    int i, int r, int ns, int any_off, int width) {
-  // accumulate supernode block
-  for (int t = 0; t < ns; t++) {
-    mjtNum v = matT_s[t][i];
-    for (int s = 0; s < width; s++) {
-      block[t][s] += scale[s] * v;
+// read-only input matrix pointers for mju_sqrMatTDSparseNumeric supernode helpers
+typedef struct {
+  const mjtNum* restrict mat;
+  const int* restrict rowadr;
+  const int* restrict colind;
+  const mjtNum* restrict diag;
+} mjSqrMatInput;
+
+
+// advance *pi to next row k with non-zero diag[k], returning row index or -1
+static inline int nextActiveRow(int* pi, int* k_out, mjtNum* dk_out,
+                                const int* restrict colindT_r,
+                                const mjtNum* restrict diag, int nnzT_r) {
+  for (int i=*pi; i < nnzT_r; i++) {
+    int k = colindT_r[i];
+    mjtNum dk = diag ? diag[k] : 1;
+    if (!diag || dk != 0) {
+      *pi = i + 1;
+      *k_out = k;
+      *dk_out = dk;
+      return i;
+    }
+  }
+  *pi = nnzT_r;
+  return -1;
+}
+
+
+// build 4-wide scaled row vector, zeroing lanes >= ns
+static inline mjtNum4 loadScale4(mjtNum v0, mjtNum v1, mjtNum v2, mjtNum v3,
+                                 const mjtNum* restrict diag, mjtNum dk,
+                                 mjtMask4 mask, mjtNum4 vzero) {
+  mjtNum4 sc = v4_set(v0, v1, v2, v3);
+  if (diag) {
+    sc = v4_mul(sc, v4_splat(dk));
+  }
+  return v4_select(mask, sc, vzero);
+}
+
+
+// build 8-wide scaled row vectors (lo and hi), zeroing lanes >= ns
+static inline void loadScale8(mjtNum4* sc_lo, mjtNum4* sc_hi,
+                              const mjtNum* const p[mjMAXSUPER], int idx,
+                              const mjtNum* restrict diag, mjtNum dk,
+                              mjtMask4 mask_hi, mjtNum4 vzero) {
+  mjtNum4 lo = v4_set(p[0][idx], p[1][idx], p[2][idx], p[3][idx]);
+  mjtNum4 hi = v4_set(p[4][idx], p[5][idx], p[6][idx], p[7][idx]);
+  if (diag) {
+    mjtNum4 vdk = v4_splat(dk);
+    lo = v4_mul(lo, vdk);
+    hi = v4_mul(hi, vdk);
+  }
+  *sc_lo = lo;
+  *sc_hi = v4_select(mask_hi, hi, vzero);
+}
+
+
+// accumulate off-diagonal entries of one row into 4-wide buffer (column r acts as sentinel)
+static inline void accumOffDiag4(mjtNum* restrict buffer, const int* restrict ind,
+                                 const mjtNum* restrict val, mjtNum4 sc, int j, int r) {
+  for (; ; j++) {
+    int c = ind[j];
+    if (c >= r) {
+      break;
+    }
+    mjtNum* buf = buffer + c*mjMAXSUPER;
+    v4_store(buf, v4_add(v4_load(buf), v4_mul(sc, v4_splat(val[j]))));
+  }
+}
+
+
+// accumulate off-diagonal entries of one row into 8-wide buffer (column r acts as sentinel)
+static inline void accumOffDiag8(mjtNum* restrict buffer, const int* restrict ind,
+                                 const mjtNum* restrict val, mjtNum4 sc_lo, mjtNum4 sc_hi,
+                                 int j, int r) {
+  for (; ; j++) {
+    int c = ind[j];
+    if (c >= r) {
+      break;
+    }
+    mjtNum* buf = buffer + c*mjMAXSUPER;
+    mjtNum4 vk = v4_splat(val[j]);
+    v4_store(buf,   v4_add(v4_load(buf),   v4_mul(sc_lo, vk)));
+    v4_store(buf+4, v4_add(v4_load(buf+4), v4_mul(sc_hi, vk)));
+  }
+}
+
+
+// accumulate supernode block and off-diagonal entries for 2 <= ns <= 4 rows
+// outlined to avoid 32-byte stack realignment in mju_sqrMatTDSparseNumeric
+static mjNOINLINE void sqrMatSuper4(mjtNum block[mjMAXSUPER][mjMAXSUPER],
+                                    mjtNum* restrict buffer, const mjSqrMatInput* in,
+                                    const mjtNum* const matT_s[mjMAXSUPER],
+                                    const int* restrict colindT_r, int nnzT_r,
+                                    int r, int ns, int any_off) {
+  // alias unused rows to p0 for safe unconditional loads; masked out below
+  const mjtNum* restrict p0 = matT_s[0];
+  const mjtNum* restrict p1 = matT_s[1];
+  const mjtNum* restrict p2 = ns > 2 ? matT_s[2] : p0;
+  const mjtNum* restrict p3 = ns > 3 ? matT_s[3] : p0;
+  const mjtNum* restrict diag = in->diag;
+  const mjtNum* restrict mat = in->mat;
+  const int* restrict rowadr = in->rowadr;
+  const int* restrict colind = in->colind;
+
+  mjtNum4 vzero = v4_splat(0);
+  mjtMask4 mask = v4_cmplt(v4_set(0, 1, 2, 3), v4_splat((mjtNum)ns));
+
+  // keep supernode block rows in SIMD registers: blk[t][s] = res[r+s, r+t]
+  mjtNum4 b0 = vzero, b1 = vzero, b2 = vzero, b3 = vzero;
+
+  int i = 0;
+  while (i < nnzT_r) {
+    // find first active row k0
+    int k0;
+    mjtNum dk0;
+    int i0 = nextActiveRow(&i, &k0, &dk0, colindT_r, diag, nnzT_r);
+    if (i0 < 0) {
+      break;
+    }
+
+    // scale[0..ns-1] = (diag ? dk0 : 1) * matT_s[s][i0], zeroing lanes >= ns
+    mjtNum v00 = p0[i0], v01 = p1[i0], v02 = p2[i0], v03 = p3[i0];
+    mjtNum4 sc0 = loadScale4(v00, v01, v02, v03, diag, dk0, mask, vzero);
+
+    // accumulate k0 into supernode block: block[t][s] += sc0[s] * matT_s[t][i0]
+    b0 = v4_add(b0, v4_mul(sc0, v4_splat(v00)));
+    b1 = v4_add(b1, v4_mul(sc0, v4_splat(v01)));
+    if (ns > 2) b2 = v4_add(b2, v4_mul(sc0, v4_splat(v02)));
+    if (ns > 3) b3 = v4_add(b3, v4_mul(sc0, v4_splat(v03)));
+
+    // no off-diagonal columns left of r: only the supernode block is needed
+    if (!any_off) {
+      continue;
+    }
+
+    // find second active row k1 for 2-row k blocking
+    int k1;
+    mjtNum dk1;
+    int i1 = nextActiveRow(&i, &k1, &dk1, colindT_r, diag, nnzT_r);
+
+    int adr0 = rowadr[k0];
+    const int* restrict ind0 = colind + adr0;
+    const mjtNum* restrict val0 = mat + adr0;
+
+    // paired row k1: accumulate block and lockstep off-diagonal columns
+    if (i1 >= 0) {
+      mjtNum v10 = p0[i1], v11 = p1[i1], v12 = p2[i1], v13 = p3[i1];
+      mjtNum4 sc1 = loadScale4(v10, v11, v12, v13, diag, dk1, mask, vzero);
+      b0 = v4_add(b0, v4_mul(sc1, v4_splat(v10)));
+      b1 = v4_add(b1, v4_mul(sc1, v4_splat(v11)));
+      if (ns > 2) b2 = v4_add(b2, v4_mul(sc1, v4_splat(v12)));
+      if (ns > 3) b3 = v4_add(b3, v4_mul(sc1, v4_splat(v13)));
+
+      int adr1 = rowadr[k1];
+      const int* restrict ind1 = colind + adr1;
+      const mjtNum* restrict val1 = mat + adr1;
+
+      // accumulate k0 and k1 in lockstep while column indices match (k0 then k1)
+      // scalar equivalent: buf[s] = (buf[s] + sc0[s]*val0[j]) + sc1[s]*val1[j]
+      int j = 0;
+      for (; ; j++) {
+        int c0 = ind0[j];
+        int c1 = ind1[j];
+        if (c0 != c1 || c0 >= r) {
+          break;
+        }
+        mjtNum* buf = buffer + c0*mjMAXSUPER;
+        mjtNum4 b = v4_load(buf);
+        b = v4_add(b, v4_mul(sc0, v4_splat(val0[j])));
+        b = v4_add(b, v4_mul(sc1, v4_splat(val1[j])));
+        v4_store(buf, b);
+      }
+
+      // finish remaining off-diagonal entries of k0, then k1
+      accumOffDiag4(buffer, ind0, val0, sc0, j, r);
+      accumOffDiag4(buffer, ind1, val1, sc1, j, r);
+    }
+
+    // single trailing row k0
+    else {
+      accumOffDiag4(buffer, ind0, val0, sc0, 0, r);
     }
   }
 
-  // accumulate off-diagonal row entries (column r is in M[k, :] since k is in M'[r, :])
-  if (any_off) {
-    for (int j = 0; ; j++) {
-      int c = ind_k[j];
-      if (c >= r) break;
-      mjtNum v = val_k[j];
-      mjtNum* buf = buffer + c * mjMAXSUPER;
-      for (int s = 0; s < width; s++) {
-        buf[s] += scale[s] * v;
+  // store supernode block
+  v4_store(block[0], b0);
+  v4_store(block[1], b1);
+  if (ns > 2) v4_store(block[2], b2);
+  if (ns > 3) v4_store(block[3], b3);
+}
+
+
+// accumulate supernode block and off-diagonal entries for 5 <= ns <= 8 rows
+// outlined to avoid 32-byte stack realignment in mju_sqrMatTDSparseNumeric
+static mjNOINLINE void sqrMatSuper8(mjtNum block[mjMAXSUPER][mjMAXSUPER],
+                                    mjtNum* restrict buffer, const mjSqrMatInput* in,
+                                    const mjtNum* const matT_s[mjMAXSUPER],
+                                    const int* restrict colindT_r, int nnzT_r,
+                                    int r, int ns, int any_off) {
+  // alias unused rows to p0 for safe unconditional loads; masked out below
+  const mjtNum* const p[mjMAXSUPER] = {
+    matT_s[0],
+    matT_s[1],
+    matT_s[2],
+    matT_s[3],
+    matT_s[4],
+    ns > 5 ? matT_s[5] : matT_s[0],
+    ns > 6 ? matT_s[6] : matT_s[0],
+    ns > 7 ? matT_s[7] : matT_s[0],
+  };
+  const mjtNum* restrict diag = in->diag;
+  const mjtNum* restrict mat = in->mat;
+  const int* restrict rowadr = in->rowadr;
+  const int* restrict colind = in->colind;
+
+  mjtNum4 vzero = v4_splat(0);
+  mjtMask4 mask_hi = v4_cmplt(v4_set(4, 5, 6, 7), v4_splat((mjtNum)ns));
+
+  // zero supernode lower triangle (only t <= s is read, so t >= 4 omits lo half)
+  for (int t=0; t < 4; t++) {
+    v4_store(block[t],   vzero);
+    v4_store(block[t]+4, vzero);
+  }
+  for (int t=4; t < ns; t++) {
+    v4_store(block[t]+4, vzero);
+  }
+
+  // fused 2-row k blocking for both supernode block and off-diagonal accumulation
+  int i = 0;
+  while (i < nnzT_r) {
+    // find first active row k0
+    int k0;
+    mjtNum dk0;
+    int i0 = nextActiveRow(&i, &k0, &dk0, colindT_r, diag, nnzT_r);
+    if (i0 < 0) {
+      break;
+    }
+
+    mjtNum4 sc0_lo, sc0_hi;
+    loadScale8(&sc0_lo, &sc0_hi, p, i0, diag, dk0, mask_hi, vzero);
+
+    // find second active row k1
+    int k1;
+    mjtNum dk1;
+    int i1 = nextActiveRow(&i, &k1, &dk1, colindT_r, diag, nnzT_r);
+
+    // paired row k1: accumulate block and lockstep off-diagonal columns
+    if (i1 >= 0) {
+      mjtNum4 sc1_lo, sc1_hi;
+      loadScale8(&sc1_lo, &sc1_hi, p, i1, diag, dk1, mask_hi, vzero);
+
+      // accumulate k0 and k1 into supernode lower triangle
+      // scalar equivalent: block[t][s] = (block[t][s] + sc0[s]*p_t[i0]) + sc1[s]*p_t[i1]
+      for (int t=0; t < 4; t++) {
+        mjtNum4 v0t = v4_splat(matT_s[t][i0]);
+        mjtNum4 v1t = v4_splat(matT_s[t][i1]);
+        mjtNum4 rlo = v4_load(block[t]);
+        mjtNum4 rhi = v4_load(block[t]+4);
+        rlo = v4_add(rlo, v4_mul(sc0_lo, v0t));
+        rhi = v4_add(rhi, v4_mul(sc0_hi, v0t));
+        rlo = v4_add(rlo, v4_mul(sc1_lo, v1t));
+        rhi = v4_add(rhi, v4_mul(sc1_hi, v1t));
+        v4_store(block[t],   rlo);
+        v4_store(block[t]+4, rhi);
       }
+      for (int t=4; t < ns; t++) {
+        mjtNum4 v0t = v4_splat(matT_s[t][i0]);
+        mjtNum4 v1t = v4_splat(matT_s[t][i1]);
+        mjtNum4 rhi = v4_load(block[t]+4);
+        rhi = v4_add(rhi, v4_mul(sc0_hi, v0t));
+        rhi = v4_add(rhi, v4_mul(sc1_hi, v1t));
+        v4_store(block[t]+4, rhi);
+      }
+
+      // no off-diagonal columns left of r
+      if (!any_off) {
+        continue;
+      }
+
+      int adr0 = rowadr[k0];
+      const int* restrict ind0 = colind + adr0;
+      const mjtNum* restrict val0 = mat + adr0;
+      int adr1 = rowadr[k1];
+      const int* restrict ind1 = colind + adr1;
+      const mjtNum* restrict val1 = mat + adr1;
+
+      // accumulate k0 and k1 in lockstep while column indices match (k0 then k1)
+      // scalar equivalent: buf[s] = (buf[s] + sc0[s]*val0[j]) + sc1[s]*val1[j]
+      int j = 0;
+      for (; ; j++) {
+        int c0 = ind0[j];
+        int c1 = ind1[j];
+        if (c0 != c1 || c0 >= r) {
+          break;
+        }
+        mjtNum* buf = buffer + c0*mjMAXSUPER;
+        mjtNum4 v0 = v4_splat(val0[j]);
+        mjtNum4 v1 = v4_splat(val1[j]);
+        mjtNum4 blo = v4_load(buf);
+        mjtNum4 bhi = v4_load(buf+4);
+        blo = v4_add(blo, v4_mul(sc0_lo, v0));
+        bhi = v4_add(bhi, v4_mul(sc0_hi, v0));
+        blo = v4_add(blo, v4_mul(sc1_lo, v1));
+        bhi = v4_add(bhi, v4_mul(sc1_hi, v1));
+        v4_store(buf,   blo);
+        v4_store(buf+4, bhi);
+      }
+
+      // finish remaining off-diagonal entries of k0, then k1
+      accumOffDiag8(buffer, ind0, val0, sc0_lo, sc0_hi, j, r);
+      accumOffDiag8(buffer, ind1, val1, sc1_lo, sc1_hi, j, r);
+    }
+
+    // single trailing row k0
+    else {
+      for (int t=0; t < 4; t++) {
+        mjtNum4 v0t = v4_splat(matT_s[t][i0]);
+        v4_store(block[t],   v4_add(v4_load(block[t]),   v4_mul(sc0_lo, v0t)));
+        v4_store(block[t]+4, v4_add(v4_load(block[t]+4), v4_mul(sc0_hi, v0t)));
+      }
+      for (int t=4; t < ns; t++) {
+        mjtNum4 v0t = v4_splat(matT_s[t][i0]);
+        v4_store(block[t]+4, v4_add(v4_load(block[t]+4), v4_mul(sc0_hi, v0t)));
+      }
+
+      // no off-diagonal columns left of r
+      if (!any_off) {
+        continue;
+      }
+
+      int adr0 = rowadr[k0];
+      accumOffDiag8(buffer, colind+adr0, mat+adr0, sc0_lo, sc0_hi, 0, r);
     }
   }
 }
@@ -1360,6 +1668,7 @@ void mju_sqrMatTDSparseNumeric(
   // dense accumulator for off-diagonal columns c < r, zeroed lazily up to flat index buf_zeroed
   mjtNum* restrict buffer = mjSTACKALLOC(d, nc * mjMAXSUPER, mjtNum);
   int buf_zeroed = 0;
+  mjSqrMatInput sqr_in = {mat, rowadr, colind, diag};
 
   // process result rows
   int ns;  // set in the loop
@@ -1455,34 +1764,15 @@ void mju_sqrMatTDSparseNumeric(
       }
 
       // supernode block: block[t][s] = res[r+s, r+t] (transposed for SIMD)
-      mjtNum block[mjMAXSUPER][mjMAXSUPER] = {{0}};
-      mjtNum scale[mjMAXSUPER] = {0};
+      mjtNum block[mjMAXSUPER][mjMAXSUPER];
 
       // accumulate: res[r:r+ns-1, :] = sum over k in M'[r:r+ns-1, :] of
       //   diag[k] * M'[r:r+ns-1, k] * M[k, :]
-      for (int i = 0; i < nnzT_r; i++) {
-        int k = colindT[adr_r + i];
-        if (diag) {
-          mjtNum dk = diag[k];
-          if (dk == 0) continue;
-          for (int s = 0; s < ns; s++) {
-            scale[s] = dk * matT_s[s][i];
-          }
-        } else {
-          for (int s = 0; s < ns; s++) {
-            scale[s] = matT_s[s][i];
-          }
-        }
-
-        // accumulate supernode block and off-diagonal row entries (specialize SIMD width=4)
-        int adr_k = rowadr[k];
-        if (ns <= 4) {
-          accumSuperRow(block, buffer, scale, matT_s,
-                        colind + adr_k, mat + adr_k, i, r, ns, any_off, 4);
-        } else {
-          accumSuperRow(block, buffer, scale, matT_s,
-                        colind + adr_k, mat + adr_k, i, r, ns, any_off, mjMAXSUPER);
-        }
+      // specialize SIMD width 4 vs 8
+      if (ns <= 4) {
+        sqrMatSuper4(block, buffer, &sqr_in, matT_s, colindT+adr_r, nnzT_r, r, ns, any_off);
+      } else {
+        sqrMatSuper8(block, buffer, &sqr_in, matT_s, colindT+adr_r, nnzT_r, r, ns, any_off);
       }
 
       // write off-diagonal columns c < r and supernode lower triangle
