@@ -129,20 +129,28 @@ class SignalTransform:
           resolved[name] = delay_value
     return resolved
 
-  def _compute_delay_bounds(self) -> tuple[float, float]:
-    """Compute min/max delay across all registered delay params (deduplicated by name)."""
-    if not self._delays:
-      return 0.0, 0.0
-    seen: set[str] = set()
-    min_vals: list[float] = []
-    max_vals: list[float] = []
-    for _, param_name, param in self._delays:
-      if param_name in seen:
-        continue
-      seen.add(param_name)
-      min_vals.append(float(param.min_value[0]))
-      max_vals.append(float(param.max_value[0]))
-    return min(min_vals), max(max_vals)
+  def _compute_delay_bounds(
+      self, ts: timeseries.TimeSeries
+  ) -> tuple[float, float]:
+    """Compute bounds for the delays actually applied to signal columns."""
+    sensor_names = self._get_sensor_names(ts)
+    min_delays: dict[str, float] = {}
+    max_delays: dict[str, float] = {}
+    for pattern, _, param in self._delays:
+      for name in sensor_names:
+        if fnmatch(name, pattern):
+          min_delays[name] = float(param.min_value[0])
+          max_delays[name] = float(param.max_value[0])
+
+    # Use the same column expansion as interpolation, including zero-delay
+    # columns and aliases whose values are replaced by a later mapping.
+    min_vals = signal_modifier._build_per_column_delays(
+        ts, 0.0, min_delays, predicted_data=False
+    )
+    max_vals = signal_modifier._build_per_column_delays(
+        ts, 0.0, max_delays, predicted_data=False
+    )
+    return min(min_vals, default=0.0), max(max_vals, default=0.0)
 
   def _get_sensor_names(self, ts: timeseries.TimeSeries) -> list[str]:
     """Extract sensor names from a TimeSeries signal_mapping."""
@@ -244,7 +252,7 @@ class SignalTransform:
 
     # 1. Resolve delays and compute bounds.
     sensor_delays = self._resolve_delays(sensor_names, params)
-    min_delay, max_delay = self._compute_delay_bounds()
+    min_delay, max_delay = self._compute_delay_bounds(sensordata_predicted)
 
     # 2. Window measured data.
     sensordata_measured = signal_modifier.apply_delayed_ts_window(
@@ -299,3 +307,4 @@ class SignalTransform:
       res = res[:, indices]
 
     return res, sensordata_predicted, sensordata_measured
+
