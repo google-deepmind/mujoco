@@ -277,27 +277,26 @@ static const mjtNum* get_xquat(const mjModel* m, const mjData* d, mjtObj type, i
 }
 
 
-static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
-                        const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
-                        const int cam_res[2], mjtNum cam_fovy,
-                        const float cam_intrinsic[4], const float cam_sensorsize[2]) {
-  mjtNum fx, fy;
-
-  // focal transformation
-  if (cam_sensorsize[0] && cam_sensorsize[1]) {
-    fx = cam_intrinsic[0] / cam_sensorsize[0] * cam_res[0];
-    fy = cam_intrinsic[1] / cam_sensorsize[1] * cam_res[1];
-  } else {
-    fx = fy = .5 / mju_tan(cam_fovy * mjPI / 360.) * cam_res[1];
-  }
+static void cam_project(mjtNum sensordata[2], const mjModel* m, const mjData* d,
+                        int camid, const mjtNum target_xpos[3]) {
+  mjtNum fx, fy, cx, cy, extent;
+  mju_camIntrinsics(m, camid, &fx, &fy, &cx, &cy, &extent);
 
   // relative position in world frame
   mjtNum relative_pos[3];
-  mju_sub3(relative_pos, target_xpos, cam_xpos);
+  mju_sub3(relative_pos, target_xpos, d->cam_xpos+3*camid);
 
   // project to camera frame: cam_pos = cam_xmat^T * relative_pos
   mjtNum cam_pos[3];
-  mju_mulMatTVec(cam_pos, cam_xmat, relative_pos, 3, 3);
+  mju_mulMatTVec(cam_pos, d->cam_xmat+9*camid, relative_pos, 3, 3);
+
+  // orthographic: inverse of the pixel offset in mju_camPixelRay
+  if (m->cam_projection[camid] == mjPROJ_ORTHOGRAPHIC) {
+    mjtNum half_extent = extent / 2;
+    sensordata[0] =  fx * (cam_pos[0] / half_extent) + cx;
+    sensordata[1] = -fy * (cam_pos[1] / half_extent) + cy;
+    return;
+  }
 
   // avoid dividing by tiny numbers
   mjtNum denom = cam_pos[2];
@@ -310,8 +309,8 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
   }
 
   // compute projection
-  sensordata[0] = -fx * (cam_pos[0] / denom) + 0.5 * (mjtNum)cam_res[0];
-  sensordata[1] =  fy * (cam_pos[1] / denom) + 0.5 * (mjtNum)cam_res[1];
+  sensordata[0] = -fx * (cam_pos[0] / denom) + cx;
+  sensordata[1] =  fy * (cam_pos[1] / denom) + cy;
 }
 
 
@@ -728,9 +727,7 @@ static void mj_computeSensorPos(const mjModel* m, mjData* d, int i, mjtNum* sens
     break;
 
   case mjSENS_CAMPROJECTION:                          // camera projection
-    cam_project(sensordata, d->site_xpos+3*objid, d->cam_xpos+3*refid,
-                d->cam_xmat+9*refid, m->cam_resolution+2*refid, m->cam_fovy[refid],
-                m->cam_intrinsic+4*refid, m->cam_sensorsize+2*refid);
+    cam_project(sensordata, m, d, refid, d->site_xpos+3*objid);
     break;
 
   case mjSENS_RANGEFINDER:                            // rangefinder
