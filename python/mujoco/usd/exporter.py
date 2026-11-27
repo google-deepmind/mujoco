@@ -14,6 +14,7 @@
 # ==============================================================================
 """USD exporter."""
 
+import math
 import os
 from typing import List, Optional, Union
 
@@ -48,6 +49,7 @@ class USDExporter:
       camera_names: Optional[List[str]] = None,
       specialized_materials_file: Optional[str] = None,
       verbose: bool = True,
+      framerate: float = 60.0,
   ):
     """Initializes a new USD Exporter.
 
@@ -68,7 +70,11 @@ class USDExporter:
         specialized_materials_file: path to a file containing a list of
           materials to be used in the scene.
         verbose: decides whether to print updates.
+        framerate: number of scene updates per simulated second. Sample
+          update_scene at this rate for real-time playback.
     """
+    if not math.isfinite(framerate) or framerate <= 0:
+      raise ValueError("framerate must be finite and positive.")
 
     buffer_width = model.vis.global_.offwidth
     buffer_height = model.vis.global_.offheight
@@ -101,6 +107,7 @@ class USDExporter:
     self.camera_names = camera_names
     self.specialized_materials_file = specialized_materials_file
     self.verbose = verbose
+    self.framerate = framerate
 
     self.frame_count = 0  # maintains how many times we have saved the scene
     self.updates = 0
@@ -138,8 +145,8 @@ class USDExporter:
     self.stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(self.stage, UsdGeom.Tokens.z)
     self.stage.SetStartTimeCode(0)
-    # add as user input
-    self.stage.SetTimeCodesPerSecond(60.0)
+    self.stage.SetTimeCodesPerSecond(self.framerate)
+    self.stage.SetFramesPerSecond(self.framerate)
 
     default_prim = UsdGeom.Xform.Define(
         self.stage, Sdf.Path("/World")

@@ -70,6 +70,60 @@ class ExporterTest(absltest.TestCase):
         self.assertEqual(f.readlines(), golden_file.readlines())
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_playback_rate_matches_simulation_sampling(self):
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option timestep="0.01"/>
+        <worldbody>
+          <camera name="cam" pos="0 -3 1"/>
+          <body pos="0 0 2">
+            <freejoint/>
+            <geom name="ball" type="sphere" size="0.1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory_root=self.create_tempdir().full_path,
+        camera_names=["cam"],
+        framerate=20,
+        verbose=False,
+    )
+    times = []
+    for _ in range(3):
+      for _ in range(5):
+        mujoco.mj_step(model, data)
+      times.append(data.time)
+      exporter.update_scene(data)
+    exporter.save_scene("usda")
+    stage = exporter.stage
+    self.assertEqual(stage.GetTimeCodesPerSecond(), 20)
+    self.assertEqual(stage.GetFramesPerSecond(), 20)
+    self.assertEqual(exporter.frame_count, 3)
+    self.assertEqual(stage.GetEndTimeCode(), 3)
+    for path in (
+        "/World/Camera_Xform_cam",
+        "/World/Mesh_Xform_ball_id0_geom",
+    ):
+      attr = stage.GetPrimAtPath(path).GetAttribute("xformOp:transform")
+      samples = attr.GetTimeSamples()
+      self.assertEqual(samples, [0, 1, 2])
+      self.assertAlmostEqual(
+          (samples[-1] - samples[0]) / stage.GetTimeCodesPerSecond(),
+          times[-1] - times[0],
+      )
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_invalid_framerate(self):
+    model = mujoco.MjModel.from_xml_string("<mujoco/>")
+    for rate in (0, -1, float("inf"), float("nan")):
+      with self.subTest(rate=rate):
+        with self.assertRaisesRegex(ValueError, "framerate"):
+          exporter_module.USDExporter(model, framerate=rate)
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):
     output_dir_root = self.create_tempdir().full_path
     xml = """

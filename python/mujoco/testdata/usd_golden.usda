@@ -4,6 +4,7 @@
     doc = """Generated from Composed Stage of root layer 
 """
     endTimeCode = 1
+    framesPerSecond = 60
     startTimeCode = 0
     timeCodesPerSecond = 60
     upAxis = "Z"
