@@ -1,3 +1,7 @@
+<p align="center">
+  <b>English</b> · <a href="README.zh.md">简体中文</a>
+</p>
+
 <h1>
   <a href="https://mujoco.org"><img alt="MuJoCo" src="banner.png" width="100%"/></a>
 </h1>
