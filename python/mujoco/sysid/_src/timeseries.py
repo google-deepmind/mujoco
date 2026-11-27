@@ -521,7 +521,8 @@ class TimeSeries:
     """Return a new TimeSeries containing only the named signals.
 
     Columns are re-indexed so the resulting ``signal_mapping`` has contiguous
-    indices starting from 0.
+    indices starting from 0. Signals that share a column keep a shared index
+    in the result; each source column is copied only once.
 
     Args:
       ts: The source TimeSeries.
@@ -547,7 +548,10 @@ class TimeSeries:
       kept_indices_set.update(ts.signal_mapping[name][1])
     new_index_counter = 0
     for original_index in all_original_indices:
-      if original_index in kept_indices_set:
+      if (
+          original_index in kept_indices_set
+          and original_index not in original_to_new_index_map
+      ):
         original_to_new_index_map[original_index] = new_index_counter
         new_index_counter += 1
         original_indices_to_keep.append(original_index)
