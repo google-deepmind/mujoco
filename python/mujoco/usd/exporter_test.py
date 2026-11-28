@@ -20,6 +20,7 @@ import tempfile
 from absl.testing import absltest
 from etils import epath
 import mujoco
+import numpy as np
 
 try:
   from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
@@ -68,6 +69,76 @@ class ExporterTest(absltest.TestCase):
       )
       with open(golden_path, "r", encoding="utf-8") as golden_file:
         self.assertEqual(f.readlines(), golden_file.readlines())
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_skin_vertex_animation(self):
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <asset>
+          <texture name="checker" type="2d" builtin="checker"
+                   width="8" height="8"/>
+          <material name="textured" texture="checker"/>
+          <skin name="fixed" vertex="0 0 0 1 0 0 0 1 0" face="0 1 2">
+            <bone body="world" bindpos="0 0 0" bindquat="1 0 0 0"
+                  vertid="0 1 2" vertweight="1 1 1"/>
+          </skin>
+          <skin name="moving" material="textured"
+                vertex="0 0 1 1 0 1 0 1 1" face="0 1 2"
+                texcoord="0 0 1 0 0 1">
+            <bone body="world" bindpos="0 0 0" bindquat="1 0 0 0"
+                  vertid="0" vertweight="1"/>
+            <bone body="bone" bindpos="0 0 0" bindquat="1 0 0 0"
+                  vertid="1 2" vertweight="1 1"/>
+          </skin>
+        </asset>
+        <worldbody>
+          <body name="bone">
+            <freejoint/>
+            <geom type="sphere" size="0.1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory_root=self.create_tempdir().full_path,
+        verbose=False,
+    )
+    mujoco.mj_forward(model, data)
+    exporter.update_scene(data)
+    data.qpos[:3] = [0.2, 0.3, 0.4]
+    mujoco.mj_forward(model, data)
+    exporter.update_scene(data)
+
+    for index, name in enumerate(("fixed", "moving")):
+      mesh = exporter.stage.GetPrimAtPath(
+          f"/World/Mesh_Xform_{name}_id{index}_skin/"
+          f"Mesh_{name}_id{index}_skin"
+      )
+      self.assertTrue(mesh)
+      self.assertEqual(
+          list(mesh.GetAttribute("faceVertexIndices").Get()), [0, 1, 2]
+      )
+      points = mesh.GetAttribute("points")
+      self.assertEqual(points.GetTimeSamples(), [0, 1])
+      initial = np.asarray(points.Get(0))
+      updated = np.asarray(points.Get(1))
+      if index == 0:
+        np.testing.assert_allclose(initial, updated)
+      else:
+        np.testing.assert_allclose(updated[0], initial[0])
+        np.testing.assert_allclose(
+            updated[1:] - initial[1:], [[0.2, 0.3, 0.4]] * 2,
+            atol=1e-6,
+        )
+        np.testing.assert_allclose(
+            np.asarray(mesh.GetAttribute("primvars:UVMap").Get()),
+            [[0, 0], [1, 0], [0, 1]],
+        )
+      normals = mesh.GetAttribute("normals")
+      self.assertEqual(normals.GetTimeSamples(), [0, 1])
+      self.assertEqual(len(normals.Get(1)), 3)
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):
