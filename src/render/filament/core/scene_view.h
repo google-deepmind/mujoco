@@ -15,8 +15,10 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_CORE_SCENE_VIEW_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_CORE_SCENE_VIEW_H_
 
+#include <list>
 #include <memory>
 #include <span>
+#include <unordered_map>
 #include <unordered_set>
 
 #include <filament/Camera.h>
@@ -129,7 +131,11 @@ class SceneView : public mjrfScene {
   // The headlight belongs to the render request, not to the scene, so it is
   // owned here and re-aimed at each request's camera.
   std::unique_ptr<Light> headlight_;
-  std::unordered_set<Renderable*> renderables_;
+  // In the order they were added, so that every build of a scene prepares
+  // them, and creates their material instances, in the same order.
+  std::list<Renderable*> renderables_;
+  std::unordered_map<Renderable*, std::list<Renderable*>::iterator>
+      renderable_positions_;
   filament::Skybox* skybox_ = nullptr;
   std::unique_ptr<Renderable> haze_;
   float focus_distance_ = 0.0f;
