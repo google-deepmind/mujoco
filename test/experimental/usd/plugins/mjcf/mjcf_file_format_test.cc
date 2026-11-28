@@ -37,6 +37,7 @@
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/gf/vec3f.h>
+#include <pxr/base/gf/vec4f.h>
 #include <pxr/base/tf/staticData.h>
 #include <pxr/base/tf/staticTokens.h>
 #include <pxr/base/tf/token.h>
@@ -228,6 +229,42 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
       stage,
       "/mesh_test/Materials/material_metallic/PreviewSurface.inputs:metallic",
       0.6f);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestUnsetMaterialPbrValuesAndTint) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="material_test">
+      <asset>
+        <texture name="checker" type="2d" builtin="checker"
+                 width="8" height="8"/>
+        <material name="classic" texture="checker" rgba="0.2 0.4 0.6 1"/>
+        <material name="explicit" metallic="0" roughness="0.25"/>
+      </asset>
+      <worldbody>
+        <geom type="sphere" size="0.1" material="classic"/>
+        <geom type="sphere" size="0.1" pos="1 0 0" material="explicit"/>
+      </worldbody>
+    </mujoco>
+  )";
+  auto stage = OpenStage(kXml);
+  EXPECT_PRIM_VALID(stage, "/material_test/Materials/classic/PreviewSurface");
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage, "/material_test/Materials/classic/PreviewSurface.inputs:metallic");
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage, "/material_test/Materials/classic/PreviewSurface.inputs:roughness");
+  ExpectAttributeEqual(
+      stage, "/material_test/Materials/classic/diffuse.inputs:scale",
+      pxr::GfVec4f(0.2f, 0.4f, 0.6f, 1.0f));
+  ExpectAttributeHasConnection(
+      stage,
+      "/material_test/Materials/classic/PreviewSurface.inputs:diffuseColor",
+      "/material_test/Materials/classic/diffuse.outputs:rgb");
+  ExpectAttributeEqual(
+      stage, "/material_test/Materials/explicit/PreviewSurface.inputs:metallic",
+      0.0f);
+  ExpectAttributeEqual(
+      stage, "/material_test/Materials/explicit/PreviewSurface.inputs:roughness",
+      0.25f);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialLayers) {

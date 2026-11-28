@@ -36,6 +36,7 @@
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/gf/vec3f.h>
+#include <pxr/base/gf/vec4f.h>
 #include <pxr/base/tf/callContext.h>
 #include <pxr/base/tf/diagnostic.h>
 #include <pxr/base/tf/diagnosticHelper.h>
@@ -102,6 +103,7 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((inputsSt, "inputs:st"))
                          ((inputsVarname, "inputs:varname"))
                          ((inputsFile, "inputs:file"))
+                         ((inputsScale, "inputs:scale"))
                          ((inputsWrapS, "inputs:wrapS"))
                          ((inputsWrapT, "inputs:wrapT"))
                          ((inputsDiffuseColor, "inputs:diffuseColor"))
@@ -888,7 +890,8 @@ class ModelWriter {
       const pxr::SdfPrimSpecHandle material_spec, const char *texture_file,
       const pxr::TfToken &name,
       const pxr::SdfAttributeSpecHandle uvmap_st_output_attr,
-      const std::vector<pxr::TfToken> &output_channels) {
+      const std::vector<pxr::TfToken> &output_channels,
+      const pxr::GfVec4f *scale = nullptr) {
     auto texture_shader_spec =
         CreatePrimSpec(layer_, material_spec->GetPath(), name, pxr::UsdShadeTokens->Shader);
     auto texture_info_id_attr = CreateAttributeSpec(
@@ -902,6 +905,13 @@ class ModelWriter {
                             pxr::SdfValueTypeNames->Asset);
     SetAttributeDefault(layer_, texture_file_attr,
                         pxr::SdfAssetPath(texture_file));
+
+    if (scale) {
+      auto scale_attr =
+          CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsScale,
+                              pxr::SdfValueTypeNames->Float4);
+      SetAttributeDefault(layer_, scale_attr, *scale);
+    }
 
     auto texture_st_input_attr =
         CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsSt,
@@ -1069,7 +1079,8 @@ class ModelWriter {
           AddAttributeConnection(layer_, metallic_attr,
                                  metallic_output_attrs[0]);
         }
-      } else {
+      } else if (material->metallic >= 0) {
+        // MuJoCo uses -1 for an unspecified PBR value.
         SetAttributeDefault(layer_, metallic_attr, material->metallic);
       }
       if (roughness_texture) {
@@ -1082,7 +1093,8 @@ class ModelWriter {
           AddAttributeConnection(layer_, roughness_attr,
                                  roughness_output_attrs[0]);
         }
-      } else {
+      } else if (material->roughness >= 0) {
+        // MuJoCo uses -1 for an unspecified PBR value.
         SetAttributeDefault(layer_, roughness_attr, material->roughness);
       }
       if (occlusion_texture) {
@@ -1145,11 +1157,13 @@ class ModelWriter {
             GetMaterialTexture(material, mjTEXROLE_RGB)) {
       // Create the texture shader and connect it to the diffuse color
       // attribute.
+      const pxr::GfVec4f tint(material->rgba[0], material->rgba[1],
+                              material->rgba[2], material->rgba[3]);
       const std::vector<pxr::SdfAttributeSpecHandle>
           texture_diffuse_output_attrs =
               AddTextureShader(material_spec, mjs_getString(main_texture->file),
                                pxr::TfToken("diffuse"), uvmap_st_output_attr,
-                               {kTokens->outputsRgb});
+                               {kTokens->outputsRgb}, &tint);
       if (texture_diffuse_output_attrs.size() == 1) {
         AddAttributeConnection(layer_, diffuse_color_attr,
                                texture_diffuse_output_attrs[0]);
