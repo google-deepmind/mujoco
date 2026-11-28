@@ -822,6 +822,25 @@ class MuJoCoRolloutTest(parameterized.TestCase):
           skip_checks=True,
       )
 
+  def test_explicit_single_step(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    data = mujoco.MjData(model)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    initial_state = zeros(nstate)
+    control = zeros(3, model.nu)
+
+    with self.assertRaisesRegex(ValueError, 'dimension 1 inferred as 1'):
+      rollout.rollout(model, data, initial_state, control, nstep=1)
+
+    # With no explicit step count, infer it from the control trajectory.
+    state, _ = rollout.rollout(model, data, initial_state, control)
+    self.assertEqual(state.shape, (1, 3, nstate))
+
+    state, _ = rollout.rollout(
+        model, data, initial_state, control[:1], nstep=1
+    )
+    self.assertEqual(state.shape, (1, 1, nstate))
+
   def test_chunk_size_validation(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
