@@ -313,6 +313,80 @@ class USDMesh(USDObject):
     return mesh_vert, mesh_face, mesh_facenum
 
 
+class USDSkin(USDObject):
+  """Exports a skin's fixed topology and animated world-space vertices."""
+
+  def __init__(
+      self,
+      stage: Usd.Stage,
+      model: mujoco.MjModel,
+      scene: mujoco.MjvScene,
+      geom: mujoco.MjvGeom,
+      obj_name: str,
+      dataid: int,
+      rgba: np.ndarray,
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = (),
+  ):
+    super().__init__(stage, model, geom, obj_name, rgba, geom_textures)
+    self.scene = scene
+    self.dataid = dataid
+    mesh_path = f"{self.xform_path}/Mesh_{self.obj_name}"
+    self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
+    self.usd_prim = self.usd_mesh.GetPrim()
+    points, faces, face_count = self._get_mesh_geometry()
+    self.usd_mesh.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points))
+    self.usd_mesh.GetFaceVertexCountsAttr().Set([3] * face_count)
+    self.usd_mesh.GetFaceVertexIndicesAttr().Set(faces.flatten().tolist())
+    self.usd_mesh.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
+    self.usd_mesh.SetNormalsInterpolation(UsdGeom.Tokens.vertex)
+    if (
+        self.model.skin_texcoordadr[dataid] >= 0
+        and geom.matid != -1
+        and self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB.value]
+    ):
+      uv = UsdGeom.PrimvarsAPI(self.usd_mesh).CreatePrimvar(
+          "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
+      )
+      uv.Set(Vt.Vec2fArray.FromNumpy(self._get_uv_geometry()))
+      self.attach_image_material(self.usd_mesh)
+    else:
+      self.attach_solid_material(self.usd_mesh)
+
+  def _get_uv_geometry(self):
+    start = self.model.skin_texcoordadr[self.dataid]
+    count = self.model.skin_vertnum[self.dataid]
+    return self.model.skin_texcoord[start : start + count]
+
+  def _get_mesh_geometry(self):
+    start = self.scene.skinvertadr[self.dataid]
+    count = self.scene.skinvertnum[self.dataid]
+    points = self.scene.skinvert.reshape(-1, 3)[start : start + count]
+    face_start = self.model.skin_faceadr[self.dataid]
+    face_count = self.model.skin_facenum[self.dataid]
+    faces = self.model.skin_face[face_start : face_start + face_count]
+    return points, faces, face_count
+
+  def update(
+      self,
+      pos: np.ndarray,
+      mat: np.ndarray,
+      visible: bool,
+      frame: int,
+      scale: Optional[np.ndarray] = None,
+  ):
+    # The renderer has already transformed the vertices into world space.
+    # Applying the geom's bone pose again would double the transformation.
+    super().update(np.zeros(3), np.eye(3), visible, frame)
+    points, _, _ = self._get_mesh_geometry()
+    start = self.scene.skinvertadr[self.dataid]
+    count = self.scene.skinvertnum[self.dataid]
+    normals = self.scene.skinnormal.reshape(-1, 3)[start : start + count]
+    self.usd_mesh.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points), frame)
+    self.usd_mesh.GetNormalsAttr().Set(
+        Vt.Vec3fArray.FromNumpy(normals), frame
+    )
+
+
 class USDPrimitiveMesh(USDObject):
   """Class to handle primitive shapes in the USD scene."""
 
