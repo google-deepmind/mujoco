@@ -90,6 +90,10 @@ Deformables
 
 Compiler
 ^^^^^^^^
+- Added the :ref:`facetexcoord<asset-mesh-facetexcoord>` attribute to :ref:`mesh<asset-mesh>` and updated XML saving
+  to emit it when ``mjsMesh.userfacetexcoord`` is set. Previously, saving an inline textured mesh with per-corner UVs
+  dropped ``userfacetexcoord``, causing the saved XML to fail compilation or map UVs to the wrong corners
+  (:issue:`3931`, reported by :github:user:`andrewkaufman`).
 - Sequentially appending elements to an :ref:`mjSpec` body tree now runs in :math:`O(1)` instead of rebuilding the
   model's tree lists, making procedural model construction up to ~250x faster.
 - :ref:`strippath<compiler-strippath>` no longer strips file names that match a registered

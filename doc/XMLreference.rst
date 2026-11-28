@@ -1523,15 +1523,21 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 .. _asset-mesh-texcoord:
 
-:at:`texcoord`: :at-val:`real(2*nvert), optional`
-   Vertex 2D texture coordinates, which are numbers between 0 and 1. If specified, the number of texture coordinate
-   pairs must equal the number of vertices.
+:at:`texcoord`: :at-val:`real(2*ntexcoord), optional`
+   2D texture coordinates, which are numbers between 0 and 1. If :at:`facetexcoord` is omitted, the number of texture
+   coordinate pairs must equal the number of vertices.
 
 .. _asset-mesh-face:
 
 :at:`face`: :at-val:`int(3*nface), optional`
    Faces of the mesh. Each face is a sequence of 3 vertex indices, in counter-clockwise order. The indices must be
    integers between 0 and nvert-1.
+
+.. _asset-mesh-facetexcoord:
+
+:at:`facetexcoord`: :at-val:`int(3*nface), optional`
+   Texture coordinate indices for each face corner, corresponding to :at:`face`. Each index must be an integer between
+   0 and ntexcoord-1. If omitted, texture coordinates are assumed to be per-vertex and indexed by :at:`face`.
 
 .. _asset-mesh-refpos:
 

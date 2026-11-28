@@ -3124,6 +3124,33 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaisesWithLiteralMatch(RuntimeError, "VFS is closed"):
       spec.discard_visual(vfs=vfs)
 
+  def test_mesh_userfacetexcoord_to_xml_roundtrip(self):
+    spec = mujoco.MjSpec()
+    mesh = spec.add_mesh(name='tet')
+    mesh.uservert = [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]
+    mesh.userface = [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]
+    mesh.usertexcoord = [0, 0, 1, 0, 0, 1] * 4
+    mesh.userfacetexcoord = list(range(12))
+    spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_MESH, meshname='tet')
+
+    # Uncompiled to_xml round-trip.
+    xml_uncompiled = spec.to_xml()
+    reloaded = mujoco.MjSpec.from_string(xml_uncompiled).compile()
+    np.testing.assert_array_equal(
+        reloaded.mesh_facetexcoord.ravel(), list(range(12))
+    )
+
+    # Compiled to_xml round-trip.
+    model = spec.compile()
+    xml_compiled = spec.to_xml()
+    reloaded_compiled = mujoco.MjSpec.from_string(xml_compiled).compile()
+    np.testing.assert_array_equal(
+        reloaded_compiled.mesh_facetexcoord, model.mesh_facetexcoord
+    )
+    np.testing.assert_allclose(
+        reloaded_compiled.mesh_texcoord, model.mesh_texcoord
+    )
+
 
 if __name__ == '__main__':
   absltest.main()

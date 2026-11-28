@@ -4750,5 +4750,103 @@ TEST_F(XMLWriterTest, HeadlightActiveRoundTrip) {
   }
 }
 
+TEST_F(XMLWriterTest, MeshFaceTexcoordRoundTrip) {
+  // tetrahedron with 4 vertices and 12 distinct per-corner UVs
+  const float vert[] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const int face[] = {0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3};
+  const float texcoord[] = {0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
+                            0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1};
+  const int facetexcoord[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+  mjs_setName(mesh->element, "tet");
+  mjs_setFloat(mesh->uservert, vert, 12);
+  mjs_setInt(mesh->userface, face, 12);
+  mjs_setFloat(mesh->usertexcoord, texcoord, 24);
+  mjs_setInt(mesh->userfacetexcoord, facetexcoord, 12);
+
+  // normal inline mesh with per-vertex UVs should not emit facetexcoord
+  const float simple_tc[] = {0, 0, 1, 0, 0, 1, 1, 1};
+  mjsMesh* simple = mjs_addMesh(spec, nullptr);
+  mjs_setName(simple->element, "simple");
+  mjs_setFloat(simple->uservert, vert, 12);
+  mjs_setInt(simple->userface, face, 12);
+  mjs_setFloat(simple->usertexcoord, simple_tc, 8);
+
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(spec, "world"), nullptr);
+  geom->type = mjGEOM_MESH;
+  mjs_setString(geom->meshname, "tet");
+
+  std::array<char, 1024> error;
+
+  // uncompiled save round-trips cleanly
+  spec->compiler.savecompiled = 0;
+  std::string saved_uncompiled = SaveToString(spec);
+  EXPECT_THAT(saved_uncompiled,
+              HasSubstr("facetexcoord=\"0 1 2 3 4 5 6 7 8 9 10 11\""));
+  MjModelPtr reloaded_uncompiled =
+      LoadModelFromString(saved_uncompiled.c_str(), error.data(), error.size());
+  ASSERT_THAT(reloaded_uncompiled.get(), NotNull()) << error.data() << "\n"
+                                                    << saved_uncompiled;
+  EXPECT_EQ(reloaded_uncompiled->mesh_texcoordnum[0], 12);
+  EXPECT_THAT(AsVector(reloaded_uncompiled->mesh_facetexcoord, 12),
+              ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
+  EXPECT_EQ(reloaded_uncompiled->mesh_texcoordnum[1], 4);
+  EXPECT_THAT(AsVector(reloaded_uncompiled->mesh_facetexcoord + 12, 12),
+              ElementsAre(0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3));
+
+  // compiled save round-trips cleanly for both savecompiled=0 and 1
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  for (int savecompiled : {0, 1}) {
+    spec->compiler.savecompiled = savecompiled;
+    std::string saved = SaveToString(spec);
+    EXPECT_THAT(saved, HasSubstr("facetexcoord=\"0 1 2 3 4 5 6 7 8 9 10 11\""));
+    MjModelPtr reloaded =
+        LoadModelFromString(saved.c_str(), error.data(), error.size());
+    ASSERT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved;
+    EXPECT_EQ(reloaded->mesh_texcoordnum[0], 12);
+    EXPECT_THAT(AsVector(reloaded->mesh_facetexcoord, 12),
+                ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
+  }
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLWriterTest, MeshFaceTexcoordSameCountPreservesMapping) {
+  // ntexcoord == nvert, but facetexcoord permutes corner UVs
+  const float vert[] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const int face[] = {0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3};
+  const float texcoord[] = {0, 0, 0.25f, 0.25f, 0.5f, 0.5f, 0.75f, 0.75f};
+  const int facetexcoord[] = {3, 2, 1, 3, 1, 0, 2, 0, 3, 1, 0, 2};
+
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+  mjs_setName(mesh->element, "tet");
+  mjs_setFloat(mesh->uservert, vert, 12);
+  mjs_setInt(mesh->userface, face, 12);
+  mjs_setFloat(mesh->usertexcoord, texcoord, 8);
+  mjs_setInt(mesh->userfacetexcoord, facetexcoord, 12);
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(spec, "world"), nullptr);
+  geom->type = mjGEOM_MESH;
+  mjs_setString(geom->meshname, "tet");
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  std::array<char, 1024> error;
+  std::string saved = SaveToString(spec);
+  MjModelPtr reloaded =
+      LoadModelFromString(saved.c_str(), error.data(), error.size());
+  ASSERT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved;
+  EXPECT_THAT(AsVector(reloaded->mesh_facetexcoord, 12),
+              ElementsAre(3, 2, 1, 3, 1, 0, 2, 0, 3, 1, 0, 2));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco

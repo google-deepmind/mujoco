@@ -1504,6 +1504,24 @@ void mjCMesh::Process() {
     throw mjCError(this, "face data must have the same size as face normal data");
   }
 
+  // check facetexcoord size and indices
+  if (!facetexcoord_.empty()) {
+    if (texcoord_.empty()) { throw mjCError(this, "facetexcoord specified without texcoord"); }
+    if (facetexcoord_.size() != face_.size()) {
+      throw mjCError(this, "face data must have the same size as face texcoord data");
+    }
+    int nt = ntexcoord();
+    for (int i = 0; i < (int)facetexcoord_.size(); i++) {
+      if (facetexcoord_[i] >= nt || facetexcoord_[i] < 0) {
+        throw mjCError(this,
+                       "in face %d, texcoord index %d does not exist",
+                       nullptr,
+                       i / 3,
+                       facetexcoord_[i]);
+      }
+    }
+  }
+
   // no facetexcoord: copy from faces
   if (facetexcoord_.empty() && !texcoord_.empty()) { facetexcoord_ = face_; }
 

@@ -1469,6 +1469,7 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   const std::vector<float>&  UserTexcoord() const { return spec_texcoord_; }
   const std::vector<int>&    Face() const { return face_; }
   const std::vector<int>&    UserFace() const { return spec_face_; }
+  const std::vector<int>&    UserFaceTexcoord() const { return spec_facetexcoord_; }
   const std::vector<double>& Node() const { return node_; }
   const std::vector<double>& UserNode() const { return spec_node_; }
   std::vector<double>&       UserNode() { return spec_node_; }

@@ -687,10 +687,12 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     WriteAttrTxt(elem, "name", mesh->name);
     if (mesh->classname != "main") { WriteAttrTxt(elem, "class", mesh->classname); }
     WriteAttrTxt(elem, "vertex", Numbers(vert));
-    if (mesh->ntexcoord() == mesh->nvert() && mesh->FaceTexcoord() == mesh->Face()) {
-      WriteAttrTxt(elem, "texcoord", Numbers(mesh->Texcoord()));
-    }
+    if (!mesh->Texcoord().empty()) { WriteAttrTxt(elem, "texcoord", Numbers(mesh->Texcoord())); }
     WriteAttrTxt(elem, "face", Numbers(mesh->Face()));
+    if (!mesh->FaceTexcoord().empty() &&
+        (mesh->ntexcoord() != mesh->nvert() || mesh->FaceTexcoord() != mesh->Face())) {
+      WriteAttrTxt(elem, "facetexcoord", Numbers(mesh->FaceTexcoord()));
+    }
   }
 
   // regular
@@ -724,6 +726,12 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     if (!mesh->UserFace().empty()) {
       text = Numbers(mesh->UserFace());
       WriteAttrTxt(elem, "face", text);
+    }
+
+    // write face texcoord data
+    if (!mesh->UserFaceTexcoord().empty()) {
+      text = Numbers(mesh->UserFaceTexcoord());
+      WriteAttrTxt(elem, "facetexcoord", text);
     }
   }
 

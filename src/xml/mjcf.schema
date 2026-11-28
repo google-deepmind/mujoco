@@ -903,6 +903,7 @@ element mesh : mjsMesh {
   normal             : float[] (nodefault, field=usernormal, dim=1)
   texcoord           : float[] (nodefault, field=usertexcoord, dim=1)
   face               : int[] (nodefault, field=userface)
+  facetexcoord       : int[] (nodefault, field=userfacetexcoord)
   refpos             : double[3] (nodefault, dim=1)
   refquat            : double[4] = {1, 0, 0, 0} (nodefault, dim=1)
   scale              : double[3] = {1, 1, 1} (dim=L)

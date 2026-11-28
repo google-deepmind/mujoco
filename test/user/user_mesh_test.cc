@@ -1692,6 +1692,84 @@ TEST_F(MjCMeshTest, MissingTexCoord) {
   EXPECT_THAT(error.data(), HasSubstr("texcoord must be 2*nv"));
 }
 
+TEST_F(MjCMeshTest, XmlFaceTexCoord) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh"
+            vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  2 0 3  1 2 3"
+            texcoord="0 0  0.1 0.1  0.2 0.2  0.3 0.3  0.4 0.4  0.5 0.5"
+            facetexcoord="5 4 3  2 1 0  0 1 2  3 4 5"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->mesh_texcoordnum[0], 6);
+  EXPECT_THAT(AsVector(model->mesh_facetexcoord, 12),
+              ElementsAre(5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5));
+}
+
+TEST_F(MjCMeshTest, XmlFaceTexCoordValidation) {
+  std::array<char, 1024> error;
+
+  // wrong size
+  {
+    static constexpr char xml[] = R"(
+    <mujoco>
+      <asset>
+        <mesh name="mesh"
+              vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+              face="0 2 1  0 1 3  2 0 3  1 2 3"
+              texcoord="0 0  1 0  0 1"
+              facetexcoord="0 1 2"/>
+      </asset>
+    </mujoco>
+    )";
+    MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(), HasSubstr("face texcoord data"));
+  }
+
+  // out-of-range index
+  {
+    static constexpr char xml[] = R"(
+    <mujoco>
+      <asset>
+        <mesh name="mesh"
+              vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+              face="0 2 1  0 1 3  2 0 3  1 2 3"
+              texcoord="0 0  1 0  0 1"
+              facetexcoord="0 1 3  0 1 2  0 1 2  0 1 2"/>
+      </asset>
+    </mujoco>
+    )";
+    MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(), HasSubstr("texcoord index 3 does not exist"));
+  }
+
+  // facetexcoord without texcoord
+  {
+    static constexpr char xml[] = R"(
+    <mujoco>
+      <asset>
+        <mesh name="mesh"
+              vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+              face="0 2 1  0 1 3  2 0 3  1 2 3"
+              facetexcoord="0 1 2  0 1 2  0 1 2  0 1 2"/>
+      </asset>
+    </mujoco>
+    )";
+    MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("facetexcoord specified without texcoord"));
+  }
+}
+
 TEST_F(MjCMeshTest, ObjIncompleteFaceTexCoord) {
   static constexpr char xml[] = R"(
   <mujoco>
