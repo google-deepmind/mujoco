@@ -20,9 +20,11 @@ import tempfile
 from absl.testing import absltest
 from etils import epath
 import mujoco
+import numpy as np
 
 try:
   from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
+  from pxr import Gf  # pylint: disable=g-import-not-at-top
 except ModuleNotFoundError:
   exporter_module = None
 
@@ -68,6 +70,55 @@ class ExporterTest(absltest.TestCase):
       )
       with open(golden_path, "r", encoding="utf-8") as golden_file:
         self.assertEqual(f.readlines(), golden_file.readlines())
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_directional_light_orientation(self):
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <visual><headlight active="false"/></visual>
+        <worldbody>
+          <body name="moving">
+            <freejoint/>
+            <geom type="sphere" size="0.1"/>
+            <light name="sun" type="directional" dir="1 0 0"
+                   pos="0 0 0" diffuse=".2 .4 .6"/>
+          </body>
+          <light name="point" type="point" pos="0 1 2"/>
+        </worldbody>
+      </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory_root=self.create_tempdir().full_path,
+        light_intensity=123,
+        verbose=False,
+    )
+    mujoco.mj_forward(model, data)
+    exporter.update_scene(data)
+    data.qpos[3:7] = [np.sqrt(.5), 0, 0, np.sqrt(.5)]
+    mujoco.mj_forward(model, data)
+    exporter.update_scene(data)
+
+    sun = next(
+        prim for prim in exporter.stage.Traverse()
+        if prim.GetTypeName() == "DistantLight"
+    )
+    self.assertEqual(sun.GetAttribute("inputs:intensity").Get(), 123)
+    np.testing.assert_allclose(
+        sun.GetAttribute("inputs:color").Get(), [.2, .4, .6]
+    )
+    orientation = sun.GetParent().GetAttribute("xformOp:orient")
+    self.assertEqual(orientation.GetTimeSamples(), [0, 1])
+    for frame, expected in ((0, [1, 0, 0]), (1, [0, 1, 0])):
+      direction = Gf.Rotation(orientation.Get(frame)).TransformDir(
+          Gf.Vec3d(0, 0, -1)
+      )
+      np.testing.assert_allclose(direction, expected, atol=1e-6)
+    self.assertTrue(any(
+        prim.GetTypeName() == "SphereLight"
+        for prim in exporter.stage.Traverse()
+    ))
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):

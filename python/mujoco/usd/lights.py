@@ -63,6 +63,31 @@ class USDSphereLight:
     self.usd_light.GetColorAttr().Set(Gf.Vec3d(color.tolist()))
 
 
+class USDDistantLight:
+  """Exports a directional light with a time-sampled orientation."""
+
+  def __init__(self, stage: Usd.Stage, obj_name: str):
+    xform_name = Tf.MakeValidIdentifier(f"Light_Xform_{obj_name}")
+    light_name = Tf.MakeValidIdentifier(f"Light_{obj_name}")
+    xform_path = f"/World/{xform_name}"
+    light_path = f"{xform_path}/{light_name}"
+    self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
+    self.usd_light = UsdLux.DistantLight.Define(stage, light_path)
+    self.usd_prim = self.usd_light.GetPrim()
+    self.orient_op = self.usd_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+
+  def update(
+      self, direction: np.ndarray, intensity: int, color: np.ndarray, frame: int
+  ):
+    """Updates a light whose local emission direction is negative Z."""
+    rotation = Gf.Rotation(
+        Gf.Vec3d(0, 0, -1), Gf.Vec3d(direction.tolist())
+    )
+    self.orient_op.Set(rotation.GetQuat(), frame)
+    self.usd_light.GetIntensityAttr().Set(intensity)
+    self.usd_light.GetColorAttr().Set(Gf.Vec3d(color.tolist()))
+
+
 class USDDomeLight:
   """Class that handles the dome lights in the USD scene."""
 
