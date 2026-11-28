@@ -124,6 +124,32 @@ Importantly, saved XML will take into account any defined defaults. This is usef
 values, for example if loaded from URDF, which does not support defaults. In such a case one can add default classes,
 set the class of the relevant elements, and save; the resulting XML will use the defaults and be more human-readable.
 
+Comparing compiled models
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``mjModel.signature`` field is a structural compilation signature shared with the spec that compiled the model.
+It is not a content hash. Models with the same topology but different body positions, masses or inertias can have the
+same signature. It must not be used as a test for identical model parameters.
+
+To compare the serialized content of two compiled models, save them using :ref:`mj_saveModel` and compare the binary
+buffers or their SHA-256 digests. The following example uses the Python bindings without creating a file:
+
+.. code-block:: python
+
+   import hashlib
+   import mujoco
+   import numpy as np
+
+   def model_digest(model):
+       buffer = np.empty(mujoco.mj_sizeModel(model), dtype=np.uint8)
+       mujoco.mj_saveModel(model, buffer=buffer)
+       return hashlib.sha256(buffer).hexdigest()
+
+Compare digests using the same MuJoCo version and binary format (including numerical precision and platform).
+A matching digest identifies the serialized model bytes, not the current simulation state in ``mjData``.
+For models with by-reference assets, embed those assets using :ref:`mj_embedAssets` before saving if their contents
+must also be compared.
+
 .. _MJZArchives:
 
 MJZ Archives

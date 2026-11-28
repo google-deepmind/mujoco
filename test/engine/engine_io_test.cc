@@ -29,6 +29,7 @@
 #include <limits>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -79,6 +80,47 @@ TEST_F(EngineIoTest, VerifySizeModel) {
   std::filesystem::remove(temp_file);
 
   EXPECT_EQ(file_size, model_size);
+}
+
+TEST_F(EngineIoTest, ModelSignatureDoesNotIdentifyModelContents) {
+  constexpr char xml[] = R"(
+    <mujoco>
+      <worldbody>
+        <body name="b" pos="0 0 1">
+          <joint/>
+          <geom size="0.1" mass="1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr a = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(a.get(), NotNull()) << error.data();
+  MjModelPtr b = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(b.get(), NotNull()) << error.data();
+
+  auto serialize = [](const mjModel* model) {
+    std::vector<char> bytes(mj_sizeModel(model));
+    mj_saveModel(model, nullptr, bytes.data(), bytes.size());
+    return bytes;
+  };
+  EXPECT_EQ(a->signature, b->signature);
+  EXPECT_EQ(serialize(a.get()), serialize(b.get()));
+
+  // Independently compiled models with different numerical parameters can
+  // have the same structural signature.
+  for (const auto& [before, after] :
+       {std::pair{"mass=\"1\"", "mass=\"2\""},
+        std::pair{"pos=\"0 0 1\"", "pos=\"0 0 2\""},
+        std::pair{"size=\"0.1\"", "size=\"0.2\""}}) {
+    std::string changed(xml);
+    changed.replace(changed.find(before), std::strlen(before), after);
+    MjModelPtr other =
+        LoadModelFromString(changed.c_str(), error.data(), error.size());
+    ASSERT_THAT(other.get(), NotNull()) << error.data();
+    EXPECT_EQ(a->signature, other->signature);
+    EXPECT_NE(serialize(a.get()), serialize(other.get()));
+  }
 }
 
 TEST_F(EngineIoTest, MakeDataLoadsQpos0) {
