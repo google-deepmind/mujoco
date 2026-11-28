@@ -203,6 +203,7 @@ class Simulate {
   int fullscreen   = 0;
   int vsync        = 1;
   int busywait     = 0;
+  int reverse_zoom = 0;
 
   // keyframe index
   int key = -1;
@@ -332,7 +333,7 @@ class Simulate {
   // Constant arrays needed for the option section of UI and the UI interface
   // clang-format off
   // TODO setting the size here is not ideal
-  const mjuiDef def_option[13] = {
+  const mjuiDef def_option[14] = {
     {mjITEM_SECTION,  "Option",        mjPRESERVE, nullptr,  "AO"},
     {mjITEM_CHECKINT, "Help",          2, &this->help,       " #290"},
     {mjITEM_CHECKINT, "Info",          2, &this->info,       " #291"},
@@ -349,6 +350,7 @@ class Simulate {
     {mjITEM_SELECT,   "Spacing",       1, &this->spacing,    "Tight\nWide"},
     {mjITEM_SELECT,   "Color",         1, &this->color,      "Default\nOrange\nWhite\nBlack"},
     {mjITEM_SELECT,   "Font",          1, &this->font,       "50 %\n100 %\n150 %\n200 %\n250 %\n300 %"},
+    {mjITEM_CHECKINT, "Reverse zoom",  1, &this->reverse_zoom, ""},
     {mjITEM_END}
   };
 

@@ -45,7 +45,8 @@ mjCAMERA_FREE
    This is the most commonly used abstract camera. It can be freely moved with the mouse. It has a lookat point,
    distance to the lookat point, azimuth, and elevation; twist around the line of sight is not allowed. The function
    :ref:`mjv_moveCamera` is a mouse hook for controlling all these camera properties interactively with the mouse.
-   When :ref:`simulate.cc <saSimulate>` first starts, it uses the free camera.
+   When :ref:`simulate.cc <saSimulate>` first starts, it uses the free camera. The **Reverse zoom** checkbox in the
+   Option section reverses mouse-wheel zoom without changing middle-button drag or the default zoom direction.
 mjCAMERA_TRACKING
    This is similar to the free camera, except the lookat point is no longer a free parameter but instead is coupled to
    the MuJoCo body whose id is given by mjvCamera.trackbodyid. At each update, the lookat point is set to the center of
