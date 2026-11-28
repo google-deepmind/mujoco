@@ -1006,6 +1006,46 @@ TEST_F(SetConstTest, DampRatioInertia) {
   EXPECT_NEAR(m->actuator_biasprm[1 * mjNBIAS + 2], -6, MjTol(1e-10, 1e-6));
 }
 
+// The inverse weights of a simple body with three sliders include the armature
+// of its joints and actuators, as without the simple body optimization.
+TEST_F(SetConstTest, SimpleSliderInvWeight) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1" simple="auto">
+        <joint type="slide" axis="1 0 0" armature="1"/>
+        <joint name="y" type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <geom size=".1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="y" gear="2" armature=".75"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::string xml_nosimple(xml);
+  xml_nosimple.replace(xml_nosimple.find("auto"), 4, "false");
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjModelPtr m_ns =
+      LoadModelFromString(xml_nosimple.c_str(), error, sizeof(error));
+  ASSERT_THAT(m_ns.get(), NotNull()) << error;
+  ASSERT_EQ(m->body_simple[1], 2);
+  ASSERT_EQ(m_ns->body_simple[1], 0);
+
+  // inertia: mass + joint armature, mass + actuator armature * gear^2, mass
+  for (const mjModel* model : {m.get(), m_ns.get()}) {
+    EXPECT_NEAR(model->dof_invweight0[0], 1. / 2, MjTol(1e-14, 1e-6));
+    EXPECT_NEAR(model->dof_invweight0[1], 1. / 4, MjTol(1e-14, 1e-6));
+    EXPECT_NEAR(model->dof_invweight0[2], 1, MjTol(1e-14, 1e-6));
+    EXPECT_NEAR(model->body_invweight0[2], 7. / 12, MjTol(1e-14, 1e-6));
+    EXPECT_EQ(model->body_invweight0[3], 0);
+  }
+}
+
 // The constant bending factor of M + K_bend is consumed only by bending-only
 // flexes: with stretching present the per-step factor replaces it, so a
 // singular M + K_bend must not be an error.
