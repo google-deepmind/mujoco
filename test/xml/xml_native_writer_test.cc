@@ -4750,5 +4750,165 @@ TEST_F(XMLWriterTest, HeadlightActiveRoundTrip) {
   }
 }
 
+// texture coordinates and normals of every face corner of mesh `id`, in face order
+struct MeshCorners {
+  std::vector<float> uv;
+  std::vector<float> normal;
+};
+
+MeshCorners GetMeshCorners(const mjModel* m, int id) {
+  MeshCorners corners;
+  for (int f = 0; f < m->mesh_facenum[id]; f++) {
+    for (int k = 0; k < 3; k++) {
+      int corner = 3 * (m->mesh_faceadr[id] + f) + k;
+      if (m->mesh_texcoordnum[id]) {
+        int t = m->mesh_texcoordadr[id] + m->mesh_facetexcoord[corner];
+        corners.uv.push_back(m->mesh_texcoord[2 * t]);
+        corners.uv.push_back(m->mesh_texcoord[2 * t + 1]);
+      }
+      int n = m->mesh_normaladr[id] + m->mesh_facenormal[corner];
+      for (int j = 0; j < 3; j++) { corners.normal.push_back(m->mesh_normal[3 * n + j]); }
+    }
+  }
+  return corners;
+}
+
+// a tetrahedron with 4 vertices, a separate UV for each of its 12 face corners and one normal
+// per face, as importers build them (#3931)
+mjSpec* TetrahedronWithFaceCornerData() {
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+  mjs_setName(mesh->element, "tet");
+  const float vert[] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const int face[] = {0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3};
+  std::vector<float> texcoord;
+  for (int i = 0; i < 4; i++) { texcoord.insert(texcoord.end(), {0, 0, 1, 0, 0, 1}); }
+  const float s = 1 / std::sqrt(3.0f);
+  const float normal[] = {0, 0, -1, 0, -1, 0, -1, 0, 0, s, s, s};
+  const int facenormal[] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3};
+  std::vector<int> facetexcoord(12);
+  for (int i = 0; i < 12; i++) { facetexcoord[i] = i; }
+  mjs_setFloat(mesh->uservert, vert, 12);
+  mjs_setInt(mesh->userface, face, 12);
+  mjs_setFloat(mesh->usertexcoord, texcoord.data(), (int)texcoord.size());
+  mjs_setInt(mesh->userfacetexcoord, facetexcoord.data(), (int)facetexcoord.size());
+  mjs_setFloat(mesh->usernormal, normal, 12);
+  mjs_setInt(mesh->userfacenormal, facenormal, 12);
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(spec, "world"), nullptr);
+  geom->type = mjGEOM_MESH;
+  mjs_setString(geom->meshname, "tet");
+  return spec;
+}
+
+TEST_F(XMLWriterTest, MeshFaceCornerDataRoundTripsFromSpec) {
+  mjSpec* spec = TetrahedronWithFaceCornerData();
+  MjModelPtr model(mj_compile(spec, nullptr));
+  ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec);
+
+  std::string saved_xml = SaveAndReadXml(spec);
+  EXPECT_THAT(saved_xml, HasSubstr("facetexcoord=\""));
+  EXPECT_THAT(saved_xml, HasSubstr("facenormal=\""));
+  std::array<char, 1024> error;
+  MjModelPtr reloaded = LoadModelFromString(saved_xml, error.data(), error.size());
+  ASSERT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved_xml;
+
+  MeshCorners before = GetMeshCorners(model.get(), 0);
+  MeshCorners after = GetMeshCorners(reloaded.get(), 0);
+  ASSERT_EQ(before.uv.size(), 24);
+  EXPECT_THAT(after.uv, Pointwise(FloatEq(), before.uv));
+  EXPECT_THAT(after.normal, Pointwise(FloatEq(), before.normal));
+  mj_deleteSpec(spec);
+}
+
+// a mesh instanced at a scale that is not diagonal in its geom's frame is saved compiled, with
+// its vertices baked; texcoords that are not one per vertex are kept, with their indices
+TEST_F(XMLWriterTest, CompiledMeshKeepsFaceCornerTexcoords) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1" face="0 2 1  0 1 3  0 3 2  1 2 3"
+            texcoord="0 0  1 0  0 1  .5 .5  .25 .75" facetexcoord="0 1 2  2 1 0  3 4 3  0 2 1"/>
+    </asset>
+    <worldbody>
+      <frame scale="1 2 3" scaling="geometry">
+        <geom type="mesh" mesh="tet" euler="0 0 30"/>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("facetexcoord=\""));
+  MjModelPtr reloaded = LoadModelFromString(saved_xml, error.data(), error.size());
+  ASSERT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved_xml;
+
+  ASSERT_EQ(model->nmesh, 1);
+  ASSERT_EQ(reloaded->nmesh, 1);
+  MeshCorners before = GetMeshCorners(model.get(), 0);
+  MeshCorners after = GetMeshCorners(reloaded.get(), 0);
+  ASSERT_EQ(before.uv.size(), 24);
+  EXPECT_THAT(after.uv, Pointwise(FloatEq(), before.uv));
+}
+
+TEST_F(XMLWriterTest, MeshFaceCornerAttributesAreRead) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1" face="0 2 1  0 1 3  0 3 2  1 2 3"
+            texcoord="0 0  1 0  0 1  .5 .5" facetexcoord="0 1 2  2 1 0  3 3 3  0 2 1"
+            normal="0 0 -1  0 -1 0  -1 0 0  1 1 1" facenormal="0 0 0  1 1 1  2 2 2  3 3 3"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tet"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_THAT(
+      std::vector<int>(model->mesh_facetexcoord, model->mesh_facetexcoord + 12),
+      ElementsAre(0, 1, 2, 2, 1, 0, 3, 3, 3, 0, 2, 1));
+  EXPECT_THAT(
+      std::vector<int>(model->mesh_facenormal, model->mesh_facenormal + 12),
+      ElementsAre(0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3));
+}
+
+TEST_F(XMLWriterTest, MeshFaceCornerIndicesOutOfRange) {
+  static constexpr char texcoord_xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1" face="0 2 1  0 1 3  0 3 2  1 2 3"
+            texcoord="0 0  1 0" facetexcoord="0 1 0  0 1 0  0 1 0  0 1 7"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tet"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(texcoord_xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("texcoord"));
+
+  static constexpr char normal_xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1" face="0 2 1  0 1 3  0 3 2  1 2 3"
+            normal="0 0 1" facenormal="0 0 0  0 0 0  0 0 0  0 0 -1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tet"/>
+    </worldbody>
+  </mujoco>
+  )";
+  model = LoadModelFromString(normal_xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("normal"));
+}
+
 }  // namespace
 }  // namespace mujoco

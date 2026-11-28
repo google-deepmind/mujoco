@@ -1994,6 +1994,8 @@
     <xs:attribute name="normal" type="floatlist"/>
     <xs:attribute name="texcoord" type="floatlist"/>
     <xs:attribute name="face" type="intlist"/>
+    <xs:attribute name="facenormal" type="intlist"/>
+    <xs:attribute name="facetexcoord" type="intlist"/>
     <xs:attribute name="refpos" type="double3"/>
     <xs:attribute name="refquat" type="double4" default="1 0 0 0"/>
     <xs:attribute name="scale" type="double3" default="1 1 1"/>

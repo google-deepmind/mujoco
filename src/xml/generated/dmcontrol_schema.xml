@@ -1144,6 +1144,8 @@
             <attribute name="normal" type="array" array_type="float"/>
             <attribute name="texcoord" type="array" array_type="float"/>
             <attribute name="face" type="array" array_type="int"/>
+            <attribute name="facenormal" type="array" array_type="int"/>
+            <attribute name="facetexcoord" type="array" array_type="int"/>
             <attribute name="refpos" type="array" array_type="float" array_size="3"/>
             <attribute name="refquat" type="array" array_type="float" array_size="4" default="1 0 0 0"/>
             <attribute name="scale" type="array" array_type="float" array_size="3" default="1 1 1"/>

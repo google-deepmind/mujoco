@@ -233,6 +233,8 @@ inline constexpr mjXAttr kMeshAttrs[] = {
   {"normal", mjXAttr::kFloatVec, 1, true, false, true, false, (int)offsetof(mjsMesh, usernormal)},
   {"texcoord", mjXAttr::kFloatVec, 1, true, false, true, false, (int)offsetof(mjsMesh, usertexcoord)},
   {"face", mjXAttr::kIntVec, 1, true, false, true, false, (int)offsetof(mjsMesh, userface)},
+  {"facenormal", mjXAttr::kIntVec, 1, true, false, true, false, (int)offsetof(mjsMesh, userfacenormal)},
+  {"facetexcoord", mjXAttr::kIntVec, 1, true, false, true, false, (int)offsetof(mjsMesh, userfacetexcoord)},
   {"refpos", mjXAttr::kDouble, 3, true, false, true, false, (int)offsetof(mjsMesh, refpos)},
   {"refquat", mjXAttr::kDouble, 4, true, false, true, false, (int)offsetof(mjsMesh, refquat)},
   {"scale", mjXAttr::kDouble, 3, true, false, false, false, (int)offsetof(mjsMesh, scale)},

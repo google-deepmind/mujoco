@@ -411,6 +411,12 @@
                :ref:`face<asset-mesh-face>`
 
             .. grid-item::
+               :ref:`facenormal<asset-mesh-facenormal>`
+
+            .. grid-item::
+               :ref:`facetexcoord<asset-mesh-facetexcoord>`
+
+            .. grid-item::
                :ref:`refpos<asset-mesh-refpos>`
 
             .. grid-item::
