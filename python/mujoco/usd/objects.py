@@ -313,6 +313,79 @@ class USDMesh(USDObject):
     return mesh_vert, mesh_face, mesh_facenum
 
 
+class USDFlexSegments(USDObject):
+  """Exports one-dimensional flex edges and vertices in world coordinates."""
+
+  def __init__(
+      self,
+      stage: Usd.Stage,
+      model: mujoco.MjModel,
+      scene: mujoco.MjvScene,
+      geom: mujoco.MjvGeom,
+      obj_name: str,
+      rgba: np.ndarray,
+  ):
+    super().__init__(stage, model, geom, obj_name, rgba)
+    self.scene = scene
+    self.dataid = geom.objid
+    self.curves = UsdGeom.BasisCurves.Define(
+        stage, f"{self.xform_path}/Edges"
+    )
+    self.curves.CreateTypeAttr().Set(UsdGeom.Tokens.linear)
+    self.curves.CreateWrapAttr().Set(UsdGeom.Tokens.nonperiodic)
+    self.curves.SetWidthsInterpolation(UsdGeom.Tokens.constant)
+    self.points = UsdGeom.Points.Define(
+        stage, f"{self.xform_path}/Vertices"
+    )
+    self.usd_prim = self.usd_xform.GetPrim()
+    diameter = 2.0 * float(model.flex_radius[self.dataid])
+    self.curves.CreateWidthsAttr().Set([diameter])
+    self.points.CreateWidthsAttr().Set(
+        [diameter] * int(model.flex_vertnum[self.dataid])
+    )
+    self.attach_solid_material(self.curves)
+    # Both representations share the same material.
+    material = UsdShade.MaterialBindingAPI(self.curves).ComputeBoundMaterial()[0]
+    UsdShade.MaterialBindingAPI.Apply(self.points.GetPrim()).Bind(material)
+
+  def _get_mesh_geometry(self):
+    start = int(self.scene.flexvertadr[self.dataid])
+    count = int(self.scene.flexvertnum[self.dataid])
+    points = self.scene.flexvert.reshape(-1, 3)[start : start + count]
+    start = int(self.scene.flexedgeadr[self.dataid])
+    count = int(self.scene.flexedgenum[self.dataid])
+    edges = self.scene.flexedge.reshape(-1, 2)[start : start + count]
+    return points, edges, count
+
+  def _get_uv_geometry(self):
+    raise NotImplementedError("Flex segments do not have surface UVs.")
+
+  def update(
+      self,
+      pos: np.ndarray,
+      mat: np.ndarray,
+      visible: bool,
+      frame: int,
+      scale: Optional[np.ndarray] = None,
+  ):
+    # The scene already contains world-space vertex positions.
+    super().update(np.zeros(3), np.eye(3), visible, frame)
+    points, edges, count = self._get_mesh_geometry()
+    self.curves.GetCurveVertexCountsAttr().Set([2] * count, frame)
+    self.curves.GetPointsAttr().Set(
+        Vt.Vec3fArray.FromNumpy(points[edges.flatten()]), frame
+    )
+    self.points.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points), frame)
+    self.curves.GetVisibilityAttr().Set(
+        UsdGeom.Tokens.inherited if self.scene.flexedgeopt
+        else UsdGeom.Tokens.invisible, frame
+    )
+    self.points.GetVisibilityAttr().Set(
+        UsdGeom.Tokens.inherited if self.scene.flexvertopt
+        else UsdGeom.Tokens.invisible, frame
+    )
+
+
 class USDPrimitiveMesh(USDObject):
   """Class to handle primitive shapes in the USD scene."""
 

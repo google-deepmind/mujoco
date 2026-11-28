@@ -20,6 +20,7 @@ import tempfile
 from absl.testing import absltest
 from etils import epath
 import mujoco
+import numpy as np
 
 try:
   from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
@@ -68,6 +69,64 @@ class ExporterTest(absltest.TestCase):
       )
       with open(golden_path, "r", encoding="utf-8") as golden_file:
         self.assertEqual(f.readlines(), golden_file.readlines())
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_flex_segment_animation(self):
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <flexcomp name="rope" type="grid" count="4 1 1" dim="1"
+                    spacing=".2 .2 .2" pos="0 0 1" radius=".02">
+            <edge equality="true"/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory_root=self.create_tempdir().full_path,
+        verbose=False,
+    )
+    option = mujoco.MjvOption()
+    option.flags[mujoco.mjtVisFlag.mjVIS_FLEXVERT] = True
+    mujoco.mj_forward(model, data)
+    exporter.update_scene(data, scene_option=option)
+    initial = exporter.scene.flexvert.copy().reshape(-1, 3)
+    data.qpos[0] += 0.1
+    mujoco.mj_forward(model, data)
+    option.flags[mujoco.mjtVisFlag.mjVIS_FLEXVERT] = False
+    exporter.update_scene(data, scene_option=option)
+    exporter.save_scene("usda")
+
+    curves = next(
+        prim for prim in exporter.stage.Traverse()
+        if prim.GetTypeName() == "BasisCurves"
+    )
+    vertices = next(
+        prim for prim in exporter.stage.Traverse()
+        if prim.GetTypeName() == "Points"
+    )
+    edges = exporter.scene.flexedge.reshape(-1, 2)
+    self.assertEqual(
+        list(curves.GetAttribute("curveVertexCounts").Get(1)), [2, 2, 2]
+    )
+    np.testing.assert_allclose(
+        curves.GetAttribute("widths").Get(), [0.04]
+    )
+    np.testing.assert_allclose(
+        curves.GetAttribute("points").Get(0), initial[edges.flatten()]
+    )
+    current = exporter.scene.flexvert.reshape(-1, 3)
+    np.testing.assert_allclose(
+        curves.GetAttribute("points").Get(1), current[edges.flatten()]
+    )
+    self.assertFalse(np.allclose(initial, current))
+    np.testing.assert_allclose(
+        vertices.GetAttribute("points").Get(1), current
+    )
+    self.assertEqual(vertices.GetAttribute("visibility").Get(0), "inherited")
+    self.assertEqual(vertices.GetAttribute("visibility").Get(1), "invisible")
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):

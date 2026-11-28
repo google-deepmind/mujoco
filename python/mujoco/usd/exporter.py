@@ -289,7 +289,19 @@ class USDExporter:
       ]
 
     # handling meshes in our scene
-    if geom.type == mujoco.mjtGeom.mjGEOM_MESH:
+    if (
+        geom.type == mujoco.mjtGeom.mjGEOM_FLEX
+        and self.model.flex_dim[geom.objid] == 1
+    ):
+      usd_geom = object_module.USDFlexSegments(
+          stage=self.stage,
+          model=self.model,
+          scene=self.scene,
+          geom=geom,
+          obj_name=geom_name,
+          rgba=geom.rgba,
+      )
+    elif geom.type == mujoco.mjtGeom.mjGEOM_MESH:
       usd_geom = object_module.USDMesh(
           stage=self.stage,
           model=self.model,
@@ -519,6 +531,8 @@ class USDExporter:
       geom_name += "_geom"
     elif geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
       geom_name += f"_tendon_segid{geom.segid}"
+    elif geom.objtype == mujoco.mjtObj.mjOBJ_FLEX:
+      geom_name += f"_flex_mat{geom.dataid}"
 
     return Tf.MakeValidIdentifier(geom_name)
 
