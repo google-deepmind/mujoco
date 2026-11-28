@@ -18,8 +18,10 @@ import os
 import tempfile
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from etils import epath
 import mujoco
+import numpy as np
 
 try:
   from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
@@ -27,7 +29,7 @@ except ModuleNotFoundError:
   exporter_module = None
 
 
-class ExporterTest(absltest.TestCase):
+class ExporterTest(parameterized.TestCase):
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_usd_export(self):
@@ -68,6 +70,58 @@ class ExporterTest(absltest.TestCase):
       )
       with open(golden_path, "r", encoding="utf-8") as golden_file:
         self.assertEqual(f.readlines(), golden_file.readlines())
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  @parameterized.parameters((2, "3 3 1"), (3, "2 2 2"))
+  def test_flex_surface_animation(self, dim, grid):
+    model = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <flexcomp name="cloth" type="grid" count="{grid}" dim="{dim}"
+                    spacing=".2 .2 .2" pos="0 0 1" radius=".01">
+            <edge equality="true"/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory_root=self.create_tempdir().full_path,
+        verbose=False,
+    )
+    mujoco.mj_forward(model, data)
+    exporter.update_scene(data)
+    initial = exporter.scene.flexface.copy()
+    data.qpos[0] += 0.1
+    mujoco.mj_forward(model, data)
+    exporter.update_scene(data)
+    exporter.save_scene("usda")
+
+    mesh = next(
+        prim for prim in exporter.stage.Traverse()
+        if prim.GetTypeName() == "Mesh"
+    )
+    points = mesh.GetAttribute("points")
+    self.assertEqual(points.GetTimeSamples(), [0, 1])
+    count = int(exporter.scene.flexfaceused[0])
+    self.assertGreater(count, 0)
+    np.testing.assert_allclose(
+        np.asarray(points.Get(0)), initial[:9 * count].reshape(-1, 3)
+    )
+    np.testing.assert_allclose(
+        np.asarray(points.Get(1)),
+        exporter.scene.flexface[:9 * count].reshape(-1, 3),
+    )
+    self.assertFalse(np.allclose(points.Get(0), points.Get(1)))
+    self.assertEqual(
+        list(mesh.GetAttribute("faceVertexCounts").Get(1)), [3] * count
+    )
+    self.assertEqual(
+        list(mesh.GetAttribute("faceVertexIndices").Get(1)),
+        list(range(3 * count)),
+    )
+    self.assertEqual(len(mesh.GetAttribute("normals").Get(1)), 3 * count)
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):

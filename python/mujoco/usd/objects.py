@@ -313,6 +313,80 @@ class USDMesh(USDObject):
     return mesh_vert, mesh_face, mesh_facenum
 
 
+class USDFlex(USDObject):
+  """Exports the rendered flex surface as time-sampled triangles."""
+
+  def __init__(
+      self,
+      stage: Usd.Stage,
+      model: mujoco.MjModel,
+      scene: mujoco.MjvScene,
+      geom: mujoco.MjvGeom,
+      obj_name: str,
+      rgba: np.ndarray,
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = (),
+  ):
+    super().__init__(stage, model, geom, obj_name, rgba, geom_textures)
+    self.scene = scene
+    self.dataid = geom.objid
+    self.usd_mesh = UsdGeom.Mesh.Define(
+        stage, f"{self.xform_path}/Mesh_{self.obj_name}"
+    )
+    self.usd_prim = self.usd_mesh.GetPrim()
+    self.usd_mesh.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
+    self.usd_mesh.SetNormalsInterpolation(UsdGeom.Tokens.vertex)
+    self.texcoords = None
+    if (
+        geom.texcoord
+        and geom.matid != -1
+        and self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB.value]
+    ):
+      self.texcoords = UsdGeom.PrimvarsAPI(self.usd_mesh).CreatePrimvar(
+          "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
+      )
+      self.attach_image_material(self.usd_mesh)
+    else:
+      self.attach_solid_material(self.usd_mesh)
+
+  def _face_range(self):
+    start = int(self.scene.flexfaceadr[self.dataid])
+    count = int(self.scene.flexfaceused[self.dataid])
+    # The renderer stores per-material face slices in geom.size.
+    if self.geom.dataid >= 0:
+      start += int(self.geom.size[1])
+      count = int(self.geom.size[2])
+    return start * 3, count * 3
+
+  def _get_mesh_geometry(self):
+    start, count = self._face_range()
+    points = self.scene.flexface.reshape(-1, 3)[start : start + count]
+    return points, np.arange(count), count // 3
+
+  def _get_uv_geometry(self):
+    start, count = self._face_range()
+    return self.scene.flextexcoord.reshape(-1, 2)[start : start + count]
+
+  def update(
+      self,
+      pos: np.ndarray,
+      mat: np.ndarray,
+      visible: bool,
+      frame: int,
+      scale: Optional[np.ndarray] = None,
+  ):
+    # The render vertices are already expressed in world coordinates.
+    points, indices, face_count = self._get_mesh_geometry()
+    super().update(np.zeros(3), np.eye(3), visible, frame)
+    start, count = self._face_range()
+    normals = self.scene.flexnormal.reshape(-1, 3)[start : start + count]
+    self.usd_mesh.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points), frame)
+    self.usd_mesh.GetNormalsAttr().Set(Vt.Vec3fArray.FromNumpy(normals), frame)
+    self.usd_mesh.GetFaceVertexCountsAttr().Set([3] * face_count, frame)
+    self.usd_mesh.GetFaceVertexIndicesAttr().Set(indices.tolist(), frame)
+    if self.texcoords is not None:
+      self.texcoords.Set(Vt.Vec2fArray.FromNumpy(self._get_uv_geometry()), frame)
+
+
 class USDPrimitiveMesh(USDObject):
   """Class to handle primitive shapes in the USD scene."""
 
