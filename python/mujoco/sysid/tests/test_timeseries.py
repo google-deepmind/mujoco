@@ -265,6 +265,11 @@ def test_from_model_controls_explicit_names():
   assert ts.signal_mapping is not None
   assert "m1_ctrl" in ts.signal_mapping
 
+  with pytest.raises(ValueError, match="Duplicate signal name"):
+    TimeSeries.from_control_names(
+        times, np.zeros((10, 2)), model, names=["m1", "m1_ctrl"]
+    )
+
   with pytest.raises(ValueError, match="Could not resolve signal"):
     TimeSeries.from_control_names(times, data, model, names=["invalid"])
 
@@ -324,6 +329,14 @@ def test_from_model_state_resolution():
   assert ts.signal_mapping is not None
   assert "j1_qpos" in ts.signal_mapping
   assert "j2_qpos" in ts.signal_mapping
+
+
+def test_duplicate_custom_signal_names():
+  """Duplicated names must not silently discard a data column."""
+  with pytest.raises(ValueError, match="Duplicate signal name"):
+    TimeSeries.from_custom_map(
+        np.array([0.0, 1.0]), np.zeros((2, 2)), ["a", "a"]
+    )
 
 
 def test_from_custom():

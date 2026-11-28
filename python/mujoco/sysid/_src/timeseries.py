@@ -101,6 +101,8 @@ def _resolve_signals(
       )
 
     canon_name, sig_type, width = resolved
+    if canon_name in result:
+      raise ValueError(f"Duplicate signal name '{canon_name}'.")
     result[canon_name] = (sig_type, np.arange(idx, idx + width))
     idx += width
 
@@ -343,6 +345,8 @@ class TimeSeries:
             f"Signal '{name}' must have positive width, got {width}."
         )
 
+      if name in signal_mapping_dict:
+        raise ValueError(f"Duplicate signal name '{name}'.")
       indices = np.arange(current_index, current_index + width)
       signal_mapping_dict[name] = (sig_type, indices)
       current_index += width
