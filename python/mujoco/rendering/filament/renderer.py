@@ -99,7 +99,8 @@ def _validate_buffer(
 class View:
   """A representation of an mjrf.RenderRequest that works with the Renderer."""
   scene: str
-  target: str
+  # None renders directly to the window; see Renderer.set_window_size.
+  target: str | None
   viewport: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
   camera: mjrf.Camera | mujoco.MjvGLCamera | None = None
   draw_mode: mjrf.DrawMode = mjrf.DrawMode.DRAW_MODE_DEFAULT
@@ -139,6 +140,7 @@ class Renderer:
     self._ctx = ctx
     self._scenes: dict[str, mjrf.Scene] = {}
     self._reads: dict[str, Renderer._Read] = {}
+    self._window_size = (0, 0)
     self._ctx.set_clear_color([0.0, 0.0, 0.0])
 
   @property
@@ -190,15 +192,32 @@ class Renderer:
     read.target.resize(size[0], size[1])
     return read.target
 
+  def set_window_size(self, width: int, height: int) -> None:
+    """Sets the pixel size of the window used by views with target=None."""
+    self._window_size = (int(width), int(height))
+
+  def close(self) -> None:
+    """Releases the render targets, scenes and context."""
+    self._reads.clear()
+    self._scenes.clear()
+    del self._ctx
+
   def render(self, views: list[View]):
     """Renders all active views."""
     requests: list[mjrf.RenderRequest] = []
     reads: dict[str, mjrf.ReadRequest] = {}
     for view in views:
-      read = self._reads.get(view.target, None)
-      if read is None:
-        raise ValueError(f"Target not found: {view.target}")
-      reads[view.target] = read.request
+      if view.target is None:
+        # None renders to the window; the viewport is in window pixels.
+        target = None
+        size = self._window_size
+      else:
+        read = self._reads.get(view.target, None)
+        if read is None:
+          raise ValueError(f"Target not found: {view.target}")
+        reads[view.target] = read.request
+        target = read.request.target
+        size = read.size
 
       scene = self._scenes.get(view.scene, None)
       if scene is None:
@@ -206,12 +225,12 @@ class Renderer:
 
       req = mjrf.RenderRequest()
       req.scene = scene
-      req.target = read.request.target
+      req.target = target
       req.camera = self._to_mjrf_camera(view.camera)
-      req.viewport.left = int(view.viewport[0] * read.size[0])
-      req.viewport.bottom = int(view.viewport[1] * read.size[1])
-      req.viewport.width = int(view.viewport[2] * read.size[0])
-      req.viewport.height = int(view.viewport[3] * read.size[1])
+      req.viewport.left = int(view.viewport[0] * size[0])
+      req.viewport.bottom = int(view.viewport[1] * size[1])
+      req.viewport.width = int(view.viewport[2] * size[0])
+      req.viewport.height = int(view.viewport[3] * size[1])
       req.draw_mode = view.draw_mode
       req.post_processing = view.post_processing
       req.reflections = view.reflections

@@ -19,6 +19,7 @@ import copy
 import dataclasses
 import enum
 import logging
+import traceback
 from typing import Any
 import mujoco
 from mujoco.studio import endpoints
@@ -339,6 +340,10 @@ def run_viewer_loop(viewer: Viewer) -> None:
     logger.exception(
         'Unhandled exception on the viewer thread; the viewer is closing.'
     )
+    # The traceback keeps the renderer and its context alive; release them now
+    # so that the context is destroyed on this thread rather than on whichever
+    # thread later releases the exception.
+    traceback.clear_frames(ex.__traceback__)
     raise
   finally:
     viewer.close()
