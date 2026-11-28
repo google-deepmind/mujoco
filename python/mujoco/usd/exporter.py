@@ -368,7 +368,11 @@ class USDExporter:
     # initializes an usd light object for every light in the scene
     for i in range(self.scene.nlight):
       light = self.scene.lights[i]
-      if not np.allclose(light.pos, [0, 0, 0]):
+      if light.id >= 0 and light.type == mujoco.mjtLightType.mjLIGHT_DIRECTIONAL:
+        self.usd_lights.append(
+            light_module.USDDistantLight(stage=self.stage, obj_name=str(i))
+        )
+      elif not np.allclose(light.pos, [0, 0, 0]):
         self.usd_lights.append(
             light_module.USDSphereLight(stage=self.stage, obj_name=str(i))
         )
@@ -379,18 +383,24 @@ class USDExporter:
     for i in range(self.scene.nlight):
       light = self.scene.lights[i]
 
-      if np.allclose(light.pos, [0, 0, 0]):
-        continue
-
       if i >= len(self.usd_lights) or self.usd_lights[i] is None:
         continue
 
-      self.usd_lights[i].update(
-          pos=light.pos,
-          intensity=self.light_intensity,
-          color=light.diffuse,
-          frame=self.updates,
-      )
+      usd_light = self.usd_lights[i]
+      if isinstance(usd_light, light_module.USDDistantLight):
+        usd_light.update(
+            direction=light.dir,
+            intensity=self.light_intensity,
+            color=light.diffuse,
+            frame=self.updates,
+        )
+      elif not np.allclose(light.pos, [0, 0, 0]):
+        usd_light.update(
+            pos=light.pos,
+            intensity=self.light_intensity,
+            color=light.diffuse,
+            frame=self.updates,
+        )
 
   def _load_cameras(self):
     if self.camera_names is not None:
