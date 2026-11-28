@@ -14,14 +14,22 @@
 # ==============================================================================
 """Tests for the MuJoCo USD Exporter."""
 
+import glob
+import ntpath
 import os
+import pathlib
 import tempfile
+from unittest import mock
 
 from absl.testing import absltest
 from etils import epath
+
 import mujoco
 
 try:
+  from pxr import Usd  # pylint: disable=g-import-not-at-top
+  from pxr import UsdShade  # pylint: disable=g-import-not-at-top
+
   from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
 except ModuleNotFoundError:
   exporter_module = None
@@ -163,6 +171,88 @@ class ExporterTest(absltest.TestCase):
         },
         prim_types,
     )
+
+  def _export_textured_scene_texture_paths(self):
+    """Exports a textured scene and returns its texture asset paths."""
+    output_dir_root = self.create_tempdir().full_path
+    xml = """
+<mujoco>
+  <asset>
+    <texture name="checker" type="2d" builtin="checker" rgb1="0.9 0.9 0.9"
+             rgb2="0.1 0.1 0.1" width="64" height="64"/>
+    <material name="floor_mat" texture="checker"/>
+  </asset>
+  <worldbody>
+    <camera name="cam" pos="0 -4 1.5" xyaxes="1 0 0 0 0.35 1"/>
+    <geom type="plane" size="5 5 0.1" material="floor_mat"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory="usd_texture_paths",
+        output_directory_root=output_dir_root,
+        camera_names=["cam"],
+    )
+    mujoco.mj_step(model, data)
+    exporter.update_scene(data)
+    exporter.save_scene("usda")
+    frame_paths = glob.glob(
+        os.path.join(output_dir_root, "**", "frame_*.usda"), recursive=True
+    )
+    self.assertLen(frame_paths, 1)
+    stage = Usd.Stage.Open(frame_paths[0])
+    paths = []
+    for prim in stage.Traverse():
+      if prim.IsA(UsdShade.Shader):
+        file_input = UsdShade.Shader(prim).GetInput("file")
+        if file_input:
+          paths.append(file_input.Get().path)
+    return paths
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_texture_asset_paths_use_forward_slashes(self):
+    paths = self._export_textured_scene_texture_paths()
+    self.assertEqual(paths, ["../assets/texture_0.png"])
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_texture_asset_paths_use_forward_slashes_with_windows_paths(self):
+    # Simulates the Windows path flavor (backslash separators) on any host,
+    # only inside the exporter module: its `os` is replaced by a proxy and its
+    # `pathlib` by a Windows flavor. Global os.path, pxr, glob and tempfile
+    # keep their native behavior.
+    native_os = os
+
+    class WindowsPathProxy:
+
+      def __getattr__(self, name):
+        return getattr(native_os.path, name)
+
+      def relpath(self, *args, **kwargs):
+        return "..\\assets"
+
+      def join(self, first, *rest):
+        if first.startswith(".."):
+          return ntpath.join(first, *rest)
+        return native_os.path.join(first, *rest)
+
+    class OsProxy:
+      path = WindowsPathProxy()
+
+      def __getattr__(self, name):
+        return getattr(native_os, name)
+
+    with mock.patch.object(exporter_module, "os", OsProxy()):
+      with mock.patch.object(
+          exporter_module,
+          "pathlib",
+          mock.Mock(PurePath=pathlib.PureWindowsPath),
+          create=True,
+      ):
+        paths = self._export_textured_scene_texture_paths()
+    self.assertEqual(paths, ["../assets/texture_0.png"])
 
 
 if __name__ == "__main__":
