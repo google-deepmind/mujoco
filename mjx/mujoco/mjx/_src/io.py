@@ -422,7 +422,11 @@ def _put_model_jax(
           f'{[mj_type(m) for m in missing]} not supported'
       )
 
-  mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
+  mj_field_names = {
+      f.name
+      for f in types.Model.fields()
+      if f.name != '_impl'
+  }
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _put_option(m.opt, types.Impl.JAX)
@@ -485,7 +489,11 @@ def _put_model_warp(
     mw = mjwp.put_model(m, batch_sizes=batch_sizes)  # pylint: disable=undefined-variable
 
   batch_sizes = batch_sizes or {}
-  fields = {f.name for f in types.Model.fields() if f.name != '_impl'}
+  fields = {
+      f.name
+      for f in types.Model.fields()
+      if f.name != '_impl'
+  }
   fields = {f: getattr(m, f) for f in fields}
   # Grab MJW private Option fields, and assume that public MjOption fields are
   # directly compatible with MJXW.
@@ -542,7 +550,11 @@ def _put_model_cpp(
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
 
-  mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
+  mj_field_names = {
+      f.name
+      for f in types.Model.fields()
+      if f.name != '_impl'
+  }
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _put_option(m.opt, impl=types.Impl.JAX)

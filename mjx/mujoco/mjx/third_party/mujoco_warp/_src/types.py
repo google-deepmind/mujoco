@@ -1364,7 +1364,6 @@ class Model:
     geom_matid: material id for rendering                    (*, ngeom,)
     geom_group: geom group inclusion/exclusion mask          (ngeom,)
     geom_priority: geom contact priority                     (ngeom,)
-    geom_solmix: mixing coef for solref/imp in geom pair     (*, ngeom,)
     geom_solref: constraint solver reference: contact        (*, ngeom, mjNREF)
     geom_solimp: constraint solver impedance: contact        (*, ngeom, mjNIMP)
     geom_size: geom-specific size parameters                 (*, ngeom, 3)
@@ -1418,7 +1417,6 @@ class Model:
     flex_conaffinity: flex contact affinity                  (nflex,)
     flex_condim: contact dimensionality (1, 3, 4, 6)         (nflex,)
     flex_priority: geom contact priority                     (nflex,)
-    flex_solmix: mixing coef for solref/imp in geom pair     (nflex,)
     flex_solref: constraint solver reference: contact        (nflex, mjNREF)
     flex_solimp: constraint solver impedance: contact        (nflex, mjNIMP)
     flex_friction: friction for (slide, spin, roll)          (nflex, 3)
@@ -1633,7 +1631,7 @@ class Model:
     mapM2D: index mapping from M to D                        (nD,)
     mapD2M: index mapping from D to M                        (nC,)
 
-  warp only fields:
+    # warp only fields:
     nefmK: number of non-zeros in effective flex stiffness matrix
     nefmdof: number of covered flex vertex triples
     nefmL: number of non-zeros in 1D rod effective Cholesky factor
@@ -1979,7 +1977,6 @@ class Model:
   geom_matid: array("*", "ngeom", int)
   geom_group: array("ngeom", int)
   geom_priority: array("ngeom", int)
-  geom_solmix: array("*", "ngeom", float)
   geom_solref: array("*", "ngeom", wp.vec2)
   geom_solimp: array("*", "ngeom", vec5)
   geom_size: array("*", "ngeom", wp.vec3)
@@ -2033,7 +2030,6 @@ class Model:
   flex_conaffinity: array("nflex", int)
   flex_condim: array("nflex", int)
   flex_priority: array("nflex", int)
-  flex_solmix: array("nflex", float)
   flex_solref: array("nflex", wp.vec2)
   flex_solimp: array("nflex", vec5)
   flex_friction: array("nflex", wp.vec3)

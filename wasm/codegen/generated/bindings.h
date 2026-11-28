@@ -2563,12 +2563,6 @@ struct MjsFlex {
   emscripten::val friction() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->friction));
   }
-  double solmix() const {
-    return ptr_->solmix;
-  }
-  void set_solmix(double value) {
-    ptr_->solmix = value;
-  }
   emscripten::val solref() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->solref));
   }
@@ -4804,9 +4798,6 @@ struct MjModel {
   emscripten::val geom_castshadow() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, reinterpret_cast<uint8_t*>(ptr_->geom_castshadow)));
   }
-  emscripten::val geom_solmix() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, ptr_->geom_solmix));
-  }
   emscripten::val geom_solref() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom * mjNREF, ptr_->geom_solref));
   }
@@ -5013,9 +5004,6 @@ struct MjModel {
   }
   emscripten::val flex_priority() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_priority));
-  }
-  emscripten::val flex_solmix() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_solmix));
   }
   emscripten::val flex_solref() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * mjNREF, ptr_->flex_solref));
@@ -6524,12 +6512,6 @@ struct MjsGeom {
   }
   emscripten::val friction() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->friction));
-  }
-  double solmix() const {
-    return ptr_->solmix;
-  }
-  void set_solmix(double value) {
-    ptr_->solmix = value;
   }
   emscripten::val solref() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->solref));

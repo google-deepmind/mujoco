@@ -738,19 +738,11 @@ class "MjcCollisionAPI"
       doc = """The dimensionality of the contact space for a dynamically generated contact pair is set to the maximum of the condim values of the two participating geoms."""
     )
 
-    uniform double mjc:solmix = 1.0 (
-      customData = {
-          string apiName = "SolMix"
-      }
-      displayName = "SolMix"
-      doc = """Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."""
-    )
-
     uniform double[] mjc:solref = [0.02, 1.0] (
       customData = {
           string apiName = "SolRef"
       }
-      displayName = "SolMix"
+      displayName = "SolRef"
       doc = """Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."""
     )
 

@@ -354,8 +354,6 @@
      - :math:`M`
    * - :ref:`body/geom/density<body-geom-density>`
      - *varies*
-   * - :ref:`body/geom/solmix<body-geom-solmix>`
-     - :math:`1`
    * - :ref:`body/geom/solref<body-geom-solref>`
      - :math:`T,\ 1` or :math:`T^{-2},\ T^{-1}`
    * - :ref:`body/geom/solimp<body-geom-solimp>`
@@ -520,8 +518,6 @@
      - :math:`L`
    * - :ref:`flexcomp/contact/friction<flexcomp-contact-friction>`
      - :math:`1,\ L,\ L`
-   * - :ref:`flexcomp/contact/solmix<flexcomp-contact-solmix>`
-     - :math:`1`
    * - :ref:`flexcomp/contact/solref<flexcomp-contact-solref>`
      - :math:`T,\ 1` or :math:`T^{-2},\ T^{-1}`
    * - :ref:`flexcomp/contact/solimp<flexcomp-contact-solimp>`

@@ -1778,12 +1778,6 @@ class ModelWriter {
       WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Int,
                             MjcPhysicsTokens->mjcCondim, geom->condim);
 
-      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Double,
-                            MjcPhysicsTokens->mjcSolmix, geom->solmix);
-
-      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Double,
-                            MjcPhysicsTokens->mjcSolmix, geom->solmix);
-
       WriteUniformAttribute(
           geom_spec, pxr::SdfValueTypeNames->DoubleArray,
           MjcPhysicsTokens->mjcSolref,

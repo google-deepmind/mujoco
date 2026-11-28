@@ -674,10 +674,6 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsJointAPI, MjcPhysicsTendon
   const TfToken mjcSolimplimit;
-  /// \brief "mjc:solmix"
-  ///
-  /// MjcPhysicsCollisionAPI
-  const TfToken mjcSolmix;
   /// \brief "mjc:solref"
   ///
   /// MjcPhysicsCollisionAPI, MjcPhysicsEqualityAPI, MjcPhysicsEqualityJointAPI

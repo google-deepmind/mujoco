@@ -1497,7 +1497,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, mjsFrame* frame, co
     ReadAttrInt(cont, "condim", &dflex.condim);
     ReadAttrInt(cont, "priority", &dflex.priority);
     ReadAttr(cont, "friction", 3, dflex.friction, text, false, false);
-    ReadAttr(cont, "solmix", 1, &dflex.solmix, text);
     ReadAttr(cont, "solref", mjNREF, dflex.solref, text, false, false);
     ReadAttr(cont, "solimp", mjNIMP, dflex.solimp, text, false, false);
     ReadAttr(cont, "margin", 1, &dflex.margin, text);

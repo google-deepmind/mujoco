@@ -67,7 +67,6 @@ public struct MjGeomSettings {
 
     // Solver settings.
     Solver.ConDim = (int)mjcf.GetFloatAttribute("condim", GeomSolver.Default.ConDim);
-    Solver.SolMix = mjcf.GetFloatAttribute("solmix", GeomSolver.Default.SolMix);
     var solref = mjcf.GetFloatArrayAttribute(
         "solref", new float[] { GeomSolver.Default.SolRef.TimeConst,
         GeomSolver.Default.SolRef.DampRatio });
@@ -115,7 +114,6 @@ public struct MjGeomSettings {
 
     // Solver settings.
     mjcf.SetAttribute("condim", $"{Solver.ConDim}");
-    mjcf.SetAttribute("solmix", MjEngineTool.MakeLocaleInvariant($"{Solver.SolMix}"));
     mjcf.SetAttribute("solref", MjEngineTool.MakeLocaleInvariant($"{Solver.SolRef.TimeConst} {Solver.SolRef.DampRatio}"));
     mjcf.SetAttribute(
       "solimp", MjEngineTool.MakeLocaleInvariant($"{Solver.SolImp.DMin} {Solver.SolImp.DMax} {Solver.SolImp.Width}"));
@@ -167,8 +165,7 @@ public struct GeomSolver {
   [Tooltip("The dimensionality of the contact space.")]
   public int ConDim;
 
-  [Tooltip("Weight used for averaging of constraint solver parameters.")]
-  public float SolMix;
+
 
   [Tooltip("Solver function d(r) reference parameters.")]
   public SolverReference SolRef;
@@ -183,7 +180,7 @@ public struct GeomSolver {
   public float Gap;
 
   public static GeomSolver Default = new GeomSolver() {
-    ConDim = 3, SolMix = 1.0f, SolRef = SolverReference.Default, SolImp = SolverImpedance.Default,
+    ConDim = 3, SolRef = SolverReference.Default, SolImp = SolverImpedance.Default,
     Margin = 0.0f, Gap = 0.0f
   };
 }

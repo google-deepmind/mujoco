@@ -3161,7 +3161,6 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->geom_pos + 3 * gid, pg->pos, 3);
       mjuu_copyvec(m->geom_quat + 4 * gid, pg->quat, 4);
       mjuu_copyvec(m->geom_friction + 3 * gid, pg->friction, 3);
-      m->geom_solmix[gid] = (mjtNum)pg->solmix;
       mjuu_copyvec(m->geom_solref + mjNREF * gid, pg->solref, mjNREF);
       mjuu_copyvec(m->geom_solimp + mjNIMP * gid, pg->solimp, mjNIMP);
       m->geom_margin[gid] = (mjtNum)pg->margin;
@@ -3707,7 +3706,6 @@ void mjCModel::CopyObjects(mjModel* m) {
     memcpy(m->flex_matid + elem_adr, pfl->elemmatid_.data(), pfl->nelem * sizeof(int));
     m->flex_group[i]    = pfl->group;
     m->flex_priority[i] = pfl->priority;
-    m->flex_solmix[i]   = (mjtNum)pfl->solmix;
     mjuu_copyvec(m->flex_solref + mjNREF * i, pfl->solref, mjNREF);
     mjuu_copyvec(m->flex_solimp + mjNIMP * i, pfl->solimp, mjNIMP);
     m->flex_radius[i] = (mjtNum)pfl->radius;
@@ -7992,7 +7990,6 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
     copy(pg->spec.solref, pg->solref, m->geom_solref + mjNREF * i, mjNREF);
     copy(pg->spec.solimp, pg->solimp, m->geom_solimp + mjNIMP * i, mjNIMP);
     copy(pg->spec.rgba, pg->rgba, m->geom_rgba + 4 * i, 4);
-    copy(&pg->spec.solmix, &pg->solmix, m->geom_solmix + i);
     copy(&pg->spec.margin, &pg->margin, m->geom_margin + i);
     copy(&pg->spec.gap, &pg->gap, m->geom_gap + i);
     copy(&pg->spec.adhesion, &pg->adhesion, m->geom_adhesion + i);

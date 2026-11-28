@@ -134,7 +134,6 @@ void mjs_defaultGeom(mjsGeom* geom) {
   geom->friction[0] = 1;
   geom->friction[1] = 0.005;
   geom->friction[2] = 0.0001;
-  geom->solmix      = 1.0;
   mj_defaultSolRefImp(geom->solref, geom->solimp);
 
   // inertia-related
@@ -231,7 +230,6 @@ void mjs_defaultFlex(mjsFlex* flex) {
   flex->friction[0] = 1;
   flex->friction[1] = 0.005;
   flex->friction[2] = 0.0001;
-  flex->solmix      = 1.0;
   mj_defaultSolRefImp(flex->solref, flex->solimp);
 
   // set other defaults

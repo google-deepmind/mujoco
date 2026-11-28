@@ -345,7 +345,6 @@ class ModelWarp(PyTreeNode):
   flex_simple: np.ndarray
   flex_size: np.ndarray
   flex_solimp: np.ndarray
-  flex_solmix: np.ndarray
   flex_solref: np.ndarray
   flex_stiff_possible: np.ndarray
   flex_stiffness: np.ndarray
@@ -1226,7 +1225,6 @@ _NDIM = {
         'flex_simple': 1,
         'flex_size': 2,
         'flex_solimp': 2,
-        'flex_solmix': 1,
         'flex_solref': 2,
         'flex_stiff_possible': 1,
         'flex_stiffness': 1,
@@ -1275,7 +1273,6 @@ _NDIM = {
         'geom_rgba': 3,
         'geom_size': 3,
         'geom_solimp': 3,
-        'geom_solmix': 2,
         'geom_solref': 3,
         'geom_surfacevel': 3,
         'geom_type': 1,
@@ -2120,7 +2117,6 @@ _BATCH_DIM = {
         'flex_simple': False,
         'flex_size': False,
         'flex_solimp': False,
-        'flex_solmix': False,
         'flex_solref': False,
         'flex_stiff_possible': False,
         'flex_stiffness': False,
@@ -2169,7 +2165,6 @@ _BATCH_DIM = {
         'geom_rgba': True,
         'geom_size': True,
         'geom_solimp': True,
-        'geom_solmix': True,
         'geom_solref': True,
         'geom_surfacevel': True,
         'geom_type': False,

@@ -420,7 +420,6 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(condim, "contact dimensionality");
       FIELD(priority, "contact priority");
       FIELD(friction, "one-sided friction coefficients: slide, roll, spin");
-      FIELD(solmix, "solver mixing for contact pairs");
       FIELD(solref, "solver reference");
       FIELD(solimp, "solver impedance");
       FIELD(margin, "margin for contact detection");
@@ -530,7 +529,6 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(condim, "contact dimensionality");
       FIELD(priority, "contact priority");
       FIELD(friction, "one-sided friction coefficients: slide, roll, spin");
-      FIELD(solmix, "solver mixing for contact pairs");
       FIELD(solref, "solver reference");
       FIELD(solimp, "solver impedance");
       FIELD(margin, "margin for contact detection");

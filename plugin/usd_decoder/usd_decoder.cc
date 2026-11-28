@@ -1027,11 +1027,6 @@ void ParseMjcPhysicsCollisionAPI(
     condim_attr.Get(&geom->condim);
   }
 
-  auto solmix_attr = collision_api.GetSolMixAttr();
-  if (solmix_attr.HasAuthoredValue()) {
-    solmix_attr.Get(&geom->solmix);
-  }
-
   auto solref_attr = collision_api.GetSolRefAttr();
   if (solref_attr.HasAuthoredValue()) {
     pxr::VtDoubleArray solref;

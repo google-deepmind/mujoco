@@ -1290,7 +1290,6 @@ public unsafe struct mjModel_ {
   public int* geom_plugin;
   public byte* geom_sameframe;
   public byte* geom_castshadow;
-  public double* geom_solmix;
   public double* geom_solref;
   public double* geom_solimp;
   public double* geom_size;
@@ -1360,7 +1359,6 @@ public unsafe struct mjModel_ {
   public int* flex_conaffinity;
   public int* flex_condim;
   public int* flex_priority;
-  public double* flex_solmix;
   public double* flex_solref;
   public double* flex_solimp;
   public double* flex_friction;

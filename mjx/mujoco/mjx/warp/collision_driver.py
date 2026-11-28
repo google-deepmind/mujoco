@@ -90,7 +90,6 @@ def _collision_shim(
     flex_rodedge_vert: wp.array[wp.vec2i],
     flex_selfcollide: wp.array[int],
     flex_solimp: wp.array[mjwp_types.vec5],
-    flex_solmix: wp.array[float],
     flex_solref: wp.array[wp.vec2],
     flex_vert_rodelem: wp.array[int],
     flex_vertadr: wp.array[int],
@@ -114,7 +113,6 @@ def _collision_shim(
     geom_rbound: wp.array2d[float],
     geom_size: wp.array2d[wp.vec3],
     geom_solimp: wp.array2d[mjwp_types.vec5],
-    geom_solmix: wp.array2d[float],
     geom_solref: wp.array2d[wp.vec2],
     geom_surfacevel: wp.array2d[mjwp_types.vec6],
     geom_type: wp.array[int],
@@ -275,7 +273,6 @@ def _collision_shim(
   _m.flex_rodedge_vert = flex_rodedge_vert
   _m.flex_selfcollide = flex_selfcollide
   _m.flex_solimp = flex_solimp
-  _m.flex_solmix = flex_solmix
   _m.flex_solref = flex_solref
   _m.flex_vert_rodelem = flex_vert_rodelem
   _m.flex_vertadr = flex_vertadr
@@ -299,7 +296,6 @@ def _collision_shim(
   _m.geom_rbound = geom_rbound
   _m.geom_size = geom_size
   _m.geom_solimp = geom_solimp
-  _m.geom_solmix = geom_solmix
   _m.geom_solref = geom_solref
   _m.geom_surfacevel = geom_surfacevel
   _m.geom_type = geom_type
@@ -511,7 +507,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'geom_rbound',
           'geom_size',
           'geom_solimp',
-          'geom_solmix',
           'geom_solref',
           'geom_surfacevel',
           'geom_xpos',
@@ -607,7 +602,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_rodedge_vert,
       m._impl.flex_selfcollide,
       m._impl.flex_solimp,
-      m._impl.flex_solmix,
       m._impl.flex_solref,
       m._impl.flex_vert_rodelem,
       m.flex_vertadr,
@@ -631,7 +625,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.geom_rbound,
       m.geom_size,
       m.geom_solimp,
-      m.geom_solmix,
       m.geom_solref,
       m._impl.geom_surfacevel,
       m.geom_type,

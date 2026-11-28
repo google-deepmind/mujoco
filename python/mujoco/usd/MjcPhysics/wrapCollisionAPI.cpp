@@ -65,12 +65,6 @@ static UsdAttribute _CreateConDimAttr(MjcPhysicsCollisionAPI& self,
       UsdPythonToSdfType(defaultVal, SdfValueTypeNames->Int), writeSparsely);
 }
 
-static UsdAttribute _CreateSolMixAttr(MjcPhysicsCollisionAPI& self,
-                                      object defaultVal, bool writeSparsely) {
-  return self.CreateSolMixAttr(
-      UsdPythonToSdfType(defaultVal, SdfValueTypeNames->Double), writeSparsely);
-}
-
 static UsdAttribute _CreateSolRefAttr(MjcPhysicsCollisionAPI& self,
                                       object defaultVal, bool writeSparsely) {
   return self.CreateSolRefAttr(
@@ -163,10 +157,6 @@ void wrapMjcPhysicsCollisionAPI() {
 
       .def("GetConDimAttr", &This::GetConDimAttr)
       .def("CreateConDimAttr", &_CreateConDimAttr,
-           (arg("defaultValue") = object(), arg("writeSparsely") = false))
-
-      .def("GetSolMixAttr", &This::GetSolMixAttr)
-      .def("CreateSolMixAttr", &_CreateSolMixAttr,
            (arg("defaultValue") = object(), arg("writeSparsely") = false))
 
       .def("GetSolRefAttr", &This::GetSolRefAttr)

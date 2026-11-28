@@ -921,9 +921,6 @@
                :ref:`shellinertia<body-geom-shellinertia>`
 
             .. grid-item::
-               :ref:`solmix<body-geom-solmix>`
-
-            .. grid-item::
                :ref:`solref<body-geom-solref>`
 
             .. grid-item::
@@ -1413,9 +1410,6 @@
                   :ref:`friction<flexcomp-contact-friction>`
 
                .. grid-item::
-                  :ref:`solmix<flexcomp-contact-solmix>`
-
-               .. grid-item::
                   :ref:`solref<flexcomp-contact-solref>`
 
                .. grid-item::
@@ -1555,9 +1549,6 @@
 
                .. grid-item::
                   :ref:`friction<flex-contact-friction>`
-
-               .. grid-item::
-                  :ref:`solmix<flex-contact-solmix>`
 
                .. grid-item::
                   :ref:`solref<flex-contact-solref>`
@@ -5557,9 +5548,6 @@
 
             .. grid-item::
                :ref:`shellinertia<default-geom-shellinertia>`
-
-            .. grid-item::
-               :ref:`solmix<default-geom-solmix>`
 
             .. grid-item::
                :ref:`solref<default-geom-solref>`

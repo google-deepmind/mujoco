@@ -1451,7 +1451,6 @@
         <xs:documentation>saved unless mesh</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="solmix" type="xs:double" default="1"/>
     <xs:attribute name="solref" type="double1to2" default="0.02 1"/>
     <xs:attribute name="solimp" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="margin" type="xs:double"/>
@@ -2240,7 +2239,6 @@
         <xs:documentation>saved unless mesh</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="solmix" type="xs:double" default="1"/>
     <xs:attribute name="solref" type="double1to2" default="0.02 1"/>
     <xs:attribute name="solimp" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="margin" type="xs:double"/>
@@ -4063,7 +4061,6 @@
     <xs:attribute name="condim" type="xs:int" default="3"/>
     <xs:attribute name="priority" type="xs:int"/>
     <xs:attribute name="friction" type="double1to3" default="1 0.005 0.0001"/>
-    <xs:attribute name="solmix" type="xs:double" default="1"/>
     <xs:attribute name="solref" type="double1to2" default="0.02 1"/>
     <xs:attribute name="solimp" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="margin" type="xs:double"/>

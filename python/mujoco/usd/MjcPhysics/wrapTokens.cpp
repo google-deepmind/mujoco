@@ -199,7 +199,6 @@ void wrapMjcPhysicsTokens() {
   _ADD_TOKEN(cls, "mjcSolimp", MjcPhysicsTokens->mjcSolimp);
   _ADD_TOKEN(cls, "mjcSolimpfriction", MjcPhysicsTokens->mjcSolimpfriction);
   _ADD_TOKEN(cls, "mjcSolimplimit", MjcPhysicsTokens->mjcSolimplimit);
-  _ADD_TOKEN(cls, "mjcSolmix", MjcPhysicsTokens->mjcSolmix);
   _ADD_TOKEN(cls, "mjcSolref", MjcPhysicsTokens->mjcSolref);
   _ADD_TOKEN(cls, "mjcSolreffriction", MjcPhysicsTokens->mjcSolreffriction);
   _ADD_TOKEN(cls, "mjcSolreflimit", MjcPhysicsTokens->mjcSolreflimit);

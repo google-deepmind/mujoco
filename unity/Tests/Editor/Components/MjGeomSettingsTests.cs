@@ -64,13 +64,6 @@ public class MjGeomSettingsGenerationTests {
   }
 
   [Test]
-  public void SolverMixMjcf() {
-    _settings.Solver.SolMix = 5;
-    _settings.ToMjcf(_mjcf);
-    Assert.That(_doc.OuterXml, Does.Contain(@"solmix=""5"""));
-  }
-
-  [Test]
   public void SolverReferenceMjcf() {
     _settings.Solver.SolRef.TimeConst = 5;
     _settings.Solver.SolRef.DampRatio = 6;
@@ -169,13 +162,6 @@ public class MjGeomSettingsParsingTests {
     _mjcf.SetAttribute("condim", "5");
     _settings.FromMjcf(_mjcf);
     Assert.That(_settings.Solver.ConDim, Is.EqualTo(5));
-  }
-
-  [Test]
-  public void SolverMixMjcf() {
-    _mjcf.SetAttribute("solmix", "5");
-    _settings.FromMjcf(_mjcf);
-    Assert.That(_settings.Solver.SolMix, Is.EqualTo(5));
   }
 
   [Test]

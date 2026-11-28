@@ -166,7 +166,6 @@ void mj_contactParam(const mjModel* m, int* condim, mjtNum* solref, mjtNum* soli
   // get parameters from geom1 or flex1
   int priority1 =           (f1 < 0) ? m->geom_priority[g1]     : m->flex_priority[f1];
   int condim1 =             (f1 < 0) ? m->geom_condim[g1]       : m->flex_condim[f1];
-  mjtNum solmix1 =          (f1 < 0) ? m->geom_solmix[g1]       : m->flex_solmix[f1];
   const mjtNum* solref1 =   (f1 < 0) ? m->geom_solref+g1*mjNREF : m->flex_solref+f1*mjNREF;
   const mjtNum* solimp1 =   (f1 < 0) ? m->geom_solimp+g1*mjNIMP : m->flex_solimp+f1*mjNIMP;
   const mjtNum* friction1 = (f1 < 0) ? m->geom_friction+g1*3    : m->flex_friction+f1*3;
@@ -175,7 +174,6 @@ void mj_contactParam(const mjModel* m, int* condim, mjtNum* solref, mjtNum* soli
   // get parameters from geom2 or flex2
   int priority2 =           (f2 < 0) ? m->geom_priority[g2]     : m->flex_priority[f2];
   int condim2 =             (f2 < 0) ? m->geom_condim[g2]       : m->flex_condim[f2];
-  mjtNum solmix2 =          (f2 < 0) ? m->geom_solmix[g2]       : m->flex_solmix[f2];
   const mjtNum* solref2 =   (f2 < 0) ? m->geom_solref+g2*mjNREF : m->flex_solref+f2*mjNREF;
   const mjtNum* solimp2 =   (f2 < 0) ? m->geom_solimp+g2*mjNIMP : m->flex_solimp+f2*mjNIMP;
   const mjtNum* friction2 = (f2 < 0) ? m->geom_friction+g2*3    : m->flex_friction+f2*3;
@@ -205,22 +203,10 @@ void mj_contactParam(const mjModel* m, int* condim, mjtNum* solref, mjtNum* soli
     // condim: max
     *condim = mjMAX(condim1, condim2);
 
-    // compute solver mix factor
-    mjtNum mix;
-    if (solmix1 >= mjMINVAL && solmix2 >= mjMINVAL) {
-      mix = solmix1 / (solmix1 + solmix2);
-    } else if (solmix1 < mjMINVAL && solmix2 < mjMINVAL) {
-      mix = 0.5;
-    } else if (solmix1 < mjMINVAL) {
-      mix = 0.0;
-    } else {
-      mix = 1.0;
-    }
-
-    // reference standard: mix
+    // reference standard: average
     if (solref1[0] > 0 && solref2[0] > 0) {
       for (int i=0; i < mjNREF; i++) {
-        solref[i] = mix*solref1[i] + (1-mix)*solref2[i];
+        solref[i] = 0.5*(solref1[i] + solref2[i]);
       }
     }
 
@@ -231,9 +217,9 @@ void mj_contactParam(const mjModel* m, int* condim, mjtNum* solref, mjtNum* soli
       }
     }
 
-    // impedance: mix
+    // impedance: average
     for (int i=0; i < mjNIMP; i++) {
-      solimp[i] = mix*solimp1[i] + (1-mix)*solimp2[i];
+      solimp[i] = 0.5*(solimp1[i] + solimp2[i]);
     }
 
     // friction: max

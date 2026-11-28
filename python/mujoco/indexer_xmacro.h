@@ -102,7 +102,6 @@
   X( int,     geom_, priority,    ngeom, 1                ) \
   X( mjtByte, geom_, sameframe,   ngeom, 1                ) \
   X( mjtBool, geom_, castshadow,  ngeom, 1                ) \
-  X( mjtNum,  geom_, solmix,      ngeom, 1                ) \
   X( mjtNum,  geom_, solref,      ngeom, mjNREF           ) \
   X( mjtNum,  geom_, solimp,      ngeom, mjNIMP           ) \
   X( mjtNum,  geom_, size,        ngeom, 3                ) \

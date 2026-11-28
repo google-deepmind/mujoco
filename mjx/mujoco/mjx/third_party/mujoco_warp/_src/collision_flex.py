@@ -319,14 +319,12 @@ def _mix_flex_contact_params(
   # In:
   a_condim: int,
   a_priority: int,
-  a_solmix: float,
   a_solref: wp.vec2,
   a_solimp: vec5,
   a_friction: wp.vec3,
   a_gap: float,
   b_condim: int,
   b_priority: int,
-  b_solmix: float,
   b_solref: wp.vec2,
   b_solimp: vec5,
   b_friction: wp.vec3,
@@ -350,14 +348,7 @@ def _mix_flex_contact_params(
     condim = wp.max(a_condim, b_condim)
 
     # compute solver mix factor
-    if a_solmix >= MJ_MINVAL and b_solmix >= MJ_MINVAL:
-      mix = a_solmix / (a_solmix + b_solmix)
-    elif a_solmix < MJ_MINVAL and b_solmix < MJ_MINVAL:
-      mix = 0.5
-    elif a_solmix < MJ_MINVAL:
-      mix = 0.0
-    else:
-      mix = 1.0
+    mix = 0.5
 
     # solref: mix if both standard, min if either direct
     if a_solref[0] > 0.0 and b_solref[0] > 0.0:
@@ -2994,7 +2985,6 @@ def _write_filtered_contacts(warn_overflow: int, has_passive_flex: bool):
     geom_condim: wp.array[int],
     geom_bodyid: wp.array[int],
     geom_priority: wp.array[int],
-    geom_solmix: wp.array2d[float],
     geom_solref: wp.array2d[wp.vec2],
     geom_solimp: wp.array2d[vec5],
     geom_friction: wp.array2d[wp.vec3],
@@ -3002,7 +2992,6 @@ def _write_filtered_contacts(warn_overflow: int, has_passive_flex: bool):
     geom_gap: wp.array2d[float],
     flex_condim: wp.array[int],
     flex_priority: wp.array[int],
-    flex_solmix: wp.array[float],
     flex_solref: wp.array[wp.vec2],
     flex_solimp: wp.array[vec5],
     flex_friction: wp.array[wp.vec3],
@@ -3072,14 +3061,12 @@ def _write_filtered_contacts(warn_overflow: int, has_passive_flex: bool):
       condim, gap, solref, solimp, friction = _mix_flex_contact_params(
         geom_condim[geomid],
         geom_priority[geomid],
-        geom_solmix[worldid % geom_solmix.shape[0], geomid],
         geom_solref[worldid % geom_solref.shape[0], geomid],
         geom_solimp[worldid % geom_solimp.shape[0], geomid],
         geom_friction[worldid % geom_friction.shape[0], geomid],
         geom_gap[worldid % geom_gap.shape[0], geomid],
         flex_condim[flexid],
         flex_priority[flexid],
-        flex_solmix[flexid],
         flex_solref[flexid],
         flex_solimp[flexid],
         flex_friction[flexid],
@@ -3100,14 +3087,12 @@ def _write_filtered_contacts(warn_overflow: int, has_passive_flex: bool):
       mixed_condim, gap, solref, solimp, friction = _mix_flex_contact_params(
         flex_condim[flex1],
         flex_priority[flex1],
-        flex_solmix[flex1],
         flex_solref[flex1],
         flex_solimp[flex1],
         flex_friction[flex1],
         gap1,
         flex_condim[flex2],
         flex_priority[flex2],
-        flex_solmix[flex2],
         flex_solref[flex2],
         flex_solimp[flex2],
         flex_friction[flex2],
@@ -3875,7 +3860,6 @@ def _filter_and_write_contacts(
       m.geom_condim,
       m.geom_bodyid,
       m.geom_priority,
-      m.geom_solmix,
       m.geom_solref,
       m.geom_solimp,
       m.geom_friction,
@@ -3883,7 +3867,6 @@ def _filter_and_write_contacts(
       m.geom_gap,
       m.flex_condim,
       m.flex_priority,
-      m.flex_solmix,
       m.flex_solref,
       m.flex_solimp,
       m.flex_friction,

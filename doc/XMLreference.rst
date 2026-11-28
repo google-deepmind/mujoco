@@ -2894,7 +2894,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 
 :at:`priority`: :at-val:`int, "0"`
    The geom priority determines how the properties of two colliding geoms are combined to form the properties of the
-   contact. This interacts with the solmix attribute. See :ref:`CContact`.
+   contact. See :ref:`CContact`.
 
 .. _body-geom-size:
 
@@ -2962,7 +2962,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
    Contact friction parameters for dynamically generated contact pairs. The first number is the sliding friction, acting
    along both axes of the tangent plane. The second number is the torsional friction, acting around the contact normal.
    The third number is the rolling friction, acting around both axes of the tangent plane. The friction parameters for
-   the contact pair are combined depending on the solmix and priority attributes, as explained in :ref:`Contact
+   the contact pair are combined depending on the priority attribute, as explained in :ref:`Contact
    parameters <CContact>`. See the general :ref:`Contact<coContact>` section for descriptions of the semantics of this
    attribute.
 
@@ -2990,12 +2990,6 @@ helps clarify the role of bodies and geoms in MuJoCo.
    :at:`density` is interpreted as surface rather than volumetric density. This attribute only applies to primitive
    geoms and is ignored for meshes. Surface inertia for meshes can be specified by setting the
    :ref:`asset/mesh/inertia<asset-mesh-inertia>` attribute to :at-val:`"shell"`.
-
-.. _body-geom-solmix:
-
-:at:`solmix`: :at-val:`real, "1"`
-   This attribute specifies the weight used for averaging of contact parameters, and interacts with the priority
-   attribute. See :ref:`CContact`.
 
 .. _body-geom-solref:
 
@@ -3986,7 +3980,6 @@ saving the XML:
 .. _flexcomp-contact-condim:
 .. _flexcomp-contact-priority:
 .. _flexcomp-contact-friction:
-.. _flexcomp-contact-solmix:
 .. _flexcomp-contact-solref:
 .. _flexcomp-contact-solimp:
 .. _flexcomp-contact-margin:
@@ -3995,7 +3988,7 @@ saving the XML:
 
 .. |body/flexcomp/contact attrib list| replace::
    :at:`internal`, :at:`selfcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`, :at:`condim`,
-   :at:`priority`, :at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
+   :at:`priority`, :at:`friction`, :at:`solimp`, :at:`margin`, :at:`gap`
 
 |body/flexcomp/contact attrib list|
    Same as in :ref:`flex/contact<flex-contact>`. All attributes are passed through to the automatically-generated flex.
@@ -4812,7 +4805,6 @@ extensions specific to flexes.
 .. _flex-contact-condim:
 .. _flex-contact-priority:
 .. _flex-contact-friction:
-.. _flex-contact-solmix:
 .. _flex-contact-solref:
 .. _flex-contact-solimp:
 .. _flex-contact-margin:
@@ -4820,7 +4812,7 @@ extensions specific to flexes.
 
 .. |deformable/flex/contact attrib list| replace::
    :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`priority`, :at:`friction`,
-   :at:`solmix`, :at:`solref`, :at:`solimp`, :at:`margin`, :at:`gap`
+   :at:`solref`, :at:`solimp`, :at:`margin`, :at:`gap`
 
 |deformable/flex/contact attrib list|
    Same meaning as regular :ref:`geom <body-geom>` attributes.
@@ -10429,8 +10421,6 @@ if omitted.
 .. _default-geom-density:
 
 .. _default-geom-shellinertia:
-
-.. _default-geom-solmix:
 
 .. _default-geom-solref:
 

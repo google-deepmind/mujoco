@@ -185,7 +185,6 @@
     X   ( int,            condim,          1      ) \
     X   ( int,            priority,        1      ) \
     XVEC( double,         friction,        3      ) \
-    X   ( double,         solmix,          1      ) \
     XVEC( mjtNum,         solref,          mjNREF ) \
     XVEC( mjtNum,         solimp,          mjNIMP ) \
     X   ( double,         margin,          1      ) \
@@ -285,7 +284,6 @@
     X   ( int,            condim,        1      ) \
     X   ( int,            priority,      1      ) \
     XVEC( double,         friction,      3      ) \
-    X   ( double,         solmix,        1      ) \
     XVEC( mjtNum,         solref,        mjNREF ) \
     XVEC( mjtNum,         solimp,        mjNIMP ) \
     X   ( double,         margin,        1      ) \

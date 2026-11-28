@@ -359,12 +359,8 @@ class "MjcCollisionAPI" (
         displayName = "SolImp"
         doc = "Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."
     )
-    uniform double mjc:solmix = 1 (
-        displayName = "SolMix"
-        doc = "Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."
-    )
     uniform double[] mjc:solref = [0.02, 1] (
-        displayName = "SolMix"
+        displayName = "SolRef"
         doc = "Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."
     )
 }

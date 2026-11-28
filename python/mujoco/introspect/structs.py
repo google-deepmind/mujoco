@@ -2202,14 +2202,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ngeom',),
              ),
              StructFieldDecl(
-                 name='geom_solmix',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='mixing coef for solref/imp in geom pair',
-                 array_extent=('ngeom',),
-             ),
-             StructFieldDecl(
                  name='geom_solref',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -2759,14 +2751,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='flex contact priority',
-                 array_extent=('nflex',),
-             ),
-             StructFieldDecl(
-                 name='flex_solmix',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='mix coef for solref/imp in contact pair',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
@@ -8250,11 +8234,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='one-sided friction coefficients: slide, roll, spin',
              ),
              StructFieldDecl(
-                 name='solmix',
-                 type=ValueType(name='double'),
-                 doc='solver mixing for contact pairs',
-             ),
-             StructFieldDecl(
                  name='solref',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum'),
@@ -8800,11 +8779,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(3,),
                  ),
                  doc='one-sided friction coefficients: slide, roll, spin',
-             ),
-             StructFieldDecl(
-                 name='solmix',
-                 type=ValueType(name='double'),
-                 doc='solver mixing for contact pairs',
              ),
              StructFieldDecl(
                  name='solref',

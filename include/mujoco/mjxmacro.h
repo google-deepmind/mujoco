@@ -404,7 +404,6 @@
     X   ( int,     geom_plugin,           ngeom,         1                    ) \
     X   ( mjtByte, geom_sameframe,        ngeom,         1                    ) \
     X   ( mjtBool, geom_castshadow,       ngeom,         1                    ) \
-    X   ( mjtNum,  geom_solmix,           ngeom,         1                    ) \
     X   ( mjtNum,  geom_solref,           ngeom,         mjNREF               ) \
     X   ( mjtNum,  geom_solimp,           ngeom,         mjNIMP               ) \
     X   ( mjtNum,  geom_size,             ngeom,         3                    ) \
@@ -482,7 +481,6 @@
     X   ( int,     flex_conaffinity,      nflex,         1                    ) \
     X   ( int,     flex_condim,           nflex,         1                    ) \
     X   ( int,     flex_priority,         nflex,         1                    ) \
-    X   ( mjtNum,  flex_solmix,           nflex,         1                    ) \
     X   ( mjtNum,  flex_solref,           nflex,         mjNREF               ) \
     X   ( mjtNum,  flex_solimp,           nflex,         mjNIMP               ) \
     X   ( mjtNum,  flex_friction,         nflex,         3                    ) \

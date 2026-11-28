@@ -283,24 +283,18 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
     if geom1.size > 0 and geom2.size > 0:
       # other contacts get their params from geom fields
       margin = m.geom_margin[geom1] + m.geom_margin[geom2]
-      solmix1, solmix2 = m.geom_solmix[geom1], m.geom_solmix[geom2]
-      mix = solmix1 / (solmix1 + solmix2)
-      mix = jp.where((solmix1 < eps) & (solmix2 < eps), 0.5, mix)
-      mix = jp.where((solmix1 < eps) & (solmix2 >= eps), 0.0, mix)
-      mix = jp.where((solmix1 >= eps) & (solmix2 < eps), 1.0, mix)
-      mix = mix[:, None]  # for correct broadcasting
       # friction: max
       friction = jp.maximum(m.geom_friction[geom1], m.geom_friction[geom2])
       solref1, solref2 = m.geom_solref[geom1], m.geom_solref[geom2]
-      # reference standard: mix
-      solref_standard = mix * solref1 + (1 - mix) * solref2
+      # reference standard: average
+      solref_standard = 0.5 * (solref1 + solref2)
       # reference direct: min
       solref_direct = jp.minimum(solref1, solref2)
       is_standard = (solref1[:, [0, 0]] > 0) & (solref2[:, [0, 0]] > 0)
       solref = jp.where(is_standard, solref_standard, solref_direct)
       solreffriction = jp.zeros(geom1.shape + (mujoco.mjNREF,))
-      # impedance: mix
-      solimp = mix * m.geom_solimp[geom1] + (1 - mix) * m.geom_solimp[geom2]
+      # impedance: average
+      solimp = 0.5 * (m.geom_solimp[geom1] + m.geom_solimp[geom2])
 
       pri = m.geom_priority[geom1] != m.geom_priority[geom2]
       if pri.any():

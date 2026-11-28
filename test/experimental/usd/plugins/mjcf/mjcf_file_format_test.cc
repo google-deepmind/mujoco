@@ -1498,7 +1498,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsCollisionAPI) {
           group="4"
           priority="2"
           condim="4"
-          solmix="0.5"
           solref="0.1 0.2"
           solimp="0.3 0.4 0.5 0.6 0.7"
           margin="0.8"
@@ -1513,7 +1512,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsCollisionAPI) {
   ExpectAttributeEqual(stage, "/test/body/box.mjc:group", 4);
   ExpectAttributeEqual(stage, "/test/body/box.mjc:priority", 2);
   ExpectAttributeEqual(stage, "/test/body/box.mjc:condim", 4);
-  ExpectAttributeEqual(stage, "/test/body/box.mjc:solmix", 0.5);
   ExpectAttributeEqual(stage, "/test/body/box.mjc:solref",
                        pxr::VtArray<double>({0.1, 0.2}));
   ExpectAttributeEqual(stage, "/test/body/box.mjc:solimp",

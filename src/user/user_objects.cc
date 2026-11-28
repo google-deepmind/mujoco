@@ -7059,24 +7059,12 @@ void mjCPair::Compile(void) {
       friction[3] = friction[4] = std::max(geom1->friction[2], geom2->friction[2]);
     }
 
-    // solver mix factor
-    double mix;
-    if (geom1->solmix >= mjEPS && geom2->solmix >= mjEPS) {
-      mix = geom1->solmix / (geom1->solmix + geom2->solmix);
-    } else if (geom1->solmix < mjEPS && geom2->solmix < mjEPS) {
-      mix = 0.5;
-    } else if (geom1->solmix < mjEPS) {
-      mix = 0.0;
-    } else {
-      mix = 1.0;
-    }
-
     // reference
     if (!mjuu_defined(solref[0])) {
-      // standard: mix
+      // standard: average
       if (geom1->solref[0] > 0 && geom2->solref[0] > 0) {
         for (int i = 0; i < mjNREF; i++) {
-          solref[i] = mix * geom1->solref[i] + (1 - mix) * geom2->solref[i];
+          solref[i] = 0.5 * (geom1->solref[i] + geom2->solref[i]);
         }
       }
 
@@ -7091,7 +7079,7 @@ void mjCPair::Compile(void) {
     // impedance
     if (!mjuu_defined(solimp[0])) {
       for (int i = 0; i < mjNIMP; i++) {
-        solimp[i] = mix * geom1->solimp[i] + (1 - mix) * geom2->solimp[i];
+        solimp[i] = 0.5 * (geom1->solimp[i] + geom2->solimp[i]);
       }
     }
   }

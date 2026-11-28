@@ -406,7 +406,6 @@ typedef struct mjsGeom_ {          // geom specification
   int condim;                      // contact dimensionality
   int priority;                    // contact priority
   double friction[3];              // one-sided friction coefficients: slide, roll, spin
-  double solmix;                   // solver mixing for contact pairs
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
@@ -533,7 +532,6 @@ typedef struct mjsFlex_ {          // flex specification
   int condim;                      // contact dimensionality
   int priority;                    // contact priority
   double friction[3];              // one-sided friction coefficients: slide, roll, spin
-  double solmix;                   // solver mixing for contact pairs
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection

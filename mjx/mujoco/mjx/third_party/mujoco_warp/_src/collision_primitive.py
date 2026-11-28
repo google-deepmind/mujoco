@@ -1290,7 +1290,6 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
     geom_condim: wp.array[int],
     geom_dataid: wp.array2d[int],
     geom_priority: wp.array[int],
-    geom_solmix: wp.array2d[float],
     geom_solref: wp.array2d[wp.vec2],
     geom_solimp: wp.array2d[vec5],
     geom_size: wp.array2d[wp.vec3],
@@ -1358,7 +1357,6 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
     _, margin, gap, condim, friction, solref, solreffriction, solimp, adhesion = contact_params(
       geom_condim,
       geom_priority,
-      geom_solmix,
       geom_solref,
       geom_solimp,
       geom_friction,
@@ -1484,7 +1482,6 @@ def primitive_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_ta
       m.geom_condim,
       m.geom_dataid,
       m.geom_priority,
-      m.geom_solmix,
       m.geom_solref,
       m.geom_solimp,
       m.geom_size,

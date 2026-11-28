@@ -21,9 +21,7 @@ from typing import Any, Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.math import quat_to_mat
-from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINMU
-from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
@@ -323,7 +321,6 @@ def contact_material_params(
   # Model:
   geom_condim: wp.array[int],
   geom_priority: wp.array[int],
-  geom_solmix: wp.array2d[float],
   geom_solref: wp.array2d[wp.vec2],
   geom_solimp: wp.array2d[vec5],
   geom_friction: wp.array2d[wp.vec3],
@@ -349,14 +346,10 @@ def contact_material_params(
   else:
     g1 = geoms[0]
     g2 = geoms[1]
-    solmix_id = worldid % geom_solmix.shape[0]
     friction_id = worldid % geom_friction.shape[0]
     solref_id = worldid % geom_solref.shape[0]
     solimp_id = worldid % geom_solimp.shape[0]
     adhesion_id = worldid % geom_adhesion.shape[0]
-
-    solmix1 = geom_solmix[solmix_id, g1]
-    solmix2 = geom_solmix[solmix_id, g2]
 
     condim1 = geom_condim[g1]
     condim2 = geom_condim[g2]
@@ -380,10 +373,7 @@ def contact_material_params(
       adhesion = a2
       solref = geom_solref[solref_id, g2]
     else:
-      mix = safe_div(solmix1, solmix1 + solmix2)
-      mix = wp.where((solmix1 < MJ_MINVAL) and (solmix2 < MJ_MINVAL), 0.5, mix)
-      mix = wp.where((solmix1 < MJ_MINVAL) and (solmix2 >= MJ_MINVAL), 0.0, mix)
-      mix = wp.where((solmix1 >= MJ_MINVAL) and (solmix2 < MJ_MINVAL), 1.0, mix)
+      mix = 0.5
       condim = wp.max(condim1, condim2)
       max_geom_friction = wp.max(geom_friction[friction_id, g1], geom_friction[friction_id, g2])
       adhesion = a1 + a2
@@ -424,7 +414,6 @@ def contact_params(
   # Model:
   geom_condim: wp.array[int],
   geom_priority: wp.array[int],
-  geom_solmix: wp.array2d[float],
   geom_solref: wp.array2d[wp.vec2],
   geom_solimp: wp.array2d[vec5],
   geom_friction: wp.array2d[wp.vec3],
@@ -448,7 +437,7 @@ def contact_params(
   """Resolve contact parameters for a collision pair.
 
   Uses explicit pair overrides when available, otherwise mixes geom-level
-  properties by priority and solmix weights.
+  properties by priority.
   """
   geoms = collision_pair_in[cid]
   pairid = collision_pairid_in[cid][0]
@@ -457,7 +446,6 @@ def contact_params(
   condim, friction, solref, solreffriction, solimp, adhesion = contact_material_params(
     geom_condim,
     geom_priority,
-    geom_solmix,
     geom_solref,
     geom_solimp,
     geom_friction,

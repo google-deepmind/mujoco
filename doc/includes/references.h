@@ -838,7 +838,6 @@ typedef struct mjModel_ {
   int*      geom_plugin;          // plugin instance id; -1: not in use       (ngeom x 1)
   mjtByte*  geom_sameframe;       // same frame as body (mjtSameframe)        (ngeom x 1)
   mjtBool*  geom_castshadow;      // does geom cast shadows                   (ngeom x 1)
-  mjtNum*   geom_solmix;          // mixing coef for solref/imp in geom pair  (ngeom x 1)
   mjtNum*   geom_solref;          // constraint solver reference: contact     (ngeom x mjNREF)
   mjtNum*   geom_solimp;          // constraint solver impedance: contact     (ngeom x mjNIMP)
   mjtNum*   geom_size;            // geom-specific size parameters            (ngeom x 3)
@@ -916,7 +915,6 @@ typedef struct mjModel_ {
   int*      flex_conaffinity;     // flex contact affinity                    (nflex x 1)
   int*      flex_condim;          // contact dimensionality (1, 3, 4, 6)      (nflex x 1)
   int*      flex_priority;        // flex contact priority                    (nflex x 1)
-  mjtNum*   flex_solmix;          // mix coef for solref/imp in contact pair  (nflex x 1)
   mjtNum*   flex_solref;          // constraint solver reference: contact     (nflex x mjNREF)
   mjtNum*   flex_solimp;          // constraint solver impedance: contact     (nflex x mjNIMP)
   mjtNum*   flex_friction;        // friction for (slide, spin, roll)         (nflex x 3)
@@ -2154,7 +2152,6 @@ typedef struct mjsGeom_ {          // geom specification
   int condim;                      // contact dimensionality
   int priority;                    // contact priority
   double friction[3];              // one-sided friction coefficients: slide, roll, spin
-  double solmix;                   // solver mixing for contact pairs
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
@@ -2273,7 +2270,6 @@ typedef struct mjsFlex_ {          // flex specification
   int condim;                      // contact dimensionality
   int priority;                    // contact priority
   double friction[3];              // one-sided friction coefficients: slide, roll, spin
-  double solmix;                   // solver mixing for contact pairs
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection

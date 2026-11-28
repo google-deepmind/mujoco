@@ -7,6 +7,11 @@ Upcoming Version (not yet released)
 
 General
 ^^^^^^^
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Removed the ``solmix`` attribute and the ``geom_solmix``/``flex_solmix`` model arrays.
+
 - Added :ref:`mju_QP`, a dual active-set solver for dense convex quadratic programs with bounds and two-sided linear
   constraints. Constraints can be soft: a soft constraint holds exactly up to a threshold on its multiplier and then
   yields with a given compliance, so problems with soft constraints remain feasible. The solver can be warmstarted
@@ -1741,7 +1746,6 @@ Documentation
 ^^^^^^^^^^^^^
 38. :commit:`1f1bfa9e` Expanded documentation for :ref:`spec.encode <meSaving>` workflows and added detailed
     documentation for the :ref:`MJZ Archive <MJZArchives>` format (``.mjz`` / ``.zip``).
-
 
 Version 3.10.0 (June 22, 2026)
 ------------------------------

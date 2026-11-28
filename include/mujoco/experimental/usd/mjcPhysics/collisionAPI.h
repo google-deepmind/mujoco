@@ -248,31 +248,6 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
 
  public:
   // --------------------------------------------------------------------- //
-  // SOLMIX
-  // --------------------------------------------------------------------- //
-  /// Specifies the weight used for averaging of contact parameters, and
-  /// interacts with the priority attribute.
-  ///
-  /// | ||
-  /// | -- | -- |
-  /// | Declaration | `uniform double mjc:solmix = 1` |
-  /// | C++ Type | double |
-  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
-  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
-  MJCPHYSICS_API
-  UsdAttribute GetSolMixAttr() const;
-
-  /// See GetSolMixAttr(), and also
-  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
-  /// If specified, author \p defaultValue as the attribute's default,
-  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
-  /// the default for \p writeSparsely is \c false.
-  MJCPHYSICS_API
-  UsdAttribute CreateSolMixAttr(VtValue const& defaultValue = VtValue(),
-                                bool writeSparsely = false) const;
-
- public:
-  // --------------------------------------------------------------------- //
   // SOLREF
   // --------------------------------------------------------------------- //
   /// Specifies the weight used for averaging of contact parameters, and
