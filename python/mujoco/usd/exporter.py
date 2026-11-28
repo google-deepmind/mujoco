@@ -289,7 +289,21 @@ class USDExporter:
       ]
 
     # handling meshes in our scene
-    if geom.type == mujoco.mjtGeom.mjGEOM_MESH:
+    if geom.type == mujoco.mjtGeom.mjGEOM_FLEX:
+      if self.model.flex_dim[geom.objid] == 1:
+        raise NotImplementedError(
+            "USD export of one-dimensional flexes is unsupported."
+        )
+      usd_geom = object_module.USDFlex(
+          stage=self.stage,
+          model=self.model,
+          scene=self.scene,
+          geom=geom,
+          obj_name=geom_name,
+          rgba=geom.rgba,
+          geom_textures=geom_textures,
+      )
+    elif geom.type == mujoco.mjtGeom.mjGEOM_MESH:
       usd_geom = object_module.USDMesh(
           stage=self.stage,
           model=self.model,
@@ -347,6 +361,9 @@ class USDExporter:
         # load a new object into USD
         self._load_geom(geom)
 
+      if geom.type == mujoco.mjtGeom.mjGEOM_FLEX:
+        # The scene's geom slots may be reused after visibility changes.
+        self.geom_refs[geom_name].geom = geom
       if geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
         tendon_scale = geom.size
         self.geom_refs[geom_name].update(
@@ -519,6 +536,8 @@ class USDExporter:
       geom_name += "_geom"
     elif geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
       geom_name += f"_tendon_segid{geom.segid}"
+    elif geom.objtype == mujoco.mjtObj.mjOBJ_FLEX:
+      geom_name += f"_flex_mat{geom.dataid}"
 
     return Tf.MakeValidIdentifier(geom_name)
 
