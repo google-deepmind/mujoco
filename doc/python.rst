@@ -1330,7 +1330,10 @@ the position and orientation of all geoms, lights, and cameras in the scene.
 
 The ``USDExporter`` keeps track of frames internally by maintaining a frame counter. Each time ``update_scene`` is
 called, the counter is incremented, and the poses of all geoms, cameras, and lights are saved for the corresponding
-frame. It's important to note that you can step through the simulation multiple times before calling ``update_scene``.
+frame. To preserve simulation playback speed, set the exporter's ``framerate`` (default 60) to the number of
+recorded updates per simulated second. Both USD time codes per second and frames per second use this rate.
+Updates should be sampled at uniform simulation-time intervals. You can step through the simulation multiple
+times before calling ``update_scene``.
 The final USD file will only store the poses of the geoms, lights, and cameras as they were at the last update_scene
 call.
 
@@ -1342,11 +1345,11 @@ call.
     m = mujoco.MjModel.from_xml_path('/path/to/mjcf.xml')
     d = mujoco.MjData(m)
 
-    # Create the USDExporter
-    exp = exporter.USDExporter(model=m)
-
     duration = 5
     framerate = 60
+
+    # Match the USD playback rate to the rate of recorded updates.
+    exp = exporter.USDExporter(model=m, framerate=framerate)
     while d.time < duration:
 
       # Step the physics

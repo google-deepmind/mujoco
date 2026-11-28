@@ -31,9 +31,10 @@ def generate_usd_trajectory(local_args):
   # create an instance of the USDExporter
   exp = exporter.USDExporter(
       model=m,
-      output_directory_name=pathlib.Path(local_args.model_path).stem,  # pyrefly: ignore[unexpected-keyword]
+      output_directory=pathlib.Path(local_args.model_path).stem,
       output_directory_root=local_args.output_directory_root,
       camera_names=local_args.camera_names,
+      framerate=local_args.framerate,
   )
 
   # step through the simulation for the given duration of time
