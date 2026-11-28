@@ -83,6 +83,23 @@ class USDObject(abc.ABC):
     """Gets structure of an object in the scene."""
     raise NotImplementedError
 
+  def _set_pbr_material(self, shader):
+    """Preserves explicit PBR values and uses dielectric Phong defaults."""
+    metallic = -1.0
+    roughness = -1.0
+    if self.geom.matid >= 0:
+      metallic = self.model.mat_metallic[self.geom.matid]
+      roughness = self.model.mat_roughness[self.geom.matid]
+    # Shininess describes gloss, not metallicity. Legacy materials without
+    # explicit PBR values remain dielectric, with the existing roughness
+    # approximation retained for their shininess.
+    shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(
+        float(metallic) if metallic >= 0 else 0.0
+    )
+    shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(
+        float(roughness) if roughness >= 0 else 1.0 - self.geom.shininess
+    )
+
   def attach_image_material(self, usd_mesh):
     """Attaches an image texture to a material for a USD object."""
     mtl_path = Sdf.Path(f"/World/_materials/Material_{self.obj_name}")
@@ -106,12 +123,7 @@ class USDObject(abc.ABC):
     bsdf_shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(
         float(self.rgba[-1])
     )
-    bsdf_shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(
-        self.geom.shininess
-    )
-    bsdf_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(
-        1.0 - self.geom.shininess
-    )
+    self._set_pbr_material(bsdf_shader)
 
     mtl.CreateSurfaceOutput().ConnectToSource(
         bsdf_shader.ConnectableAPI(), "surface"
@@ -162,12 +174,7 @@ class USDObject(abc.ABC):
     bsdf_shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(
         float(self.rgba[-1])
     )
-    bsdf_shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(
-        self.geom.shininess
-    )
-    bsdf_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(
-        1.0 - self.geom.shininess
-    )
+    self._set_pbr_material(bsdf_shader)
 
     mtl.CreateSurfaceOutput().ConnectToSource(
         bsdf_shader.ConnectableAPI(), "surface"

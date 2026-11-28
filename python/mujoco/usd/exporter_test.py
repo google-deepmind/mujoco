@@ -70,6 +70,55 @@ class ExporterTest(absltest.TestCase):
         self.assertEqual(f.readlines(), golden_file.readlines())
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_material_shininess_is_not_metallicity(self):
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <asset>
+          <texture name="checker" type="2d" builtin="checker"
+                   width="8" height="8"/>
+          <material name="glossy" shininess="1"/>
+          <material name="textured" texture="checker" shininess="0.75"/>
+          <material name="pbr" metallic="0.6" roughness="0.3"/>
+          <material name="pbr_texture" texture="checker" metallic="0.2"
+                    roughness="0.4"/>
+        </asset>
+        <worldbody>
+          <geom name="glossy" type="box" size=".1 .1 .1" material="glossy"/>
+          <geom name="textured" type="box" size=".1 .1 .1"
+                pos="1 0 0" material="textured"/>
+          <geom name="pbr" type="box" size=".1 .1 .1"
+                pos="2 0 0" material="pbr"/>
+          <geom name="pbr_texture" type="box" size=".1 .1 .1"
+                pos="3 0 0" material="pbr_texture"/>
+        </worldbody>
+      </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory_root=self.create_tempdir().full_path,
+        verbose=False,
+    )
+    exporter.update_scene(data)
+    for index, (name, metallic, roughness) in enumerate((
+        ("glossy", 0.0, 0.0),
+        ("textured", 0.0, 0.25),
+        ("pbr", 0.6, 0.3),
+        ("pbr_texture", 0.2, 0.4),
+    )):
+      shader = exporter.stage.GetPrimAtPath(
+          f"/World/_materials/Material_{name}_id{index}_geom/Principled_BSDF"
+      )
+      self.assertTrue(shader)
+      self.assertAlmostEqual(
+          shader.GetAttribute("inputs:metallic").Get(), metallic
+      )
+      self.assertAlmostEqual(
+          shader.GetAttribute("inputs:roughness").Get(), roughness
+      )
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):
     output_dir_root = self.create_tempdir().full_path
     xml = """
