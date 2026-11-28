@@ -32,7 +32,6 @@
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usdGeom/gprim.h>
 #include <pxr/usd/usdGeom/xformCache.h>
-#include <pxr/usd/usdPhysics/articulationRootAPI.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
 #include <pxr/usd/usdPhysics/joint.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
@@ -111,8 +110,9 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
   for (auto it = range.begin(); it != range.end(); ++it) {
     pxr::UsdPrim prim = *it;
 
-    bool is_body = prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>() ||
-                   prim.HasAPI<pxr::UsdPhysicsArticulationRootAPI>();
+    // Articulation roots may be placed on an ancestor Xform or a joint; the
+    // API alone does not make such a prim a rigid body.
+    bool is_body = prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>();
     bool resets = xform_cache.GetResetXformStack(prim);
     // Only update (push/pop) the owner stack for bodies (becomes new owner) and
     // resetXformStack (reset owner to world).

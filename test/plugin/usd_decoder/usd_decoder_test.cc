@@ -1406,5 +1406,457 @@ def MjcKeyframe "rollout" {
   EXPECT_MJTNUM_EQ(model->key_ctrl[rollout1_id], 0.75);
 }
 
+class UsdCollisionFilteringTest : public UsdPreservationSemanticsTest {
+ protected:
+  pxr::UsdStageRefPtr MakePairStage() {
+    auto stage = pxr::UsdStage::CreateInMemory();
+    EXPECT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+def Xform "World" {
+    def Xform "A" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+        def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+            double radius = 0.1
+        }
+    }
+    def Xform "B" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+        double3 xformOp:translate = (0.1, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+        def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+            double radius = 0.1
+        }
+        def Sphere "extra" (
+            active = false
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        ) {
+            double radius = 0.1
+        }
+    }
+    def Sphere "floor" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+        double3 xformOp:translate = (0, 0.1, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+    def Sphere "extra" (
+        active = false
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    ) {
+        double radius = 0.1
+        double3 xformOp:translate = (0, -0.1, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
+)"));
+    return stage;
+  }
+
+  static const char* RootPath(int root_type) {
+    const char* roots[] = {"/World/Robot/L0", "/World/Robot",
+                           "/World/Robot/base"};
+    return roots[root_type];
+  }
+
+  pxr::UsdStageRefPtr MakeArticulationStage(int root_type) {
+    auto stage = pxr::UsdStage::CreateInMemory();
+    EXPECT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+def Xform "World" {
+    def Xform "Robot" {
+        def Sphere "L0" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsCollisionAPI"]
+        ) {
+            double radius = 0.1
+        }
+        def Sphere "L1" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsCollisionAPI"]
+        ) {
+            double radius = 0.1
+            double3 xformOp:translate = (0.1, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+        def Sphere "L2" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsCollisionAPI"]
+        ) {
+            double radius = 0.1
+            double3 xformOp:translate = (0.05, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+        def PhysicsRevoluteJoint "j01" {
+            rel physics:body0 = </World/Robot/L0>
+            rel physics:body1 = </World/Robot/L1>
+            point3f physics:localPos0 = (0.05, 0, 0)
+            point3f physics:localPos1 = (-0.05, 0, 0)
+            uniform token physics:axis = "Z"
+        }
+        def PhysicsRevoluteJoint "j12" {
+            rel physics:body0 = </World/Robot/L1>
+            rel physics:body1 = </World/Robot/L2>
+            point3f physics:localPos0 = (-0.025, 0, 0)
+            point3f physics:localPos1 = (0.025, 0, 0)
+            uniform token physics:axis = "Z"
+        }
+    }
+    def Sphere "other" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsCollisionAPI"]
+    ) {
+        double radius = 0.1
+        double3 xformOp:translate = (0, 0.1, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
+)"));
+    if (root_type == 2) {
+      auto joint = stage->DefinePrim(pxr::SdfPath(RootPath(root_type)),
+                                     pxr::TfToken("PhysicsFixedJoint"));
+      EXPECT_TRUE(joint.CreateRelationship(pxr::TfToken("physics:body1"))
+                      .SetTargets({pxr::SdfPath("/World/Robot/L0")}));
+    }
+    auto root = stage->GetPrimAtPath(pxr::SdfPath(RootPath(root_type)));
+    EXPECT_TRUE(root.ApplyAPI(pxr::TfToken("PhysicsArticulationRootAPI")));
+    EXPECT_TRUE(root.ApplyAPI(pxr::TfToken("NewtonArticulationRootAPI")));
+    return stage;
+  }
+
+  void FilterPair(const pxr::UsdStageRefPtr& stage, const char* source,
+                  const char* target) {
+    auto prim = stage->GetPrimAtPath(pxr::SdfPath(source));
+    EXPECT_TRUE(prim.ApplyAPI(pxr::TfToken("PhysicsFilteredPairsAPI")));
+    EXPECT_TRUE(prim.CreateRelationship(pxr::TfToken("physics:filteredPairs"))
+                    .AddTarget(pxr::SdfPath(target)));
+  }
+
+  bool HasContact(const mjModel* model, const mjData* data, const char* geom1,
+                  const char* geom2) {
+    int id1 = mj_name2id(model, mjOBJ_GEOM, geom1);
+    int id2 = mj_name2id(model, mjOBJ_GEOM, geom2);
+    EXPECT_GE(id1, 0);
+    EXPECT_GE(id2, 0);
+    for (int i = 0; i < data->ncon; ++i) {
+      const mjContact& contact = data->contact[i];
+      if ((contact.geom[0] == id1 && contact.geom[1] == id2) ||
+          (contact.geom[0] == id2 && contact.geom[1] == id1)) {
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+// Rigid-body, collider and static-collider endpoints, in both directions.
+class UsdFilteredPairEndpointTest
+    : public UsdCollisionFilteringTest,
+      public testing::WithParamInterface<std::tuple<int, bool>> {};
+
+TEST_P(UsdFilteredPairEndpointTest, FiltersOnlyRequestedBodyPair) {
+  const auto [endpoint_type, reverse] = GetParam();
+  const char* sources[] = {"/World/A",      "/World/A", "/World/A/geom",
+                           "/World/A/geom", "/World/A", "/World/A/geom"};
+  const char* targets[] = {"/World/B",      "/World/B/geom", "/World/B",
+                           "/World/B/geom", "/World/floor",  "/World/floor"};
+  auto stage = MakePairStage();
+  FilterPair(stage, reverse ? targets[endpoint_type] : sources[endpoint_type],
+             reverse ? sources[endpoint_type] : targets[endpoint_type]);
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 1);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  bool static_target = endpoint_type >= 4;
+  EXPECT_EQ(
+      HasContact(model.get(), data.get(), "/World/A/geom", "/World/B/geom"),
+      static_target);
+  EXPECT_EQ(
+      HasContact(model.get(), data.get(), "/World/A/geom", "/World/floor"),
+      !static_target);
+  EXPECT_TRUE(
+      HasContact(model.get(), data.get(), "/World/B/geom", "/World/floor"));
+}
+
+INSTANTIATE_TEST_SUITE_P(Endpoints, UsdFilteredPairEndpointTest,
+                         testing::Combine(testing::Range(0, 6),
+                                          testing::Bool()));
+
+class UsdPartialFilteredPairTest
+    : public UsdCollisionFilteringTest,
+      public testing::WithParamInterface<std::tuple<bool, bool>> {};
+
+TEST_P(UsdPartialFilteredPairTest, WarnsWithoutExcludingOtherColliders) {
+  const auto [static_target, reverse] = GetParam();
+  auto stage = MakePairStage();
+  const char* extra = static_target ? "/World/extra" : "/World/B/extra";
+  ASSERT_TRUE(stage->GetPrimAtPath(pxr::SdfPath(extra)).SetActive(true));
+  const char* target = static_target ? "/World/floor" : "/World/B/geom";
+  FilterPair(stage, reverse ? target : "/World/A",
+             reverse ? "/World/A" : target);
+  mock_warning_handler.ExpectWarnings("Cannot represent filtered pair");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 0);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  EXPECT_TRUE(
+      HasContact(model.get(), data.get(), "/World/A/geom", "/World/B/geom"));
+  EXPECT_TRUE(
+      HasContact(model.get(), data.get(), "/World/A/geom", "/World/floor"));
+  EXPECT_TRUE(HasContact(model.get(), data.get(), "/World/A/geom", extra));
+}
+
+INSTANTIATE_TEST_SUITE_P(ColliderSubsets, UsdPartialFilteredPairTest,
+                         testing::Combine(testing::Bool(), testing::Bool()));
+
+TEST_F(UsdCollisionFilteringTest, DeduplicatesReciprocalAndSameBodyPairs) {
+  auto stage = MakePairStage();
+  FilterPair(stage, "/World/A", "/World/B");
+  FilterPair(stage, "/World/B/geom", "/World/A/geom");
+  FilterPair(stage, "/World/A", "/World/A/geom");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 1);
+}
+
+TEST_F(UsdCollisionFilteringTest, WarnsAndSkipsUnresolvedEndpoint) {
+  auto stage = MakePairStage();
+  FilterPair(stage, "/World/A", "/World/missing");
+  mock_warning_handler.ExpectWarnings("Cannot resolve filtered pair endpoint");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 0);
+}
+
+class UsdNonCollidingGeomTest : public UsdCollisionFilteringTest,
+                                public testing::WithParamInterface<bool> {};
+
+TEST_P(UsdNonCollidingGeomTest, DoesNotPreventWholeBodyExclusion) {
+  auto stage = MakePairStage();
+  auto extra = stage->GetPrimAtPath(pxr::SdfPath("/World/B/extra"));
+  ASSERT_TRUE(extra.SetActive(true));
+  if (GetParam()) {
+    ASSERT_TRUE(extra
+                    .CreateAttribute(pxr::TfToken("physics:collisionEnabled"),
+                                     pxr::SdfValueTypeNames->Bool)
+                    .Set(false));
+  } else {
+    ASSERT_TRUE(extra.RemoveAPI(pxr::TfToken("PhysicsCollisionAPI")));
+    ASSERT_FALSE(extra.HasAPI(pxr::TfToken("PhysicsCollisionAPI")));
+  }
+  FilterPair(stage, "/World/A", "/World/B/geom");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  auto* extra_geom =
+      mjs_asGeom(mjs_findElement(spec.get(), mjOBJ_GEOM, "/World/B/extra"));
+  ASSERT_NE(extra_geom, nullptr);
+  EXPECT_EQ(extra_geom->contype, 0);
+  EXPECT_EQ(extra_geom->conaffinity, 0);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 1);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  EXPECT_FALSE(
+      HasContact(model.get(), data.get(), "/World/A/geom", "/World/B/geom"));
+  EXPECT_TRUE(
+      HasContact(model.get(), data.get(), "/World/A/geom", "/World/floor"));
+}
+
+INSTANTIATE_TEST_SUITE_P(NonCollidingGeoms, UsdNonCollidingGeomTest,
+                         testing::Bool());
+
+TEST_F(UsdCollisionFilteringTest, IncludesCollidersInheritedFromMjcSchema) {
+  auto stage = MakePairStage();
+  auto extra = stage->GetPrimAtPath(pxr::SdfPath("/World/B/extra"));
+  ASSERT_TRUE(extra.SetActive(true));
+  ASSERT_TRUE(extra.RemoveAPI(pxr::TfToken("PhysicsCollisionAPI")));
+  // MjcCollisionAPI includes NewtonCollisionAPI, which includes CollisionAPI.
+  ASSERT_TRUE(extra.ApplyAPI(pxr::TfToken("MjcCollisionAPI")));
+  ASSERT_TRUE(extra.HasAPI(pxr::TfToken("PhysicsCollisionAPI")));
+  FilterPair(stage, "/World/A", "/World/B/geom");
+  mock_warning_handler.ExpectWarnings("Cannot represent filtered pair");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  auto* extra_geom =
+      mjs_asGeom(mjs_findElement(spec.get(), mjOBJ_GEOM, "/World/B/extra"));
+  ASSERT_NE(extra_geom, nullptr);
+  EXPECT_EQ(extra_geom->contype, 1);
+  EXPECT_EQ(extra_geom->conaffinity, 1);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 0);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  EXPECT_TRUE(
+      HasContact(model.get(), data.get(), "/World/A/geom", "/World/B/geom"));
+  EXPECT_TRUE(
+      HasContact(model.get(), data.get(), "/World/A/geom", "/World/B/extra"));
+}
+
+TEST_F(UsdCollisionFilteringTest, BodyColliderEndpointIncludesChildColliders) {
+  auto stage = MakePairStage();
+  auto body = stage->GetPrimAtPath(pxr::SdfPath("/World/A"));
+  ASSERT_TRUE(body.SetTypeName(pxr::TfToken("Sphere")));
+  ASSERT_TRUE(body.ApplyAPI(pxr::TfToken("PhysicsCollisionAPI")));
+  ASSERT_TRUE(body.CreateAttribute(pxr::TfToken("radius"),
+                                   pxr::SdfValueTypeNames->Double)
+                  .Set(0.1));
+  FilterPair(stage, "/World/A", "/World/B");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 1);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  for (const char* geom : {"/World/A", "/World/A/geom"}) {
+    EXPECT_FALSE(HasContact(model.get(), data.get(), geom, "/World/B/geom"));
+    EXPECT_TRUE(HasContact(model.get(), data.get(), geom, "/World/floor"));
+  }
+}
+
+// Root location (body, enclosing Xform, world joint) and absent/true/false
+// value.
+class UsdSelfCollisionTest
+    : public UsdCollisionFilteringTest,
+      public testing::WithParamInterface<std::tuple<int, int>> {};
+
+TEST_P(UsdSelfCollisionTest, FollowsJointGraphAndPreservesExternalContacts) {
+  const auto [root_type, setting] = GetParam();
+  auto stage = MakeArticulationStage(root_type);
+  if (setting != 0) {
+    ASSERT_TRUE(
+        stage->GetPrimAtPath(pxr::SdfPath(RootPath(root_type)))
+            .CreateAttribute(pxr::TfToken("newton:selfCollisionEnabled"),
+                             pxr::SdfValueTypeNames->Bool)
+            .Set(setting == 1));
+  }
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  EXPECT_EQ(mjs_findBody(spec.get(), "/World/Robot"), nullptr);
+  EXPECT_EQ(mjs_findBody(spec.get(), "/World/Robot/base"), nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nbody, 5);
+  EXPECT_EQ(model->nexclude, setting == 2 ? 3 : 0);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(
+      HasContact(model.get(), data.get(), "/World/Robot/L0", "/World/Robot/L2"),
+      setting != 2);
+  for (const char* link :
+       {"/World/Robot/L0", "/World/Robot/L1", "/World/Robot/L2"}) {
+    EXPECT_TRUE(HasContact(model.get(), data.get(), link, "/World/other"));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(ArticulationRoots, UsdSelfCollisionTest,
+                         testing::Combine(testing::Range(0, 3),
+                                          testing::Range(0, 3)));
+
+class UsdArticulationFilteredPairTest
+    : public UsdCollisionFilteringTest,
+      public testing::WithParamInterface<std::tuple<int, bool>> {};
+
+TEST_P(UsdArticulationFilteredPairTest, ResolvesAllArticulationColliders) {
+  const auto [root_type, reverse] = GetParam();
+  auto stage = MakeArticulationStage(root_type);
+  FilterPair(stage, reverse ? "/World/other" : RootPath(root_type),
+             reverse ? RootPath(root_type) : "/World/other");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 3);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  EXPECT_TRUE(HasContact(model.get(), data.get(), "/World/Robot/L0",
+                         "/World/Robot/L2"));
+  for (const char* link :
+       {"/World/Robot/L0", "/World/Robot/L1", "/World/Robot/L2"}) {
+    EXPECT_FALSE(HasContact(model.get(), data.get(), link, "/World/other"));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(ArticulationEndpoints, UsdArticulationFilteredPairTest,
+                         testing::Combine(testing::Range(0, 3),
+                                          testing::Bool()));
+
+class UsdArticulationBoundaryTest : public UsdCollisionFilteringTest,
+                                    public testing::WithParamInterface<bool> {};
+
+TEST_P(UsdArticulationBoundaryTest, IgnoresExcludedOrDisabledJoints) {
+  bool disabled = GetParam();
+  auto stage = MakeArticulationStage(0);
+  ASSERT_TRUE(stage->GetPrimAtPath(pxr::SdfPath(RootPath(0)))
+                  .CreateAttribute(pxr::TfToken("newton:selfCollisionEnabled"),
+                                   pxr::SdfValueTypeNames->Bool)
+                  .Set(false));
+  auto joint = stage->DefinePrim(
+      pxr::SdfPath("/World/link_to_other"),
+      pxr::TfToken(disabled ? "PhysicsRevoluteJoint" : "PhysicsFixedJoint"));
+  ASSERT_TRUE(joint.CreateRelationship(pxr::TfToken("physics:body0"))
+                  .SetTargets({pxr::SdfPath("/World/Robot/L2")}));
+  ASSERT_TRUE(joint.CreateRelationship(pxr::TfToken("physics:body1"))
+                  .SetTargets({pxr::SdfPath("/World/other")}));
+  ASSERT_TRUE(
+      joint
+          .CreateAttribute(
+              pxr::TfToken(disabled ? "physics:jointEnabled"
+                                    : "physics:excludeFromArticulation"),
+              pxr::SdfValueTypeNames->Bool)
+          .Set(!disabled));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 3);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  EXPECT_FALSE(HasContact(model.get(), data.get(), "/World/Robot/L0",
+                          "/World/Robot/L2"));
+  EXPECT_TRUE(
+      HasContact(model.get(), data.get(), "/World/Robot/L0", "/World/other"));
+}
+
+INSTANTIATE_TEST_SUITE_P(ArticulationBoundaries, UsdArticulationBoundaryTest,
+                         testing::Bool());
+
+TEST_F(UsdCollisionFilteringTest, SelfCollisionKeepsDisconnectedComponents) {
+  auto stage = MakeArticulationStage(1);
+  ASSERT_TRUE(stage->GetPrimAtPath(pxr::SdfPath(RootPath(1)))
+                  .CreateAttribute(pxr::TfToken("newton:selfCollisionEnabled"),
+                                   pxr::SdfValueTypeNames->Bool)
+                  .Set(false));
+  auto isolated = stage->DefinePrim(pxr::SdfPath("/World/Robot/isolated"),
+                                    pxr::TfToken("Sphere"));
+  ASSERT_TRUE(isolated.ApplyAPI(pxr::TfToken("PhysicsRigidBodyAPI")));
+  ASSERT_TRUE(isolated.ApplyAPI(pxr::TfToken("PhysicsCollisionAPI")));
+  ASSERT_TRUE(isolated
+                  .CreateAttribute(pxr::TfToken("radius"),
+                                   pxr::SdfValueTypeNames->Double)
+                  .Set(0.1));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_EQ(model->nexclude, 3);
+  MjDataPtr data(mj_makeData(model.get()));
+  mj_forward(model.get(), data.get());
+  EXPECT_FALSE(HasContact(model.get(), data.get(), "/World/Robot/L0",
+                          "/World/Robot/L2"));
+  EXPECT_TRUE(HasContact(model.get(), data.get(), "/World/Robot/L0",
+                         "/World/Robot/isolated"));
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -37,6 +37,8 @@ if(UNIX AND NOT APPLE)
   endforeach()
 endif()
 set(USD_DECODER_SRCS
+    collision_filtering.cc
+    collision_filtering.h
     newton_tokens.cc
     newton_tokens.h
     usd_decoder.cc

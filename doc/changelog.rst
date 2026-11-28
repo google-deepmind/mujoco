@@ -218,6 +218,12 @@ Bug fixes
   the dissipative part of its drag derivative to the effective metric. The symmetrized derivative used before is
   indefinite for slender shapes at small angles of attack.
 
+Bug fixes
+^^^^^^^^^
+- The USD decoder now resolves ``PhysicsFilteredPairsAPI`` relationships on bodies, colliders and articulation
+  roots, and honors ``newton:selfCollisionEnabled``. Collider pairs that cannot be represented by a body exclusion
+  produce a warning and are skipped, preserving unrelated contacts (:issue:`3917`).
+
 Version 4.0.1 (November 11, 2026)
 ---------------------------------
 
