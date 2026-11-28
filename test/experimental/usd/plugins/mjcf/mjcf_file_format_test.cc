@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <filesystem>
 #include <numbers>
 #include <string>
 #include <vector>
@@ -219,7 +220,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
       "/mesh_test/Materials/material_texture/diffuse.outputs:rgb");
   ExpectAttributeEqual(
       stage, "/mesh_test/Materials/material_texture/diffuse.inputs:file",
-      pxr::SdfAssetPath("textures/cube.png"));
+      pxr::SdfAssetPath(std::filesystem::absolute(
+          std::filesystem::path(xml_path).parent_path() / "textures/cube.png")
+                            .lexically_normal().generic_string()));
 
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_metallic");
   EXPECT_PRIM_VALID(stage,
@@ -247,7 +250,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialLayers) {
       "/mesh_test/Materials/material_layered/normal.outputs:rgb");
   ExpectAttributeEqual(
       stage, "/mesh_test/Materials/material_layered/normal.inputs:file",
-      pxr::SdfAssetPath("textures/normal.png"));
+      pxr::SdfAssetPath(std::filesystem::absolute(
+          std::filesystem::path(xml_path).parent_path() / "textures/normal.png")
+                            .lexically_normal().generic_string()));
 
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/orm_packed");
   ExpectAttributeHasConnection(
@@ -267,7 +272,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialLayers) {
       "/mesh_test/Materials/material_layered/orm_packed.outputs:b");
   ExpectAttributeEqual(
       stage, "/mesh_test/Materials/material_layered/orm_packed.inputs:file",
-      pxr::SdfAssetPath("textures/orm.png"));
+      pxr::SdfAssetPath(std::filesystem::absolute(
+          std::filesystem::path(xml_path).parent_path() / "textures/orm.png")
+                            .lexically_normal().generic_string()));
 
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/emissive");
   ExpectAttributeHasConnection(
@@ -277,7 +284,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialLayers) {
       "/mesh_test/Materials/material_layered/emissive.outputs:rgb");
   ExpectAttributeEqual(
       stage, "/mesh_test/Materials/material_layered/emissive.inputs:file",
-      pxr::SdfAssetPath("textures/emissive.png"));
+      pxr::SdfAssetPath(std::filesystem::absolute(
+          std::filesystem::path(xml_path).parent_path() / "textures/emissive.png")
+                            .lexically_normal().generic_string()));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialPBRSeparate) {
@@ -295,7 +304,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialPBRSeparate) {
       "/mesh_test/Materials/material_pbr_separate/occlusion.outputs:rgb");
   ExpectAttributeEqual(
       stage, "/mesh_test/Materials/material_pbr_separate/occlusion.inputs:file",
-      pxr::SdfAssetPath("textures/occlusion.png"));
+      pxr::SdfAssetPath(std::filesystem::absolute(
+          std::filesystem::path(xml_path).parent_path() / "textures/occlusion.png")
+                            .lexically_normal().generic_string()));
   EXPECT_PRIM_VALID(stage,
                     "/mesh_test/Materials/material_pbr_separate/roughness");
   ExpectAttributeHasConnection(
@@ -305,7 +316,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialPBRSeparate) {
       "/mesh_test/Materials/material_pbr_separate/roughness.outputs:rgb");
   ExpectAttributeEqual(
       stage, "/mesh_test/Materials/material_pbr_separate/roughness.inputs:file",
-      pxr::SdfAssetPath("textures/roughness.png"));
+      pxr::SdfAssetPath(std::filesystem::absolute(
+          std::filesystem::path(xml_path).parent_path() / "textures/roughness.png")
+                            .lexically_normal().generic_string()));
   EXPECT_PRIM_VALID(stage,
                     "/mesh_test/Materials/material_pbr_separate/metallic");
   ExpectAttributeHasConnection(
@@ -315,7 +328,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialPBRSeparate) {
       "/mesh_test/Materials/material_pbr_separate/metallic.outputs:rgb");
   ExpectAttributeEqual(
       stage, "/mesh_test/Materials/material_pbr_separate/metallic.inputs:file",
-      pxr::SdfAssetPath("textures/metallic.png"));
+      pxr::SdfAssetPath(std::filesystem::absolute(
+          std::filesystem::path(xml_path).parent_path() / "textures/metallic.png")
+                            .lexically_normal().generic_string()));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {

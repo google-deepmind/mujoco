@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -884,8 +885,27 @@ class ModelWriter {
     return uvmap_st_output_attr;
   }
 
+  // Compilation resolves each asset against its owning spec and compiler
+  // directories, including assets from attached models. Use that path rather
+  // than resolving the authored filename against the destination USD layer.
+  pxr::SdfAssetPath TextureAssetPath(const mjsTexture* texture) const {
+    const int id = mjs_getId(texture->element);
+    if (id < 0 || id >= model_->ntex || model_->tex_pathadr[id] < 0) {
+      return pxr::SdfAssetPath();
+    }
+    std::string path = model_->paths + model_->tex_pathadr[id];
+    // Leave resource-provider URIs intact. For filesystem assets, anchor the
+    // path before writing a stage that may be saved in a different directory.
+    std::filesystem::path file(path);
+    if (!file.is_absolute() && path.find(':') != std::string::npos) {
+      return pxr::SdfAssetPath(path);
+    }
+    return pxr::SdfAssetPath(std::filesystem::absolute(file)
+                                .lexically_normal().generic_string());
+  }
+
   std::vector<pxr::SdfAttributeSpecHandle> AddTextureShader(
-      const pxr::SdfPrimSpecHandle material_spec, const char *texture_file,
+      const pxr::SdfPrimSpecHandle material_spec, const mjsTexture *texture,
       const pxr::TfToken &name,
       const pxr::SdfAttributeSpecHandle uvmap_st_output_attr,
       const std::vector<pxr::TfToken> &output_channels) {
@@ -901,7 +921,7 @@ class ModelWriter {
         CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsFile,
                             pxr::SdfValueTypeNames->Asset);
     SetAttributeDefault(layer_, texture_file_attr,
-                        pxr::SdfAssetPath(texture_file));
+                        TextureAssetPath(texture));
 
     auto texture_st_input_attr =
         CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsSt,
@@ -1047,7 +1067,7 @@ class ModelWriter {
       // surface ORM attrs.
       const std::vector<pxr::SdfAttributeSpecHandle> orm_output_attrs =
           AddTextureShader(
-              material_spec, mjs_getString(orm_texture->file),
+              material_spec, orm_texture,
               pxr::TfToken("orm_packed"), uvmap_st_output_attr,
               {kTokens->outputsR, kTokens->outputsG, kTokens->outputsB});
       if (orm_output_attrs.size() == 3) {
@@ -1062,7 +1082,7 @@ class ModelWriter {
       if (metallic_texture) {
         const std::vector<pxr::SdfAttributeSpecHandle> metallic_output_attrs =
             AddTextureShader(material_spec,
-                             mjs_getString(metallic_texture->file),
+                             metallic_texture,
                              pxr::TfToken("metallic"), uvmap_st_output_attr,
                              {kTokens->outputsRgb});
         if (metallic_output_attrs.size() == 1) {
@@ -1075,7 +1095,7 @@ class ModelWriter {
       if (roughness_texture) {
         const std::vector<pxr::SdfAttributeSpecHandle> roughness_output_attrs =
             AddTextureShader(material_spec,
-                             mjs_getString(roughness_texture->file),
+                             roughness_texture,
                              pxr::TfToken("roughness"), uvmap_st_output_attr,
                              {kTokens->outputsRgb});
         if (roughness_output_attrs.size() == 1) {
@@ -1091,7 +1111,7 @@ class ModelWriter {
             pxr::SdfValueTypeNames->Float);
         const std::vector<pxr::SdfAttributeSpecHandle> occlusion_output_attrs =
             AddTextureShader(material_spec,
-                             mjs_getString(occlusion_texture->file),
+                             occlusion_texture,
                              pxr::TfToken("occlusion"), uvmap_st_output_attr,
                              {kTokens->outputsRgb});
         if (occlusion_output_attrs.size() == 1) {
@@ -1110,7 +1130,7 @@ class ModelWriter {
       // Create the normal map shader and connect its output to the preview
       // surface normal attr.
       const std::vector<pxr::SdfAttributeSpecHandle> normal_map_output_attrs =
-          AddTextureShader(material_spec, mjs_getString(normal_texture->file),
+          AddTextureShader(material_spec, normal_texture,
                            pxr::TfToken("normal"), uvmap_st_output_attr,
                            {kTokens->outputsRgb});
       if (normal_map_output_attrs.size() == 1) {
@@ -1125,7 +1145,7 @@ class ModelWriter {
           layer_, preview_surface_shader_spec, kTokens->inputsEmissiveColor,
           pxr::SdfValueTypeNames->Color3f);
       const std::vector<pxr::SdfAttributeSpecHandle> emissive_map_output_attrs =
-          AddTextureShader(material_spec, mjs_getString(emissive_texture->file),
+          AddTextureShader(material_spec, emissive_texture,
                            pxr::TfToken("emissive"), uvmap_st_output_attr,
                            {kTokens->outputsRgb});
       if (emissive_map_output_attrs.size() == 1) {
@@ -1147,7 +1167,7 @@ class ModelWriter {
       // attribute.
       const std::vector<pxr::SdfAttributeSpecHandle>
           texture_diffuse_output_attrs =
-              AddTextureShader(material_spec, mjs_getString(main_texture->file),
+              AddTextureShader(material_spec, main_texture,
                                pxr::TfToken("diffuse"), uvmap_st_output_attr,
                                {kTokens->outputsRgb});
       if (texture_diffuse_output_attrs.size() == 1) {
