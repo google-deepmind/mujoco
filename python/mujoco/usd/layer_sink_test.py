@@ -15,11 +15,13 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import mujoco
+import numpy as np
 from mujoco.usd import layer_sink
 from mujoco.usd import test_utils
 from mujoco.usd import writer
 
 from pxr import Sdf
+from pxr import Usd
 from pxr import UsdPhysics
 
 
@@ -71,6 +73,58 @@ class MujocoUsdLayerSinkTest(parameterized.TestCase):
           self.assertIsNotNone(attr_spec)
           n_samples = physics_layer.GetNumTimeSamplesForPath(attr_path)
           self.assertEqual(n_samples, n_steps)
+
+
+  def test_records_unnamed_sibling_bodies(self):
+    spec = mujoco.MjSpec.from_string("""
+      <mujoco model="unnamed_test">
+        <worldbody>
+          <body name="named" pos="0 0 2">
+            <freejoint/>
+            <geom type="sphere" size="0.1"/>
+          </body>
+          <body pos="1 0 2">
+            <freejoint/>
+            <geom type="sphere" size="0.1"/>
+          </body>
+          <body pos="2 0 2">
+            <freejoint/>
+            <geom type="sphere" size="0.1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    stage = Usd.Stage.CreateInMemory()
+    stage.SetTimeCodesPerSecond(1.0 / model.opt.timestep)
+    usd_writer = writer.UsdWriter(stage, spec, model)
+    sink = layer_sink.LayerSink(stage)
+    paths = []
+
+    def capture_paths(unused_data, body_paths):
+      paths[:] = body_paths
+
+    usd_writer.add_sink(capture_paths)
+    usd_writer.add_sink(sink.update)
+    for _ in range(3):
+      mujoco.mj_step(model, data)
+      usd_writer.update(data)
+
+    self.assertLen(paths, model.nbody)
+    self.assertTrue(paths[0].isEmpty)
+    self.assertLen(set(paths[1:]), 3)
+    self.assertEqual(paths[1], Sdf.Path("/unnamed_test/named"))
+    for body_id, path in enumerate(paths[1:], start=1):
+      self.assertFalse(path.isEmpty)
+      prim = stage.GetPrimAtPath(path)
+      self.assertTrue(prim)
+      for attr_name in _LAYER_SINK_XFORM_ATTRS:
+        attr = prim.GetAttribute(attr_name)
+        self.assertLen(attr.GetTimeSamples(), 3)
+      translation = prim.GetAttribute(_LAYER_SINK_XFORM_ATTRS[0])
+      sample = translation.Get(translation.GetTimeSamples()[-1])
+      np.testing.assert_allclose(sample, data.xpos[body_id], atol=1e-6)
 
 
 if __name__ == "__main__":
