@@ -497,10 +497,11 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   }
   auto newton_timesteps =
       scene_prim.GetAttribute(NewtonTokens->newtonTimeStepsPerSecond);
-  if (newton_timesteps && newton_timesteps.HasAuthoredValue()) {
+  if (newton_timesteps) {
     int val;
-    newton_timesteps.Get(&val);
-    if (val > 0) spec->option.timestep = 1.0 / val;
+    if (newton_timesteps.Get(&val) && val > 0) {
+      spec->option.timestep = 1.0 / val;
+    }
   }
   auto newton_gravity =
       scene_prim.GetAttribute(NewtonTokens->newtonGravityEnabled);
