@@ -69,6 +69,9 @@
 #include <pxr/usd/usdGeom/sphere.h>
 #include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/usd/usdGeom/xformCache.h>
+#include <pxr/usd/usdLux/distantLight.h>
+#include <pxr/usd/usdLux/shapingAPI.h>
+#include <pxr/usd/usdLux/sphereLight.h>
 #include <pxr/usd/usdPhysics/articulationRootAPI.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
 #include <pxr/usd/usdPhysics/fixedJoint.h>
@@ -124,6 +127,42 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestClassAuthored) {
 
   EXPECT_PRIM_VALID(stage, "/__class__");
   EXPECT_PRIM_VALID(stage, "/__class__/test");
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestLightTypesAndProperties) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="lights_test">
+      <worldbody>
+        <light name="sun" type="directional" diffuse="0.2 0.4 0.6"
+               intensity="10"/>
+        <light name="spot" type="spot" diffuse="1 0 0"
+               intensity="25" cutoff="30" softness="0.25"/>
+        <light name="point" type="point" diffuse="0.3 0.5 0.7"/>
+        <light name="off" type="point" active="false" intensity="20"/>
+      </worldbody>
+    </mujoco>
+  )";
+  auto stage = OpenStage(kXml);
+  EXPECT_PRIM_IS_A(stage, "/lights_test/sun", pxr::UsdLuxDistantLight);
+  EXPECT_PRIM_IS_A(stage, "/lights_test/spot", pxr::UsdLuxSphereLight);
+  EXPECT_PRIM_IS_A(stage, "/lights_test/point", pxr::UsdLuxSphereLight);
+  auto spot = stage->GetPrimAtPath(SdfPath("/lights_test/spot"));
+  ASSERT_TRUE(spot);
+  EXPECT_TRUE(spot.HasAPI<pxr::UsdLuxShapingAPI>());
+  EXPECT_FALSE(stage->GetPrimAtPath(SdfPath("/lights_test/point"))
+                   .HasAPI<pxr::UsdLuxShapingAPI>());
+  ExpectAttributeEqual(stage, "/lights_test/sun.inputs:color",
+                       pxr::GfVec3f(0.2f, 0.4f, 0.6f));
+  ExpectAttributeEqual(stage, "/lights_test/sun.inputs:intensity", 10.0f);
+  ExpectAttributeEqual(stage, "/lights_test/spot.inputs:color",
+                       pxr::GfVec3f(1.0f, 0.0f, 0.0f));
+  ExpectAttributeEqual(stage, "/lights_test/spot.inputs:intensity", 25.0f);
+  ExpectAttributeEqual(stage, "/lights_test/spot.inputs:shaping:cone:angle",
+                       30.0f);
+  ExpectAttributeEqual(stage, "/lights_test/spot.inputs:shaping:cone:softness",
+                       0.25f);
+  ExpectAttributeEqual(stage, "/lights_test/point.inputs:intensity", 1.0f);
+  ExpectAttributeEqual(stage, "/lights_test/off.inputs:intensity", 0.0f);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestBasicMeshSources) {
