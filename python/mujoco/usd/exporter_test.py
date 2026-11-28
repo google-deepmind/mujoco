@@ -70,6 +70,38 @@ class ExporterTest(absltest.TestCase):
         self.assertEqual(f.readlines(), golden_file.readlines())
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_headlight_follows_recorded_camera(self):
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <camera name="origin" pos="0 0 0"/>
+          <camera name="other" pos="1 -2 3"/>
+          <geom type="sphere" size=".1" pos="0 0 -1"/>
+        </worldbody>
+      </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory_root=self.create_tempdir().full_path,
+        camera_names=["origin"],
+        verbose=False,
+    )
+    exporter.update_scene(data)
+    light = exporter.stage.GetPrimAtPath("/World/Light_Xform_0")
+    self.assertTrue(light)
+    translation = light.GetAttribute("xformOp:translate")
+    self.assertEqual(tuple(translation.Get(0)), (0, 0, 0))
+    self.assertEqual(
+        exporter.stage.GetPrimAtPath("/World/Light_Xform_0/Light_0")
+        .GetAttribute("inputs:intensity").Get(),
+        exporter.light_intensity,
+    )
+    exporter.update_scene(data, camera="other")
+    self.assertEqual(tuple(translation.Get(1)), (1, -2, 3))
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):
     output_dir_root = self.create_tempdir().full_path
     xml = """
