@@ -66,7 +66,7 @@ def _take(obj: Y, idx: np.ndarray) -> Y:
 
 
 def _q_bodyid(m: Model) -> np.ndarray:
-  """Returns the bodyid for each qpos adress."""
+  """Returns the bodyid for each qpos address."""
   q_bodyids = [np.array([], dtype=np.int32)]
   for jnt_type, jnt_bodyid in zip(m.jnt_type, m.jnt_bodyid):
     width = {JointType.FREE: 7, JointType.BALL: 4}.get(jnt_type, 1)
@@ -75,7 +75,7 @@ def _q_bodyid(m: Model) -> np.ndarray:
 
 
 def _q_jointid(m: Model) -> np.ndarray:
-  """Returns the jointid for each qpos adress."""
+  """Returns the jointid for each qpos address."""
   q_jointid = [np.array([], dtype=np.int32)]
   for i, jnt_type in enumerate(m.jnt_type):
     width = {JointType.FREE: 7, JointType.BALL: 4}.get(jnt_type, 1)

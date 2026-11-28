@@ -811,7 +811,7 @@ def wrap_inside(
 
   Returns:
     status: 0 if wrap, else -1
-    concatentated 2D wrap points: jax.Array
+    concatenated 2D wrap points: jax.Array
   """
   mjMINVAL = mujoco.mjMINVAL  # pylint: disable=invalid-name
 
