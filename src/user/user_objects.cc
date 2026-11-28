@@ -7078,9 +7078,7 @@ void mjCPair::Compile(void) {
 
     // impedance
     if (!mjuu_defined(solimp[0])) {
-      for (int i = 0; i < mjNIMP; i++) {
-        solimp[i] = 0.5 * (geom1->solimp[i] + geom2->solimp[i]);
-      }
+      for (int i = 0; i < mjNIMP; i++) { solimp[i] = 0.5 * (geom1->solimp[i] + geom2->solimp[i]); }
     }
   }
 }
