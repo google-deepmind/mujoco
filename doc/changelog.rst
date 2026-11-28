@@ -56,6 +56,13 @@ Engine
 
 Deformables
 ^^^^^^^^^^^
+- :ref:`Passive<flex-contact-passive>` and :ref:`IPC<option-flag-ipc>` :ref:`flex<deformable-flex>` contacts with
+  :ref:`condim<flex-contact-condim>` 3 or higher now model isotropic lagged Coulomb sliding friction using the pair's
+  first :ref:`friction<flex-contact-friction>` coefficient (capped at the viscous slip threshold ``1e-3`` m/s).
+  Previously, both modes ignored ``condim`` and were always frictionless. Existing models using passive or IPC flex
+  contacts with ``condim >= 3`` (the default) now experience contact friction; set ``condim="1"`` for frictionless
+  behavior. In IPC mode, ``mjData.flexvert_lambda`` now stores the barycentrically weighted sum of touching pair
+  multipliers (previously the maximum across touching pairs).
 - Fixed capsule collision against 2D :ref:`flexes<deformable-flex>` missing contacts along the capsule shaft (when
   crossing triangle edges, lying coplanar with a triangle, or piercing a triangle interior) and fixed a NaN for
   zero-length capsules and degenerate triangles. Existing models with capsule--2D-flex contacts can change behavior.

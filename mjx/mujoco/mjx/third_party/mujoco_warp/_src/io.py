@@ -1881,6 +1881,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
 
   m.nflexrodedge = nflexrodedge
   m.efm_con_max_dof = _calculate_efm_con_max_dof(mjm)
+  m.efm_con_stride = _calculate_efm_con_stride(mjm)
   m.flex_rod_is_chain = flex_rod_is_chain
   m.flex_rod_has_twist = flex_rod_has_twist
   m.flex_rod_is_box = flex_rod_is_box
@@ -2197,6 +2198,56 @@ def _calculate_efm_con_max_dof(mjm: mujoco.MjModel) -> int:
   max_passive = max(passive_flex_nnz)
   max_other = max([0] + non_interp_flex_nnz + geom_nnz)
   return int(min(max(max_passive + max_other, 1), max(mjm.nv, 1)))
+
+
+def _mix_condim(a_condim: int, a_priority: int, b_condim: int, b_priority: int) -> int:
+  if a_priority > b_priority:
+    return a_condim
+  if a_priority < b_priority:
+    return b_condim
+  return max(a_condim, b_condim)
+
+
+def _calculate_efm_con_stride(mjm: mujoco.MjModel) -> int:
+  """Returns row stride (1 or 3) for passive flex contact metric buffers.
+
+  Returns 3 if any passive-capable flex pair can produce a contact with
+  condim >= 3, and 1 otherwise. Does not filter on friction values because
+  geom_friction is per-world batchable and may be mutated after put_model.
+  """
+  if mjm.nflex == 0:
+    return 1
+  passive_flexes = [
+    f
+    for f in range(mjm.nflex)
+    if mjm.flex_passive[f] != 0 and mjm.flex_rigid[f] == 0 and mjm.flex_interp[f] == 0 and mjm.flex_dim[f] >= 2
+  ]
+  if not passive_flexes:
+    return 1
+  for f in passive_flexes:
+    fc = int(mjm.flex_condim[f])
+    fp = int(mjm.flex_priority[f])
+    ft = int(mjm.flex_contype[f])
+    fa = int(mjm.flex_conaffinity[f])
+    if mjm.flex_selfcollide[f] != 0 and (ft & fa) != 0 and fc >= 3:
+      return 3
+    for f2 in range(mjm.nflex):
+      if f2 == f:
+        continue
+      ft2 = int(mjm.flex_contype[f2])
+      fa2 = int(mjm.flex_conaffinity[f2])
+      if (ft & fa2) != 0 or (ft2 & fa) != 0:
+        if _mix_condim(fc, fp, int(mjm.flex_condim[f2]), int(mjm.flex_priority[f2])) >= 3:
+          return 3
+    for g in range(mjm.ngeom):
+      if mjm.body_weldid[mjm.geom_bodyid[g]] != 0:
+        continue
+      gt = int(mjm.geom_contype[g])
+      ga = int(mjm.geom_conaffinity[g])
+      if (ft & ga) != 0 or (gt & fa) != 0:
+        if _mix_condim(fc, fp, int(mjm.geom_condim[g]), int(mjm.geom_priority[g])) >= 3:
+          return 3
+  return 1
 
 
 def _body_pair_nnz(mjm: mujoco.MjModel, body1: int, body2: int) -> int:

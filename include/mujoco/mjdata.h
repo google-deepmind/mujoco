@@ -249,7 +249,7 @@ typedef struct mjData_ {
   mjtNum*  bvh_aabb_dyn;       // global bounding box (center, size)             (nbvhdynamic x 6)
 
   // AL contact state carried across steps (flag ipc, not in mjtState)
-  mjtNum*  flexvert_lambda;    // flex contact multiplier                        (nflexvert x 1)
+  mjtNum*  flexvert_lambda;    // weighted sum of flex contact multipliers       (nflexvert x 1)
   int*     flexvert_conage;    // flex contact age: <0 loaded, >0 steps since    (nflexvert x 1)
 
   // computed by mj_fwdPosition/mj_tendon

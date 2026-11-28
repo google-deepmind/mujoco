@@ -4530,6 +4530,7 @@ def _eff_contact_shift(max_dof: int, deterministic: bool = False):
   def kernel(
     # Model:
     opt_timestep: wp.array[float],
+    efm_con_stride: int,
     # Data in:
     qvel_in: wp.array2d[float],
     contact_worldid_in: wp.array[int],
@@ -4542,10 +4543,11 @@ def _eff_contact_shift(max_dof: int, deterministic: bool = False):
     efm_c_out: wp.array2d[float],
   ):
     cid = wp.tid()
-    nnz = efm_con_nnz_in[cid]
+    rowid = efm_con_stride * cid
+    nnz = efm_con_nnz_in[rowid]
     if nnz == 0:
       return
-    scale = efm_con_scale_in[cid]
+    scale = efm_con_scale_in[rowid]
     if scale == float(0.0):
       return
     worldid = contact_worldid_in[cid]
@@ -4553,12 +4555,12 @@ def _eff_contact_shift(max_dof: int, deterministic: bool = False):
     neg_scale_dt = -scale / timestep
     dot = float(0.0)
     for a in range(nnz):
-      dof = efm_con_dof_in[cid, a]
-      dot += efm_con_val_in[cid, a] * qvel_in[worldid, dof]
+      dof = efm_con_dof_in[rowid, a]
+      dot += efm_con_val_in[rowid, a] * qvel_in[worldid, dof]
     scaled_dot = dot * neg_scale_dt
     for a in range(nnz):
-      dof = efm_con_dof_in[cid, a]
-      wp.atomic_add(efm_c_out, worldid, dof, scaled_dot * efm_con_val_in[cid, a])
+      dof = efm_con_dof_in[rowid, a]
+      wp.atomic_add(efm_c_out, worldid, dof, scaled_dot * efm_con_val_in[rowid, a])
 
   return kernel
 
@@ -4573,6 +4575,8 @@ def _eff_mul_add_contact(check_skip: bool, max_dof: int, deterministic: bool = F
 
   @wp.kernel(module="unique", module_options=module_options, grid_stride=False)
   def kernel(
+    # Model:
+    efm_con_stride: int,
     # Data in:
     contact_worldid_in: wp.array[int],
     # In:
@@ -4585,25 +4589,25 @@ def _eff_mul_add_contact(check_skip: bool, max_dof: int, deterministic: bool = F
     # Out:
     res_out: wp.array2d[float],
   ):
-    cid = wp.tid()
-    nnz = efm_con_nnz_in[cid]
+    rowid = wp.tid()
+    nnz = efm_con_nnz_in[rowid]
     if nnz == 0:
       return
-    worldid = contact_worldid_in[cid]
+    worldid = contact_worldid_in[rowid // efm_con_stride]
     if wp.static(check_skip):
       if skip[worldid]:
         return
-    scale = efm_con_scale_in[cid]
+    scale = efm_con_scale_in[rowid]
     if scale == float(0.0):
       return
     dot = float(0.0)
     for a in range(nnz):
-      dof = efm_con_dof_in[cid, a]
-      dot += efm_con_val_in[cid, a] * vec_in[worldid, dof]
+      dof = efm_con_dof_in[rowid, a]
+      dot += efm_con_val_in[rowid, a] * vec_in[worldid, dof]
     dot *= scale
     for a in range(nnz):
-      dof = efm_con_dof_in[cid, a]
-      wp.atomic_add(res_out, worldid, dof, dot * efm_con_val_in[cid, a])
+      dof = efm_con_dof_in[rowid, a]
+      wp.atomic_add(res_out, worldid, dof, dot * efm_con_val_in[rowid, a])
 
   return kernel
 
@@ -4965,6 +4969,7 @@ def eff_shift(m: Model, d: Data):
       dim=d.naconmax,
       inputs=[
         m.opt.timestep,
+        m.efm_con_stride,
         d.qvel,
         d.contact.worldid,
         efm_con_dof,
@@ -5346,8 +5351,9 @@ def eff_mul_m(
         efm_con_dof, efm_con_val, efm_con_scale, _, efm_con_nnz = efm_con
       wp.launch(
         _eff_mul_add_contact(check_skip, m.efm_con_max_dof if det_atomics else 0, det_atomics),
-        dim=d.naconmax,
+        dim=m.efm_con_stride * d.naconmax,
         inputs=[
+          m.efm_con_stride,
           d.contact.worldid,
           efm_con_dof,
           efm_con_val,
@@ -5502,6 +5508,8 @@ def _eff_fold_contact_rank1(max_dof: int, deterministic: bool = False):
 
   @wp.kernel(module="unique", module_options=module_options)
   def kernel(
+    # Model:
+    efm_con_stride: int,
     # Data in:
     contact_worldid_in: wp.array[int],
     nacon_in: wp.array[int],
@@ -5513,17 +5521,19 @@ def _eff_fold_contact_rank1(max_dof: int, deterministic: bool = False):
     # Out:
     tw_diag_out: wp.array2d[float],
   ):
-    cid = wp.tid()
-    if cid >= nacon_in[0]:
+    rowid = wp.tid()
+    cid = rowid // efm_con_stride
+    nacon = wp.min(nacon_in[0], contact_worldid_in.shape[0])
+    if cid >= nacon:
       return
-    scale = efm_con_scale_in[cid]
+    scale = efm_con_scale_in[rowid]
     if scale == 0.0:
       return
     worldid = contact_worldid_in[cid]
-    nnz = efm_con_nnz_in[cid]
+    nnz = efm_con_nnz_in[rowid]
     for a in range(nnz):
-      ia = efm_con_dof_in[cid, a]
-      va = efm_con_val_in[cid, a]
+      ia = efm_con_dof_in[rowid, a]
+      va = efm_con_val_in[rowid, a]
       wp.atomic_add(tw_diag_out, worldid, ia, scale * va * va)
 
   return kernel
@@ -5630,8 +5640,9 @@ def eff_prec_fold(
     efm_con_dof, efm_con_val, efm_con_scale, _, efm_con_nnz = con_tuple
     wp.launch(
       _eff_fold_contact_rank1(m.efm_con_max_dof if det_atomics else 0, det_atomics),
-      dim=d.naconmax,
+      dim=m.efm_con_stride * d.naconmax,
       inputs=[
+        m.efm_con_stride,
         d.contact.worldid,
         d.nacon,
         efm_con_dof,

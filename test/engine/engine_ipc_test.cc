@@ -31,6 +31,7 @@
 
 #include <mujoco/mujoco.h>
 #include <mujoco/mjtype.h>
+#include "src/engine/engine_derivative.h"
 #include "src/engine/engine_ipc.h"
 #include "src/engine/engine_memory.h"
 #include "src/engine/engine_metric.h"
@@ -291,6 +292,201 @@ TEST_F(IpcTest, FlagOverridesPassiveContact) {
   mj_deleteData(dw);
   mj_deleteModel(mo);
   mj_deleteModel(mw);
+}
+
+// Friction under the flag is the lagged Coulomb law of passive contact, with
+// the pairs' multipliers as the normal force. A cloth on a slope (gravity is
+// tilted, the plane is not) is held below the friction angle up to the creep of
+// the law's viscous zone, is opposed by mu times the normal force above it, and
+// slides freely with condim 1.
+TEST_F(IpcTest, Friction) {
+  static constexpr char xml_format[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" iterations="400"
+            gravity="%.17g 0 %.17g">
+      <flag ipc="enable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="5 5 .1" friction="%g" condim="%d"/>
+      <flexcomp name="cloth" type="grid" dim="2" count="3 3 1"
+                spacing=".04 .04 1" radius=".004" mass=".09" pos="0 0 .001">
+        <contact selfcollide="none" friction="%g" condim="%d"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  const mjtNum g = 9.81;
+  const int nstep = 250;
+
+  // mean displacement of the cloth along the slope after nstep steps
+  auto slide = [&](mjtNum slope, mjtNum mu, int condim) -> mjtNum {
+    mjtNum norm = std::sqrt(1 + slope * slope);
+    char xml[2048];
+    std::snprintf(xml, sizeof(xml), xml_format, g * slope / norm, -g / norm, mu,
+                  condim, mu, condim);
+    mjModel* m = Load(xml);
+    mjData* d = mj_makeData(m);
+    mj_forward(m, d);
+    auto mean = [&](int axis) {
+      mjtNum x = 0;
+      for (int i = 0; i < m->nflexvert; i++) {
+        x += d->flexvert_xpos[3 * i + axis] / m->nflexvert;
+      }
+      return x;
+    };
+    mjtNum x0 = mean(0);
+    for (int i = 0; i < nstep; i++) {
+      mj_step(m, d);
+    }
+    EXPECT_FALSE(d->warning[mjWARN_BADQACC].number);
+    if (condim >= 3 && slope > mu) {
+      int nv = m->nv;
+      std::vector<mjtNum> Mqacc(nv);
+      mj_mulM(m, d, Mqacc.data(), d->qacc);
+      mjtNum scale = 0, residual = 0, fx_con = 0;
+      for (int i = 0; i < nv; i++) {
+        scale = std::max(scale, std::abs(d->qfrc_smooth[i]));
+        residual = std::max(residual, std::abs(Mqacc[i] - d->qfrc_smooth[i] -
+                                               d->qfrc_constraint[i]));
+        if (i % 3 == 0) fx_con += d->qfrc_constraint[i];
+        EXPECT_MJTNUM_EQ(d->efm_c[i], 0);
+      }
+      EXPECT_LT(residual, MjTol(1e-4, 1e-2) * scale);
+      mjtNum fn_expected = 0.09 * g / norm;
+      EXPECT_NEAR(fx_con, -mu * fn_expected, 0.05 * mu * fn_expected);
+    }
+    mj_forward(m, d);
+    mjtNum dx = mean(0) - x0;
+    EXPECT_NEAR(mean(2), 0.001, 2e-4) << "the cloth left its standoff";
+    // the pairs are the mode's: no native contact, whose friction is the
+    // constraint solver's, holds the cloth
+    EXPECT_EQ(d->ncon, 0);
+    mj_deleteData(d);
+    mj_deleteModel(m);
+    return dx;
+  };
+  mjtNum time = nstep * 0.002;
+
+  // frictionless: the full component of gravity along the slope
+  mjtNum slope = 0.2, mu = 0.5;
+  mjtNum along = g * slope / std::sqrt(1 + slope * slope);
+  mjtNum dx_free = slide(slope, mu, 1);
+  EXPECT_NEAR(dx_free, 0.5 * along * time * time, 0.04 * dx_free);
+
+  // below the friction angle: held, creeping at no more than the slip speed
+  // times the fraction of the friction capacity in use
+  mjtNum dx_stick = slide(slope, mu, 3);
+  mjtNum creep = mjFLEXCONTACT_VSLIP * slope / mu * time;
+  EXPECT_GT(dx_stick, 0);
+  EXPECT_LT(dx_stick, 1.5 * creep);
+
+  // above it: gravity along the slope less mu times the normal force. The
+  // lagged law overshoots mu*fn by the growth of the speed over a step, which
+  // costs a few percent of the distance over these steps
+  slope = 1;
+  along = g * (slope - mu) / std::sqrt(1 + slope * slope);
+  mjtNum dx_slide = slide(slope, mu, 3);
+  EXPECT_NEAR(dx_slide, 0.5 * along * time * time, 0.1 * dx_slide);
+
+  // shared-vertex load invariance: sliding over a multi-triangle static mesh
+  // (activating VERT_GEOM, GEOM_CORNER_TRI and GEOM_EDGE_EDGE pairs on each
+  // cloth vertex) and over a pinned second cloth (FLEX_VERT_TRI and
+  // FLEX_EDGE_EDGE pairs) delivers the same mu*m*g friction as the plane
+  static constexpr char mesh_and_cloth_format[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" iterations="400"
+            gravity="%.17g 0 %.17g">
+      <flag ipc="enable"/>
+    </option>
+    <asset>
+      <mesh name="slab"
+            vertex="-.06 -.06  0  -.02 -.06  0   .02 -.06  0   .06 -.06  0   .10 -.06  0
+                    -.06 -.02  0  -.02 -.02  0   .02 -.02  0   .06 -.02  0   .10 -.02  0
+                    -.06  .02  0  -.02  .02  0   .02  .02  0   .06  .02  0   .10  .02  0
+                    -.06  .06  0  -.02  .06  0   .02  .06  0   .06  .06  0   .10  .06  0
+                    -.06 -.06 -.05  .10 -.06 -.05  .10  .06 -.05 -.06  .06 -.05"
+            face="0 1 6  0 6 5  1 2 7  1 7 6  2 3 8  2 8 7  3 4 9  3 9 8
+                  5 6 11  5 11 10  6 7 12  6 12 11  7 8 13  7 13 12  8 9 14  8 14 13
+                  10 11 16  10 16 15  11 12 17  11 17 16  12 13 18  12 18 17  13 14 19  13 19 18
+                  20 22 21  20 23 22
+                  0 20 21  0 21 4  4 21 22  4 22 19  19 22 23  19 23 15  15 23 20  15 20 0"/>
+    </asset>
+    <worldbody>
+      %s
+      <flexcomp name="cloth" type="grid" dim="2" count="3 3 1"
+                spacing=".04 .04 1" radius=".004" mass=".09" pos="0 0 .001">
+        <contact selfcollide="none" friction="%g" condim="3"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  const char* substrates[] = {
+      R"(<geom type="mesh" mesh="slab" friction="0.5" condim="3"/>)",
+      R"(<flexcomp name="base" type="grid" dim="2" count="9 7 1"
+                   spacing=".02 .02 1" radius=".004" mass=".09" pos=".02 0 0">
+           <contact selfcollide="none" friction="0.5" condim="3"/>
+           <pin range="0 62"/>
+         </flexcomp>)",
+  };
+  const int nstep_sub = 60;
+  mjtNum time_sub = nstep_sub * 0.002;
+  for (const char* sub : substrates) {
+    auto run_sub = [&](mjtNum slp, mjtNum* fx_out, mjtNum* fz_out) {
+      mjtNum nrm = std::sqrt(1 + slp * slp);
+      char xml[4096];
+      std::snprintf(xml, sizeof(xml), mesh_and_cloth_format, g * slp / nrm,
+                    -g / nrm, sub, mu);
+      mjModel* m = Load(xml);
+      mjData* d = mj_makeData(m);
+      mj_forward(m, d);
+      int cloth_id = mj_name2id(m, mjOBJ_FLEX, "cloth");
+      EXPECT_GE(cloth_id, 0);
+      int vadr = m->flex_vertadr[cloth_id], vnum = m->flex_vertnum[cloth_id];
+      auto cloth_x = [&]() {
+        mjtNum x = 0;
+        for (int i = 0; i < vnum; i++) {
+          x += d->flexvert_xpos[3 * (vadr + i)] / vnum;
+        }
+        return x;
+      };
+      mjtNum x0 = cloth_x();
+      *fx_out = *fz_out = 0;
+      const int nwarmup = 10;
+      for (int i = 0; i < nstep_sub; i++) {
+        mj_step(m, d);
+        if (i >= nwarmup) {
+          for (int v = 0; v < vnum; v++) {
+            int da = m->body_dofadr[m->flex_vertbodyid[vadr + v]];
+            *fx_out += d->qfrc_constraint[da] / (nstep_sub - nwarmup);
+            *fz_out += d->qfrc_constraint[da + 2] / (nstep_sub - nwarmup);
+          }
+        }
+      }
+      EXPECT_FALSE(d->warning[mjWARN_BADQACC].number);
+      mj_forward(m, d);
+      mjtNum dx = cloth_x() - x0;
+      mj_deleteData(d);
+      mj_deleteModel(m);
+      return dx;
+    };
+
+    // stiction below the friction angle (0.2 < mu = 0.5)
+    mjtNum fx_stick, fz_stick;
+    mjtNum dx_sub_stick = run_sub(0.2, &fx_stick, &fz_stick);
+    EXPECT_LT(dx_sub_stick, 1.5 * mjFLEXCONTACT_VSLIP * (0.2 / mu) * time_sub);
+
+    // Coulomb sliding above the friction angle (slope = 1 > mu = 0.5)
+    mjtNum fx_sub, fz_sub;
+    mjtNum dx_sub_slide = run_sub(slope, &fx_sub, &fz_sub);
+    mjtNum norm = std::sqrt(1 + slope * slope);
+    mjtNum fn_expected = 0.09 * g / norm;
+    EXPECT_NEAR(fz_sub, fn_expected, 0.05 * fn_expected);
+    EXPECT_NEAR(fx_sub, -mu * fn_expected, 0.08 * mu * fn_expected);
+    mjtNum dx_expected = 0.5 * along * time_sub * time_sub;
+    EXPECT_NEAR(dx_sub_slide, dx_expected, 0.12 * dx_expected);
+  }
 }
 
 // the reported constraint force accounts for the contact pairs: at rest on a

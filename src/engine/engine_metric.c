@@ -137,11 +137,15 @@ int mj_effRank1Next(const mjModel* m, const mjData* d, mjEffRank1Iter* it,
       break;
     }
     int adr = it->k, nnz = d->efm_con_ind[adr];   // packed row: header then entries
+    mjtNum s = d->efm_con_val[adr];
+    it->k = adr + 2 + nnz;
+    if (!s || !nnz) {
+      continue;
+    }
     e->nnz = nnz;
-    e->scale = d->efm_con_val[adr];
+    e->scale = s;
     e->colind = d->efm_con_ind + adr + 2;
     e->val = d->efm_con_val + adr + 2;
-    it->k = adr + 2 + nnz;
     return 1;
   }
 
@@ -3312,20 +3316,23 @@ void mj_effShift(const mjModel* m, mjData* d) {
     }
   }
 
-  // contact: -h*K_contact*v from the packed rank-1 rows (see effContactBuild), so the shift
-  // and the operator apply one definition of contact. Each row's scale already carries the h^2
-  // of the effective stiffness, so the shift's -h*K*v is -(1/h) * scale * row'(row.v)
+  // contact: -h*K_contact*v from the packed normal rows (conid >= 0, see effContactBuild), so
+  // the shift and the operator apply one definition of contact; tangent friction rows (conid < 0)
+  // are pure dampers whose force at qvel is accumulated into qfrc_damper by mj_effContactPassive;
+  // each normal row's scale carries h^2*k, so the shift's -h*K*v is -(1/h)*scale*row'(row.v)
   for (int adr=0; adr < d->nefmcon; ) {
     int nnz = d->efm_con_ind[adr];
-    const int* colind = d->efm_con_ind + adr + 2;
-    const mjtNum* val = d->efm_con_val + adr + 2;
-    mjtNum dot = 0;
-    for (int a=0; a < nnz; a++) {
-      dot += val[a] * d->qvel[colind[a]];
-    }
-    dot *= -d->efm_con_val[adr] / h;
-    for (int a=0; a < nnz; a++) {
-      d->efm_c[colind[a]] += dot * val[a];
+    if (d->efm_con_ind[adr + 1] >= 0) {
+      const int* colind = d->efm_con_ind + adr + 2;
+      const mjtNum* val = d->efm_con_val + adr + 2;
+      mjtNum dot = 0;
+      for (int a=0; a < nnz; a++) {
+        dot += val[a] * d->qvel[colind[a]];
+      }
+      dot *= -d->efm_con_val[adr] / h;
+      for (int a=0; a < nnz; a++) {
+        d->efm_c[colind[a]] += dot * val[a];
+      }
     }
     adr += 2 + nnz;
   }
@@ -4026,15 +4033,44 @@ void mj_effPrecIsland(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b, i
 }
 
 
+// append one packed contact row at adr (layout in engine_metric.h); returns the address after
+// it, adr itself for a row without entries
+static int effContactRow(mjData* d, int adr, const mjtNum* row, const int* chain, int NV,
+                         int issparse, mjtNum scale, mjtNum force, int conid) {
+  int nnz = 0;
+  for (int a = 0; a < NV; a++) {
+    // a dense model gets no chain: every dof is returned, so compact the row on its nonzeros
+    if (!issparse && row[a] == 0) {
+      continue;
+    }
+    d->efm_con_ind[adr + 2 + nnz] = issparse ? chain[a] : a;
+    d->efm_con_val[adr + 2 + nnz] = row[a];
+    nnz++;
+  }
+  if (!nnz) {
+    return adr;
+  }
+  d->efm_con_ind[adr] = nnz;
+  d->efm_con_ind[adr + 1] = conid;
+  d->efm_con_val[adr] = scale;
+  d->efm_con_val[adr + 1] = force;
+  return adr + 2 + nnz;
+}
+
+
 // publish passive flex contact as the metric's rank-1 contact class, one packed row per pair
-// ([nnz, conid, colind...] / [scale, force, val...], see engine_derivative.h): matrix-free
-// contact costs O(nnz) per pair where the stiffness CSR cost O(nnz^2), and the CSR's sparsity no
-// longer grows with the contact set
-static void effContactBuild(const mjModel* m, mjData* d, mjtNum scale) {
+// ([nnz, conid, colind...] / [scale, force, val...], see engine_metric.h): matrix-free contact
+// costs O(nnz) per pair where the stiffness CSR cost O(nnz^2), and the CSR's sparsity no longer
+// grows with the contact set.
+// A pair with friction (condim >= 3) that carries load reserves its two tangent rows here with
+// conid = ~i; their velocity-dependent damping scale h*c and force -c*(row.qvel) are refreshed
+// at the velocity stage by mj_effContactPassive
+static void effContactBuild(const mjModel* m, mjData* d, mjtNum h) {
   d->nefmcon = 0;
   if (!d->ncon || !mjd_flexPassiveContact_any(m)) {
     return;
   }
+  mjtNum scale = h*h;
   int nv = m->nv, issparse = mj_isSparse(m);
   mj_markStack(d);
   mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
@@ -4062,6 +4098,11 @@ static void effContactBuild(const mjModel* m, mjData* d, mjtNum scale) {
     int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
     if (NV) {
       d->nefmcon += 2 + NV;   // an upper bound in a dense model, trimmed to `adr` below
+
+      // the two friction rows, published only under load: an upper bound as well
+      if (con->dim >= 3 && con->friction[0] > 0) {
+        d->nefmcon += 2*(2 + NV);
+      }
     } else {
       d->contact[i].exclude = 3;   // affects no dofs, as the passive force used to mark it
     }
@@ -4073,7 +4114,8 @@ static void effContactBuild(const mjModel* m, mjData* d, mjtNum scale) {
   d->efm_con_ind = EFMALLOC(int, d->nefmcon);
   d->efm_con_val = EFMALLOC(mjtNum, d->nefmcon);
 
-  // pass 2: fill, rows packed back to back in both arrays
+  // pass 2: fill position-stage geometry and normal forces; velocity-stage friction is filled in
+  // mj_effContactPassive
   int adr = 0;
   for (int i = 0; i < d->ncon; i++) {
     const mjContact* con = d->contact + i;
@@ -4087,42 +4129,123 @@ static void effContactBuild(const mjModel* m, mjData* d, mjtNum scale) {
     }
     mju_mulMatMat(jacn, con->frame, jacdif, con->dim > 1 ? 3 : 1, 3, NV);
     mjtNum s = mjd_flexContactSlack(k, con->dist, /*lam=*/0);
-    int nnz = 0;
-    for (int a = 0; a < NV; a++) {
-      // a dense model gets no chain: every dof is returned, so compact the row on its nonzeros
-      if (!issparse && jacn[a] == 0) {
-        continue;
+    mjtNum fn = -k*mjd_flexContactResidual(k, con->dist, s, /*lam=*/0);
+    adr = effContactRow(d, adr, jacn, chain, NV, issparse, scale * k, fn, i);
+
+    if (con->dim >= 3 && con->friction[0] > 0 && fn > 0) {
+      for (int r = 0; r < 2; r++) {
+        adr = effContactRow(d, adr, jacn + (r+1)*NV, chain, NV, issparse, 0, 0, ~i);
       }
-      d->efm_con_ind[adr + 2 + nnz] = issparse ? chain[a] : a;
-      d->efm_con_val[adr + 2 + nnz] = jacn[a];
-      nnz++;
     }
-    d->efm_con_ind[adr] = nnz;
-    d->efm_con_ind[adr + 1] = i;
-    d->efm_con_val[adr] = scale * k;
-    d->efm_con_val[adr + 1] = -k*mjd_flexContactResidual(k, con->dist, s, /*lam=*/0);
-    adr += 2 + nnz;
   }
   d->nefmcon = adr;   // the dense compaction can land below the bound counted above
   mj_freeStack(d);
 }
 
 
-// apply the published rows' forces, res += force * row: the passive stage takes its contact
-// force from the rows the metric build published
-void mj_effContactForce(const mjData* d, mjtNum* res) {
+// refresh tangent friction rows at the current velocity and accumulate normal forces into
+// d->qfrc_spring and friction forces into d->qfrc_damper
+void mj_effContactPassive(const mjModel* m, mjData* d) {
   const int* ind = d->efm_con_ind;
-  const mjtNum* val = d->efm_con_val;
+  mjtNum* val = d->efm_con_val;
+  mjtNum h = m->opt.timestep;
+  int* flex_ndyn = NULL;
+  int need_free = 0, updated_tangent = 0;
+
   for (int adr = 0; adr < d->nefmcon; ) {
-    int nnz = ind[adr];
-    mjtNum f = val[adr + 1];
-    const int* colind = ind + adr + 2;
-    const mjtNum* row = val + adr + 2;
-    for (int a = 0; a < nnz; a++) {
-      // fused multiply-add: rounding the product first moves the results by an ulp
-      res[colind[a]] += f * row[a];
+    int tag = ind[adr + 1];
+    int i;
+    mjtNum hk, fn, vel0 = 0;
+
+    if (tag >= 0) {
+      // normal spring row of contact i
+      i = tag;
+      int nnz = ind[adr];
+      hk = val[adr] / h;
+      fn = val[adr + 1];
+      const int* colind = ind + adr + 2;
+      const mjtNum* row = val + adr + 2;
+      for (int a = 0; a < nnz; a++) {
+        // fused multiply-add: rounding the product first moves the results by an ulp
+        d->qfrc_spring[colind[a]] += fn * row[a];
+      }
+      int next = adr + 2 + nnz;
+      if (next >= d->nefmcon || ind[next + 1] != ~i) {
+        adr = next;
+        continue;
+      }
+      for (int a = 0; a < nnz; a++) {
+        vel0 += row[a] * d->qvel[colind[a]];
+      }
+      adr = next;
+    } else {
+      // tangent row(s) whose normal Jacobian compacted to zero (vel0 = 0)
+      i = ~tag;
+      if (!flex_ndyn && m->nflex) {
+        mj_markStack(d);
+        need_free = 1;
+        flex_ndyn = mjSTACKALLOC(d, m->nflex, int);
+        for (int f = 0; f < m->nflex; f++) {
+          flex_ndyn[f] = m->flex_interp[f] ? mjd_flexInterpDynNodes(m, f) : 0;
+        }
+      }
+      const mjContact* con = d->contact + i;
+      mjtNum k = mjd_flexContactStiffness(m, d, con, flex_ndyn);
+      mjtNum s = mjd_flexContactSlack(k, con->dist, /*lam=*/0);
+      hk = h * k;
+      fn = -k * mjd_flexContactResidual(k, con->dist, s, /*lam=*/0);
     }
-    adr += 2 + nnz;
+
+    // collect the contact's one or two tangent rows and their relative speeds
+    int tadr[2], nt = 0;
+    mjtNum vt[2] = {0, 0};
+    while (adr < d->nefmcon && ind[adr + 1] == ~i && nt < 2) {
+      int tnnz = ind[adr];
+      const int* tcol = ind + adr + 2;
+      const mjtNum* trow = val + adr + 2;
+      mjtNum vtr = 0;
+      for (int a = 0; a < tnnz; a++) {
+        vtr += trow[a] * d->qvel[tcol[a]];
+      }
+      tadr[nt] = adr;
+      vt[nt] = vtr;
+      nt++;
+      adr += 2 + tnnz;
+    }
+
+    // the lagged normal force is the one the previous step delivered. The step is implicit, so for
+    // a pair that step already resolved that is the penalty force at the position it ended on, fn.
+    // A pair that was apart as that step began (its distance one step back, dist - h*vel0, is
+    // positive) was not in it: its fn is the force of a penetration reached in free flight, far
+    // above any load, and it carries no friction until the next step
+    const mjContact* con = d->contact + i;
+    mjtNum c = 0;
+    if (con->dist - h*vel0 <= 0) {
+      c = mjd_flexContactFriction(con->friction[0], fn, mju_sqrt(vt[0]*vt[0] + vt[1]*vt[1]), hk);
+    }
+    for (int r = 0; r < nt; r++) {
+      updated_tangent = 1;
+      int tr = tadr[r], tnnz = ind[tr];
+      mjtNum ft = -c * vt[r];
+      val[tr] = h * c;
+      val[tr + 1] = ft;
+      if (ft != 0) {
+        const int* tcol = ind + tr + 2;
+        const mjtNum* trow = val + tr + 2;
+        for (int a = 0; a < tnnz; a++) {
+          d->qfrc_damper[tcol[a]] += ft * trow[a];
+        }
+      }
+    }
+  }
+
+  // invalidate cached sparse Cholesky factor when velocity-stage friction scales changed
+  if (updated_tangent && effCholReserved(d) && d->efm_L[0] == 1) {
+    d->efm_L[0] = EFF_CHOL_PENDING;
+  }
+
+  if (need_free) {
+    mj_freeStack(d);
   }
 }
 
@@ -4281,7 +4404,7 @@ void mj_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
 
   // passive flex contact is a rank-1 class, not CSR entries (see effContactBuild)
   if (passive) {
-    effContactBuild(m, d, h*h);
+    effContactBuild(m, d, h);
   }
   if (d->nefmK) {
     if (!gen_csr) {

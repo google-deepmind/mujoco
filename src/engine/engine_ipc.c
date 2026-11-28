@@ -42,6 +42,8 @@
 #include "engine/engine_thread.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
+#include "engine/engine_util_spatial.h"
 
 #define IPC_NPT 8                    // max vertices in one pair: point-triangle 1+3, edge-edge 2+2
 #define IPC_ASET_AGE 25              // drop a never-engaged pair after this many quiet updates
@@ -50,6 +52,8 @@
 #define IPC_ALPHA_LB 1e-6            // advance xfree only when the CCD fraction exceeds this
 #define IPC_STALL_MAX 64             // outer iterations without a feasible advance: the step froze
 #define IPC_WS_TOL 1e-8              // round-off guard on the working set's residual test (m)
+#define IPC_FRIC_REST 0.1            // friction: a pair rests while its gap exceeds its standoff
+                                     // by no more than this fraction of the standoff
 
 // The three constants below are absolute lengths and speeds, tuned on metre-scale models with
 // millimetre-thick flexes at 1-2 ms steps; a model at another scale needs them rescaled.
@@ -168,12 +172,13 @@ static int ipc_pairEqual(const mjcFlexPair* a, const mjcFlexPair* b) {
 }
 
 
-// Cross-step state lives per flex vertex: the multiplier (d->flexvert_lambda, the max over the
-// pairs touching the vertex) and the contact age (d->flexvert_conage: < 0 loaded recently, > 0
-// quiet updates since). A pair reads the min age over its vertices. The age drives the stiffness
-// decay; eviction is decided in ipc_mergeActiveSet. Both key on the same signal, load at a vertex,
-// so a pair is dropped at the bottom of its decay ramp rather than part way down, and mirror-image
-// contacts stay symmetric (a pair's identity is an arbitrary closest-feature label; load is not).
+// Cross-step state lives per flex vertex: the normal load (d->flexvert_lambda, the weighted sum
+// of the multipliers of the pairs touching the vertex) and the contact age (d->flexvert_conage:
+// < 0 loaded recently, > 0 quiet updates since). A pair reads the min age over its vertices. The
+// age drives the stiffness decay; eviction is decided in ipc_mergeActiveSet. Both key on the same
+// signal, load at a vertex, so a pair is dropped at the bottom of its decay ramp rather than part
+// way down, and mirror-image contacts stay symmetric (a pair's identity is an arbitrary
+// closest-feature label; load is not).
 
 // pair age: the min over its vertices, 0 when none carries one
 static int ipc_conAge(const ipcCon* con, const int* age, const int* pt2vg) {
@@ -234,21 +239,21 @@ static void ipc_flexLamUpdate(const mjtNum* x, const mjtNum* xfree, const mjtNum
     pal[pt2vg[p]] = 0;
   for (int c=0; c < ncand; c++) {
     if (cand[c].lam <= 0) continue;
-    int vv[4], nvv;
-    nvv = mjc_pairVerts(vv, IPC_PAIR(&cand[c]));
-    for (int q=0; q < nvv; q++)
-      if (cand[c].lam > pal[pt2vg[vv[q]]]) pal[pt2vg[vv[q]]] = cand[c].lam;
+    const ipcCon* con = &cand[c];
+    for (int p=0; p < con->lniv; p++)
+      pal[pt2vg[con->liv[p]]] += con->lam * mju_abs(con->lcw[p]);
   }
 }
 
 
 // Merge the fresh candidates into the persistent active set: an existing pair is kept while it
 // carries load or has not yet aged out (see below), and a candidate is added iff it was admitted
-// (cadmit) and is not already present. New entries warm-start lam and the age from the per-vertex
-// stores; the linearization fields are refreshed by the next outer iteration.
+// (cadmit) and is not already present. New entries warm-start lam from any vertex load not already
+// carried by the kept pairs, and the age from the per-vertex stores; the linearization fields are
+// refreshed by the next outer iteration.
 static void ipc_mergeActiveSet(mjData* d, ipcCon** aset, int* naset, const mjcFlexPair* cand,
                                int ncand, const int* cadmit, const mjtNum* pal, const int* conage,
-                               const int* pt2vg) {
+                               const int* pt2vg, int npt) {
   // the merged set goes to a fresh arena block that replaces *aset, the old block being left to
   // the arena's next reset; its size is bounded by the old set plus the admitted candidates, both
   // known here, so the block never overflows
@@ -279,6 +284,12 @@ static void ipc_mergeActiveSet(mjData* d, ipcCon** aset, int* naset, const mjcFl
   mj_markStack(d);
   uint64_t* mkey = mjSTACKALLOC(d, cap, uint64_t);
   int* mtab = mjSTACKALLOC(d, cap, int);
+  mjtNum* rem = mjSTACKALLOC(d, (npt > 0 ? npt : 1), mjtNum);
+  int* nnew = mjSTACKALLOC(d, (npt > 0 ? npt : 1), int);
+  for (int v=0; v < npt; v++) {
+    rem[v] = pal[pt2vg[v]];
+    nnew[v] = 0;
+  }
   uint64_t mask = (uint64_t)(cap - 1);
   for (int i=0; i < cap; i++)
     mtab[i] = 0;
@@ -299,7 +310,14 @@ static void ipc_mergeActiveSet(mjData* d, ipcCon** aset, int* naset, const mjcFl
     mkey[h] = key;
     amerge[nm++] = old[c];
     mtab[h] = nm;
+    if (old[c].lam > 0) {
+      for (int p=0; p < old[c].lniv; p++) {
+        int v = old[c].liv[p];
+        rem[v] = mju_max(0, rem[v] - old[c].lam * mju_abs(old[c].lcw[p]));
+      }
+    }
   }
+  int nkeep = nm;
   // 2) add new admitted broad-phase candidates not already present
   for (int c=0; c < ncand; c++) {
     if (!cadmit[c]) continue;
@@ -313,16 +331,22 @@ static void ipc_mergeActiveSet(mjData* d, ipcCon** aset, int* naset, const mjcFl
     con.type = cand[c].type;
     for (int q=0; q < 4; q++) con.idx[q] = cand[c].idx[q];
     con.gi = cand[c].g;
-    int vv[4], nvv;
-    nvv = mjc_pairVerts(vv, IPC_PAIR(&con));  // warm start from the per-vertex stores
-    mjtNum s = 0;
-    for (int q=0; q < nvv; q++)
-      if (pal[pt2vg[vv[q]]] > s) s = pal[pt2vg[vv[q]]];
-    con.lam = s;
+    int vv[4], nvv = mjc_pairVerts(vv, IPC_PAIR(&con));
+    for (int q=0; q < nvv; q++) nnew[vv[q]]++;
     con.cnt = ipc_conAge(&con, conage, pt2vg);
     mkey[h] = key;
     amerge[nm++] = con;
     mtab[h] = nm;
+  }
+  for (int c=nkeep; c < nm; c++) {
+    int vv[4], nvv = mjc_pairVerts(vv, IPC_PAIR(&amerge[c]));
+    mjtNum s = 0;
+    for (int q=0; q < nvv; q++) {
+      int v = vv[q];
+      mjtNum sv = nnew[v] > 0 ? rem[v] / nnew[v] : 0;
+      if (sv > s) s = sv;
+    }
+    amerge[c].lam = s;
   }
   *aset = amerge;
   *naset = nm;
@@ -371,7 +395,7 @@ int mj_ipcCountDistinct(mjData* d, const mjcFlexPair* cand, int ncand, const mjc
       aset[c] = con;
     }
   }
-  ipc_mergeActiveSet(d, &aset, &naset, cand, ncand, cadmit, pal, conage, pt2vg);
+  ipc_mergeActiveSet(d, &aset, &naset, cand, ncand, cadmit, pal, conage, pt2vg, npt);
   mj_freeStack(d);
   return naset;
 }
@@ -698,6 +722,255 @@ static mjtNum ipc_merit(const mjModel* m, mjData* d, const mjtNum* xt, const mjt
              ipc_contactCost(xt, xfree, mass, rad, ghat, acon, nacon);
   mj_freeStack(d);
   return E;
+}
+
+
+// friction coefficient of a pair, by the engine's rule for mixing two surfaces' parameters
+// (mj_contactParam); 0 for a pair whose contact dimension leaves it frictionless
+static mjtNum ipc_pairFriction(const mjModel* m, const ipcCon* con, const int* pt2flex,
+                               const int* flist) {
+  int vv[4], nvv = mjc_pairVerts(vv, IPC_PAIR(con));
+  int f1 = flist[pt2flex[vv[0]]], f2 = flist[pt2flex[vv[nvv - 1]]];
+  int condim;
+  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5], adhesion;
+  if (con->type == mjcFLEX_VERT_TRI || con->type == mjcFLEX_EDGE_EDGE) {
+    mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, -1, -1, f1, f2);
+  } else {
+    mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, con->gi, -1, -1, f1);
+  }
+  return condim >= 3 ? friction[0] : 0;
+}
+
+
+// add x at column c of a sparse row kept ascending and unique; returns the row's new length
+static int ipc_rowAdd(int* colind, mjtNum* val, int n, int c, mjtNum x) {
+  int i = 0;
+  while (i < n && colind[i] < c) i++;
+  if (i < n && colind[i] == c) {
+    val[i] += x;
+    return n;
+  }
+  for (int j=n; j > i; j--) {
+    colind[j] = colind[j - 1];
+    val[j] = val[j - 1];
+  }
+  colind[i] = c;
+  val[i] = x;
+  return n + 1;
+}
+
+
+// one tangent row of a pair over the model's dofs: the pair's gap-gradient weights along the
+// world direction t, a free vertex through its slide dofs and a point pinned to an articulated
+// body through its chain (a point pinned to a static body has no dofs). Returns its length
+static int ipc_tangentRow(const mjData* d, const ipcCon* con, const mjtNum* t, const int* dofadr,
+                          const int* pbody, const int* pjnv, const int* pjadr, const int* pjdof,
+                          const mjtNum* pjac, int* colind, mjtNum* val) {
+  int n = 0;
+  for (int p=0; p < con->lniv; p++) {
+    int v = con->liv[p];
+    if (dofadr[v] >= 0) {
+      mjtNum Rtt[3];
+      mju_mulMatTVec3(Rtt, d->xmat + 9 * pbody[v], t);  // slide dofs are in the body frame
+      for (int k=0; k < 3; k++)
+        n = ipc_rowAdd(colind, val, n, dofadr[v] + k, con->lcw[p] * Rtt[k]);
+    } else if (pjnv[v] > 0) {
+      int NV = pjnv[v], a0 = pjadr[v];
+      for (int j=0; j < NV; j++) {
+        mjtNum tj = 0;
+        for (int k=0; k < 3; k++) tj += t[k] * pjac[3 * a0 + k * NV + j];
+        n = ipc_rowAdd(colind, val, n, pjdof[a0 + j], con->lcw[p] * tj);
+      }
+    }
+  }
+  return n;
+}
+
+
+// Warm-start pair multipliers from the per-vertex normal load (d->flexvert_lambda) after aset has
+// been linearized at xfree: partition each vertex's load across the resting pairs touching it in
+// proportion to |lcw[p]| (two-sided flex-flex interfaces first, bounded by the lighter side, then
+// one-sided flex-geom interfaces from the remaining load), so the total normal force is conserved
+// regardless of mesh tessellation or shared sharp-feature pairs.
+static void ipc_seedLambda(mjData* d, ipcCon* aset, int naset, const mjtNum* pal,
+                           const mjtNum* mass, const mjtNum* rad, mjtNum ghat, const int* pt2vg,
+                           int npt) {
+  if (!naset || !npt) {
+    return;
+  }
+  mj_markStack(d);
+  char* eng = mjSTACKALLOC(d, naset, char);
+  mjtNum* rem = mjSTACKALLOC(d, npt, mjtNum);
+  mjtNum* wsum = mjSTACKALLOC(d, npt, mjtNum);
+  for (int v=0; v < npt; v++) {
+    rem[v] = pal[pt2vg[v]];
+    wsum[v] = 0;
+  }
+
+  // engage resting pairs; accumulate weights of two-sided flex-flex pairs first
+  for (int c=0; c < naset; c++) {
+    ipcCon* con = &aset[c];
+    con->lam = 0;
+    eng[c] = 0;
+    if (mju_dot3(con->ln, con->ln) < 0.25) continue;
+    mjtNum smax = 0;
+    for (int p=0; p < con->lniv; p++) {
+      mjtNum lv = rem[con->liv[p]];
+      if (lv > smax) smax = lv;
+    }
+    if (smax <= 0) continue;
+    mjtNum delta = mjc_standoff(mjc_pairBand(IPC_PAIR(con), rad, ghat), IPC_DELTACAP);
+    if (con->ld0 - delta > mju_max(1e-3 * delta, smax / ipc_muPair(con, mass))) continue;
+    eng[c] = 1;
+    if (con->type == mjcFLEX_VERT_TRI || con->type == mjcFLEX_EDGE_EDGE) {
+      for (int p=0; p < con->lniv; p++)
+        wsum[con->liv[p]] += mju_abs(con->lcw[p]);
+    }
+  }
+
+  // partition two-sided flex-flex pairs, bounded by the lighter fully engaged side, and subtract
+  // claimed load
+  for (int c=0; c < naset; c++) {
+    ipcCon* con = &aset[c];
+    if (!eng[c] || (con->type != mjcFLEX_VERT_TRI && con->type != mjcFLEX_EDGE_EDGE)) continue;
+    mjtNum fpos = 0, fneg = 0;
+    int all_pos = 1, all_neg = 1;
+    for (int p=0; p < con->lniv; p++) {
+      int v = con->liv[p];
+      mjtNum w = con->lcw[p];
+      if (w > 1e-6) {
+        if (rem[v] <= 0) all_pos = 0;
+        if (wsum[v] > 0) fpos += rem[v] * (w / wsum[v]);
+      } else if (w < -1e-6) {
+        if (rem[v] <= 0) all_neg = 0;
+        if (wsum[v] > 0) fneg += rem[v] * (-w / wsum[v]);
+      }
+    }
+    con->lam = (all_pos && all_neg) ? mju_min(fpos, fneg) :
+               (all_pos ? fpos : (all_neg ? fneg : mju_max(fpos, fneg)));
+  }
+  for (int c=0; c < naset; c++) {
+    const ipcCon* con = &aset[c];
+    if (!eng[c] || con->lam <= 0 ||
+        (con->type != mjcFLEX_VERT_TRI && con->type != mjcFLEX_EDGE_EDGE)) {
+      continue;
+    }
+    for (int p=0; p < con->lniv; p++) {
+      int v = con->liv[p];
+      rem[v] = mju_max(0, rem[v] - con->lam * mju_abs(con->lcw[p]));
+    }
+  }
+
+  // partition remaining vertex load across one-sided flex-geom pairs
+  for (int v=0; v < npt; v++) wsum[v] = 0;
+  for (int c=0; c < naset; c++) {
+    const ipcCon* con = &aset[c];
+    if (!eng[c] || con->type == mjcFLEX_VERT_TRI || con->type == mjcFLEX_EDGE_EDGE) continue;
+    for (int p=0; p < con->lniv; p++)
+      wsum[con->liv[p]] += mju_abs(con->lcw[p]);
+  }
+  for (int c=0; c < naset; c++) {
+    ipcCon* con = &aset[c];
+    if (!eng[c] || con->type == mjcFLEX_VERT_TRI || con->type == mjcFLEX_EDGE_EDGE) continue;
+    mjtNum fn = 0;
+    for (int p=0; p < con->lniv; p++) {
+      int v = con->liv[p];
+      mjtNum w = mju_abs(con->lcw[p]);
+      if (w > 0 && wsum[v] > 0) fn += rem[v] * (w / wsum[v]);
+    }
+    con->lam = fn;
+  }
+  mj_freeStack(d);
+}
+
+
+// Lagged Coulomb friction of the pairs the step starts with (aset, linearized at the committed
+// position), published as the metric's contact class for the step; the class is otherwise empty
+// under the ipc flag, where the pairs' normal forces ride the constraint rows. As for passive
+// contact (effContactBuild in engine_metric.c), a pair's two tangent rows carry the damping of
+// mjd_flexContactFriction, here from
+//   the tangential speed  of the pair's gap-gradient weights over its points' velocities;
+//   the normal force      of a pair resting at its standoff (IPC_FRIC_REST): the multiplier it
+//                         was seeded with by ipc_seedLambda.
+// The rows live on the caller's stack frame. Their forces at the current velocity temporarily join
+// d->efm_c during the step's solves (restored before exit), and the delivered friction force at
+// the committed end velocity joins d->qfrc_constraint. Returns the number of rows.
+static int ipc_friction(const mjModel* m, mjData* d, const ipcCon* aset, int naset,
+                        const mjtNum* mass, const mjtNum* rad, mjtNum ghat,
+                        const int* dofadr,
+                        const int* pbody, const int* pjnv, const int* pjadr, const int* pjdof,
+                        const mjtNum* pjac, const int* pt2flex, const int* flist) {
+  mjtNum h = m->opt.timestep;
+  d->nefmcon = 0;
+  if (!naset || !d->efm_active) {
+    return 0;
+  }
+
+  // the resting pairs with friction and the packed length of their rows
+  char* rest = mjSTACKALLOC(d, naset, char);
+  mjtNum* mu = mjSTACKALLOC(d, naset, mjtNum);
+  int len = 0;
+  for (int c=0; c < naset; c++) {
+    const ipcCon* con = &aset[c];
+    rest[c] = 0;
+    if (con->lam <= 0 || mju_dot3(con->ln, con->ln) < 0.25) continue;
+    mjtNum delta = mjc_standoff(mjc_pairBand(IPC_PAIR(con), rad, ghat), IPC_DELTACAP);
+    if (con->ld0 - delta > IPC_FRIC_REST * delta) continue;
+    mu[c] = ipc_pairFriction(m, con, pt2flex, flist);
+    if (mu[c] <= 0) continue;
+    rest[c] = 1;
+    int n = 0;
+    for (int p=0; p < con->lniv; p++) {
+      int v = con->liv[p];
+      n += dofadr[v] >= 0 ? 3 : (pjnv[v] > 0 ? pjnv[v] : 0);
+    }
+    len += 2 * (2 + n);
+  }
+  if (!len) {
+    return 0;
+  }
+  int* ind = mjSTACKALLOC(d, len, int);
+  mjtNum* val = mjSTACKALLOC(d, len, mjtNum);
+
+  // the rows, packed as the contact class is (engine_metric.h): scale h*c and conid -1
+  int adr = 0, nrow = 0;
+  for (int c=0; c < naset; c++) {
+    if (!rest[c]) continue;
+    const ipcCon* con = &aset[c];
+    mjtNum fn = con->lam;
+
+    // the two tangents of the pair's normal, their rows and the pair's speed along them
+    mjtNum frame[9] = {con->ln[0], con->ln[1], con->ln[2], 0, 0, 0, 0, 0, 0};
+    mju_makeFrame(frame);
+    int radr[2], rn[2];
+    mjtNum vt[2] = {0, 0};
+    for (int r=0; r < 2; r++) {
+      radr[r] = adr;
+      rn[r] = ipc_tangentRow(d, con, frame + 3 * (r + 1), dofadr, pbody, pjnv, pjadr, pjdof,
+                             pjac, ind + adr + 2, val + adr + 2);
+      for (int a=0; a < rn[r]; a++)
+        vt[r] += val[adr + 2 + a] * d->qvel[ind[adr + 2 + a]];
+      if (rn[r]) adr += 2 + rn[r];
+    }
+    mjtNum cf = mjd_flexContactFriction(mu[c], fn, mju_sqrt(vt[0] * vt[0] + vt[1] * vt[1]),
+                                        h * ipc_muPair(con, mass));
+    for (int r=0; r < 2; r++) {
+      if (!rn[r]) continue;
+      ind[radr[r]] = rn[r];
+      ind[radr[r] + 1] = -1;
+      val[radr[r]] = h * cf;
+      val[radr[r] + 1] = 0;
+
+      // the row's force at the current velocity, -c*row'(row.qvel), joins the step's smooth shift
+      for (int a=0; a < rn[r]; a++)
+        d->efm_c[ind[radr[r] + 2 + a]] -= cf * vt[r] * val[radr[r] + 2 + a];
+      nrow++;
+    }
+  }
+  d->efm_con_ind = ind;
+  d->efm_con_val = val;
+  d->nefmcon = adr;
+  return nrow;
 }
 
 
@@ -1079,17 +1352,44 @@ void mj_ipc(const mjModel* m, mjData* d) {
     a0->type = cand[c].type;
     for (int q=0; q < 4; q++) a0->idx[q] = cand[c].idx[q];
     a0->gi = cand[c].g;
-    {
-      int vv[4], npv = mjc_pairVerts(vv, IPC_PAIR(a0));
-      mjtNum s = 0;
-      for (int q=0; q < npv; q++)
-        if (d->flexvert_lambda[pt2vg[vv[q]]] > s) s = d->flexvert_lambda[pt2vg[vv[q]]];
-      a0->lam = s;
-      a0->cnt = ipc_conAge(a0, d->flexvert_conage, pt2vg);
-    }
+    a0->cnt = ipc_conAge(a0, d->flexvert_conage, pt2vg);
   }
   for (int i=0; i < 3 * nstate; i++)
     xfree[i] = xold[i];
+  // linearize the seeded pairs at the committed position, partition the per-vertex normal load
+  // across the resting pairs (ipc_seedLambda), and publish their lagged friction rows in the
+  // metric (ipc_friction), saving efm_c and qacc_smooth to restore at commit
+  mjtNum* efm_c_saved = NULL;
+  mjtNum* qacc_smooth_saved = NULL;
+  if (naset) {
+    ipcGapArg ga = {aset, NULL, NULL, naset, 0, xfree, gv, ge, rad, ghat};
+    ipc_gapLoop(m, d, &ga);
+    ipc_seedLambda(d, aset, naset, d->flexvert_lambda, mass, rad, ghat, pt2vg, npt);
+    if (d->efm_active && m->nv > 0) {
+      efm_c_saved = mjSTACKALLOC(d, m->nv, mjtNum);
+      qacc_smooth_saved = mjSTACKALLOC(d, m->nv, mjtNum);
+      mju_copy(efm_c_saved, d->efm_c, m->nv);
+      mju_copy(qacc_smooth_saved, d->qacc_smooth, m->nv);
+    }
+    if (ipc_friction(m, d, aset, naset, mass, rad, ghat, dofadr, pbody, pjnv, pjadr, pjdof,
+                     pjac, pt2flex, flist)) {
+      mj_markStack(d);
+      mjtNum* qfrc_eff = mjSTACKALLOC(d, m->nv, mjtNum);
+      mju_add(qfrc_eff, d->qfrc_smooth, d->efm_c, m->nv);
+      if (d->efm_ca) mju_addTo(qfrc_eff, d->efm_ca, m->nv);
+      mj_effSolve(m, d, d->qacc_smooth, qfrc_eff);
+      mj_freeStack(d);
+      for (int i=0; i < m->nv; i++)
+        wtil[i] = own[i] ? d->qvel[i] + h * d->qacc_smooth[i] : 0;
+      ipc_points(m, d, wtil, xold, qn_a, h, npt, fidx, dofadr, pbody, pjnv, pt2vg, npa, own,
+                 isflexdof, wtmp, xtil);
+      ipc_points(m, d, w, xold, qn_a, h, npt, fidx, dofadr, pbody, pjnv, pt2vg, npa, own,
+                 isflexdof, wtmp, x);
+    } else {
+      efm_c_saved = NULL;
+      qacc_smooth_saved = NULL;
+    }
+  }
   // outer loop (the paper's Alg. 1): one discrete solve per iteration; beta accumulates the
   // fraction of the motion the committed position has absorbed
   mjtNum beta = 0.0;
@@ -1352,7 +1652,7 @@ void mj_ipc(const mjModel* m, mjData* d) {
       actc[c] = keep;
     }
     ipc_mergeActiveSet(d, &aset, &naset, cand, ncand, actc, d->flexvert_lambda,
-                       d->flexvert_conage, pt2vg);
+                       d->flexvert_conage, pt2vg, npt);
     mj_freeStack(d);
     // reclaim this iteration's candidates and the old set (both dead now): move the merged set
     // down to the set's home offset and release everything above it
@@ -1424,6 +1724,27 @@ void mj_ipc(const mjModel* m, mjData* d) {
     mju_zero(d->qfrc_constraint, m->nv);
   }
   mju_addTo(d->qfrc_constraint, qfrc_rows, m->nv);
+  // include the delivered tangential friction force -c*row'(row.vend) in qfrc_constraint and
+  // restore the pre-step smooth fields and empty contact metric class before sensor evaluation
+  for (int adr=0; adr < d->nefmcon; ) {
+    int nnz = d->efm_con_ind[adr];
+    mjtNum cf = d->efm_con_val[adr] / h;
+    const int* colind = d->efm_con_ind + adr + 2;
+    const mjtNum* val = d->efm_con_val + adr + 2;
+    mjtNum vt = 0;
+    for (int a=0; a < nnz; a++)
+      vt += val[a] * vend[colind[a]];
+    for (int a=0; a < nnz; a++)
+      d->qfrc_constraint[colind[a]] -= cf * vt * val[a];
+    adr += 2 + nnz;
+  }
+  if (efm_c_saved) {
+    mju_copy(d->efm_c, efm_c_saved, m->nv);
+    mju_copy(d->qacc_smooth, qacc_smooth_saved, m->nv);
+  }
+  d->nefmcon = 0;
+  d->efm_con_ind = NULL;
+  d->efm_con_val = NULL;
   // the acceleration-stage sensors: with a dim-2 flex in the model the forward pass skipped the
   // constraint stage (engine_forward.c) and computed them at the free-flight acceleration.
   // Recompute them at the pre-step state from the step's acceleration and constraint force, so a

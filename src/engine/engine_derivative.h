@@ -108,6 +108,28 @@ MJAPI mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam)
 // natural frequency of the law: pair stiffness = mjFLEXCONTACT_OMEGA2 * min nonzero vertex mass
 #define mjFLEXCONTACT_OMEGA2 5e7
 
+// Lagged Coulomb friction of the flex-contact law, shared by the passive penalty and the IPC
+// contact mode. A pair with friction coefficient `mu` that carries the normal force `fn` and
+// slides at the tangential speed `vt` as the step starts resists tangential motion over the step
+// with the viscous coefficient
+//
+//   c = mu*fn / max(vt, mjFLEXCONTACT_VSLIP)
+//
+// so its force -c*v is linear in the end-of-step tangential velocity v: a damping c along the
+// pair's two tangent rows, which the metric carries as h*c*row'row. A sliding pair is opposed by
+// mu*fn; a sticking one creeps at mjFLEXCONTACT_VSLIP times the fraction of mu*fn in use.
+// Both the normal force and the slip speed are lagged: a pair that starts to slide is held above
+// mu*fn for the step in which it does, and `fn` must be a force the pair has delivered, not one
+// it is about to (the penalty's force on first penetration is not: see effContactBuild).
+// c is capped at `cmax`, for which the producers pass h*k with k the pair's normal stiffness: a
+// tangent row is then never stiffer in the metric than the pair's normal row (h*c <= h^2*k), so
+// friction cannot worsen the metric's conditioning beyond what the normal law already costs. The
+// cap binds where the lagged normal force is far above the load, as the penalty's is on impact.
+MJAPI mjtNum mjd_flexContactFriction(mjtNum mu, mjtNum fn, mjtNum vt, mjtNum cmax);
+
+// slip speed below which the friction law is viscous (m/s)
+#define mjFLEXCONTACT_VSLIP 1e-3
+
 // point mass of global flex vertex gv, 0 when it has no 3-dof body of its own (pinned)
 MJAPI mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv);
 

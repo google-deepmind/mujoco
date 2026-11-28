@@ -2119,9 +2119,10 @@ Deformables
 
 **Contact** (:ref:`selfcollide <flex-contact-selfcollide>`: ``"auto"``, :ref:`passive <flex-contact-passive>`: ``"false"``):
    Set ``selfcollide="none"`` unless the flex folds onto itself. ``passive="true"`` replaces flex-flex, self and
-   static-geom contact rows with an implicit penalty force, cheaper and more stable in piled cloth, but frictionless,
-   so keep it off where grip or resting friction matters. The experimental :ref:`ipc <option-flag-ipc>` flag gives
-   intersection-free (but also frictionless) contact for thin 2D flexes, and requires ``Newton``.
+   static-geom contact rows with an implicit penalty force, cheaper and more stable in piled cloth; for ``condim >= 3``
+   it models lagged Coulomb sliding friction (regularized below ``1e-3`` m/s, so sustained tangential load creeps
+   slowly). The experimental :ref:`ipc <option-flag-ipc>` flag gives intersection-free contact with the same lagged
+   Coulomb friction for thin 2D flexes, using ``Newton`` or ``CG``.
 
 .. _CTuningSysid:
 

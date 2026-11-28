@@ -172,7 +172,9 @@ TEST_F(MetricTest, FlexRodTwistHessian) {
 
 // verify passive contact metric and velocity shift on interpolated flexes
 // (trilinear volumetric, trilinear shell elastic2d="bend", quadratic, and with
-// pinned cage nodes) against central finite differences of qfrc_spring
+// pinned cage nodes) against central finite differences of qfrc_spring. The
+// contact is frictionless (condim 1): its metric is then the stiffness of the
+// normal law alone, where friction would add a velocity-dependent damping
 TEST_F(MetricTest, FlexInterpPassiveContactDerivatives) {
   struct Case {
     const char* name;
@@ -199,12 +201,12 @@ TEST_F(MetricTest, FlexInterpPassiveContactDerivatives) {
     <mujoco>
       <option integrator="discrete" gravity="0 0 0" timestep="0.002"/>
       <worldbody>
-        <geom name="floor" type="plane" size="2 2 0.1"/>
+        <geom name="floor" type="plane" size="2 2 0.1" condim="1"/>
         <flexcomp name="box" type="grid" count="3 3 3" cellcount="1 1 1"
                   spacing="0.1 0.1 0.1" radius="0.01" dim="3" mass="1.0"
                   pos="0 0 0.09" dof=")") +
                       tc.dof + R"(">
-          <contact selfcollide="none" passive="true"/>
+          <contact selfcollide="none" passive="true" condim="1"/>
           )" + tc.elasticity +
                       "\n" + tc.pin + R"(
         </flexcomp>

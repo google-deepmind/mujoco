@@ -30,9 +30,12 @@ extern "C" {
 //
 //   ind = [nnz, conid, colind...]      val = [scale, force, val...]
 //
-// scale is the curvature the metric applies, force the pair's force along the row, conid the
-// contact it came from. Apply the published forces: res += force * row over the rows.
-MJAPI void mj_effContactForce(const mjData* d, mjtNum* res);
+// scale is the curvature the metric applies, force the pair's force along the row. For a normal
+// row conid >= 0 is its index in d->contact; a pair with friction under load is followed by its
+// two tangent rows with conid = ~i (< 0), whose velocity-dependent damping scale h*c and force
+// -c*(row.qvel) are refreshed at the velocity stage by mj_effContactPassive (and skipped by the
+// positional shift in mj_effShift).
+MJAPI void mj_effContactPassive(const mjModel* m, mjData* d);
 
 // actuation-stage refresh of the metric: actuator gains, their shift, the backbone (factored
 // if flg_factor)

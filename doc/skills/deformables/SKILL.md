@@ -377,14 +377,19 @@ Attach remote ends to moving bodies (`model/flex/mechanisms/cantilever.xml`):
     cells (needs `cellcount >= 3`); self-collisions ignore `margin`/`gap`.
     Interpolated flexes cap at 50 contacts/geom (`mjMAXCONPAIR`). Under heavy
     indenters, use `solref` ~ `2*timestep` + `"0.9999 0.9999 0.001"` `solimp`.
--   **Frictional contacts vs. `passive="true"` vs. `ipc`:**
-    -   *Grasping / friction:* Keep `passive="false"` with `<option
-        cone="elliptic" impratio="10"/>` and `condim="4"`/`"6" priority="1"`.
+-   **Solver contacts vs. `passive="true"` vs. `ipc`:**
+    -   *Grasping / exact stiction / `condim="4"`/`"6"`:* Keep `passive="false"`
+        with `<option cone="elliptic" impratio="10"/>` and `condim="4"`/`"6"
+        priority="1"` (exact Coulomb cone, torsional/rolling friction).
     -   *Piled cloth (`passive="true"`, `dim >= 2` non-rigid; ignored on `1`/
-        `rigid`):* Frictionless implicit normal penalty in `M_hat` (`discrete` +
-        `Newton`/`CG`, `sleep`+`island` ok, `drape.xml`).
-    -   *2D IPC (`<flag ipc="enable"/>`):* Experimental frictionless barrier 2D
-        contact (`discrete` + `Newton`/`CG`; no `sleep`/`fwdinv`, `bag.xml`).
+        `rigid`):* Implicit normal penalty in `M_hat` with isotropic lagged
+        Coulomb sliding friction (`condim >= 3`, `1e-3` m/s slip threshold;
+        `condim="1"` for frictionless; `discrete` + `Newton`/`CG`,
+        `sleep`+`island` ok, `drape.xml`).
+    -   *2D IPC (`<flag ipc="enable"/>`):* Experimental barrier 2D contact with
+        isotropic lagged Coulomb sliding friction (`condim >= 3`, `1e-3` m/s
+        slip threshold; `condim="1"` for frictionless; `discrete` +
+        `Newton`/`CG`; no `sleep`/`fwdinv`, `bag.xml`).
 -   **`type="mesh"` vs. `type="gmsh"`:** `type="mesh"` loads surface triangles
     (`dim="2"` XML default; **Python `make_flex` defaults `dim=3`**, pass `2`!).
     `dim="3"` connects faces to `origin` (star-convex; **omitting `origin`
@@ -490,7 +495,7 @@ Tracks A and B run on **`MJWarp` (`mujoco_warp`, `impl='warp'`)** in `float32`
 | `dim="2"` zero stiffness, `"positive thickness"`, `"R0 is not orthonormal"`, or `"Pin grid..."` | `elastic2d` defaults to `"none"`; `thickness` defaults to `-1`; flat `dim="2"` interpolated lattice has degenerate 3D bounding box; `<pin grid>` int count mismatch | Set `elastic2d="both"`/`"stretch"` with `thickness > 0`, use `dof="full"` on flat sheets, and pass `dim` ints per `grid` point / `2*dim` per `gridrange`. |
 | `"flex constraints and elasticity (young) cannot both be present"` | `<edge equality>` plus `young > 0` on a 2D/3D flex (only 1D rods and `elastic2d="bend"` allow both) | Drop `young` (Track B) or drop `<edge equality>` (Track A). |
 | 3D beam or 2D grid plate too stiff; 1D rod stretches; or `"positive radius"` | `trilinear` under-predicts bending deflection by 50-98% and `poisson > 0.45` locks; `type="grid"` uniform-diagonal quads are ~1.8x stiff in hinge bending; `<edge equality>` stretch scales with `timeconst` (`>= 2*timestep` under `refsafe`) and vertex count | Use `dof="quadratic" cellcount="2 1 1"` and `poisson <= 0.45`; use staggered `type="direct"` meshes when plate bending accuracy matters; tighten `<edge equality="true" solref="0.002 1"/>` (`discrete`) and `radius > 0`. |
-| Cloth slides off static sphere; or `<connect>` end jitters | `passive="true"`/`ipc` is frictionless; `<exclude>` ignores `flex:geom` pairs so attached geom hits flex | Set `passive="false"` for friction; isolate fittings with `contype`/`conaffinity` bitmasks (`0` or `2`). |
+| Cloth slides or creeps on static sphere; or `<connect>` end jitters | `condim="1"` or `friction="0"` disables friction (or `passive="true"`/`ipc` lagged friction creeps up to `1e-3` m/s); `<exclude>` ignores `flex:geom` pairs so attached geom hits flex | Set `condim="3"` and positive `friction` (or `passive="false"` for exact stiction / `condim="4"`/`"6"`); isolate fittings with `contype`/`conaffinity` bitmasks (`0` or `2`). |
 | Heavy rigid body sinks into a fine flex or droops on `<connect>`/`<weld>` | Contact and equality stiffnesses scale with light flex vertex masses (`0.02 1` default `solref` droops mm; default `solimp` penetrates 0.5-1.3 mm) | Set `solref="0.002 1"` on `<connect>`/`<weld>`; for contacts set `solref="0.004 1"` (`~2*timestep`) and `solimp="0.9999 0.9999 0.001"`, or use coarser DOFs. |
 | `mjWARN_CNSTRFULL`, or `MJWarp` `d.overflow` / `NaN`s | Heavy contact fill-in exceeded `mjData.arena` (or small `<size memory="4M"/>`); on `MJWarp`, default `make_data` capacities (`nefc`, narrowphase, CCD, `njmax_nnz`) overflowed | Remove small `<size memory>` or raise `<size memory="100M"/>` (`spec.memory` bytes); on `MJWarp`, pass `nconmax >= 16384`, `njmax >= 16384`, `njmax_nnz >= 1048576`. |
 

@@ -5429,7 +5429,8 @@ TEST_F(ElasticityTest, RodFreeTumblingParallelTransport) {
 // passive contact on interpolated flexes (trilinear volumetric, trilinear shell
 // elastic2d="bend", quadratic, and with pinned cage nodes): contacts are routed
 // to d->nefmcon with d->nefc == 0 and produce upward repulsive qfrc_spring on
-// the cage nodes matching the basis-interpolated contact force
+// the cage nodes matching the basis-interpolated contact force. The contact is
+// frictionless (condim 1), so every published row is a normal row with a force
 TEST_F(ElasticityTest, InterpPassiveContactForceAndPin) {
   struct Case {
     const char* name;
@@ -5457,12 +5458,12 @@ TEST_F(ElasticityTest, InterpPassiveContactForceAndPin) {
     <mujoco>
       <option integrator="discrete" gravity="0 0 -9.81" timestep="0.002"/>
       <worldbody>
-        <geom name="floor" type="plane" size="2 2 0.1"/>
+        <geom name="floor" type="plane" size="2 2 0.1" condim="1"/>
         <flexcomp name="box" type="grid" count="3 3 3" cellcount="1 1 1"
                   spacing="0.1 0.1 0.1" radius="0.01" dim="3" mass="1.0"
                   pos="0 0 0.095" dof=")") +
                       tc.dof + R"(">
-          <contact selfcollide="none" passive="true"/>
+          <contact selfcollide="none" passive="true" condim="1"/>
           )" + tc.elasticity +
                       "\n" + tc.pin + R"(
         </flexcomp>

@@ -262,6 +262,7 @@ class ModelWarp(PyTreeNode):
   efm_all_covered_or_twist: bool
   efm_chol_active: bool
   efm_con_max_dof: int
+  efm_con_stride: int
   efm_dofid: np.ndarray
   efm_general_csr: bool
   efm_max_chain: int
@@ -1128,6 +1129,7 @@ _NDIM = {
         'efm_all_covered_or_twist': 0,
         'efm_chol_active': 0,
         'efm_con_max_dof': 0,
+        'efm_con_stride': 0,
         'efm_dofid': 1,
         'efm_general_csr': 0,
         'efm_max_chain': 0,
@@ -2020,6 +2022,7 @@ _BATCH_DIM = {
         'efm_all_covered_or_twist': False,
         'efm_chol_active': False,
         'efm_con_max_dof': False,
+        'efm_con_stride': False,
         'efm_dofid': False,
         'efm_general_csr': False,
         'efm_max_chain': False,

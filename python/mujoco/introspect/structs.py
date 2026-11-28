@@ -6314,7 +6314,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='flex contact multiplier',
+                 doc='weighted sum of flex contact multipliers',
                  array_extent=('nflexvert',),
              ),
              StructFieldDecl(

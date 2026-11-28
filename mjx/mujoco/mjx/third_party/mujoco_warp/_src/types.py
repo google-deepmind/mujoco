@@ -1823,6 +1823,7 @@ class Model:
     flex_rodhinge_map: flex id and flex_bending address of each rod hinge   (nflexrodhinge, 2)
     nflexrodedge: number of 1D DER rod chain edges across all flexes
     efm_con_max_dof: maximum DOFs affected by a passive flex contact
+    efm_con_stride: rows per contact in passive flex metric buffers (1 or 3)
     flex_rod_is_chain: whether flex is an open 1D single-hinge DER chain    (nflex,)
     flex_rod_has_twist: whether flex is a 1D DER rod with twist or box      (nflex,)
     flex_rod_is_box: whether flex is a 1D DER rod with box cross-section    (nflex,)
@@ -2421,6 +2422,7 @@ class Model:
   flex_rodhinge_map: array("nflexrodhinge", wp.vec2i)
   nflexrodedge: int
   efm_con_max_dof: int
+  efm_con_stride: int
   flex_rod_is_chain: array("nflex", bool)
   flex_rod_has_twist: array("nflex", bool)
   flex_rod_is_box: array("nflex", bool)

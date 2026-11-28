@@ -171,6 +171,7 @@ def _forward_shim(
     efm_all_covered_or_twist: bool,
     efm_chol_active: bool,
     efm_con_max_dof: int,
+    efm_con_stride: int,
     efm_dofid: wp.array[int],
     efm_general_csr: bool,
     efm_max_chain: int,
@@ -906,6 +907,7 @@ def _forward_shim(
   _m.efm_all_covered_or_twist = efm_all_covered_or_twist
   _m.efm_chol_active = efm_chol_active
   _m.efm_con_max_dof = efm_con_max_dof
+  _m.efm_con_stride = efm_con_stride
   _m.efm_dofid = efm_dofid
   _m.efm_general_csr = efm_general_csr
   _m.efm_max_chain = efm_max_chain
@@ -2495,6 +2497,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.efm_all_covered_or_twist,
       m._impl.efm_chol_active,
       m._impl.efm_con_max_dof,
+      m._impl.efm_con_stride,
       m._impl.efm_dofid,
       m._impl.efm_general_csr,
       m._impl.efm_max_chain,
@@ -3429,6 +3432,7 @@ def _step_shim(
     efm_all_covered_or_twist: bool,
     efm_chol_active: bool,
     efm_con_max_dof: int,
+    efm_con_stride: int,
     efm_dofid: wp.array[int],
     efm_general_csr: bool,
     efm_max_chain: int,
@@ -4180,6 +4184,7 @@ def _step_shim(
   _m.efm_all_covered_or_twist = efm_all_covered_or_twist
   _m.efm_chol_active = efm_chol_active
   _m.efm_con_max_dof = efm_con_max_dof
+  _m.efm_con_stride = efm_con_stride
   _m.efm_dofid = efm_dofid
   _m.efm_general_csr = efm_general_csr
   _m.efm_max_chain = efm_max_chain
@@ -5810,6 +5815,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.efm_all_covered_or_twist,
       m._impl.efm_chol_active,
       m._impl.efm_con_max_dof,
+      m._impl.efm_con_stride,
       m._impl.efm_dofid,
       m._impl.efm_general_csr,
       m._impl.efm_max_chain,

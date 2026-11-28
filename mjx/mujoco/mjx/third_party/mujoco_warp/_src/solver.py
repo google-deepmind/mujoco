@@ -3030,6 +3030,8 @@ def _add_flexcon_metric_dense(max_dof: int, deterministic: bool = False):
 
   @wp.kernel(module="unique", module_options=module_options)
   def kernel(
+    # Model:
+    efm_con_stride: int,
     # Data in:
     contact_worldid_in: wp.array[int],
     nacon_in: wp.array[int],
@@ -3042,23 +3044,24 @@ def _add_flexcon_metric_dense(max_dof: int, deterministic: bool = False):
     # Out:
     h_out: wp.array3d[float],
   ):
-    cid = wp.tid()
+    rowid = wp.tid()
+    cid = rowid // efm_con_stride
     nacon = wp.min(nacon_in[0], contact_worldid_in.shape[0])
     if cid >= nacon:
       return
     worldid = contact_worldid_in[cid]
     if ctx_done_in[worldid]:
       return
-    scale = efm_con_scale_in[cid]
-    nnz = efm_con_nnz_in[cid]
+    scale = efm_con_scale_in[rowid]
+    nnz = efm_con_nnz_in[rowid]
     if scale != 0.0 and nnz > 0:
       for i in range(nnz):
-        c1 = efm_con_dof_in[cid, i]
-        s_v1 = scale * efm_con_val_in[cid, i]
+        c1 = efm_con_dof_in[rowid, i]
+        s_v1 = scale * efm_con_val_in[rowid, i]
         for j in range(nnz):
-          c2 = efm_con_dof_in[cid, j]
+          c2 = efm_con_dof_in[rowid, j]
           if c2 >= c1:
-            wp.atomic_add(h_out, worldid, c1, c2, s_v1 * efm_con_val_in[cid, j])
+            wp.atomic_add(h_out, worldid, c1, c2, s_v1 * efm_con_val_in[rowid, j])
 
   return kernel
 
@@ -4421,8 +4424,9 @@ def _add_discrete_metric_h(
     efm_con_dof, efm_con_val, efm_con_scale, _, efm_con_nnz = efm_con
     wp.launch(
       _add_flexcon_metric_dense(m.efm_con_max_dof if det_atomics else 0, det_atomics),
-      dim=d.naconmax,
+      dim=m.efm_con_stride * d.naconmax,
       inputs=[
+        m.efm_con_stride,
         d.contact.worldid,
         d.nacon,
         efm_con_dof,

@@ -770,9 +770,10 @@ from its default.
    combined with the ``fwdinv`` or ``sleep`` flags. It applies model-wide: every flex the mode supports has its contact
    solved this way. Contacts between two supported flexes, and between a supported flex and a static plane, sphere,
    capsule, box or mesh, are resolved by the mode and the collision pipeline does not generate them; contacts with
-   moving bodies and with the other geom types keep their constraint rows. The pairs the mode resolves are
-   frictionless: they carry normal forces only, and the friction parameters of the flexes and geoms involved do not
-   apply to them.
+   moving bodies and with the other geom types keep their constraint rows. Pairs with combined ``condim >= 3`` carry
+   isotropic lagged Coulomb sliding friction using the pair's first ``friction`` coefficient (regularized below
+   ``1e-3`` m/s and evaluated from the normal load and slip velocity at the start of the step); ``condim="1"`` keeps a
+   pair frictionless, and torsional and rolling friction are not modelled.
    The usual collision filtering applies to the pairs the mode resolves: none with the ``contact`` flag disabled, the
    contype/conaffinity rule of contact :ref:`selection<coSelection>` between a flex and a geom or between two flexes,
    and each flex's ``selfcollide`` for its self-contact. A pinned flex vertex may ride a static body or a body reached
@@ -4821,13 +4822,15 @@ extensions specific to flexes.
 
 :at:`passive`: :at-val:`[true, false], "false"`
    When enabled, contact of this flex with another flex, with itself, or with static geometry is not added to the
-   contact solver and is instead applied as a passive normal force. Contact with a body that can move is left on the
+   contact solver and is instead applied as a passive force. Contact with a body that can move is left on the
    constraint solver.
 
-   Friction is not modelled on this path: every passive contact is frictionless (condim 1) regardless of the
-   specified condim, and the force is purely normal. A flex therefore slides freely over static geometry, so a cloth
-   will not stay draped over a fixed shape and will not come to rest on a slope. Where friction matters more than
-   non-penetration, leave this option off.
+   Contacts with ``condim >= 3`` include isotropic lagged Coulomb sliding friction using the pair's first ``friction``
+   coefficient, integrated implicitly as viscous damping regularized below ``1e-3`` m/s from the normal penalty force
+   and slip velocity at the start of the step (skipping contacts on first impact). Because static friction is
+   approximated by viscous regularization, sustained tangential load produces slow creep on the order of ``1 mm/s``;
+   set ``condim="1"`` for frictionless contacts, or leave this option off when exact dry stiction or torsional/rolling
+   friction is required.
 
    The force is a penalty on penetration depth whose stiffness is chosen as a natural frequency scaled by the
    participating vertex mass (or for interpolated flexes, the effective cage node mass at the contact point scaled by

@@ -4062,7 +4062,8 @@ TEST_F(ActuatorDampingTest, DampingVsKvGearScaling) {
 
 // Passive flex contact stiffness is far beyond the explicit limit (~50x)
 // because its curvature is carried by the metric. Both curvature and shift are
-// needed; without the shift it rings apart.
+// needed; without the shift it rings apart. Frictionless (condim="1") to test
+// the normal penalty alone.
 TEST_F(ImplicitIntegratorTest, PassiveFlexContactInMetric) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -4070,13 +4071,13 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactInMetric) {
     <worldbody>
       <flexcomp name="lower" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
                 radius=".004" mass=".3" pos="0 0 .2">
-        <contact selfcollide="auto" passive="true"/>
+        <contact selfcollide="auto" passive="true" condim="1"/>
         <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
         <pin id="0 8 72 80"/>
       </flexcomp>
       <flexcomp name="upper" type="grid" dim="2" count="5 5 1" spacing=".04 .04 1"
                 radius=".004" mass=".1" pos="0 0 .27">
-        <contact selfcollide="auto" passive="true"/>
+        <contact selfcollide="auto" passive="true" condim="1"/>
         <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
       </flexcomp>
     </worldbody>
@@ -4338,6 +4339,123 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactOnlyInMetric) {
   // separate per-island vs. combined monolithic CG trajectories)
   EXPECT_THAT(AsVector(d1->qpos, model->nq),
               Pointwise(MjNear(2e-6, 1e-5), AsVector(d2->qpos, model->nq)));
+}
+
+// Friction of passive flex contact, on a cloth lying on a slope (gravity is
+// tilted, the plane is not): below the friction angle the lagged Coulomb law
+// holds it up to the creep of its viscous zone, above the angle it opposes the
+// slide with mu times the normal force, and condim 1 leaves the contact
+// frictionless.
+TEST_F(ImplicitIntegratorTest, PassiveFlexContactFriction) {
+  static constexpr char xml_format[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG"
+            gravity="%.17g 0 %.17g"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1" friction="%g" condim="%d"/>
+      <flexcomp name="cloth" type="grid" dim="2" count="3 3 1"
+                spacing=".04 .04 1" radius=".004" mass=".09" pos="0 0 .004">
+        <contact passive="true" selfcollide="none" friction="%g" condim="%d"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  const mjtNum g = 9.81;
+  const int nstep = 250;
+
+  // mean displacement of the cloth along the slope after nstep steps
+  auto slide = [&](mjtNum slope, mjtNum mu, int condim) -> mjtNum {
+    mjtNum norm = std::sqrt(1 + slope * slope);
+    char xml[2048];
+    std::snprintf(xml, sizeof(xml), xml_format, g * slope / norm, -g / norm, mu,
+                  condim, mu, condim);
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+    EXPECT_THAT(m, NotNull()) << error;
+    if (!m) {
+      return 0;
+    }
+    MjDataPtr d = MakeData(m);
+    const mjModel* model = m.get();
+    mjData* data = d.get();
+    mj_forward(model, data);
+    auto mean_x = [&]() {
+      mjtNum x = 0;
+      for (int i = 0; i < model->nflexvert; i++) {
+        x += data->flexvert_xpos[3 * i] / model->nflexvert;
+      }
+      return x;
+    };
+    mjtNum x0 = mean_x();
+    for (int i = 0; i < nstep; i++) {
+      mj_step(model, data);
+    }
+    EXPECT_FALSE(data->warning[mjWARN_BADQACC].number);
+    EXPECT_GT(data->nefmcon, 0) << "the cloth left the plane";
+    mj_forward(model, data);
+    if (condim >= 3 && slope > mu) {
+      int nv = model->nv;
+      mjtNum fx_damp = 0;
+      for (int i = 0; i < model->nflexvert; i++) {
+        fx_damp += data->qfrc_damper[3 * i];
+        EXPECT_MJTNUM_EQ(data->efm_c[3 * i], 0);
+        EXPECT_MJTNUM_EQ(data->efm_c[3 * i + 1], 0);
+      }
+      EXPECT_LT(fx_damp, 0);
+      for (int i = 0; i < nv; i++) {
+        EXPECT_MJTNUM_EQ(data->qfrc_passive[i],
+                         data->qfrc_spring[i] + data->qfrc_damper[i]);
+      }
+
+      // mj_forwardSkip(mjSTAGE_POS) refreshes friction for a new qvel
+      MjDataPtr d_ref = MakeData(m);
+      mju_copy(d_ref->qpos, data->qpos, model->nq);
+      for (int i = 0; i < nv; i++) {
+        data->qvel[i] = -0.3 * data->qvel[i] + 0.05 * ((i % 3) - 1);
+        d_ref->qvel[i] = data->qvel[i];
+      }
+      mj_forwardSkip(model, data, mjSTAGE_POS, 0);
+      mj_forward(model, d_ref.get());
+      EXPECT_EQ(AsVector(data->qfrc_damper, nv),
+                AsVector(d_ref->qfrc_damper, nv));
+      EXPECT_EQ(AsVector(data->qfrc_passive, nv),
+                AsVector(d_ref->qfrc_passive, nv));
+      EXPECT_EQ(AsVector(data->efm_c, nv), AsVector(d_ref->efm_c, nv));
+      EXPECT_EQ(AsVector(data->efm_con_val, data->nefmcon),
+                AsVector(d_ref->efm_con_val, d_ref->nefmcon));
+      EXPECT_THAT(AsVector(data->qacc, nv),
+                  Pointwise(MjNear(1e-11, 1e-5), AsVector(d_ref->qacc, nv)));
+
+      // discrete inverse dynamics recovers zero applied force under friction
+      mj_inverse(model, data);
+      mjtNum scale = mju_max(1.0, mju_norm(data->qfrc_passive, nv));
+      EXPECT_LT(mju_norm(data->qfrc_inverse, nv), MjTol(1e-6, 1e-3) * scale);
+    }
+    return mean_x() - x0;
+  };
+  mjtNum time = nstep * 0.002;
+
+  // frictionless: the full component of gravity along the slope
+  mjtNum slope = 0.2, mu = 0.5;
+  mjtNum along = g * slope / std::sqrt(1 + slope * slope);
+  mjtNum dx_free = slide(slope, mu, 1);
+  EXPECT_NEAR(dx_free, 0.5 * along * time * time, 0.04 * dx_free);
+
+  // below the friction angle: held, creeping at no more than the slip speed
+  // times the fraction of the friction capacity in use
+  mjtNum dx_stick = slide(slope, mu, 3);
+  mjtNum creep = mjFLEXCONTACT_VSLIP * slope / mu * time;
+  EXPECT_GT(dx_stick, 0);
+  EXPECT_LT(dx_stick, 1.5 * creep);
+
+  // above it: gravity along the slope less mu times the normal force. The
+  // lagged law overshoots mu*fn by the growth of the speed over a step, which
+  // costs a few percent of the distance over these steps
+  slope = 1;
+  along = g * (slope - mu) / std::sqrt(1 + slope * slope);
+  mjtNum dx_slide = slide(slope, mu, 3);
+  EXPECT_NEAR(dx_slide, 0.5 * along * time * time, 0.1 * dx_slide);
 }
 
 // Passive contact on interpolated flexes (trilinear volumetric, trilinear shell

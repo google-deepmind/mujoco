@@ -2138,6 +2138,16 @@ mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam) {
 }
 
 
+// lagged friction coefficient of the flex-contact law (see engine_derivative.h); 0 for a pair
+// without friction or without load
+mjtNum mjd_flexContactFriction(mjtNum mu, mjtNum fn, mjtNum vt, mjtNum cmax) {
+  if (mu <= 0 || fn <= 0) {
+    return 0;
+  }
+  return mju_min(mu*fn / mju_max(vt, mjFLEXCONTACT_VSLIP), cmax);
+}
+
+
 static mjtNum flexBodyMass(const mjModel* m, const mjData* d, int body) {
   if (body < 0) {
     return 0;

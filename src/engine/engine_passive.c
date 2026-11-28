@@ -1119,7 +1119,7 @@ int mj_contactPassive(const mjModel* m, mjData* d) {
     return 0;
   }
 
-  mj_effContactForce(d, d->qfrc_spring);
+  mj_effContactPassive(m, d);
   return 1;
 }
 

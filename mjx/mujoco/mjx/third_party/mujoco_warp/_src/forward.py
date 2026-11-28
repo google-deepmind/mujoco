@@ -2537,6 +2537,7 @@ def _discrete_free_gyro_kernel(
     efm_K_rownnz: wp.array[int],
     body_freeadr: wp.array[int],
     flex_stiff_possible: wp.array[bool],
+    efm_con_stride: int,
     # Data in:
     nefc_in: wp.array[int],
     qvel_in: wp.array2d[float],
@@ -2627,12 +2628,15 @@ def _discrete_free_gyro_kernel(
     if wp.static(has_flex_passive):
       nacon = wp.min(nacon_in[0], contact_worldid_in.shape[0])
       for cid in range(tid, nacon, nthread):
-        if contact_worldid_in[cid] == worldid and efm_con_scale_in[cid] != 0.0:
-          nnz = efm_con_nnz_in[cid]
-          for j in range(nnz):
-            c = efm_con_dof_in[cid, j]
-            if c >= dof_adr and c < dof_adr + 6:
-              coupled = 1
+        if contact_worldid_in[cid] == worldid:
+          for r in range(efm_con_stride):
+            rowid = efm_con_stride * cid + r
+            if efm_con_scale_in[rowid] != 0.0:
+              nnz = efm_con_nnz_in[rowid]
+              for j in range(nnz):
+                c = efm_con_dof_in[rowid, j]
+                if c >= dof_adr and c < dof_adr + 6:
+                  coupled = 1
     if wp.tile_max(wp.tile(coupled))[0] != 0 or tid != 0:
       return
 
@@ -2747,6 +2751,7 @@ def _launch_discrete_free_gyro(m: Model, d: Data, out: wp.array2d[float], qacc: 
       m.efm_K_rownnz,
       m.body_freeadr,
       m.flex_stiff_possible,
+      m.efm_con_stride,
       d.nefc,
       d.qvel,
       qacc,
