@@ -168,6 +168,8 @@ typedef struct mjrfFogOpts_ {
   float cutoff;                   // point at which fog is no longer rendered; defaults to infinity
   float height;                   // height of the fog floor
   float height_falloff;           // fog dissipation with altitude; defaults to 1.0
+  float in_scattering_start;      // distance where light in-scattering starts
+  float in_scattering_size;       // halo size; defaults to -1 (disabled)
 } mjrfFogOpts;
 
 // Initializes the mjrfFogOpts to default values.
@@ -181,6 +183,8 @@ typedef struct mjrfBloomOpts_ {
   int levels;                     // number of blur levels; defaults to 6
   mjtBool lens_flare;             // render screen-space lens flare
   mjtBool starburst;              // render starburst on lens flare
+  float dirt_strength;            // strength of lens dirt; defaults to 0.2
+  uint32_t resolution;            // minor-axis resolution in pixels; defaults to 384
 } mjrfBloomOpts;
 
 // Initializes the mjrfBloomOpts to default values.
@@ -250,6 +254,8 @@ typedef struct mjrfColorGradingOpts_ {
   float shadow_gamma[3];          // gamma adjustment of shadows; defaults to [1, 1, 1]
   float mid_point[3];             // shadows/highlights boundaries; defaults to [1, 1, 1]
   float highlight_scale[3];       // scale of highlights; defaults to [1, 1, 1]
+  mjtBool luminance_scaling;      // scale luminance to desaturate bright highlights
+  mjtBool gamut_mapping;          // map colors into the output gamut
 } mjrfColorGradingOpts;
 
 // Initializes the mjrfColorGradingOpts to default values.

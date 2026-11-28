@@ -461,6 +461,14 @@ specified in the model use the defaults listed below. All flag names begin with 
         - real
         - [filament default]
         - Strength of the bloom effect, between 0 and 1.
+      * - ``bloom.dirt_strength``
+        - real
+        - [filament default]
+        - Strength of the lens-dirt effect.
+      * - ``bloom.resolution``
+        - int
+        - [filament default]
+        - Resolution of the bloom's minor axis, in pixels (up to 2048).
       * - ``bloom.quality``
         - string
         - "low"
@@ -487,6 +495,14 @@ specified in the model use the defaults listed below. All flag names begin with 
         - real
         - 0
         - Exposure adjustment, in stops.
+      * - ``cg.luminance_scaling``
+        - bool
+        - 0
+        - Scale luminance to desaturate very bright highlights.
+      * - ``cg.gamut_mapping``
+        - bool
+        - 0
+        - Map out-of-gamut colors into the output gamut.
       * - ``cg.temperature``
         - real
         - 0
@@ -598,6 +614,14 @@ specified in the model use the defaults listed below. All flag names begin with 
         - real
         - [filament default]
         - Falloff of fog density with height.
+      * - ``fog.in_scattering_start``
+        - real
+        - [filament default]
+        - Distance at which light in-scattering starts.
+      * - ``fog.in_scattering_size``
+        - real
+        - [filament default]
+        - Size of the light in-scattering halo (>0 to activate).
 
 .. collapse:: Vignette
 

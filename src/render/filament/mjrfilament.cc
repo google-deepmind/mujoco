@@ -14,6 +14,7 @@
 
 #include <mujoco/mjrfilament.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -286,6 +287,8 @@ void mjrf_defaultFogOpts(mjrfFogOpts* opts) {
   opts->cutoff = INFINITY;
   opts->height = 0.0f;
   opts->height_falloff = 1.0f;
+  opts->in_scattering_start = 0.0f;
+  opts->in_scattering_size = -1.0f;
 }
 
 void mjrf_defaultBloomOpts(mjrfBloomOpts* opts) {
@@ -296,6 +299,8 @@ void mjrf_defaultBloomOpts(mjrfBloomOpts* opts) {
   opts->levels = 6;
   opts->lens_flare = false;
   opts->starburst = false;
+  opts->dirt_strength = 0.2f;
+  opts->resolution = 384;
 }
 
 void mjrf_defaultVignetteOpts(mjrfVignetteOpts* opts) {
@@ -330,6 +335,8 @@ void mjrf_defaultColorGradingOpts(mjrfColorGradingOpts* opts) {
   std::memset(opts, 0, sizeof(mjrfColorGradingOpts));
   opts->tone_mapper = mjTONE_MAPPER_PBR_NEUTRAL;
   opts->output_color_space = mjCOLORSPACE_SRGB;
+  opts->luminance_scaling = false;
+  opts->gamut_mapping = false;
   opts->exposure = 0.0f;
   opts->night_adaptation = 0.0f;
   opts->contrast = 1.0f;
@@ -676,6 +683,14 @@ void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model) {
   read(opts->bloom.levels, "filament.bloom.levels");
   read(opts->bloom.lens_flare, "filament.bloom.lens_flare");
   read(opts->bloom.starburst, "filament.bloom.starburst");
+  read(opts->bloom.dirt_strength, "filament.bloom.dirt_strength");
+  // Read as a real first, to avoid an out-of-range float-to-integer cast.
+  mjtNum bloom_resolution = opts->bloom.resolution;
+  read(bloom_resolution, "filament.bloom.resolution");
+  if (std::isfinite(bloom_resolution)) {
+    opts->bloom.resolution = static_cast<uint32_t>(
+        std::clamp(bloom_resolution, mjtNum{1}, mjtNum{2048}));
+  }
 
   // mjrfColorGradingOpts
   read(opts->color_grading.tone_mapper, "filament.cg.tone_mapping", mjrToneMapper{});
@@ -687,6 +702,8 @@ void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model) {
   read(opts->color_grading.saturation, "filament.cg.saturation");
   read(opts->color_grading.temperature, "filament.cg.temperature");
   read(opts->color_grading.tint, "filament.cg.tint");
+  read(opts->color_grading.luminance_scaling, "filament.cg.luminance_scaling");
+  read(opts->color_grading.gamut_mapping, "filament.cg.gamut_mapping");
   read(opts->color_grading.out_red, "filament.cg.out_red");
   read(opts->color_grading.out_green, "filament.cg.out_green");
   read(opts->color_grading.out_blue, "filament.cg.out_blue");
@@ -720,6 +737,8 @@ void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model) {
   read(opts->fog.cutoff, "filament.fog.cut_off_distance");
   read(opts->fog.height, "filament.fog.height");
   read(opts->fog.height_falloff, "filament.fog.height_falloff");
+  read(opts->fog.in_scattering_start, "filament.fog.in_scattering_start");
+  read(opts->fog.in_scattering_size, "filament.fog.in_scattering_size");
 
   // mjrfHazeOpts
   read(opts->haze.enable, "filament.haze.enabled");
