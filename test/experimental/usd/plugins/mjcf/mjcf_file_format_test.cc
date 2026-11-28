@@ -199,7 +199,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
   ExpectAttributeEqual(
       stage,
       "/mesh_test/Materials/material_red/PreviewSurface.inputs:diffuseColor",
-      pxr::GfVec3f(0.8, 0, 0));
+      pxr::GfVec3f(0.60382736f, 0, 0));
   ExpectAttributeHasConnection(
       stage, "/mesh_test/Materials/material_red.outputs:surface",
       "/mesh_test/Materials/material_red/PreviewSurface.outputs:surface");
@@ -356,9 +356,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {
       stage, "/test/sphere_also_default.primvars:displayOpacity");
 
   EXPECT_PRIM_VALID(stage, "/test/sphere_almost_default");
-  ExpectAttributeEqual(stage,
-                       "/test/sphere_almost_default.primvars:displayColor",
-                       pxr::VtArray<pxr::GfVec3f>{{0.5, 0.5, 0.5}});
+  ExpectAttributeEqual(
+      stage, "/test/sphere_almost_default.primvars:displayColor",
+      pxr::VtArray<pxr::GfVec3f>{{0.21404114f, 0.21404114f, 0.21404114f}});
   ExpectAttributeEqual(stage,
                        "/test/sphere_almost_default.primvars:displayOpacity",
                        pxr::VtArray<float>{0.9});

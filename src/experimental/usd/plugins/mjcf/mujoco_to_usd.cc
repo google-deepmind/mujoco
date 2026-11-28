@@ -28,6 +28,7 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "mjcf/utils.h"
+#include "src/experimental/usd/color_utils.h"
 #include <pxr/base/arch/attributes.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/quatd.h>
@@ -392,7 +393,9 @@ class ModelWriter {
       SetAttributeDefault(
           layer_, display_color_attr,
           pxr::VtArray<pxr::GfVec3f>{
-              {element->rgba[0], element->rgba[1], element->rgba[2]}});
+              {mujoco::usd::SrgbToLinear(element->rgba[0]),
+               mujoco::usd::SrgbToLinear(element->rgba[1]),
+               mujoco::usd::SrgbToLinear(element->rgba[2])}});
       // Set the displayOpacity attribute, only if the opacity is not 1.
       if (element->rgba[3] != 1.0f) {
         auto display_opacity_attr = CreateAttributeSpec(
@@ -1156,9 +1159,11 @@ class ModelWriter {
       }
     } else {
       // If no texture is specified, use the rgba diffuse color.
-      SetAttributeDefault(layer_, diffuse_color_attr,
-                          pxr::GfVec3f(material->rgba[0], material->rgba[1],
-                                       material->rgba[2]));
+      SetAttributeDefault(
+          layer_, diffuse_color_attr,
+          pxr::GfVec3f(mujoco::usd::SrgbToLinear(material->rgba[0]),
+                       mujoco::usd::SrgbToLinear(material->rgba[1]),
+                       mujoco::usd::SrgbToLinear(material->rgba[2])));
     }
   }
 

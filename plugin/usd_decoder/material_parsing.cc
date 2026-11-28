@@ -19,6 +19,7 @@
 #include <string>
 
 #include <mujoco/mujoco.h>
+#include "src/experimental/usd/color_utils.h"
 #include <pxr/base/gf/vec3f.h>
 #include <pxr/base/gf/vec4f.h>
 #include <pxr/base/tf/staticData.h>
@@ -262,6 +263,11 @@ void ParsePreviewSurface(mjSpec* spec, mjsMaterial* material,
                          const pxr::UsdShadeShader& shader) {
   auto diffuse = ReadShaderInput<pxr::GfVec3f>(
       spec, shader.GetInput(kTokens->diffuseColor));
+  if (diffuse.value) {
+    for (int i = 0; i < 3; ++i) {
+      (*diffuse.value)[i] = mujoco::usd::LinearToSrgb((*diffuse.value)[i]);
+    }
+  }
   AssignShaderInput(spec, material, &material->rgba, mjTEXROLE_RGB, diffuse);
 
   auto metallic =

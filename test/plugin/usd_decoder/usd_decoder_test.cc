@@ -1038,6 +1038,46 @@ def PhysicsFixedJoint "joint_body2_body3" {
   EXPECT_EQ(model->neq, 1);
 }
 
+TEST_F(UsdPreservationSemanticsTest, LinearColorsDecodeAsSrgb) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+        rel material:binding = </material>
+        color3f[] primvars:displayColor = [(0.0015479876, 0.0732389559, 0.6038273389)]
+        float[] primvars:displayOpacity = [0.4]
+    }
+}
+def Material "material" {
+    token outputs:surface.connect = </material/surface.outputs:surface>
+    def Shader "surface" {
+        uniform token info:id = "UsdPreviewSurface"
+        color3f inputs:diffuseColor = (0.0015479876, 0.0732389559, 0.6038273389)
+        float inputs:metallic = 0
+        float inputs:roughness = 0.5
+        token outputs:surface
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  auto* geom =
+      mjs_asGeom(mjs_findElement(spec.get(), mjOBJ_GEOM, "/body/geom"));
+  auto* material =
+      mjs_asMaterial(mjs_findElement(spec.get(), mjOBJ_MATERIAL, "/material"));
+  ASSERT_NE(geom, nullptr);
+  ASSERT_NE(material, nullptr);
+  const float expected[] = {0.02f, 0.3f, 0.8f};
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(geom->rgba[i], expected[i], 1e-6f);
+    EXPECT_NEAR(material->rgba[i], expected[i], 1e-6f);
+  }
+  EXPECT_FLOAT_EQ(geom->rgba[3], 0.4f);
+  EXPECT_FLOAT_EQ(material->rgba[3], 1.0f);
+}
+
 // tiny RGB 3 x 2 PNG file
 constexpr uint8_t kTinyPng[] = {
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,

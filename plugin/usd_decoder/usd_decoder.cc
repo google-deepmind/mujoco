@@ -43,6 +43,7 @@
 #include "kinematic_tree.h"
 #include "material_parsing.h"
 #include "newton_tokens.h"
+#include "src/experimental/usd/color_utils.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/matrix4f.h>
@@ -2014,9 +2015,9 @@ void ParseDisplayColorAndOpacity(const pxr::UsdPrim& prim, mjsGeom* geom) {
     pxr::VtArray<pxr::GfVec3f> display_color;
     displayColorPrimvar.Get(&display_color);
     if (!display_color.empty()) {
-      geom->rgba[0] = display_color[0][0];
-      geom->rgba[1] = display_color[0][1];
-      geom->rgba[2] = display_color[0][2];
+      for (int i = 0; i < 3; ++i) {
+        geom->rgba[i] = mujoco::usd::LinearToSrgb(display_color[0][i]);
+      }
     }
   }
   if (displayOpacityPrimvar.HasAuthoredValue()) {
