@@ -60,10 +60,10 @@ def _get_obj_or_raise(spec: mujoco.MjSpec, obj_type: str, obj_name: str) -> Any:
 def apply_param_modifiers_spec(
     params: ParameterDict, spec: mujoco.MjSpec
 ) -> mujoco.MjSpec:
+  """Apply current parameter values, including frozen values, to the spec."""
   for key in params.keys():
     param = params[key]
-    if not param.frozen:
-      param.apply_modifier(spec)
+    param.apply_modifier(spec)
   return spec
 
 
