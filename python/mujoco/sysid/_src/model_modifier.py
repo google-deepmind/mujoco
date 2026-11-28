@@ -26,23 +26,9 @@ import numpy as np
 
 
 def remove_visuals(in_spec: mujoco.MjSpec) -> mujoco.MjSpec:
-  """Remove visual elements from a Spec."""
+  """Remove visual-only elements while preserving the physical model."""
   spec = in_spec.copy()
-  all_geoms = spec.worldbody.find_all("geom")
-  for geom in all_geoms:
-    if geom.contype == 0 and geom.conaffinity == 0:
-      if geom.type == mujoco.mjtGeom.mjGEOM_MESH and geom.meshname:
-        meshname = geom.meshname
-        mesh = spec.mesh(meshname)
-        if mesh:  # multiple geoms can ref same mesh.
-          spec.delete(mesh)
-      spec.delete(geom)
-
-  for mat in spec.materials:
-    spec.delete(mat)
-  for tex in spec.textures:
-    spec.delete(tex)
-
+  spec.discard_visual()
   spec.compile()  # TODO(b/0): is this compile necessary?
   return spec
 
