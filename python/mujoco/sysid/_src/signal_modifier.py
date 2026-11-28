@@ -19,10 +19,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+import numpy as np
+
 import mujoco
 from mujoco.sysid._src import parameter
 from mujoco.sysid._src import timeseries
-import numpy as np
 
 
 def _get_sensor_indices(model: mujoco.MjModel, sensor_name: str) -> list[int]:
@@ -318,8 +319,12 @@ def normalize_residual(
 ) -> np.ndarray:
   """Normalize the residual by the standard deviation of the measured data.
 
+  Channels with no measured signal have no scale to normalize by, so their
+  residuals are left unscaled.
+
   Args:
     residual: Residual array, shape ``(n_timesteps, n_sensors)``.
     measured_data: Measured data array, same shape as *residual*.
   """
-  return residual / (np.linalg.norm(measured_data, axis=0) / np.sqrt(2))
+  scale = np.linalg.norm(measured_data, axis=0) / np.sqrt(2)
+  return residual / np.where(scale == 0, 1.0, scale)

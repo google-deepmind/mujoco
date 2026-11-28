@@ -14,16 +14,17 @@
 # ==============================================================================
 """Tests for signal_modifier and SignalTransform."""
 
+import numpy as np
+import pytest
+
 import mujoco
+from mujoco.sysid._src import optimize
 from mujoco.sysid._src import parameter
 from mujoco.sysid._src import signal_modifier
 from mujoco.sysid._src import timeseries
 from mujoco.sysid._src.parameter import Parameter
 from mujoco.sysid._src.parameter import ParameterDict
 from mujoco.sysid._src.signal_transform import SignalTransform
-import numpy as np
-import pytest
-
 
 # ===========================================================================
 # Helpers
@@ -260,6 +261,67 @@ def test_normalize_residual():
   result = signal_modifier.normalize_residual(residual, measured)
   norm = np.linalg.norm(measured, axis=0) / np.sqrt(2)
   np.testing.assert_allclose(result, residual / norm)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize("zero_channel_residual", [0.0, 2.0])
+def test_normalize_residual_zero_measured_channel(dtype, zero_channel_residual):
+  """Zero measured channels retain their residual without dividing by zero."""
+  measured = np.array([[0.0, 1.0], [0.0, 3.0]], dtype=dtype)
+  residual = np.array(
+      [[zero_channel_residual, 2.0], [zero_channel_residual, 6.0]], dtype=dtype
+  )
+
+  with np.errstate(divide="raise", invalid="raise"):
+    result = signal_modifier.normalize_residual(residual, measured)
+
+  np.testing.assert_array_equal(result[:, 0], residual[:, 0])
+  np.testing.assert_allclose(
+      result[:, 1],
+      residual[:, 1] / (np.linalg.norm(measured[:, 1]) / np.sqrt(2)),
+  )
+
+
+@pytest.mark.parametrize("predicted_value", [0.0, 0.5])
+def test_signal_transform_zero_measurements(arm_model, predicted_value):
+  """Default normalization keeps stationary sensor errors finite and nonzero."""
+  measured = _make_arm_sensor_ts(arm_model)
+  measured.data[:] = 0.0
+  predicted = timeseries.TimeSeries(
+      measured.times,
+      np.full_like(measured.data, predicted_value),
+      measured.signal_mapping,
+  )
+
+  with np.errstate(divide="raise", invalid="raise"):
+    result, _, _ = SignalTransform().apply(
+        ParameterDict(), predicted, measured, arm_model, return_pred_all=True
+    )
+
+  np.testing.assert_allclose(result, -predicted_value)
+
+
+def test_optimize_bias_with_zero_measurements(arm_model):
+  """A nonzero prediction against zero measurements still drives optimization."""
+  measured = _make_arm_sensor_ts(arm_model)
+  measured.data[:] = 0.0
+  bias = Parameter("bias", [1.0], [-2.0], [2.0])
+  params = _make_pdict(bias)
+  transform = SignalTransform()
+  transform.bias("*", bias, target="predicted")
+
+  def residual_fn(x, current_params):
+    current_params.update_from_vector(x)
+    return transform.apply(
+        current_params, measured, measured, arm_model, return_pred_all=True
+    )
+
+  opt_params, result = optimize.optimize(
+      params, residual_fn, optimizer="scipy", verbose=False
+  )
+
+  assert result.success
+  np.testing.assert_allclose(opt_params["bias"].value, 0.0, atol=1e-8)
 
 
 # ===========================================================================
