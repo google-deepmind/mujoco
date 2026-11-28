@@ -239,17 +239,18 @@ class USDExporter:
 
   def _load_textures(self):
     """Load textures."""
-    data_adr = 0
     self.texture_files = []
     for texture_id in range(self.model.ntex):
       texture_height = self.model.tex_height[texture_id]
       texture_width = self.model.tex_width[texture_id]
       texture_nchannel = self.model.tex_nchannel[texture_id]
+      data_adr = self.model.tex_adr[texture_id]
       pixels = texture_nchannel * texture_height * texture_width
+      shape = (texture_height, texture_width)
+      if texture_nchannel != 1:
+        shape += (texture_nchannel,)
       img = im.fromarray(
-          self.model.tex_data[data_adr : data_adr + pixels].reshape(
-              texture_height, texture_width, 3
-          )
+          self.model.tex_data[data_adr : data_adr + pixels].reshape(shape)
       )
       img = ImageOps.flip(img)
 
@@ -265,8 +266,6 @@ class USDExporter:
       )
 
       self.texture_files.append(img_path)
-
-      data_adr += pixels
 
     if self.verbose:
       print(

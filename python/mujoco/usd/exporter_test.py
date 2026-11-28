@@ -14,12 +14,15 @@
 # ==============================================================================
 """Tests for the MuJoCo USD Exporter."""
 
+import io
 import os
 import tempfile
 
 from absl.testing import absltest
 from etils import epath
 import mujoco
+import numpy as np
+from PIL import Image
 
 try:
   from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
@@ -68,6 +71,45 @@ class ExporterTest(absltest.TestCase):
       )
       with open(golden_path, "r", encoding="utf-8") as golden_file:
         self.assertEqual(f.readlines(), golden_file.readlines())
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_texture_channel_counts(self):
+    images = {
+        "gray": np.arange(16, dtype=np.uint8).reshape(4, 4),
+        "rgba": np.arange(64, dtype=np.uint8).reshape(4, 4, 4),
+        "rgb": np.arange(48, dtype=np.uint8).reshape(4, 4, 3),
+    }
+    assets = {}
+    for name, pixels in images.items():
+      buffer = io.BytesIO()
+      Image.fromarray(pixels).save(buffer, format="PNG")
+      assets[f"{name}.png"] = buffer.getvalue()
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <asset>
+          <texture name="gray" type="2d" file="gray.png" nchannel="1"/>
+          <texture name="rgba" type="2d" file="rgba.png" nchannel="4"/>
+          <texture name="rgb" type="2d" file="rgb.png" nchannel="3"/>
+        </asset>
+        <worldbody><geom size="0.1"/></worldbody>
+      </mujoco>
+    """, assets)
+    exporter = exporter_module.USDExporter(
+        model,
+        output_directory_root=self.create_tempdir().full_path,
+        verbose=False,
+    )
+    for index, name in enumerate(images):
+      channels = model.tex_nchannel[index]
+      start = model.tex_adr[index]
+      expected = model.tex_data[
+          start : start + 16 * channels
+      ].reshape(images[name].shape)
+      path = os.path.join(
+          exporter.frames_directory, exporter.texture_files[index]
+      )
+      with Image.open(path) as image:
+        np.testing.assert_array_equal(np.asarray(image), expected[::-1])
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):
