@@ -948,7 +948,15 @@ void ParseUsdPhysicsMassAPIForBody(mjsBody* body,
     pxr::VtDoubleArray inertia;
     newton_inertia_attr.Get(&inertia);
     if (inertia.size() == 6) {
+      // newton:inertia is the full tensor in the body frame and overrides
+      // physics:diagonalInertia and physics:principalAxes, which writers may
+      // author as a fallback for readers without the Newton schemas: clear
+      // them, so that the tensor is neither rejected alongside a diagonal
+      // inertia nor rotated by the principal axes.
       std::copy(inertia.begin(), inertia.end(), body->fullinertia);
+      body->inertia[0] = body->inertia[1] = body->inertia[2] = 0;
+      body->iquat[0] = 1;
+      body->iquat[1] = body->iquat[2] = body->iquat[3] = 0;
     }
   }
 }
