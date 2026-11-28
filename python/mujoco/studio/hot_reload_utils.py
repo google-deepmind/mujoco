@@ -14,7 +14,8 @@
 """File-watching, module-graph, and class helpers for hot_reload."""
 
 import collections
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
+from collections.abc import Mapping
 import contextlib
 import dataclasses
 import enum
@@ -205,7 +206,20 @@ def same_default(a: Any, b: Any) -> bool:
     if isinstance(a, enum.Enum) and isinstance(b, enum.Enum):
       return a.name == b.name and same_default(a.value, b.value)
     if dataclasses.is_dataclass(a) and dataclasses.is_dataclass(b):
-      return same_default(vars(a), vars(b))
+      a_fields = {
+          f.name: getattr(a, f.name)
+          for f in dataclasses.fields(a)
+          if hasattr(a, f.name)
+      }
+      b_fields = {
+          f.name: getattr(b, f.name)
+          for f in dataclasses.fields(b)
+          if hasattr(b, f.name)
+      }
+      return same_default(
+          getattr(a, '__dict__', {}) | a_fields,
+          getattr(b, '__dict__', {}) | b_fields,
+      )
     if hasattr(a, '__dict__') and hasattr(b, '__dict__'):
       return same_default(vars(a), vars(b))
     return repr(a) == repr(b)
