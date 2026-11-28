@@ -91,8 +91,10 @@ static inline int projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mjt
 typedef struct {
   int verts;         // indices of the three vertices of the face in the polytope
   int adj[3];        // adjacent faces, one for each edge: [v1,v2], [v2,v3], [v3,v1]
-  mjtNum v[3];       // projection of the origin on face, can be used as face normal
-  mjtNum dist2;      // squared norm of v; negative if deleted
+  mjtNum n[3];       // outward unit normal
+  mjtNum dist;       // distance from the origin to the face plane
+  mjtNum v[3];       // projection of the origin on the face plane (dist * n)
+  mjtNum dist2;      // squared distance; negative if deleted
   int index;         // index in map; -1: not in map, -2: deleted from polytope
 } Face;
 
@@ -1102,7 +1104,7 @@ static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   // check hexahedron is convex
   if (!rayTriangle(NULL, v1, v2, v3, v4, v5, 0)) {
     for (int i = 0; i < 6; i++) {
-      if (pt->faces[i].dist2 < mjMINEPATOL2) {
+      if (mju_abs(pt->faces[i].dist) < mjMINEPATOL) {
         int vai = (i % 3 == 0) ? v3i : ((i % 3 == 1) ? v5i : v4i);
         int vbi = (i % 3 == 0) ? v4i : ((i % 3 == 1) ? v3i : v5i);
         replaceBestSimplex3(pt, obj1, obj2, v1i, v2i, vai, vbi);
@@ -1456,20 +1458,25 @@ static inline mjtNum attachFace(Polytope* pt, int v1, int v2, int v3,
   face->adj[1] = adj2;
   face->adj[2] = adj3;
 
-  // compute witness point v
-  int ret = projectOriginPlane(face->v, pt->verts[v3].vert, pt->verts[v2].vert, pt->verts[v1].vert);
-  if (ret) {
+  // face plane from its vertices, which does not depend on where the origin is
+  const mjtNum* p1 = pt->verts[v1].vert;
+  mjtNum e1[3], e2[3];
+  sub3(e1, pt->verts[v2].vert, p1);
+  sub3(e2, pt->verts[v3].vert, p1);
+  cross3(face->n, e1, e2);
+  mjtNum norm = norm3(face->n);
+  if (norm < mjMINVAL) {
     return 0;
   }
 
-  // ensure projection points outward from the polytope
+  // orient the normal outward from the polytope
   mjtNum outward[3];
-  sub3(outward, pt->verts[v1].vert, pt->center);
-  if (dot3(face->v, outward) < 0) {
-    scl3(face->v, face->v, -1);
-  }
+  sub3(outward, p1, pt->center);
+  scl3(face->n, face->n, dot3(face->n, outward) < 0 ? -1 / norm : 1 / norm);
 
-  face->dist2 = dot3(face->v, face->v);
+  face->dist = mju_abs(dot3(face->n, p1));
+  scl3(face->v, face->n, face->dist);
+  face->dist2 = face->dist * face->dist;
   face->index = -1;
 
   return face->dist2;
@@ -1561,7 +1568,7 @@ static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjt
   // witness point on geom 2
   lincomb(x2, lambda, 3, v1->vert2, v2->vert2, v3->vert2, NULL);
 
-  return -mju_sqrt(face->dist2);
+  return -face->dist;
 }
 
 
@@ -1602,10 +1609,10 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     }
 
     // compute support point w from the closest face's normal
-    mjtNum lower = mju_sqrt(lower2);
-    int wi = epaSupport(pt, obj1, obj2, face->v, lower);
+    mjtNum lower = face->dist;
+    int wi = epaSupport(pt, obj1, obj2, face->n, 1);
     const Vertex* w = pt->verts + wi;
-    mjtNum upper_k = dot3(face->v, w->vert) / lower;  // upper bound for kth iteration
+    mjtNum upper_k = dot3(face->n, w->vert);  // upper bound for kth iteration
     if (upper_k < upper) {
       upper = upper_k;
       upper2 = upper * upper;
