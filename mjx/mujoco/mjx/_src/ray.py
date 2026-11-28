@@ -271,7 +271,9 @@ def ray(
   geom_vecs = jax.vmap(lambda x: x.T @ vec)(d.geom_xmat)
 
   geom_filter_dyn = (m.geom_matid != -1) | (m.geom_rgba[:, 3] != 0)
-  geom_filter_dyn &= (m.geom_matid == -1) | (m.mat_rgba[m.geom_matid, 3] != 0)
+  # geom_matid == -1 selects the appended opaque entry (mat_rgba may be empty)
+  mat_alpha = jp.append(m.mat_rgba[:, 3], 1.0)
+  geom_filter_dyn &= mat_alpha[m.geom_matid] != 0
   for geom_type, fn in _RAY_FUNC.items():
     (id_,) = np.nonzero(geom_filter & (m.geom_type == geom_type))
 

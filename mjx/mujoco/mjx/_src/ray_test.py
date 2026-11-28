@@ -285,6 +285,63 @@ class RayTest(parameterized.TestCase):
     _assert_eq(geomid, -1, 'geom_id')
     _assert_eq(dist, -1, 'dist')
 
+  def test_ray_without_materials(self):
+    """Tests ray on a model with no materials, so mat_rgba is empty."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <geom name="floor" type="plane" size="5 5 .1"/>
+          <body pos="0 0 1">
+            <freejoint/>
+            <geom name="ball" size=".1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    self.assertEqual(m.nmat, 0)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+
+    pnt, vec = jp.array([0.0, 0.0, 3.0]), jp.array([0.0, 0.0, -1.0])
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    geomid_c = np.zeros(1, dtype=np.int32)
+    dist_c = mujoco.mj_ray(
+        m, d, np.array(pnt), np.array(vec), None, 1, -1, geomid_c
+    )
+    _assert_eq(geomid, geomid_c[0], 'geom_id')
+    _assert_eq(dist, dist_c, 'dist')
+
+  def test_ray_invisible_material(self):
+    """Tests ray skips geoms whose material is transparent."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <asset>
+          <material name="glass" rgba="1 1 1 0"/>
+        </asset>
+        <worldbody>
+          <geom name="floor" type="plane" size="5 5 .1"/>
+          <body pos="0 0 1">
+            <freejoint/>
+            <geom name="ball" size=".1" material="glass"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+
+    pnt, vec = jp.array([0.0, 0.0, 3.0]), jp.array([0.0, 0.0, -1.0])
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    geomid_c = np.zeros(1, dtype=np.int32)
+    dist_c = mujoco.mj_ray(
+        m, d, np.array(pnt), np.array(vec), None, 1, -1, geomid_c
+    )
+    self.assertEqual(geomid_c[0], 0)  # MuJoCo skips the glass ball
+    _assert_eq(geomid, geomid_c[0], 'geom_id')
+    _assert_eq(dist, dist_c, 'dist')
+
 
 if __name__ == '__main__':
   absltest.main()
