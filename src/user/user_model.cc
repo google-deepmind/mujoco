@@ -125,6 +125,19 @@ int GetBodyIdFromWrap(const mjCWrap* wrap) {
   }
 }
 
+// mark the axis of an aligned slide joint as found, return true if it was already found
+bool RepeatedSlide(mjtJoint type, const double axis[3], bool slidefound[3]) {
+  if (type != mjJNT_SLIDE) { return false; }
+  bool repeated = false;
+  for (int i = 0; i < 3; i++) {
+    if (std::abs(axis[i]) > mjEPS) {
+      repeated      = slidefound[i];
+      slidefound[i] = true;
+    }
+  }
+  return repeated;
+}
+
 }  // namespace
 
 //---------------------------------- CONSTRUCTOR AND DESTRUCTOR ------------------------------------
@@ -1197,16 +1210,18 @@ void mjCModel::ComputeSparseSizes() {
   for (int i = 1; i < nbody; ++i) {
     if (!body_simple_pre[i]) continue;
 
-    // demote if non-aligned, non-zero pos, or multiple rotational joints
-    mjCBody* pb       = bodies_[i];
-    int      rotfound = 0;
+    // demote if non-aligned, non-zero pos, multiple rotational joints, or sliders on the same axis
+    mjCBody* pb            = bodies_[i];
+    int      rotfound      = 0;
+    bool     slidefound[3] = {false, false, false};
     for (const auto* pj : pb->joints) {
       bool axis_aligned = ((std::abs(pj->axis[0]) > mjEPS) +
                            (std::abs(pj->axis[1]) > mjEPS) +
                            (std::abs(pj->axis[2]) > mjEPS)) == 1;
       if (rotfound ||
           !IsNullPose(pj->pos) ||
-          ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned)) {
+          ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned) ||
+          RepeatedSlide(pj->type, pj->axis, slidefound)) {
         body_simple_pre[i] = 0;
         break;
       }
@@ -3028,7 +3043,8 @@ void mjCModel::CopyTree(mjModel* m) {
     if (m->body_parentid[i] > 0) { m->body_simple[m->body_parentid[i]] = 0; }
 
     // loop over joints for this body
-    int rotfound = 0;
+    int  rotfound      = 0;
+    bool slidefound[3] = {false, false, false};
     for (int j = 0; j < (int)pb->joints.size(); j++) {
       // get pointer and id
       mjCJoint* pj  = pb->joints[j];
@@ -3058,13 +3074,14 @@ void mjCModel::CopyTree(mjModel* m) {
       m->jnt_margin[jid] = (mjtNum)pj->margin;
       mjuu_copyvec(m->jnt_user + nuser_jnt * jid, pj->get_userdata().data(), nuser_jnt);
 
-      // not simple if: rotation already found, or pos not zero, or mis-aligned axis
+      // not simple if: rotation already found, pos not zero, mis-aligned axis, or repeated slider
       bool axis_aligned = ((std::abs(pj->axis[0]) > mjEPS) +
                            (std::abs(pj->axis[1]) > mjEPS) +
                            (std::abs(pj->axis[2]) > mjEPS)) == 1;
       if (rotfound ||
           !IsNullPose(m->jnt_pos + 3 * jid) ||
-          ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned)) {
+          ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned) ||
+          RepeatedSlide(pj->type, pj->axis, slidefound)) {
         m->body_simple[i] = 0;
       }
 
