@@ -14,6 +14,7 @@
 # ==============================================================================
 """Tests for the MuJoCo USD Exporter."""
 
+import math
 import os
 import tempfile
 
@@ -68,6 +69,52 @@ class ExporterTest(absltest.TestCase):
       )
       with open(golden_path, "r", encoding="utf-8") as golden_file:
         self.assertEqual(f.readlines(), golden_file.readlines())
+
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
+  def test_camera_projection_matches_model(self):
+    model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <statistic extent="2.5"/>
+        <visual><map znear="0.02" zfar="20"/></visual>
+        <worldbody>
+          <camera name="narrow" fovy="30"/>
+          <camera name="wide" fovy="90"/>
+          <camera name="ortho" projection="orthographic" fovy="3"/>
+          <geom type="sphere" size="0.1"/>
+        </worldbody>
+      </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    exporter = exporter_module.USDExporter(
+        model,
+        width=400,
+        height=200,
+        output_directory_root=self.create_tempdir().full_path,
+        camera_names=["narrow", "wide", "ortho"],
+        verbose=False,
+    )
+    exporter.update_scene(data)
+    for index, fovy in enumerate((30, 90)):
+      camera = exporter.usd_cameras[index].usd_camera
+      vertical = camera.GetVerticalApertureAttr().Get()
+      horizontal = camera.GetHorizontalApertureAttr().Get()
+      focal_length = camera.GetFocalLengthAttr().Get()
+      self.assertAlmostEqual(
+          math.degrees(2 * math.atan(vertical / (2 * focal_length))),
+          fovy,
+          places=5,
+      )
+      self.assertAlmostEqual(horizontal / vertical, 2)
+      self.assertEqual(camera.GetProjectionAttr().Get(), "perspective")
+    ortho = exporter.usd_cameras[2].usd_camera
+    self.assertEqual(ortho.GetProjectionAttr().Get(), "orthographic")
+    self.assertAlmostEqual(ortho.GetVerticalApertureAttr().Get(), 30)
+    self.assertAlmostEqual(ortho.GetHorizontalApertureAttr().Get(), 60)
+    for usd_camera in exporter.usd_cameras:
+      near, far = usd_camera.usd_camera.GetClippingRangeAttr().Get()
+      self.assertAlmostEqual(near, 0.05)
+      self.assertAlmostEqual(far, 50)
 
   @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_invalid_usd_identifier_names(self):

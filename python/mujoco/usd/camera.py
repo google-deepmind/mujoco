@@ -14,6 +14,7 @@
 # ==============================================================================
 """Camera handling for USD exporter."""
 
+import mujoco
 import mujoco.usd.utils as utils_module
 
 import numpy as np
@@ -48,6 +49,32 @@ class USDCamera:
     self.usd_camera.GetHorizontalApertureAttr().Set(12)
 
     self.usd_camera.GetClippingRangeAttr().Set(Gf.Vec2f(1e-4, 1e6))
+
+  def set_projection(self, camera: mujoco.MjvGLCamera, aspect: float):
+    """Matches the MuJoCo rendering frustum, including off-center optics."""
+    near = camera.frustum_near
+    height = camera.frustum_top - camera.frustum_bottom
+    half_width = camera.frustum_width or 0.5 * aspect * height
+    # Perspective apertures and offsets share the focal length's units.
+    # Orthographic apertures are specified in tenths of a stage unit.
+    if camera.orthographic:
+      projection = UsdGeom.Tokens.orthographic
+      scale = 10.0
+    else:
+      projection = UsdGeom.Tokens.perspective
+      scale = self.usd_camera.GetFocalLengthAttr().Get() / near
+    self.usd_camera.GetProjectionAttr().Set(projection)
+    self.usd_camera.GetVerticalApertureAttr().Set(height * scale)
+    self.usd_camera.GetHorizontalApertureAttr().Set(2 * half_width * scale)
+    self.usd_camera.GetHorizontalApertureOffsetAttr().Set(
+        camera.frustum_center * scale
+    )
+    self.usd_camera.GetVerticalApertureOffsetAttr().Set(
+        0.5 * (camera.frustum_top + camera.frustum_bottom) * scale
+    )
+    self.usd_camera.GetClippingRangeAttr().Set(
+        Gf.Vec2f(near, camera.frustum_far)
+    )
 
   def update(self, cam_pos: np.ndarray, cam_mat: np.ndarray, frame: int):
     """Updates the position and orientation of the camera in the scene."""

@@ -37,10 +37,14 @@ def Xform "World"
 
         def Camera "Camera_closeup"
         {
-            float2 clippingRange = (0.0001, 1000000)
+            float2 clippingRange = (0.034641016, 173.20508)
             float focalLength = 12
             float focusDistance = 400
-            float horizontalAperture = 12
+            float horizontalAperture = 9.941126
+            float horizontalApertureOffset = 0
+            token projection = "perspective"
+            float verticalAperture = 9.941126
+            float verticalApertureOffset = 0
         }
     }
 
