@@ -59,6 +59,7 @@
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usd/timeCode.h>
 #include <pxr/usd/usd/tokens.h>
+#include <pxr/usd/usdGeom/camera.h>
 #include <pxr/usd/usdGeom/capsule.h>
 #include <pxr/usd/usdGeom/cube.h>
 #include <pxr/usd/usdGeom/cylinder.h>
@@ -124,6 +125,37 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestClassAuthored) {
 
   EXPECT_PRIM_VALID(stage, "/__class__");
   EXPECT_PRIM_VALID(stage, "/__class__/test");
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestCameraClippingRangeInStageUnits) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="camera_test">
+      <statistic extent="2.5"/>
+      <visual>
+        <map znear="0.02" zfar="20"/>
+      </visual>
+      <worldbody>
+        <camera name="cam" pos="0 -1 0.5" fovy="90"/>
+        <geom type="sphere" size="0.1"/>
+      </worldbody>
+    </mujoco>
+  )";
+  auto stage = OpenStage(kXml);
+  auto camera = pxr::UsdGeomCamera::Get(stage, SdfPath("/camera_test/cam"));
+  ASSERT_TRUE(camera);
+
+  pxr::GfVec2f range;
+  ASSERT_TRUE(camera.GetClippingRangeAttr().Get(&range));
+  EXPECT_NEAR(range[0], 0.05f, 1e-6f);
+  EXPECT_NEAR(range[1], 50.0f, 1e-5f);
+
+  float focal_length, vertical_aperture, horizontal_aperture;
+  ASSERT_TRUE(camera.GetFocalLengthAttr().Get(&focal_length));
+  ASSERT_TRUE(camera.GetVerticalApertureAttr().Get(&vertical_aperture));
+  ASSERT_TRUE(camera.GetHorizontalApertureAttr().Get(&horizontal_aperture));
+  EXPECT_NEAR(focal_length, 5.0f, 1e-5f);
+  EXPECT_NEAR(vertical_aperture, 10.0f, 1e-5f);
+  EXPECT_NEAR(horizontal_aperture / vertical_aperture, 4.0f / 3.0f, 1e-6f);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestBasicMeshSources) {
