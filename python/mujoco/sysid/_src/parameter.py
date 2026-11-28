@@ -23,11 +23,12 @@ import pathlib
 from typing import Callable, TYPE_CHECKING, TypeAlias
 
 import colorama
-import mujoco
 import numpy as np
 import numpy.typing as npt
 from tabulate import tabulate
 import yaml
+
+import mujoco
 
 if TYPE_CHECKING:
   from typing_extensions import Self
@@ -208,6 +209,7 @@ class Parameter:
     self.max_value = np.array(state["max_value"])
     self.value = np.array(state["value"])
     self.frozen = state["frozen"]
+    self.modifier = None
 
   # Override default deepycopy so lambda references get copied
   def __deepcopy__(self, memo):
@@ -335,6 +337,8 @@ class ParameterDict:
   @classmethod
   def load_from_disk(cls, path: str | pathlib.Path) -> "ParameterDict":
     """Load parameter dictionary from disk (schema and data).
+
+    Modifier callbacks are not serialized and must be reassigned after loading.
 
     Args:
       path: Path to the saved data.
