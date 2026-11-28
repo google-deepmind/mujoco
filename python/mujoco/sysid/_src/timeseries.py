@@ -703,7 +703,8 @@ class TimeSeries:
       new_times: Optional array of new timestamps. If provided, target_dt is
         ignored.
       target_dt: Optional time interval for regular resampling. Only used if
-        new_times is None.
+        new_times is None. The generated grid covers the input time span and
+        can end up to one interval after the last input timestamp.
       method: Interpolation method to use.
 
     Returns:
@@ -720,13 +721,13 @@ class TimeSeries:
       if target_dt <= 0:
         raise ValueError("target_dt must be a positive float")
 
-      # Create evenly spaced timestamps.
-      new_nsteps = (
-          int(np.ceil((self.times[-1] - self.times[0]) / target_dt)) + 1
-      )
-      new_times = np.linspace(
-          self.times[0], self.times[-1], new_nsteps, endpoint=True
-      )
+      # Keep the requested spacing: rollout executes this exact timestep.
+      start, end = self.times[0], self.times[-1]
+      n_intervals = int(np.ceil((end - start) / target_dt))
+      # Division can round an aligned endpoint just above an integer.
+      if n_intervals > 0 and start + (n_intervals - 1) * target_dt >= end:
+        n_intervals -= 1
+      new_times = start + np.arange(n_intervals + 1) * target_dt
     else:
       # Make sure new_times is valid.
       if new_times.ndim != 1:
