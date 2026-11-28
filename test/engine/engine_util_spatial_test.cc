@@ -126,6 +126,66 @@ TEST_F(RotVecQuatTest, TestEquivalence) {
   }
 }
 
+using DerivQuatTest = MujocoTest;
+
+TEST_F(DerivQuatTest, ZeroVelocityGivesZeroDerivative) {
+  mjtNum quat[4] = {0.5, 0.5, -0.5, 0.5};
+  mjtNum vel[3] = {0, 0, 0};
+  mjtNum res[4] = {1, 1, 1, 1};
+  mju_derivQuat(res, quat, vel);
+  EXPECT_THAT(AsVector(res, 4), ElementsAre(0, 0, 0, 0));
+}
+
+TEST_F(DerivQuatTest, IdentityQuatGivesHalfVelocity) {
+  mjtNum quat[4] = {1, 0, 0, 0};
+  mjtNum vel[3] = {0.5, -1, 2};
+  mjtNum res[4];
+  mju_derivQuat(res, quat, vel);
+  EXPECT_THAT(AsVector(res, 4), ElementsAre(0, 0.25, -0.5, 1));
+}
+
+TEST_F(DerivQuatTest, MatchesQuaternionProduct) {
+  // vel is the angular velocity in the global frame, so the derivative of
+  // quat is 0.5 * (0, vel) * quat
+  mjtNum quat[4] = {0.3, -0.5, 0.7, 0.1};
+  mju_normalize4(quat);
+  mjtNum vel[3] = {1.5, -0.25, 0.75};
+  mjtNum velquat[4] = {0, vel[0], vel[1], vel[2]};
+  mjtNum res[4], expected[4];
+  mju_derivQuat(res, quat, vel);
+  mju_mulQuat(expected, velquat, quat);
+  mju_scl(expected, expected, 0.5, 4);
+  const mjtNum tol = MjTol(1e-15, 1e-6);
+  for (int i = 0; i < 4; i++) {
+    EXPECT_NEAR(res[i], expected[i], tol);
+  }
+}
+
+TEST_F(DerivQuatTest, MatchesFiniteDifferenceOfQuatIntegrate) {
+  mjtNum quat[4] = {0.9, 0.1, -0.3, 0.2};
+  mju_normalize4(quat);
+  mjtNum vel[3] = {-0.6, 1.1, 0.4};
+  mjtNum res[4];
+  mju_derivQuat(res, quat, vel);
+
+  // mju_quatIntegrate takes the angular velocity in the local frame, so
+  // rotate the global-frame vel into the frame of quat first
+  mjtNum negquat[4], localvel[3];
+  mju_negQuat(negquat, quat);
+  mju_rotVecQuat(localvel, vel, negquat);
+
+  // central difference of mju_quatIntegrate
+  const mjtNum h = MjEps(1e-6, 1e-2);
+  mjtNum plus[4] = {quat[0], quat[1], quat[2], quat[3]};
+  mjtNum minus[4] = {quat[0], quat[1], quat[2], quat[3]};
+  mju_quatIntegrate(plus, localvel, h);
+  mju_quatIntegrate(minus, localvel, -h);
+  const mjtNum tol = MjTol(1e-8, 1e-3);
+  for (int i = 0; i < 4; i++) {
+    EXPECT_NEAR(res[i], (plus[i] - minus[i]) / (2 * h), tol);
+  }
+}
+
 using Euler2QuatTest = MujocoTest;
 
 TEST_F(Euler2QuatTest, BadSeq) {
