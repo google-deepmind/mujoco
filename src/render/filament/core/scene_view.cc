@@ -582,6 +582,7 @@ void SceneView::Apply(const mjrfAmbientOcclusionOpts& opts) {
   ao.quality = ToFilamentQuality((mjrQuality)opts.quality);
   ao.lowPassFilter = ToFilamentQuality((mjrQuality)opts.low_pass_filter);
   ao.upsampling = ToFilamentQuality((mjrQuality)opts.upsampling);
+  ao.bilateralThreshold = opts.bilateral_threshold;
   main_view_->setAmbientOcclusionOptions(ao);
 }
 

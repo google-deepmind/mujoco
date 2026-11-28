@@ -442,6 +442,10 @@ specified in the model use the defaults listed below. All flag names begin with 
         - bool
         - 0 (false)
         - Enable screen-space cone tracing.
+      * - ``ao.bilateral_threshold``
+        - real
+        - [filament default]
+        - Depth difference treated as an edge by the blur filter.
 
 .. collapse:: Bloom
 
