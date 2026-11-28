@@ -23,11 +23,12 @@ import pathlib
 from typing import Callable, TYPE_CHECKING, TypeAlias
 
 import colorama
-import mujoco
 import numpy as np
 import numpy.typing as npt
 from tabulate import tabulate
 import yaml
+
+import mujoco
 
 if TYPE_CHECKING:
   from typing_extensions import Self
@@ -392,7 +393,7 @@ class ParameterDict:
     """
     for param in self.parameters.values():
       if not param.frozen:
-        param.value = param.sample(rng)
+        param.update_from_vector(param.sample(rng))
 
   def compare_parameters(
       self,
