@@ -507,22 +507,62 @@ class ModelSequences:
     )
 
 
+def _control_data_in_model_order(
+    ts: timeseries.TimeSeries, model: mujoco.MjModel | None
+) -> np.ndarray:
+  """Resolve named control columns to the actuator order used by rollout."""
+  if model is None or not ts.signal_mapping:
+    return ts.data
+  if ts.data.shape[1] != model.nu:
+    raise ValueError(
+        f"Control data dimension {ts.data.shape[1]} does not match model"
+        f" control dimension {model.nu}"
+    )
+  expected = np.arange(model.nu)
+  order = expected.copy()
+  for name, (_, target) in timeseries.TimeSeries.compute_all_control_mapping(
+      model
+  ).items():
+    signal_type, source = ts.get_indices(name)
+    source = np.asarray(source)
+    if (
+        signal_type != timeseries.SignalType.MjCtrl
+        or source.shape != (1,)
+        or not np.issubdtype(source.dtype, np.integer)
+    ):
+      raise ValueError(f"Control {name} must map to one integer MjCtrl column")
+    order[target] = source
+  if np.array_equal(order, expected):
+    return ts.data
+  if not np.array_equal(np.sort(order), expected):
+    raise ValueError(
+        "Control mapping must use each control column exactly once"
+    )
+  return ts.data[:, order]
+
+
 def timeseries2array(
     control_signal: timeseries.TimeSeries | Sequence[timeseries.TimeSeries],
+    model: mujoco.MjModel | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
   """Convert control TimeSeries to stacked arrays, dropping the last step.
 
   Args:
     control_signal: Control TimeSeries or sequence of TimeSeries.
+    model: Model whose actuator order is used to resolve mapped controls.
+      Unmapped controls, or controls without a model, retain their data order.
 
   Returns:
     ``(control_array, control_times)`` with the last time step removed.
   """
   if isinstance(control_signal, timeseries.TimeSeries):
-    control = control_signal.data
+    control = _control_data_in_model_order(control_signal, model)
     control_times = control_signal.times
   else:
-    control = np.stack([ts.data for ts in control_signal], axis=0)
+    control = np.stack(
+        [_control_data_in_model_order(ts, model) for ts in control_signal],
+        axis=0,
+    )
     control_times = np.stack([ts.times for ts in control_signal], axis=0)
   # The measured data has N sensor measurements and N controls,
   # where the first sensor measurement corresponds to the initial
@@ -627,6 +667,8 @@ def sysid_rollout(
     models: MuJoCo model or sequence of models.
     datas: MuJoCo data or sequence of data.
     control_signal: Control signals as TimeSeries or sequence of TimeSeries.
+      Mapped columns are resolved by actuator name; unmapped columns must
+      already be in model order.
     initial_states: Initial states of the simulation. Shape (n_state,) or
       (n_batch, n_state).
     rollout_signal_mapping: Optional signal mapping for sensordata.
@@ -637,6 +679,7 @@ def sysid_rollout(
     Sequence of SystemTrajectory instances containing the simulation results.
   """
 
+  model0 = models if isinstance(models, mujoco.MjModel) else models[0]
   # if the user does not supply it, we create it.
   # Note that this will impact perf.
   if (
@@ -644,10 +687,6 @@ def sysid_rollout(
       or not rollout_state_mapping
       or not ctrl_mapping
   ):
-    if isinstance(models, mujoco.MjModel):
-      model0 = models
-    else:
-      model0 = models[0]
     qpos_map, qvel_map, act_map, ctrl_mapping = (
         timeseries.TimeSeries.compute_all_state_mappings(model0)
     )
@@ -656,7 +695,7 @@ def sysid_rollout(
         model0
     )
 
-  control, control_times = timeseries2array(control_signal)
+  control, control_times = timeseries2array(control_signal, model0)
   initial_states = sequence2array(initial_states)
   state, sensordata = mj_rollout.rollout(models, datas, initial_states, control)
   assert isinstance(state, np.ndarray)
