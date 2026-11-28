@@ -45,10 +45,11 @@ def _get_face_norm(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
       f'{len(face.shape)}'
   )
   face_vert = vert[face, :]
-  # use CCW winding order convention
-  edge0 = face_vert[:, 1, :] - face_vert[:, 0, :]
-  edge1 = face_vert[:, -1, :] - face_vert[:, 0, :]
-  face_norm = np.cross(edge0, edge1)
+  # use CCW winding order convention. The triangle fan's oriented area gives
+  # the normal even when a corner is nearly straight. Repeated padding
+  # vertices contribute zero area.
+  fan_edges = face_vert[:, 1:] - face_vert[:, :1]
+  face_norm = np.cross(fan_edges[:, :-1], fan_edges[:, 1:]).sum(axis=1)
   face_norm = face_norm / np.linalg.norm(face_norm, axis=1).reshape((-1, 1))
   return face_norm
 

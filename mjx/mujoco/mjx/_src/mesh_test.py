@@ -22,6 +22,26 @@ import trimesh
 
 class MeshTest(absltest.TestCase):
 
+  def test_merge_planar_face_with_nearly_collinear_corner(self):
+    """Tests merging a planar face that has a nearly collinear corner."""
+    # Quantize a planar pentagon as in a float32 mesh. At vertex 0, the two
+    # incident edges are almost collinear.
+    xy = np.array([[-1e-4, 0], [0, -1], [1, -1], [1, 1], [0, 1]])
+    z = 100 + 0.2 * xy[:, 0] + 0.3 * xy[:, 1]
+    tm = trimesh.Trimesh(
+        vertices=np.column_stack((xy, z)).astype(np.float32),
+        faces=[[0, 1, 2], [0, 2, 3], [0, 3, 4]],
+        process=False,
+    )
+    face = mesh._merge_coplanar(None, tm, 0)
+    np.testing.assert_array_equal(np.sort(face), [[0, 1, 2, 3, 4]])
+
+    expected = np.array([-0.2, -0.3, 1.0])
+    expected /= np.linalg.norm(expected)
+    for i in range(face.shape[1]):
+      normal = mesh._get_face_norm(tm.vertices, np.roll(face, i, axis=1))[0]
+      np.testing.assert_allclose(normal, expected, atol=5e-6)
+
   def test_pyramid(self):
     """Tests that a triangulated pyramid converts to merged coplanar faces."""
     vert = np.array([
