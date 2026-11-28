@@ -190,7 +190,9 @@ class SignalTransform:
       for name in sensor_names:
         if fnmatch(name, pattern):
           indices = ts.get_indices(name)[1]
-          data[..., indices] *= params[param_name].value
+          value = params[param_name].value
+          data = data.astype(np.result_type(data, value), copy=False)
+          data[..., indices] *= value
 
     for pattern, param_name, target in self._biases:
       if target != target_label and target != "both":
@@ -198,7 +200,9 @@ class SignalTransform:
       for name in sensor_names:
         if fnmatch(name, pattern):
           indices = ts.get_indices(name)[1]
-          data[..., indices] += params[param_name].value
+          value = params[param_name].value
+          data = data.astype(np.result_type(data, value), copy=False)
+          data[..., indices] += value
 
     result = timeseries.TimeSeries(ts.times, data, ts.signal_mapping)
 
