@@ -36,6 +36,8 @@ import trimesh
 
 
 _MAX_HULL_FACE_VERTICES = 20
+# Allow for float32 vertex rounding relative to the size of the facet.
+_COPLANAR_TOL = 1e-5
 
 
 def _get_face_norm(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
@@ -45,10 +47,11 @@ def _get_face_norm(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
       f'{len(face.shape)}'
   )
   face_vert = vert[face, :]
-  # use CCW winding order convention
-  edge0 = face_vert[:, 1, :] - face_vert[:, 0, :]
-  edge1 = face_vert[:, -1, :] - face_vert[:, 0, :]
-  face_norm = np.cross(edge0, edge1)
+  # use CCW winding order convention. The triangle fan's oriented area gives
+  # the normal even when a corner is nearly straight. Repeated padding
+  # vertices contribute zero area.
+  fan_edges = face_vert[:, 1:] - face_vert[:, :1]
+  face_norm = np.cross(fan_edges[:, :-1], fan_edges[:, 1:]).sum(axis=1)
   face_norm = face_norm / np.linalg.norm(face_norm, axis=1).reshape((-1, 1))
   return face_norm
 
@@ -132,10 +135,19 @@ def _merge_coplanar(
 
     # convert triangulated facet to a polygon
     hull_point_idx = _convex_hull_2d(points, normal)
-    face = point_idx[hull_point_idx]
+    every = hull_point_idx.size // _MAX_HULL_FACE_VERTICES + 1
+    face = point_idx[hull_point_idx[::every]]
 
-    # resize faces that exceed max polygon vertices
-    if face.shape[0] > _MAX_HULL_FACE_VERTICES:
+    # Trimesh can group slightly tilted triangles into one facet. Check all
+    # vertices against the plane that collision detection will use.
+    offsets = points - tm.vertices[face[0]]
+    face_normal = _get_face_norm(tm.vertices, face[None, :])[0]
+    tol = _COPLANAR_TOL * np.linalg.norm(offsets, axis=1).max()
+    if not np.all(np.abs(offsets @ face_normal) <= tol):
+      facets.extend(tm.faces[facet])
+      continue
+
+    if hull_point_idx.size > _MAX_HULL_FACE_VERTICES:
       name = m.names[m.name_meshadr[meshid] :]
       name = name[: name.find(b'\x00')].decode('utf-8')
       warnings.warn(
@@ -144,8 +156,6 @@ def _merge_coplanar(
           'issues and inaccuracies in collision detection. Consider '
           'decimating the mesh.'
       )
-    every = face.shape[0] // _MAX_HULL_FACE_VERTICES + 1
-    face = face[::every]
     facets.append(face)
 
   # Pad facets so that they can be stacked.

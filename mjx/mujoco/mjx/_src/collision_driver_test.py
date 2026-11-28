@@ -723,6 +723,42 @@ class ConvexTest(absltest.TestCase):
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'box_box_edge', 1e-2)
 
+  def test_box_mesh_nearly_coplanar_faces(self):
+    """Tests box contact with a hull containing a curved patch (#2477)."""
+    xml = """
+      <mujoco>
+        <asset>
+          <mesh name="hull" vertex="
+              0.0184  0.0009 -0.0818
+              0.0236  0.0038 -0.0736
+              0.0105 -0.0244 -0.0602
+              0.0058 -0.0252 -0.0691
+              0.0105 -0.0245 -0.0128
+              0.0117 -0.0233  0.0696
+              0.0186  0.0070  0.0840
+              0.0175 -0.0198  0.0696
+              0.0163 -0.0210 -0.0128"/>
+        </asset>
+        <worldbody>
+          <geom type="box" size="0.35 0.23 0.09" pos="0 0 -0.09"/>
+          <body pos="-0.05 0.03 {height}" quat="0.0004 0.3834 0.9236 -0.0016">
+            <freejoint/>
+            <geom type="mesh" mesh="hull"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """
+    height = 0.0837  # The lowest vertex is about 0.35 mm inside the box.
+    d, dx = _collide(xml.format(height=height))
+    self.assertGreater(d.ncon, 0)
+    np.testing.assert_allclose(
+        dx._impl.contact.dist.min(), d.contact.dist.min(), atol=1e-6
+    )
+
+    d, dx = _collide(xml.format(height=height + 0.005))
+    self.assertEqual(d.ncon, 0)
+    self.assertTrue((dx._impl.contact.dist > 0).all())
+
   _CONVEX_CONVEX = """
     <mujoco>
       <asset>
