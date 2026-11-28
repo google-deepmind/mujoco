@@ -87,6 +87,9 @@ class Simulate {
   // loop to render the UI (must be called from main thread because of MacOS)
   void RenderLoop();
 
+  // Finalize render-loop resources and release pending asset-upload callers.
+  void FinishRenderLoop();
+
   // add state to history buffer
   void AddToHistory();
 

@@ -15,6 +15,8 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>  // NOLINT(build/c++11)
+#include <shared_mutex>
 #include <stdexcept>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
@@ -94,11 +96,32 @@ class SimulateWrapper {
   ~SimulateWrapper() { Destroy(); }
 
   void Destroy() {
-    if (simulate_) {
+    if (!destroying_.exchange(true)) {
+      // Stop new uploads while existing callers return from the render loop.
+      // Destruction stays on the thread that owns the OpenGL context.
+      std::unique_lock<std::shared_mutex> lock(upload_mutex_, std::defer_lock);
+      if (!lock.try_lock()) {
+        py::gil_scoped_release no_gil;
+        lock.lock();
+      }
       delete simulate_;
       simulate_ = nullptr;
       destroyed_.store(1);
     }
+  }
+
+  void UpdateAsset(int id, void (mujoco::Simulate::*update)(int)) {
+    // Release the GIL before acquiring the lifetime lock. Destruction can
+    // acquire the GIL to free Python references while holding that lock.
+    py::gil_scoped_release no_gil;
+    if (destroying_.load()) {
+      return;
+    }
+    std::shared_lock<std::shared_mutex> lock(upload_mutex_);
+    if (!simulate_ || destroying_.load()) {
+      return;
+    }
+    (simulate_->*update)(id);
   }
 
   void WaitUntilExit() {
@@ -266,6 +289,8 @@ class SimulateWrapper {
 
   mujoco::Simulate* simulate_;
   std::atomic_int destroyed_ = 0;
+  std::shared_mutex upload_mutex_;
+  std::atomic_bool destroying_ = false;
 
   // Hold references to keep these Python objects alive for as long as the
   // simulate object.
@@ -417,20 +442,15 @@ PYBIND11_MODULE(_simulate, pymodule, pybind11::mod_gil_not_used()) {
              sim.uiloadrequest.fetch_sub(1);
            }),
            py::call_guard<py::gil_scoped_release>())
-      .def("update_hfield",
-           CallIfNotNull(+[](mujoco::Simulate& sim, int hfieldid) {
-             sim.UpdateHField(hfieldid);
-           }),
-           py::call_guard<py::gil_scoped_release>())
-      .def("update_mesh", CallIfNotNull(+[](mujoco::Simulate& sim, int meshid) {
-             sim.UpdateMesh(meshid);
-           }),
-           py::call_guard<py::gil_scoped_release>())
-      .def("update_texture",
-           CallIfNotNull(+[](mujoco::Simulate& sim, int texid) {
-             sim.UpdateTexture(texid);
-           }),
-           py::call_guard<py::gil_scoped_release>())
+      .def("update_hfield", [](SimulateWrapper& wrapper, int hfieldid) {
+             wrapper.UpdateAsset(hfieldid, &mujoco::Simulate::UpdateHField);
+           })
+      .def("update_mesh", [](SimulateWrapper& wrapper, int meshid) {
+             wrapper.UpdateAsset(meshid, &mujoco::Simulate::UpdateMesh);
+           })
+      .def("update_texture", [](SimulateWrapper& wrapper, int texid) {
+             wrapper.UpdateAsset(texid, &mujoco::Simulate::UpdateTexture);
+           })
 
       .def_property(
           "droploadrequest", py::cpp_function(CallIfNotNull(+[](mujoco::Simulate& sim) {
