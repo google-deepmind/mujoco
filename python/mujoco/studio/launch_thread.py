@@ -15,6 +15,7 @@
 
 import queue
 import threading
+import traceback
 from typing import Any, Callable
 
 from mujoco.studio import endpoints
@@ -93,6 +94,24 @@ def make_thread_endpoints() -> (
   )
 
 
+def _clear_exception_frames(error: BaseException) -> None:
+  """Releases worker-thread locals without discarding traceback locations."""
+  pending = [error]
+  seen = set()
+  while pending:
+    exc = pending.pop()
+    if id(exc) in seen:
+      continue
+    seen.add(id(exc))
+    traceback.clear_frames(exc.__traceback__)
+    if exc.__cause__ is not None:
+      pending.append(exc.__cause__)
+    if exc.__context__ is not None:
+      pending.append(exc.__context__)
+    if isinstance(exc, BaseExceptionGroup):
+      pending.extend(exc.exceptions)
+
+
 def launch_thread(
     target_fn: Callable[[endpoints.ViewerEndpoint], None],
     *,
@@ -111,6 +130,10 @@ def launch_thread(
     try:
       target_fn(viewer_endpoint)
     except BaseException as e:  # pylint: disable=broad-exception-caught
+      # A renderer can still be owned by an unwound frame even after close().
+      # Release those references here, before handing the error to the sim
+      # thread: Filament requires destruction on the creating thread.
+      _clear_exception_frames(e)
       error = e
 
   def forward_error() -> None:
