@@ -656,6 +656,10 @@ class TimeSeries:
       indices = np.clip(indices, 0, len(self.times) - 1)
       return self.data[indices]
 
+    if method == "linear" and self.times.size == 1:
+      shape = t.shape + self.data.shape[1:]
+      return np.broadcast_to(self.data[0], shape).copy()
+
     return scipy.interpolate.interp1d(
         self.times,
         self.data,
