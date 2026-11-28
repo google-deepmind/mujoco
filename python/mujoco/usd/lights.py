@@ -56,9 +56,6 @@ class USDSphereLight:
     """Updates the attributes of a sphere light."""
     self.translate_op.Set(Gf.Vec3d(pos.tolist()), frame)
 
-    if not np.any(pos):
-      intensity = 0
-
     self.usd_light.GetIntensityAttr().Set(intensity)
     self.usd_light.GetColorAttr().Set(Gf.Vec3d(color.tolist()))
 

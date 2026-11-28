@@ -14,7 +14,7 @@ def Xform "World"
     def Xform "Light_Xform_0"
     {
         double3 xformOp:translate.timeSamples = {
-            0: (0, -3.674234628677368, 3.674234628677368),
+            0: (0, -6, 0),
         }
         uniform token[] xformOpOrder = ["xformOp:translate"]
 
