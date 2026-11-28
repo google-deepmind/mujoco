@@ -42,6 +42,18 @@ class MeshTest(absltest.TestCase):
       normal = mesh._get_face_norm(tm.vertices, np.roll(face, i, axis=1))[0]
       np.testing.assert_allclose(normal, expected, atol=5e-6)
 
+  def test_keep_triangles_of_nonplanar_facet(self):
+    """Tests that a facet that is not planar is not merged into one face."""
+    # Two triangles hinged at 0.1 degrees, which trimesh reports as one facet.
+    vert = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], dtype=float)
+    vert[3, 2] = np.tan(np.deg2rad(0.1)) / np.sqrt(2)
+    tm = trimesh.Trimesh(
+        vertices=vert, faces=[[0, 1, 2], [0, 2, 3]], process=False
+    )
+    self.assertLen(tm.facets, 1)
+    face = mesh._merge_coplanar(None, tm, 0)
+    self.assertEqual(face.shape, (2, 3))
+
   def test_pyramid(self):
     """Tests that a triangulated pyramid converts to merged coplanar faces."""
     vert = np.array([
