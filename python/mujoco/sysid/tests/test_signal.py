@@ -348,7 +348,7 @@ class TestDelayBounds:
     delay_param = Parameter("delay", [0.01], [-0.02], [0.05])
     transform.delay("*_pos", delay_param)
 
-    min_d, max_d = transform._compute_delay_bounds()
+    min_d, max_d = transform._compute_delay_bounds(_make_transform_sensor_ts())
     assert min_d == pytest.approx(-0.02)
     assert max_d == pytest.approx(0.05)
 
@@ -359,7 +359,7 @@ class TestDelayBounds:
     transform.delay("*_pos", delay_param)
     transform.delay("*_vel", delay_param)
 
-    min_d, max_d = transform._compute_delay_bounds()
+    min_d, max_d = transform._compute_delay_bounds(_make_transform_sensor_ts())
     assert min_d == pytest.approx(-0.01)
     assert max_d == pytest.approx(0.05)
 
